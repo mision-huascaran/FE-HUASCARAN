@@ -27,7 +27,7 @@ levantado en `http://127.0.0.1:8000`. Para trabajar **sin backend**, pon `VITE_A
 
 | Modo | Cuentas | Contraseña |
 |---|---|---|
-| Backend real | `profesor.prueba@sicedu.test` · `jefa.prueba@sicedu.test` | `ProfesorTest123` · `JefaTest123` |
+| Backend real | `profesor.prueba@sicedu.test` · `jefa.prueba@sicedu.test` · `directivo.prueba@sicedu.test` | `ProfesorTest123` · `JefaTest123` · `DirectivoTest123` |
 | Mock | `rcardenas@sicedu.test` (Profesor) · `jefatura@sicedu.test` (Jefa) · `direccion@sicedu.test` (Directivos) | `sicedu123` |
 
 En desarrollo, la pantalla de inicio de sesión lista las cuentas del modo activo con un botón *Usar*.

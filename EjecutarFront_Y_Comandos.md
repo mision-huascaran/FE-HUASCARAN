@@ -29,7 +29,7 @@ Lo decide el archivo `.env`:
 
 | Quiero… | En `.env` | Cuentas para entrar |
 |---|---|---|
-| Iniciar sesión con el backend real (debe estar levantado en `127.0.0.1:8000`) | `VITE_AUTH_REAL=true` | `profesor.prueba@sicedu.test` / `ProfesorTest123` · `jefa.prueba@sicedu.test` / `JefaTest123` |
+| Iniciar sesión con el backend real (debe estar levantado en `127.0.0.1:8000`) | `VITE_AUTH_REAL=true` | `profesor.prueba@sicedu.test` / `ProfesorTest123` · `jefa.prueba@sicedu.test` / `JefaTest123` · `directivo.prueba@sicedu.test` / `DirectivoTest123` |
 | Trabajar sin backend | `VITE_AUTH_REAL=false` | `rcardenas@sicedu.test`, `jefatura@sicedu.test`, `direccion@sicedu.test` / `sicedu123` |
 
 Después de cambiar `.env`, detén el servidor (`Ctrl + C`) y vuelve a correr `npm run dev`.

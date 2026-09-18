@@ -44,6 +44,7 @@ else console.log(fallo(`GET  /            → inesperado: ${JSON.stringify(raiz.
 const CUENTAS = [
   { rol: 'Profesor', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', esperaDocente: true },
   { rol: 'Jefa_Profesores', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', esperaDocente: false },
+  { rol: 'Directivos', correo: 'directivo.prueba@sicedu.test', password: 'DirectivoTest123', esperaDocente: false },
 ]
 
 let algunToken = null

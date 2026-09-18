@@ -94,8 +94,8 @@ donde le corresponde:
 | `direccion@sicedu.test` | Directivos (3) | `/panel-ejecutivo` |
 
 Esas son las cuentas del mock (`VITE_AUTH_REAL=false`). Con la autenticación real se entra con
-los usuarios sembrados en el backend (`profesor.prueba@sicedu.test`, `jefa.prueba@sicedu.test`); el
-backend todavía no siembra una cuenta de Directivos. En desarrollo, la pantalla de login lista las
+los usuarios sembrados en el backend (`profesor.prueba@sicedu.test`, `jefa.prueba@sicedu.test` y
+`directivo.prueba@sicedu.test`). En desarrollo, la pantalla de login lista las
 cuentas del modo activo con un botón "Usar"; en producción ese bloque no existe.
 
 Lo que ya cumple el login: validación con zod, error único *"Correo o contraseña incorrectos"*

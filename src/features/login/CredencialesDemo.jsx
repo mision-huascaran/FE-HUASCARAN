@@ -7,7 +7,7 @@ import { NOMBRE_ROL, ROLES } from '../../auth/roles'
  *
  * Muestra las cuentas que sirven según de dónde venga la sesión:
  *  - autenticación real  → los usuarios sembrados por `python -m app.seed_data`
- *    (APIS_BACKEND.md). Solo hay dos: no existe cuenta de Directivos todavía.
+ *    (APIS_BACKEND.md): Profesor, Jefa_Profesores y Directivos.
  *  - modo mock           → los cinco usuarios de `db.js`.
  *
  * Solo se renderiza en desarrollo: en una construcción de producción este
@@ -18,6 +18,7 @@ import { NOMBRE_ROL, ROLES } from '../../auth/roles'
 const CUENTAS_BACKEND = [
   { id: 'profesor', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', idRol: ROLES.PROFESOR },
   { id: 'jefa', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', idRol: ROLES.JEFA },
+  { id: 'directivo', correo: 'directivo.prueba@sicedu.test', password: 'DirectivoTest123', idRol: ROLES.DIRECTIVOS },
 ]
 
 export default function CredencialesDemo({ onUsar }) {
