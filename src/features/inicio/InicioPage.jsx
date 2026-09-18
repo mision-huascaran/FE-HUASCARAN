@@ -27,7 +27,7 @@ export default function InicioPage() {
   const { data: resumen, isLoading, semanaActual } = useResumenDocente()
 
   const periodo = periodos.find((p) => p.id_periodo === idPeriodo)
-  const primerNombre = usuario?.nombres?.split(' ')[0] ?? ''
+  const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   return (
     <div className="flex flex-col gap-6">

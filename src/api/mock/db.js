@@ -188,12 +188,15 @@ export const DOCENTES = [
   { id_docente: 3, nombres: 'Marlene', apellidos: 'Huamán Salazar' },
 ]
 
+// Misma forma que devuelve `GET /me` en el backend real (APIS_BACKEND.md):
+// `nombres` y `apellidos` por separado, `activo`, e `id_docente` en null para
+// las cuentas no docentes.
 export const USUARIOS = [
-  { id_usuario: 1, id_rol: 1, correo: 'rcardenas@sicedu.test', id_docente: 1, nombres: 'Rosa Elena Cárdenas Villanueva' },
-  { id_usuario: 2, id_rol: 1, correo: 'jmelendez@sicedu.test', id_docente: 2, nombres: 'Julio César Meléndez Paredes' },
-  { id_usuario: 3, id_rol: 1, correo: 'mhuaman@sicedu.test', id_docente: 3, nombres: 'Marlene Huamán Salazar' },
-  { id_usuario: 4, id_rol: 2, correo: 'jefatura@sicedu.test', id_docente: null, nombres: 'Ana Lucía Bustamante Rojas' },
-  { id_usuario: 5, id_rol: 3, correo: 'direccion@sicedu.test', id_docente: null, nombres: 'Gerardo Ríos Del Águila' },
+  { id_usuario: 1, id_rol: 1, correo: 'rcardenas@sicedu.test', id_docente: 1, nombres: 'Rosa Elena', apellidos: 'Cárdenas Villanueva', activo: true },
+  { id_usuario: 2, id_rol: 1, correo: 'jmelendez@sicedu.test', id_docente: 2, nombres: 'Julio César', apellidos: 'Meléndez Paredes', activo: true },
+  { id_usuario: 3, id_rol: 1, correo: 'mhuaman@sicedu.test', id_docente: 3, nombres: 'Marlene', apellidos: 'Huamán Salazar', activo: true },
+  { id_usuario: 4, id_rol: 2, correo: 'jefatura@sicedu.test', id_docente: null, nombres: 'Ana Lucía', apellidos: 'Bustamante Rojas', activo: true },
+  { id_usuario: 5, id_rol: 3, correo: 'direccion@sicedu.test', id_docente: null, nombres: 'Gerardo', apellidos: 'Ríos Del Águila', activo: true },
 ]
 
 /**
@@ -357,6 +360,51 @@ function nivelGeneralDe(fluidez, ordenAlcanzado, ordenEsperado) {
   return brecha >= 3 ? 'Destacado' : brecha >= 1 ? 'Logrado' : 'Proceso'
 }
 
+/** Docente a cargo de un colegio en un periodo, para firmar los hitos (P8). */
+export function docenteDe(idColegio, idPeriodo) {
+  const asignacion = ASIGNACIONES.find(
+    (a) => a.id_colegio === Number(idColegio) && a.id_periodo === Number(idPeriodo),
+  )
+  const docente = DOCENTES.find((d) => d.id_docente === asignacion?.id_docente)
+  return docente ? `${docente.nombres} ${docente.apellidos}` : 'Sin docente asignado'
+}
+
+/**
+ * Línea de tiempo de una evaluación (RF-024, RN-014, RN-015).
+ *
+ * Tres hitos posibles: lo que sugirió el sistema, el cambio del docente si lo
+ * hubo, y la confirmación. Cuando el docente acepta la sugerencia solo hay dos:
+ * no se inventa un cambio que no ocurrió.
+ */
+function construirTrazabilidad({ fecha, docente, letraSugerida, letraFinal, ajustado }) {
+  const hitos = [
+    {
+      tipo: 'sistema',
+      titulo: `Sistema sugirió ${letraSugerida}`,
+      autor: 'SICEDU',
+      fecha: `${fecha}T08:15:00`,
+    },
+  ]
+
+  if (ajustado) {
+    hitos.push({
+      tipo: 'docente',
+      titulo: `Docente cambió a ${letraFinal}`,
+      autor: docente,
+      fecha: `${fecha}T10:42:00`,
+    })
+  }
+
+  hitos.push({
+    tipo: 'confirmado',
+    titulo: ajustado ? 'Cambio guardado con justificación' : 'Sugerencia confirmada',
+    autor: docente,
+    fecha: `${fecha}T10:45:00`,
+  })
+
+  return hitos
+}
+
 const JUSTIFICACIONES = [
   'El alumno mostró mejor desempeño en clase que en la prueba escrita.',
   'Faltó a dos sesiones del mes; se mantiene el nivel hasta la próxima medición.',
@@ -392,6 +440,9 @@ export const EVALUACIONES = (() => {
       const comprension = nivelPorDesempeno(random, alumno.id_programa, 'Comprensión', razon)
       const cerrado = periodo.estado === 'cerrado'
 
+      const docente = docenteDe(alumno.id_colegio, periodo.id_periodo)
+      const fecha = `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}-15`
+
       id += 1
       filas.push({
         id_evaluacion: id,
@@ -411,7 +462,15 @@ export const EVALUACIONES = (() => {
         justificacion: ajustado ? elegir(random, JUSTIFICACIONES) : null,
         observacion: null,
         estado: cerrado ? (random() < 0.05 ? 'error' : 'revisado') : random() < 0.6 ? 'pendiente' : 'revisado',
-        fecha: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}-15`,
+        fecha,
+        // RF-024: hitos de la revisión humana, lo que pinta la línea de tiempo de P8.
+        trazabilidad: construirTrazabilidad({
+          fecha,
+          docente,
+          letraSugerida: letraPorOrden(ordenSugerido),
+          letraFinal: letraPorOrden(ordenFinal),
+          ajustado,
+        }),
       })
 
       ordenPrevio = ordenFinal
@@ -580,5 +639,158 @@ export function guardarRubricaSemanal(fila) {
   return guardada
 }
 
-// TODO Fase 5: niveles finales mensuales derivados de las rúbricas semanales,
-//              algunos ajustados por el docente con justificación (P9).
+// ── Evaluaciones diagnósticas: escritura ────────────────────────────────────
+
+const proximoIdEvaluacion = () => Math.max(0, ...EVALUACIONES.map((e) => e.id_evaluacion)) + 1
+
+/**
+ * Alta o actualización de una evaluación diagnóstica (P6 y P7).
+ *
+ * La clave es `alumno-periodo`: un alumno tiene como mucho una evaluación por
+ * corte, así que un reintento del mismo envío actualiza la fila en lugar de
+ * duplicarla (RN-010, RNF-001).
+ */
+export function guardarEvaluacion(payload) {
+  const indice = EVALUACIONES.findIndex(
+    (e) => e.id_alumno === Number(payload.id_alumno) && e.id_periodo === Number(payload.id_periodo),
+  )
+  const previa = indice >= 0 ? EVALUACIONES[indice] : null
+
+  const alumno = ALUMNOS.find((a) => a.id_alumno === Number(payload.id_alumno))
+  const periodo = PERIODOS.find((p) => p.id_periodo === Number(payload.id_periodo))
+  const fecha = previa?.fecha ?? new Date().toISOString().slice(0, 10)
+  const docente = alumno ? docenteDe(alumno.id_colegio, payload.id_periodo) : 'Sin docente asignado'
+
+  const ajustado = Boolean(payload.nivel_ajustado && payload.nivel_ajustado !== payload.nivel_sugerido)
+
+  const guardada = {
+    ...previa,
+    id_evaluacion: previa?.id_evaluacion ?? proximoIdEvaluacion(),
+    id_alumno: Number(payload.id_alumno),
+    id_periodo: Number(payload.id_periodo),
+    nivel_inicial_razkids: payload.nivel_inicial_razkids ?? previa?.nivel_inicial_razkids ?? null,
+    nivel_prueba: payload.nivel_prueba ?? previa?.nivel_prueba ?? null,
+    aciertos: Number(payload.aciertos ?? previa?.aciertos ?? 0),
+    total: Number(payload.total ?? previa?.total ?? 0),
+    nivel_sugerido: payload.nivel_sugerido ?? previa?.nivel_sugerido ?? null,
+    nivel_ajustado: payload.nivel_ajustado ?? payload.nivel_sugerido ?? previa?.nivel_ajustado ?? null,
+    fluidez: payload.fluidez ?? previa?.fluidez ?? null,
+    comprension: payload.comprension ?? previa?.comprension ?? null,
+    nivel_general: payload.nivel_general ?? previa?.nivel_general ?? null,
+    ajustado_por_docente: ajustado,
+    // RN-015: sin justificación no se guarda un cambio del nivel sugerido.
+    justificacion: ajustado ? (payload.justificacion ?? previa?.justificacion ?? null) : null,
+    observacion: payload.observacion ?? previa?.observacion ?? null,
+    estado: payload.estado ?? previa?.estado ?? 'pendiente',
+    fecha,
+    trazabilidad: construirTrazabilidad({
+      fecha,
+      docente,
+      letraSugerida: payload.nivel_sugerido ?? previa?.nivel_sugerido,
+      letraFinal: payload.nivel_ajustado ?? payload.nivel_sugerido ?? previa?.nivel_ajustado,
+      ajustado,
+    }),
+    periodo_cerrado: periodo?.estado === 'cerrado',
+  }
+
+  if (indice >= 0) EVALUACIONES[indice] = guardada
+  else EVALUACIONES.push(guardada)
+
+  return guardada
+}
+
+// ── Nivel final mensual (P9) ────────────────────────────────────────────────
+//
+// RF-018: el consolidado mensual NO es un dato que el docente escriba: se deriva
+// de las rúbricas semanales del mes. Se guarda cuántas semanas lo sustentan para
+// poder advertir cuando son menos de tres.
+
+const cacheNivelFinal = new Map()
+
+const nombreNivelRubrica = (idNivel) =>
+  NIVELES_RUBRICA.find((n) => n.id_nivel_rubrica === idNivel)?.nombre_nivel ?? null
+
+/** Meses del año escolar con semanas lectivas cargadas. */
+export const MESES_CON_SEMANAS = [...new Set(SEMANAS.map((s) => `${s.anio}-${String(s.mes).padStart(2, '0')}`))]
+
+export const MES_ACTUAL = `${SEMANA_ACTUAL.anio}-${String(SEMANA_ACTUAL.mes).padStart(2, '0')}`
+
+function generarNivelFinalDeMes(clave) {
+  const [anio, mes] = clave.split('-').map(Number)
+  const random = crearRandom(SEMILLA + anio * 31 + mes * 577)
+  const semanasDelMes = SEMANAS.filter((s) => s.anio === anio && s.mes === mes)
+  const filas = new Map()
+
+  ALUMNOS.forEach((alumno) => {
+    const rubricas = semanasDelMes
+      .map((s) => rubricaSemanalDe(s.id_semana).get(alumno.id_alumno))
+      .filter(Boolean)
+
+    // Sin ninguna rúbrica del mes no hay nada que consolidar para este alumno.
+    if (!rubricas.length) return
+
+    const ultima = rubricas.at(-1)
+    const fluidez = nombreNivelRubrica(ultima.id_nivel_fluidez)
+    const comprension = nombreNivelRubrica(ultima.id_nivel_comprension)
+
+    const esperado = NIVEL_ESPERADO_POR_GRADO.find((e) => e.id_grado === alumno.id_grado)
+    const evaluacion = ultimaEvaluacionDe(alumno.id_alumno)
+    const razkids = evaluacion?.nivel_ajustado ?? null
+    const ordenAlcanzado = razkids ? ordenDeLetra(razkids) : null
+
+    const calculado = nivelGeneralDe(fluidez, ordenAlcanzado ?? 0, esperado?.orden ?? 0)
+
+    // RF-023 / RN-015: algunos meses el docente ajusta el nivel y lo justifica.
+    const ajustado = random() < 0.18
+    const indiceCalculado = NIVEL_GENERAL.findIndex((n) => n.nombre_nivel === calculado)
+    const indiceFinal = ajustado
+      ? Math.max(0, Math.min(NIVEL_GENERAL.length - 1, indiceCalculado + (random() < 0.5 ? -1 : 1)))
+      : indiceCalculado
+
+    filas.set(alumno.id_alumno, {
+      id_nivel_final: Number(`${anio}${String(mes).padStart(2, '0')}${alumno.id_alumno}`),
+      id_alumno: alumno.id_alumno,
+      mes: clave,
+      razkids_referencial: razkids,
+      nivel_calculado: calculado,
+      nivel_final: NIVEL_GENERAL[indiceFinal]?.nombre_nivel ?? calculado,
+      ajustado,
+      justificacion: ajustado ? elegir(random, JUSTIFICACIONES) : null,
+      docente: docenteDe(alumno.id_colegio, PERIODO_VIGENTE.id_periodo),
+      // RF-018: cuántas rúbricas semanales sustentan el consolidado.
+      semanas_sustento: rubricas.length,
+      semanas_mes: semanasDelMes.length,
+      fluidez,
+      comprension,
+      actualizado_en: null,
+    })
+  })
+
+  return filas
+}
+
+export function nivelFinalDeMes(mes) {
+  const clave = String(mes ?? MES_ACTUAL)
+  if (!cacheNivelFinal.has(clave)) cacheNivelFinal.set(clave, generarNivelFinalDeMes(clave))
+  return cacheNivelFinal.get(clave)
+}
+
+/**
+ * Ajuste del nivel final por el docente (RF-023, RN-015).
+ * La justificación es obligatoria: sin ella el servidor rechaza el cambio.
+ */
+export function ajustarNivelFinal({ mes, id_alumno: idAlumno, nivel_final: nivelFinal, justificacion }) {
+  const filas = nivelFinalDeMes(mes)
+  const previa = filas.get(Number(idAlumno))
+  if (!previa) return null
+
+  const guardada = {
+    ...previa,
+    nivel_final: nivelFinal,
+    ajustado: nivelFinal !== previa.nivel_calculado,
+    justificacion: nivelFinal !== previa.nivel_calculado ? justificacion : null,
+    actualizado_en: new Date().toISOString(),
+  }
+  filas.set(Number(idAlumno), guardada)
+  return guardada
+}

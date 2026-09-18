@@ -1,17 +1,31 @@
 // Todas las rutas del backend en un solo lugar (§3). Ningún componente escribe
 // una URL a mano: si Swagger cambia una ruta, se corrige aquí y nada más.
 //
-// Las rutas marcadas con POR CONFIRMAR todavía no existen en el backend; están
-// tomadas del contrato provisional de §3 y deben verificarse contra
-// {API_BASE_URL}/docs cuando el equipo de backend las publique.
+// ESTADO DEL CONTRATO — contrastado con APIS_BACKEND.md y verificado contra el
+// servidor en ejecución con `npm run verificar:backend`.
+//
+//   IMPLEMENTADO   `GET /`, `POST /login`, `GET /me`, `POST /logout`.
+//                  La autenticación es JWT Bearer y el token dura 8 horas.
+//   NO EXISTE AÚN  todos los endpoints de negocio. Las tablas ya están en la
+//                  base de datos, pero ningún endpoint las expone.
+//
+// Por eso el negocio sigue resolviéndose contra el mock. Las rutas marcadas
+// como pendientes son el contrato provisional de §3 del prompt y hay que
+// verificarlas contra {API_BASE_URL}/docs conforme el backend las publique.
 export const ENDPOINTS = {
-  auth: {
-    login: '/login',
-    logout: '/logout',
-    me: '/me',
+  // IMPLEMENTADO ─────────────────────────────────────────────────────────────
+  servicio: {
+    raiz: '/', // → { status: "ok" }
   },
 
-  // POR CONFIRMAR ────────────────────────────────────────────────────────────
+  // IMPLEMENTADO — JWT Bearer, token válido 8 horas ──────────────────────────
+  auth: {
+    login: '/login', // body { correo, password } → { access_token, token_type }
+    logout: '/logout', // simbólico: el JWT no se revoca en el servidor
+    me: '/me', // requiere Authorization: Bearer <token>
+  },
+
+  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
   catalogos: {
     colegios: '/colegios',
     grados: '/grados',
@@ -24,6 +38,7 @@ export const ENDPOINTS = {
     semanas: '/semanas',
   },
 
+  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
   alumnos: {
     listar: '/alumnos', // ?colegio=&grado=&programa=&q=
     detalle: (id) => `/alumnos/${id}`,

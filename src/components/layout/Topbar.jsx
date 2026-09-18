@@ -55,7 +55,7 @@ function MenuUsuario() {
         className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
       >
         <span className="hidden min-w-0 md:block">
-          <span className="block max-w-[180px] truncate text-sm font-semibold text-ink-900">{usuario?.nombres}</span>
+          <span className="block max-w-[180px] truncate text-sm font-semibold text-ink-900">{usuario?.nombre_completo}</span>
           <span className="block text-xs text-ink-500">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</span>
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
@@ -75,7 +75,7 @@ function MenuUsuario() {
             className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-line bg-surface-0 p-1.5 shadow-card animate-slide-up"
           >
             <div className="px-3 py-2 md:hidden">
-              <p className="truncate text-sm font-semibold text-ink-900">{usuario?.nombres}</p>
+              <p className="truncate text-sm font-semibold text-ink-900">{usuario?.nombre_completo}</p>
               <p className="truncate text-xs text-ink-500">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</p>
             </div>
             <p className="truncate px-3 py-1 text-xs text-ink-400">{usuario?.correo}</p>

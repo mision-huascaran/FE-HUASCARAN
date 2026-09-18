@@ -65,3 +65,29 @@ export function clasesDeLetraRazKids(orden, totalNiveles) {
 export function compararPorOrden(a, b) {
   return (a?.orden ?? 0) - (b?.orden ?? 0)
 }
+
+/**
+ * Tendencia de un alumno a partir de sus últimas evaluaciones (P6).
+ *
+ * RN-012: se compara la secuencia de `orden`, nunca las letras como texto.
+ * Con menos de dos mediciones no hay tendencia que declarar: es "Incompleto",
+ * que no es lo mismo que "Estable" — distinguirlo evita leer como estancado a
+ * un alumno del que simplemente todavía no se cargaron datos.
+ *
+ * @param {number[]} ordenes Órdenes en secuencia cronológica.
+ * @returns {'up'|'down'|'flat'|'unknown'} Dirección para `TrendIndicator`.
+ */
+export function tendenciaDe(ordenes = []) {
+  const validos = ordenes.filter((o) => Number.isFinite(o))
+  if (validos.length < 2) return 'unknown'
+  const diferencia = validos.at(-1) - validos[0]
+  if (diferencia > 0) return 'up'
+  if (diferencia < 0) return 'down'
+  return 'flat'
+}
+
+/** Las últimas `n` mediciones en texto: `D → D → C` (columna "Últimos 3" de P6). */
+export function secuenciaDeLetras(letras = [], n = 3) {
+  const ultimas = letras.filter(Boolean).slice(-n)
+  return ultimas.length ? ultimas.join(' → ') : '—'
+}

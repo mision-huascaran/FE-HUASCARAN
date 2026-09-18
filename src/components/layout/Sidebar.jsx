@@ -80,10 +80,10 @@ function Contenido({ onNavegar, onCerrar }) {
       <div className="border-t border-white/10 p-3">
         <div className="flex items-center gap-3 px-2 py-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
-            {iniciales(usuario?.nombres)}
+            {iniciales(usuario?.nombre_completo)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{usuario?.nombres}</p>
+            <p className="truncate text-sm font-semibold text-white">{usuario?.nombre_completo}</p>
             <p className="truncate text-xs text-white/60">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</p>
           </div>
         </div>

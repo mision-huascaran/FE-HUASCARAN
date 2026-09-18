@@ -15,13 +15,23 @@ import { ROLES } from '../roles'
 
 // Los catálogos se sustituyen para que el test hable de guardas y no de
 // peticiones: lo que se verifica aquí es quién entra a cada ruta.
-vi.mock('../../hooks/useCatalogos', () => ({
-  usePeriodos: () => ({ data: [] }),
-  useSemanas: () => ({ data: [] }),
-  useProgramas: () => ({ data: [] }),
-  useNivelesRubrica: () => ({ data: [], isLoading: false }),
-  agruparNivelesRubrica: () => ({}),
-}))
+// `vi.mock` se eleva al inicio del archivo, así que la fábrica no puede
+// referenciar variables de módulo: el catálogo vacío se declara dentro.
+vi.mock('../../hooks/useCatalogos', () => {
+  const vacio = () => ({ data: [], isLoading: false })
+  return {
+    useColegios: vacio,
+    useGrados: vacio,
+    useProgramas: vacio,
+    usePeriodos: vacio,
+    useSemanas: vacio,
+    useNivelesRazkids: vacio,
+    useNivelGeneral: vacio,
+    useEsperadoPorGrado: vacio,
+    useNivelesRubrica: vacio,
+    agruparNivelesRubrica: () => ({}),
+  }
+})
 
 const USUARIOS_DE_PRUEBA = {
   [ROLES.PROFESOR]: { id_usuario: 1, id_rol: ROLES.PROFESOR, correo: 'p@sicedu.test', nombres: 'Docente de prueba', id_docente: 1 },

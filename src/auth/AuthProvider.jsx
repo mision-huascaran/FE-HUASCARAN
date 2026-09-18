@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef } fr
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import useSessionStore from '../store/sessionStore'
+import { tokenCaducado } from './jwt'
 
 /**
  * Sesión de la aplicación: token, perfil y las dos acciones que los cambian.
@@ -36,6 +37,12 @@ export function AuthProvider({ children }) {
     if (!token) {
       perfilPedidoPara.current = null
       setCargando(false)
+      return
+    }
+    // El token vive 8 horas y la sesión puede caducar con el docente dentro:
+    // se corta aquí en vez de disparar una petición condenada al 401.
+    if (tokenCaducado(token)) {
+      limpiarSesion()
       return
     }
     if (usuario || perfilPedidoPara.current === token) return

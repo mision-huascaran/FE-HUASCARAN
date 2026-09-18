@@ -14,6 +14,7 @@
 // La cola vive en IndexedDB para sobrevivir a un cierre del navegador en pleno
 // corte de conexión. Si IndexedDB no está disponible, sigue funcionando en
 // memoria: el objetivo es no perder el trabajo del docente, no la persistencia.
+import { mensajeDeError } from '../api/client'
 import { get, set } from 'idb-keyval'
 import useSyncStore from '../store/syncStore'
 
@@ -101,7 +102,7 @@ async function procesar() {
         await persistir()
         resolverPromesa(item.clave, respuesta)
       } catch (error) {
-        const mensaje = error?.response?.data?.detail ?? error?.message ?? 'Error de envío'
+        const mensaje = mensajeDeError(error, error?.message ?? 'Error de envío')
 
         if (!esReintentable(error)) {
           cola.shift()
