@@ -4,6 +4,7 @@
 // Los errores imitan la forma de un error de axios (`error.response.status`), de
 // modo que el resto de la aplicación trata igual al mock y a la API.
 import * as db from './db'
+import * as agregados from './consolidados'
 
 const RETARDO_MS = 300
 
@@ -37,6 +38,8 @@ const perfilPublico = (usuario) => ({
   correo: usuario.correo,
   id_docente: usuario.id_docente,
   nombres: usuario.nombres,
+  apellidos: usuario.apellidos,
+  activo: usuario.activo,
 })
 
 /** Guardar tarda un poco más que leer: así se ve el estado "guardando" de P4. */
@@ -58,6 +61,174 @@ function conDatosDeAlumno(alumno) {
     id_ciclo_evaluado: alumno.id_ciclo_evaluado,
     ciclo_evaluado: ciclo?.nombre ?? null,
     activo: alumno.activo,
+  }
+}
+
+/**
+ * Fila del listado de estudiantes (P10).
+ *
+ * RN-019 (Ley N.° 29733): aquí solo viajan nombre, código y datos académicos.
+ * Ni fecha de nacimiento, ni DNI, ni dirección, ni fotografía.
+ */
+function fichaDeListado(alumno) {
+  const ultima = db.ultimaEvaluacionDe(alumno.id_alumno)
+  const periodo = db.PERIODOS.find((p) => p.id_periodo === ultima?.id_periodo)
+  const cicloNominal = db.CICLOS.find((c) => c.id_ciclo === alumno.id_ciclo_nominal)
+  const esperado = db.NIVEL_ESPERADO_POR_GRADO.find((e) => e.id_grado === alumno.id_grado)
+
+  return {
+    ...conDatosDeAlumno(alumno),
+    id_ciclo_nominal: alumno.id_ciclo_nominal,
+    ciclo_nominal: cicloNominal?.nombre ?? null,
+    nivel_actual: ultima?.nivel_ajustado ?? null,
+    orden_actual: ultima ? db.ordenDeLetra(ultima.nivel_ajustado) : null,
+    nivel_general: ultima?.nivel_general ?? null,
+    nivel_esperado: esperado?.letra ?? null,
+    orden_esperado: esperado?.orden ?? null,
+    ultima_evaluacion: periodo ? { id_periodo: periodo.id_periodo, nombre: periodo.nombre, fecha: ultima.fecha } : null,
+    estado_evaluacion: ultima?.estado ?? 'sin-registro',
+  }
+}
+
+/** Encabezado e indicadores de la ficha del estudiante (P11). */
+function fichaDeAlumno(alumno) {
+  const base = fichaDeListado(alumno)
+  const evaluaciones = db.evaluacionesDe(alumno.id_alumno)
+  const anterior = evaluaciones.at(-2) ?? null
+  const ultima = evaluaciones.at(-1) ?? null
+
+  const semanasDelMes = db.SEMANAS.filter(
+    (s) => `${s.anio}-${String(s.mes).padStart(2, '0')}` === db.MES_ACTUAL,
+  )
+  const reportesDelMes = semanasDelMes
+    .map((s) => db.reporteSemanalDe(s.id_semana).get(alumno.id_alumno))
+    .filter(Boolean)
+
+  const lsb = reportesDelMes.reduce((n, r) => n + (r.libros?.length ?? 0), 0)
+  const lsl = reportesDelMes.reduce((n, r) => n + Number(r.lsl ?? 0), 0)
+  const asistencias = reportesDelMes.filter((r) => r.asistio).length
+
+  return {
+    ...base,
+    programa: db.PROGRAMAS.find((p) => p.id_programa === alumno.id_programa)?.nombre ?? null,
+    grado_nombre: db.GRADOS.find((g) => g.id_grado === alumno.id_grado)?.nombre ?? null,
+    // RN-014: el nivel de Raz-Kids y el del docente conviven como campos distintos.
+    variacion: {
+      anterior: anterior?.nivel_ajustado ?? null,
+      orden_anterior: anterior ? db.ordenDeLetra(anterior.nivel_ajustado) : null,
+      actual: ultima?.nivel_ajustado ?? null,
+      orden_actual: ultima ? db.ordenDeLetra(ultima.nivel_ajustado) : null,
+    },
+    mes_actual: {
+      mes: db.MES_ACTUAL,
+      lsb,
+      lsl,
+      total_libros: lsb + lsl,
+      semanas_registradas: reportesDelMes.length,
+      semanas_mes: semanasDelMes.length,
+      asistencias,
+    },
+  }
+}
+
+/** Series y tablas de la ficha del estudiante (P11). */
+function historialDeAlumno(alumno) {
+  const esperado = db.NIVEL_ESPERADO_POR_GRADO.find((e) => e.id_grado === alumno.id_grado)
+
+  // RF-011: evolución entre los cuatro cortes, con el nivel esperado de referencia.
+  const evolucion = db.PERIODOS.map((periodo) => {
+    const ev = db.evaluacionesDe(alumno.id_alumno).find((e) => e.id_periodo === periodo.id_periodo)
+    return {
+      id_periodo: periodo.id_periodo,
+      periodo: periodo.nombre,
+      orden_prueba: ev ? db.ordenDeLetra(ev.nivel_prueba) : null,
+      orden_ajustado: ev ? db.ordenDeLetra(ev.nivel_ajustado) : null,
+      orden_esperado: esperado?.orden ?? null,
+      letra_prueba: ev?.nivel_prueba ?? null,
+      letra_ajustado: ev?.nivel_ajustado ?? null,
+    }
+  })
+
+  const semanasDelMes = db.SEMANAS.filter(
+    (s) => `${s.anio}-${String(s.mes).padStart(2, '0')}` === db.MES_ACTUAL,
+  )
+
+  const nombreNivel = (id) => db.NIVELES_RUBRICA.find((n) => n.id_nivel_rubrica === id)?.nombre_nivel ?? null
+
+  const rubricaMensual = semanasDelMes.map((semana) => {
+    const fila = db.rubricaSemanalDe(semana.id_semana).get(alumno.id_alumno)
+    return {
+      id_semana: semana.id_semana,
+      numero: semana.numero,
+      fluidez: fila ? nombreNivel(fila.id_nivel_fluidez) : null,
+      comprension: fila ? nombreNivel(fila.id_nivel_comprension) : null,
+    }
+  })
+
+  // RF-016: LSB con título y puntaje, LSL solo cantidad, total calculado.
+  const libros = db.SEMANAS.slice(-8)
+    .map((semana) => {
+      const fila = db.reporteSemanalDe(semana.id_semana).get(alumno.id_alumno)
+      if (!fila) return null
+      return {
+        id_semana: semana.id_semana,
+        numero: semana.numero,
+        inicio: semana.inicio,
+        fin: semana.fin,
+        asistio: fila.asistio,
+        libros: fila.libros ?? [],
+        lsl: Number(fila.lsl ?? 0),
+        observacion: fila.observacion ?? '',
+      }
+    })
+    .filter(Boolean)
+
+  const evaluaciones = db.evaluacionesDe(alumno.id_alumno).map((ev) => ({
+    ...ev,
+    periodo: db.PERIODOS.find((p) => p.id_periodo === ev.id_periodo)?.nombre ?? null,
+    ciclo_evaluado: db.CICLOS.find((c) => c.id_ciclo === alumno.id_ciclo_evaluado)?.nombre ?? null,
+  }))
+
+  return { evolucion, rubrica_mensual: rubricaMensual, libros, evaluaciones, nivel_esperado: esperado ?? null }
+}
+
+/** Fila del histórico del registro de vuelo: un alumno, sus cuatro cortes (P6). */
+function filaHistorico(alumno, idPeriodo) {
+  const evaluaciones = db.evaluacionesDe(alumno.id_alumno)
+  const esperado = db.NIVEL_ESPERADO_POR_GRADO.find((e) => e.id_grado === alumno.id_grado)
+  const porPeriodo = Object.fromEntries(evaluaciones.map((e) => [e.id_periodo, e]))
+  const delPeriodo = idPeriodo ? (porPeriodo[Number(idPeriodo)] ?? null) : (evaluaciones.at(-1) ?? null)
+
+  return {
+    ...conDatosDeAlumno(alumno),
+    grado_nombre: db.GRADOS.find((g) => g.id_grado === alumno.id_grado)?.nombre ?? null,
+    nivel_esperado: esperado ?? null,
+    // Los cuatro cortes, para las columnas Abril · Julio · Octubre · Diciembre.
+    por_periodo: Object.fromEntries(
+      db.PERIODOS.map((p) => {
+        const ev = porPeriodo[p.id_periodo]
+        return [
+          p.id_periodo,
+          ev
+            ? {
+                id_evaluacion: ev.id_evaluacion,
+                letra: ev.nivel_ajustado,
+                orden: db.ordenDeLetra(ev.nivel_ajustado),
+                estado: ev.estado,
+                ajustado: ev.ajustado_por_docente,
+              }
+            : null,
+        ]
+      }),
+    ),
+    evaluacion: delPeriodo,
+    // Secuencia cronológica, para tendencia y "Últimos 3". La comparación la
+    // hace el cliente por `orden` (RN-012), nunca por la letra como texto.
+    secuencia: evaluaciones.map((e) => ({
+      id_periodo: e.id_periodo,
+      letra: e.nivel_ajustado,
+      orden: db.ordenDeLetra(e.nivel_ajustado),
+    })),
   }
 }
 
@@ -205,7 +376,75 @@ export const handlers = {
   },
 
   alumnos: {
-    listar: (filtros = {}) => responder(db.alumnosDe(filtros).map(conDatosDeAlumno)),
+    listar: (filtros = {}) => responder(db.alumnosDe(filtros).map(fichaDeListado)),
+    detalle: (id) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
+      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      return responder(fichaDeAlumno(alumno))
+    },
+    historial: (id) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
+      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      return responder(historialDeAlumno(alumno))
+    },
+  },
+
+  evaluaciones: {
+    /** Histórico del registro de vuelo: una fila por alumno con sus cuatro cortes (P6). */
+    listar: (filtros = {}) =>
+      responder(db.alumnosDe(filtros).map((alumno) => filaHistorico(alumno, filtros.periodo))),
+
+    guardar: async (payload) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(payload.id_alumno))
+      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+
+      const periodo = db.PERIODOS.find((p) => p.id_periodo === Number(payload.id_periodo))
+      if (!periodo) throw errorHttp(422, 'El periodo de evaluación no existe')
+      // RN-010: solo el corte vigente admite escritura; los anteriores están cerrados.
+      if (periodo.estado === 'cerrado' && !payload.justificacion) {
+        throw errorHttp(422, 'Los periodos cerrados requieren una justificación para corregirse')
+      }
+      // RN-008: las dos dimensiones de la rúbrica van siempre juntas.
+      if (!payload.fluidez || !payload.comprension) {
+        throw errorHttp(422, 'Ambas dimensiones son obligatorias')
+      }
+      // RN-015: cambiar el nivel sugerido exige justificación escrita.
+      const cambiaSugerencia = payload.nivel_ajustado && payload.nivel_ajustado !== payload.nivel_sugerido
+      if (cambiaSugerencia && !String(payload.justificacion ?? '').trim()) {
+        throw errorHttp(422, 'La justificación es obligatoria al modificar el nivel sugerido')
+      }
+
+      const guardada = db.guardarEvaluacion(payload)
+      return responder({ ...guardada, alumno: conDatosDeAlumno(alumno) }, RETARDO_ESCRITURA_MS)
+    },
+  },
+
+  nivelFinal: {
+    /** Consolidado mensual derivado de las rúbricas semanales (P9, RF-018). */
+    listar: ({ mes, colegio, grado, programa, estado } = {}) => {
+      const consolidado = db.nivelFinalDeMes(mes)
+      const filas = db
+        .alumnosDe({ colegio, grado, programa })
+        .map((alumno) => {
+          const fila = consolidado.get(alumno.id_alumno)
+          return fila ? { ...conDatosDeAlumno(alumno), ...fila } : null
+        })
+        .filter(Boolean)
+
+      if (estado === 'ajustados') return responder(filas.filter((f) => f.ajustado))
+      if (estado === 'sin-ajustar') return responder(filas.filter((f) => !f.ajustado))
+      return responder(filas)
+    },
+
+    ajustar: async (payload) => {
+      // RN-015: la justificación es obligatoria y el servidor también la exige.
+      if (!String(payload.justificacion ?? '').trim()) {
+        throw errorHttp(422, 'La justificación es obligatoria')
+      }
+      const guardada = db.ajustarNivelFinal(payload)
+      if (!guardada) throw errorHttp(404, 'No hay consolidado para ese alumno en el mes')
+      return responder(guardada, RETARDO_ESCRITURA_MS)
+    },
   },
 
   docentes: {
@@ -244,6 +483,124 @@ export const handlers = {
       }
       const guardada = db.guardarRubricaSemanal(payload)
       return responder(filaRubrica(alumno, guardada, payload.id_semana), RETARDO_ESCRITURA_MS)
+    },
+  },
+  // ── Fase 6 ──────────────────────────────────────────────────────────────────
+
+  dashboard: {
+    /**
+     * Todo el dashboard (P12) en una sola respuesta. RF-006 pide una sola vista
+     * con varios gráficos que reaccionan a los mismos filtros; con la conexión
+     * del 70 % de RN-017, una petición es mejor que siete.
+     */
+    resumen: (filtros = {}) =>
+      responder({
+        indicadores: agregados.indicadores(filtros),
+        distribucion: agregados.distribucion(filtros),
+        variacion: agregados.variacion(filtros),
+        alcanzado_vs_esperado: agregados.alcanzadoVsEsperado(filtros),
+        fluidez_vs_comprension: agregados.fluidezVsComprension(filtros),
+        evolucion_programas: agregados.evolucionPorPrograma(filtros),
+        colegios: agregados.resumenPorColegio(filtros),
+      }),
+    rankingColegios: (filtros = {}) => responder(agregados.rankingColegios(filtros)),
+    rankingAulas: (filtros = {}) => responder(agregados.rankingAulas(filtros)),
+    ejecutivo: (filtros = {}) =>
+      responder({
+        indicadores: agregados.panelEjecutivo(filtros),
+        evolucion_programas: agregados.evolucionPorPrograma(filtros),
+        ranking: agregados.rankingColegios(filtros),
+      }),
+  },
+
+  colegios: {
+    detalle: (id, filtros = {}) => {
+      const detalle = agregados.detalleColegio(id, filtros)
+      if (!detalle) throw errorHttp(404, 'El colegio no existe')
+      return responder(detalle)
+    },
+  },
+
+  consolidados: {
+    nivel: (filtros = {}) => responder(agregados.consolidadoNivel(filtros)),
+    libros: (filtros = {}) => responder(agregados.consolidadoLibros(filtros)),
+  },
+
+  alertas: {
+    listar: (filtros = {}) => responder(agregados.alertasInconsistencias(filtros)),
+    marcarRevisada: (id) => responder(agregados.marcarAlertaRevisada(id), RETARDO_ESCRITURA_MS),
+  },
+
+  // ── Fase 7 ──────────────────────────────────────────────────────────────────
+
+  administracion: {
+    docentes: () =>
+      responder(
+        db.DOCENTES.map((d) => {
+          const usuario = db.USUARIOS.find((u) => u.id_docente === d.id_docente)
+          const vigentes = db.asignacionesDe(d.id_docente, db.PERIODO_VIGENTE.id_periodo)
+          return {
+            ...d,
+            nombre: `${d.nombres} ${d.apellidos}`,
+            correo: usuario?.correo ?? null,
+            activo: usuario?.activo ?? false,
+            colegios_vigentes: vigentes.map((a) => db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre),
+          }
+        }),
+      ),
+
+    asignaciones: () =>
+      responder(
+        db.ASIGNACIONES.map((a) => {
+          const docente = db.DOCENTES.find((d) => d.id_docente === a.id_docente)
+          const periodo = db.PERIODOS.find((p) => p.id_periodo === a.id_periodo)
+          return {
+            ...a,
+            docente: docente ? `${docente.nombres} ${docente.apellidos}` : '—',
+            colegio: db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre ?? '—',
+            periodo: periodo?.nombre ?? '—',
+            estado_periodo: periodo?.estado ?? null,
+          }
+        }),
+      ),
+
+    /**
+     * RN-003: la rotación ocurre SOLO al cierre de un periodo y cambia el colegio
+     * completo, no grados sueltos. Por eso la asignación es docente × colegio ×
+     * periodo (los seis grados van juntos) y solo se admite sobre periodos que
+     * todavía no empiezan.
+     */
+    crearAsignacion: async ({ id_docente: idDocente, id_colegio: idColegio, id_periodo: idPeriodo }) => {
+      const periodo = db.PERIODOS.find((p) => p.id_periodo === Number(idPeriodo))
+      if (!periodo) throw errorHttp(422, 'El periodo no existe')
+      if (periodo.estado !== 'programado') {
+        throw errorHttp(422, 'Solo se asigna en periodos que aún no empiezan: la rotación ocurre al cierre de un periodo')
+      }
+      const repetida = db.ASIGNACIONES.some(
+        (a) => a.id_docente === Number(idDocente) && a.id_colegio === Number(idColegio) && a.id_periodo === Number(idPeriodo),
+      )
+      if (repetida) throw errorHttp(422, 'El docente ya tiene ese colegio en ese periodo')
+
+      const nueva = {
+        id_asignacion: Math.max(...db.ASIGNACIONES.map((a) => a.id_asignacion)) + 1,
+        id_docente: Number(idDocente),
+        id_colegio: Number(idColegio),
+        id_periodo: Number(idPeriodo),
+        grados: db.GRADOS.map((g) => g.id_grado),
+      }
+      db.ASIGNACIONES.push(nueva)
+      return responder(nueva, RETARDO_ESCRITURA_MS)
+    },
+
+    eliminarAsignacion: async (idAsignacion) => {
+      const indice = db.ASIGNACIONES.findIndex((a) => a.id_asignacion === Number(idAsignacion))
+      if (indice < 0) throw errorHttp(404, 'La asignación no existe')
+      const periodo = db.PERIODOS.find((p) => p.id_periodo === db.ASIGNACIONES[indice].id_periodo)
+      if (periodo?.estado !== 'programado') {
+        throw errorHttp(422, 'No se retira una asignación de un periodo en curso o cerrado')
+      }
+      db.ASIGNACIONES.splice(indice, 1)
+      return responder({ ok: true }, RETARDO_ESCRITURA_MS)
     },
   },
 }

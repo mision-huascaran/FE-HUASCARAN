@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { tokenCaducado } from '../auth/jwt'
 
 /**
  * Sesión activa.
@@ -10,7 +11,14 @@ const CLAVE_TOKEN = 'sicedu.token'
 
 function leerTokenInicial() {
   try {
-    return sessionStorage.getItem(CLAVE_TOKEN)
+    const token = sessionStorage.getItem(CLAVE_TOKEN)
+    // El JWT dura 8 horas: al recargar puede estar vencido. Restaurarlo solo
+    // serviría para que la primera petición muriera con un 401.
+    if (token && tokenCaducado(token)) {
+      sessionStorage.removeItem(CLAVE_TOKEN)
+      return null
+    }
+    return token
   } catch {
     // Navegación privada o almacenamiento bloqueado: la sesión vive solo en memoria.
     return null

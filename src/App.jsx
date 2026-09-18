@@ -34,7 +34,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <BrowserRouter>
+        {/* Se adoptan desde ya los dos comportamientos de React Router 7: evita
+            las advertencias en consola y que la migración traiga sorpresas. */}
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AuthProvider>
             <RutasApp />
           </AuthProvider>

@@ -40,12 +40,13 @@ export default function LoginPage() {
       const perfil = await entrar({ correo, password })
       navegar(state?.desde ?? rutaInicioDe(perfil.id_rol), { replace: true })
     } catch (error) {
+      const estado = estadoDe(error)
       // Nunca se dice cuál de los dos campos falló (P1).
-      setErrorGeneral(
-        estadoDe(error) === 401
-          ? 'Correo o contraseña incorrectos'
-          : 'No se pudo conectar con el servidor. Intente nuevamente en unos segundos.',
-      )
+      if (estado === 401) {
+        setErrorGeneral('Correo o contraseña incorrectos')
+        return
+      }
+      setErrorGeneral('No se pudo conectar con el servidor. Intente nuevamente en unos segundos.')
     }
   }
 

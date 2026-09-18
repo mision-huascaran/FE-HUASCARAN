@@ -45,3 +45,20 @@
     @apply bg-transparent;
   }
 }
+
+/* Exportar a PDF por el diálogo de impresión (P11, lib/export.js): sin la
+   navegación, sin sombras y sin cortar una tarjeta entre dos páginas. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  section {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
