@@ -11,3 +11,5 @@ coverage
 !.vscode/extensions.json
 npm-debug.log*
 vite.config.js.timestamp-*
+.npm
+.sonar
