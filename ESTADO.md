@@ -13,10 +13,10 @@
 | **Fase 3** | Inicio del docente (P3), reporte semanal (P4), rúbrica semanal (P5), cola offline y `SyncBadge` | **Terminada, sin revisión visual** |
 | **Fase 4** | Registro de vuelo: histórico (P6), formulario de 3 pasos (P7), trazabilidad (P8), `domain/nivelFinal.js` | **Terminada, sin revisión visual** |
 | **Fase 5** | Estudiantes (P10), ficha (P11), nivel final mensual (P9) | **Terminada, sin revisión visual** |
-| Fase 6 | Dashboard (P12), colegios y ranking (P13), consolidados (P14), alertas (P15) | Pendiente |
-| Fase 7 | Administración (P16), panel ejecutivo (P17), exportaciones, `STACK_FRONTEND.md`, `docs/trazabilidad-rf.md`, `Dockerfile` | Pendiente |
+| **Fase 6** | Dashboard (P12), colegios y ranking (P13), consolidados (P14), alertas (P15), consulta de colegios (RF-003) | **Terminada, sin revisión visual** |
+| **Fase 7** | Administración (P16), panel ejecutivo (P17), reportes, exportaciones, `STACK_FRONTEND.md`, `README.md`, `docs/trazabilidad-rf.md`, `Dockerfile`, `nginx.conf` | **Terminada; imagen Docker sin construir** |
 
-Verificación a la fecha: `npm run lint` sin hallazgos, `npm run test` con **139 pruebas en verde**
+Verificación a la fecha: `npm run lint` sin hallazgos, `npm run test` con **172 pruebas en verde**
 y `npm run build` correcto.
 
 ## Estado real del backend (APIS_BACKEND.md)
@@ -90,11 +90,13 @@ donde le corresponde:
 | Correo | Rol | Aterriza en |
 |---|---|---|
 | `rcardenas@sicedu.test` | Profesor (1) | `/inicio` — panel del docente, ya construido |
-| `jefatura@sicedu.test` | Jefa_Profesores (2) | `/dashboard` — pantalla marcador, se construye en la Fase 6 |
-| `direccion@sicedu.test` | Directivos (3) | `/panel-ejecutivo` — pantalla marcador, Fase 7 |
+| `jefatura@sicedu.test` | Jefa_Profesores (2) | `/dashboard` |
+| `direccion@sicedu.test` | Directivos (3) | `/panel-ejecutivo` |
 
-La pantalla de login lista esos tres usuarios con un botón "Usar" **solo en modo mock**; con la
-API real ese bloque no se renderiza.
+Esas son las cuentas del mock (`VITE_AUTH_REAL=false`). Con la autenticación real se entra con
+los usuarios sembrados en el backend (`profesor.prueba@sicedu.test`, `jefa.prueba@sicedu.test`); el
+backend todavía no siembra una cuenta de Directivos. En desarrollo, la pantalla de login lista las
+cuentas del modo activo con un botón "Usar"; en producción ese bloque no existe.
 
 Lo que ya cumple el login: validación con zod, error único *"Correo o contraseña incorrectos"*
 ante un 401 (nunca dice cuál de los dos campos falló), token en memoria con respaldo en
@@ -150,12 +152,39 @@ Listado con el interruptor *"Ver otros colegios (solo lectura)"* que activa RF-0
 estudiante con la evolución entre los cuatro cortes y la rúbrica del mes en `recharts`, y el
 consolidado mensual con su panel de ajuste justificado.
 
-## Pendiente de las Fases 3, 4 y 5
+### 8. Consolidación (P12 a P15 y consulta de colegios)
+
+- **Dashboard** (`/dashboard`): una sola vista con pestañas por colegio, siete filtros que viajan
+  en la URL, cuatro indicadores y seis gráficos, cada uno con su explicación y descarga PNG/CSV.
+- **Colegios** (`/colegios`, `/colegios/:id`): podio y ranking, dispersión logro-cobertura, tabla
+  comparativa y, en el detalle, evolución frente al promedio, ranking de aulas y grados.
+- **Consolidados** (`/consolidados`): niveles por periodo y libros por mes, con nota de snapshot o
+  cálculo en vivo y exportación a Excel y CSV.
+- **Alertas** (`/alertas`): diferencias entre el reporte semanal y el consolidado mensual, con
+  "Marcar como revisada".
+- **Consulta de colegios** (`/consulta-colegios`): el profesor ve cualquier colegio en solo lectura
+  (RF-003). Quedó pendiente de la Fase 5 y se cerró aquí.
+
+### 9. Cierre (P16, P17, reportes y entregables)
+
+- **Administración** (`/administracion`): docentes, asignaciones con alta y baja (solo en periodos
+  programados, colegio completo: RN-003), periodos y catálogos en solo lectura (RF-025).
+- **Panel ejecutivo** (`/panel-ejecutivo`) y **reportes** (`/reportes`) para Directivos, sin un solo
+  formulario de captura.
+- **Exportar ficha** (P11) a PDF por el diálogo de impresión.
+- `STACK_FRONTEND.md`, `README.md`, `docs/trazabilidad-rf.md`, `Dockerfile`, `nginx.conf` y
+  `.dockerignore`.
+
+## Pendiente
 
 - **Revisión visual en 360 px, 768 px y 1440 px.** El código respeta RNF-002 (tablas con su
   propio `overflow-x-auto`, filtros que colapsan en Drawer), pero nadie lo ha visto en pantalla
-  todavía. Es el único punto de la §12 que queda sin verificar, y ahora abarca también las
-  pantallas de las Fases 4 y 5.
+  todavía. Es el único punto de la §12 que queda sin verificar, y abarca todas las pantallas.
+- **Construir y probar la imagen Docker.** El `Dockerfile` y la plantilla de Nginx están escritos,
+  pero Docker Desktop no estaba encendido: la imagen nunca se construyó. Comprobar con
+  `docker build -t fe-huascaran .` y `docker run -p 8080:80 -e API_UPSTREAM=http://host.docker.internal:8000 fe-huascaran`.
+- **Endpoints de negocio del backend.** Todo el negocio sigue en el mock; ver
+  `npm run verificar:backend`.
 - **Tests de la cola offline.** Están cubiertos el cálculo de totales, los handlers del mock y
   las guardas; falta un test que simule el fallo de red y verifique los tres reintentos.
 
@@ -188,6 +217,34 @@ consolidado mensual con su panel de ajuste justificado.
   gráficos: con la disponibilidad de conexión del 70 % de RN-017, no tenía sentido que el docente
   que solo captura el reporte semanal los pagara.
 
+## Calidad del código
+
+- **`npm run lint` no revisaba los componentes.** ESLint 8 solo lee `.js` salvo que se le indiquen
+  otras extensiones, así que el script revisaba 58 archivos y dejaba fuera los 98 `.jsx`. Ahora es
+  `eslint . --ext .js,.jsx,.mjs` y revisa todo el proyecto, sin hallazgos. Los reportes anteriores de
+  "lint limpio" solo valían para los `.js`.
+- **Ningún componente pasa de 200 líneas** (§8). Se dividieron los ocho que lo superaban: el
+  formulario de evaluación en sus tres pasos, las columnas de las tablas en módulos propios, las
+  tablas de la ficha, la paginación de `DataTable` y el catálogo `/_ui`.
+
+## Decisiones de las Fases 6 y 7 que conviene revisar
+
+- **La paleta de niveles no es accesible para daltónicos.** Los tokens `lvl` que §4.1 impone no pasan
+  la validación de color: Inicio y Proceso tienen ΔE 3.2 en deuteranopía (el mínimo es 8) y 13.3 con
+  visión normal (el mínimo es 15), y van contiguos en cada barra apilada. Como son obligatorios no se
+  cambiaron: se añadió codificación secundaria (porcentaje escrito en cada segmento, separación de
+  2 px, leyenda, tooltip y CSV). Conviene revisarlo con quien define la identidad visual.
+- **"Baja" en la dona de variación.** P12 nombra cuatro categorías (se mantiene, sube 1, 2, 3 o más).
+  Se añadió *Baja*: hay estudiantes que bajan y sin esa categoría la dona escondería datos.
+- **Un endpoint para todo el dashboard** (`/dashboard/resumen`, propuesta). RF-006 pide siete bloques
+  con los mismos filtros; con la conexión de RN-017, una petición es mejor que siete.
+- **Excel en formato XML 2003.** Sin librerías nuevas no hay `.xlsx`; Excel abre el `.xls` con un
+  aviso de formato que basta aceptar.
+- **Umbrales provisionales:** colegio "con datos al día" al 85 % de registro en la última semana
+  cerrada; alerta de inconsistencia cuando el total semanal difiere del consolidado.
+- **Asignaciones solo en periodos programados.** Es la lectura de RN-003 ("la rotación ocurre solo al
+  cierre de un periodo"). No se impide que dos docentes compartan colegio: no está definido.
+
 ## Lo que sigue sin definir (§13, no inventar)
 
 - La fórmula del nivel final / delta (RN-009). Implementada la regla provisional en
@@ -201,7 +258,7 @@ consolidado mensual con su panel de ajuste justificado.
 
 ## Nota sobre el repositorio
 
-El trabajo está en `main` del fork `github.com/jucada2/Mision_Huascaran`. El repositorio del
-equipo (`AntonioCot7/Mision_Huascaran`) está en la Fase 1 y requiere permisos o un Pull Request
-para recibir estos cambios. Según `instructions.md` §2, de aquí en adelante corresponde trabajar
-con las ramas `development → qa → uat → main` y no hacer push directo a `main`.
+El repositorio es `mision-huascaran/FE-HUASCARAN` y ya tiene las cuatro ramas del curso. Se trabaja
+en `development` (rama por defecto) y todo sube por Pull Request: `development → qa → uat → main`.
+Pendiente: proteger `main` en GitHub y confirmar con el equipo el nombre del repositorio (el curso
+pide el prefijo `FRT-`).

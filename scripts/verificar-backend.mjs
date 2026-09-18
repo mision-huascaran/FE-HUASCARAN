@@ -31,7 +31,7 @@ async function pedir(ruta, opciones = {}) {
   }
 }
 
-const json = (cuerpo) => ({ 'Content-Type': 'application/json' })
+const json = () => ({ 'Content-Type': 'application/json' })
 
 console.log(`\nSICEDU — verificación del backend en ${baseURL}\n`)
 

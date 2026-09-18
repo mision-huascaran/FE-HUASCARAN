@@ -1,15 +1,35 @@
 import { create } from 'zustand'
 
+/** Filtros del dashboard consolidado (P12). Vacío = sin filtrar. */
+export const FILTROS_DASHBOARD_VACIOS = {
+  programa: '',
+  colegio: '',
+  grado: '',
+  aula: '',
+  q: '',
+  periodo: '',
+  dimension: '',
+}
+
 /**
  * Filtros que sobreviven a la navegación.
  *
- * Por ahora solo el periodo de evaluación vigente, que la barra superior deja
- * elegir y todas las pantallas leen (P2). Los filtros del dashboard (programa,
- * colegio, grado, aula, dimensión) se agregan en la Fase 6, cuando existan las
- * pantallas que los usan y se sincronicen con la URL.
+ * - `idPeriodo`: el periodo de evaluación vigente, que la barra superior deja
+ *   elegir y todas las pantallas leen (P2).
+ * - `dashboard`: los filtros del dashboard (P12). Se guardan aquí para que al
+ *   volver a la pantalla sigan puestos, y se reflejan en la URL para que la
+ *   vista se pueda compartir (`useFiltrosDashboard`).
+ *
+ * Se usa zustand y no React Context porque varios gráficos y tablas leen los
+ * mismos filtros a la vez: con Context, cualquier cambio re-renderizaría todo
+ * el subárbol suscrito.
  */
 export const useFiltrosStore = create((set) => ({
   idPeriodo: null,
+  dashboard: FILTROS_DASHBOARD_VACIOS,
+
+  setFiltrosDashboard: (parcial) => set((estado) => ({ dashboard: { ...estado.dashboard, ...parcial } })),
+  limpiarFiltrosDashboard: () => set({ dashboard: FILTROS_DASHBOARD_VACIOS }),
 
   setPeriodo: (idPeriodo) => set({ idPeriodo: idPeriodo == null ? null : Number(idPeriodo) }),
 

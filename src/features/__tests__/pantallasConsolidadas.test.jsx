@@ -1,0 +1,131 @@
+// Humo de las pantallas de las Fases 6 y 7, montadas contra los handlers REALES
+// del mock. Los gráficos de recharts no se pintan en jsdom (no hay medidas),
+// así que aquí se comprueba lo demás: indicadores, tablas y avisos.
+import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { crearQueryClient } from '../../App'
+import { ToastProvider } from '../../components/ui'
+import DashboardPage from '../dashboard/DashboardPage'
+import ColegiosPage from '../colegios/ColegiosPage'
+import ColegioDetallePage from '../colegios/ColegioDetallePage'
+import ConsolidadosPage from '../consolidados/ConsolidadosPage'
+import AlertasPage from '../alertas/AlertasPage'
+import AdministracionPage from '../administracion/AdministracionPage'
+import PanelEjecutivoPage from '../panelEjecutivo/PanelEjecutivoPage'
+import ReportesPage from '../reportes/ReportesPage'
+import ConsultaColegiosPage from '../consultaColegios/ConsultaColegiosPage'
+import useSessionStore from '../../store/sessionStore'
+import useFiltrosStore, { FILTROS_DASHBOARD_VACIOS } from '../../store/filtrosStore'
+import { ROLES } from '../../auth/roles'
+import * as db from '../../api/mock/db'
+
+function montar(elemento, { ruta = '/', patron = '/', idRol = ROLES.JEFA } = {}) {
+  useSessionStore.setState({
+    token: 'mock.4.2026',
+    usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombre_completo: 'Prueba' },
+    cargando: false,
+  })
+  useFiltrosStore.setState({ idPeriodo: db.PERIODO_VIGENTE.id_periodo, dashboard: FILTROS_DASHBOARD_VACIOS })
+  return render(
+    <QueryClientProvider client={crearQueryClient()}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[ruta]}>
+          <Routes>
+            <Route path={patron} element={elemento} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  )
+}
+
+const ESPERA = { timeout: 4000 }
+
+describe('Dashboard (P12)', () => {
+  it('pinta los cuatro indicadores y una pestaña por colegio (RF-006)', async () => {
+    montar(<DashboardPage />, { ruta: '/dashboard', patron: '/dashboard' })
+    expect(await screen.findByText('Estudiantes en el programa', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Cobertura del periodo')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Todos los colegios' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab')).toHaveLength(db.COLEGIOS.length + 1)
+  })
+
+  it('lee los filtros desde la URL para poder compartir la vista', async () => {
+    montar(<DashboardPage />, { ruta: '/dashboard?colegio=3', patron: '/dashboard' })
+    const pestana = await screen.findByRole('tab', { name: /Shupluy/ }, ESPERA)
+    expect(pestana).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
+describe('Colegios (P13)', () => {
+  it('muestra el podio y la comparativa de los nueve colegios', async () => {
+    montar(<ColegiosPage />, { ruta: '/colegios', patron: '/colegios' })
+    expect(await screen.findByRole('list', { name: 'Podio' }, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Comparativa de los nueve colegios')).toBeInTheDocument()
+  })
+
+  it('el detalle incluye el ranking de aulas (RF-008)', async () => {
+    montar(<ColegioDetallePage />, { ruta: '/colegios/1', patron: '/colegios/:id' })
+    expect(await screen.findByRole('heading', { name: /Ranrahirca/ }, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Ranking de aulas', {}, ESPERA)).toBeInTheDocument()
+  })
+})
+
+describe('Consolidados (P14)', () => {
+  it('indica si el dato es snapshot o cálculo en vivo y ofrece Excel y CSV', async () => {
+    montar(<ConsolidadosPage />, { ruta: '/consolidados', patron: '/consolidados' })
+    expect(await screen.findByText(/Cálculo en vivo|Snapshot del cierre/, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Excel/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /CSV/ })).toBeInTheDocument()
+  })
+})
+
+describe('Alertas (P15)', () => {
+  it('lista las alertas pendientes', async () => {
+    montar(<AlertasPage />, { ruta: '/alertas', patron: '/alertas' })
+    expect(await screen.findByRole('table', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Marcar como revisada' }).length).toBeGreaterThan(0)
+  })
+})
+
+describe('Administración (P16)', () => {
+  it('abre en Docentes y ofrece las cuatro pestañas', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Docentes',
+      'Asignaciones',
+      'Periodos de evaluación',
+      'Catálogos',
+    ])
+    expect(await screen.findByText('Rosa Elena Cárdenas Villanueva', {}, ESPERA)).toBeInTheDocument()
+  })
+})
+
+describe('Panel ejecutivo (P17)', () => {
+  it('muestra los seis indicadores y ningún formulario de captura (RNF-004)', async () => {
+    const { container } = montar(<PanelEjecutivoPage />, { ruta: '/panel-ejecutivo', patron: '/panel-ejecutivo', idRol: ROLES.DIRECTIVOS })
+    expect(await screen.findByText('Estudiantes atendidos', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Libros leídos en el año')).toBeInTheDocument()
+    expect(container.querySelector('form, input, textarea')).toBeNull()
+  })
+
+  it('reportes ofrece las tres descargas', () => {
+    montar(<ReportesPage />, { ruta: '/reportes', patron: '/reportes', idRol: ROLES.DIRECTIVOS })
+    expect(screen.getAllByRole('button', { name: /Excel/ })).toHaveLength(3)
+  })
+})
+
+describe('Consulta de colegios (RF-003)', () => {
+  it('avisa del modo consulta al abrir un colegio no asignado', async () => {
+    const { container } = montar(<ConsultaColegiosPage />, { ruta: '/consulta-colegios', patron: '/consulta-colegios', idRol: ROLES.PROFESOR })
+    const selector = await screen.findByLabelText('Colegio')
+    // Las opciones llegan del catálogo: se espera a que exista la del colegio.
+    // La docente 1 no tiene Tinco (9) en ningún periodo.
+    await screen.findByRole('option', { name: /Tinco/ }, ESPERA)
+    fireEvent.change(selector, { target: { value: '9' } })
+    expect(await screen.findByText(/Modo consulta/, {}, ESPERA)).toBeInTheDocument()
+    expect(container.querySelector('textarea')).toBeNull()
+  })
+})

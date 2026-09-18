@@ -6,17 +6,17 @@ import { ArrowLeft, BookOpen, CalendarCheck, FileDown, GraduationCap, TrendingUp
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
-import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
 import LevelChip from '../../components/ui/LevelChip'
 import RoleGate from '../../components/ui/RoleGate'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
+import { TablaHistorialEvaluaciones, TablaLibrosSemana } from './TablasFicha'
 import { GraficoEvolucion, GraficoRubricaSemanal } from '../../components/charts'
 import { obtenerAlumno, obtenerHistorialAlumno } from '../../api/resources/alumnos'
 import { agruparNivelesRubrica, useNivelesRazkids, useNivelesRubrica } from '../../hooks/useCatalogos'
-import { totalLibros } from '../../domain/totales'
-import { formatearRangoSemana, porcentaje } from '../../lib/format'
+import { porcentaje } from '../../lib/format'
+import { imprimirComoPDF } from '../../lib/export'
 import { ROLES } from '../../auth/roles'
 
 export default function FichaEstudiantePage() {
@@ -99,8 +99,8 @@ export default function FichaEstudiantePage() {
             totalNiveles={catalogoRazkids.length}
           />
           <RoleGate allow={[ROLES.JEFA, ROLES.DIRECTIVOS]}>
-            {/* TODO: la exportación a PDF llega en la Fase 7 con `lib/export.js`. */}
-            <Button variant="outline" size="sm" iconLeft={FileDown} disabled>
+            {/* PDF por el diálogo de impresión ("Guardar como PDF"): sin dependencias. */}
+            <Button variant="outline" size="sm" iconLeft={FileDown} onClick={imprimirComoPDF} className="print:hidden">
               Exportar ficha
             </Button>
           </RoleGate>
@@ -159,120 +159,9 @@ export default function FichaEstudiantePage() {
         </Card>
       </div>
 
-      <Card title="Libros por semana" subtitle="Total calculado por el sistema (RF-016)" padded={false}>
-        <DataTable
-          columns={[
-            {
-              key: 'numero',
-              header: 'Semana',
-              render: (s) => (
-                <span className="whitespace-nowrap">
-                  <span className="font-medium text-ink-900">S{s.numero}</span>
-                  <span className="ml-2 text-xs text-ink-400">{formatearRangoSemana(s)}</span>
-                </span>
-              ),
-            },
-            {
-              key: 'asistio',
-              header: 'Asistencia',
-              align: 'center',
-              render: (s) => (
-                <Badge tone={s.asistio ? 'success' : 'danger'}>{s.asistio ? 'Sí' : 'No'}</Badge>
-              ),
-            },
-            {
-              // RF-015: los LSB llevan título y puntaje; los LSL solo cantidad.
-              key: 'libros',
-              header: 'Libros de subir de nivel',
-              render: (s) =>
-                s.libros.length ? (
-                  <ul className="flex flex-col gap-0.5">
-                    {s.libros.map((l) => (
-                      <li key={l.id_libro} className="text-xs text-ink-700">
-                        {l.titulo}{' '}
-                        <span className="tabular-nums text-ink-400">
-                          ({l.aciertos}/{l.total})
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <span className="text-xs text-ink-400">—</span>
-                ),
-            },
-            { key: 'lsl', header: 'Sala de lectura', align: 'right' },
-            {
-              key: 'total',
-              header: 'Total',
-              align: 'right',
-              render: (s) => <span className="font-semibold text-ink-900">{totalLibros(s)}</span>,
-            },
-          ]}
-          rows={historial?.libros ?? []}
-          getRowId={(s) => s.id_semana}
-          initialPageSize={8}
-          footNote="Cero libros es un valor válido en semanas sin actividad lectiva."
-        />
-      </Card>
+      <TablaLibrosSemana semanas={historial?.libros ?? []} />
 
-      <Card title="Historial de evaluaciones" padded={false}>
-        <DataTable
-          columns={[
-            { key: 'periodo', header: 'Periodo', className: 'font-medium text-ink-900' },
-            { key: 'ciclo_evaluado', header: 'Ciclo evaluado', align: 'center' },
-            {
-              key: 'prueba',
-              header: 'Prueba',
-              align: 'center',
-              render: (e) => (
-                <span className="whitespace-nowrap text-xs">
-                  <LevelChip letra={e.nivel_prueba} size="sm" />{' '}
-                  <span className="tabular-nums text-ink-500">
-                    {e.aciertos}/{e.total}
-                  </span>
-                </span>
-              ),
-            },
-            { key: 'fluidez', header: 'Fluidez', render: (e) => <LevelChip nivel={e.fluidez} size="sm" /> },
-            {
-              key: 'comprension',
-              header: 'Comprensión',
-              render: (e) => <LevelChip nivel={e.comprension} size="sm" />,
-            },
-            {
-              key: 'nivel_ajustado',
-              header: 'Nivel Raz-Kids',
-              align: 'center',
-              render: (e) => <LevelChip letra={e.nivel_ajustado} size="sm" />,
-            },
-            {
-              key: 'nivel_general',
-              header: 'Nivel final',
-              render: (e) => <LevelChip nivel={e.nivel_general} size="sm" />,
-            },
-            {
-              key: 'ajustado_por_docente',
-              header: '¿Ajustado?',
-              align: 'center',
-              render: (e) =>
-                e.ajustado_por_docente ? <Badge tone="warning">Sí</Badge> : <span className="text-xs text-ink-400">No</span>,
-            },
-            {
-              key: 'justificacion',
-              header: 'Observación',
-              render: (e) => (
-                <span className="block max-w-xs truncate text-xs text-ink-500" title={e.justificacion ?? ''}>
-                  {e.justificacion ?? e.observacion ?? '—'}
-                </span>
-              ),
-            },
-          ]}
-          rows={historial?.evaluaciones ?? []}
-          getRowId={(e) => e.id_evaluacion}
-          paginated={false}
-          empty={<EmptyState title="Sin evaluaciones" description="Este estudiante aún no tiene cortes registrados." />}
-        />
-      </Card>
+      <TablaHistorialEvaluaciones evaluaciones={historial?.evaluaciones ?? []} />
     </div>
   )
 }

@@ -4,6 +4,7 @@
 // Los errores imitan la forma de un error de axios (`error.response.status`), de
 // modo que el resto de la aplicación trata igual al mock y a la API.
 import * as db from './db'
+import * as agregados from './consolidados'
 
 const RETARDO_MS = 300
 
@@ -482,6 +483,124 @@ export const handlers = {
       }
       const guardada = db.guardarRubricaSemanal(payload)
       return responder(filaRubrica(alumno, guardada, payload.id_semana), RETARDO_ESCRITURA_MS)
+    },
+  },
+  // ── Fase 6 ──────────────────────────────────────────────────────────────────
+
+  dashboard: {
+    /**
+     * Todo el dashboard (P12) en una sola respuesta. RF-006 pide una sola vista
+     * con varios gráficos que reaccionan a los mismos filtros; con la conexión
+     * del 70 % de RN-017, una petición es mejor que siete.
+     */
+    resumen: (filtros = {}) =>
+      responder({
+        indicadores: agregados.indicadores(filtros),
+        distribucion: agregados.distribucion(filtros),
+        variacion: agregados.variacion(filtros),
+        alcanzado_vs_esperado: agregados.alcanzadoVsEsperado(filtros),
+        fluidez_vs_comprension: agregados.fluidezVsComprension(filtros),
+        evolucion_programas: agregados.evolucionPorPrograma(filtros),
+        colegios: agregados.resumenPorColegio(filtros),
+      }),
+    rankingColegios: (filtros = {}) => responder(agregados.rankingColegios(filtros)),
+    rankingAulas: (filtros = {}) => responder(agregados.rankingAulas(filtros)),
+    ejecutivo: (filtros = {}) =>
+      responder({
+        indicadores: agregados.panelEjecutivo(filtros),
+        evolucion_programas: agregados.evolucionPorPrograma(filtros),
+        ranking: agregados.rankingColegios(filtros),
+      }),
+  },
+
+  colegios: {
+    detalle: (id, filtros = {}) => {
+      const detalle = agregados.detalleColegio(id, filtros)
+      if (!detalle) throw errorHttp(404, 'El colegio no existe')
+      return responder(detalle)
+    },
+  },
+
+  consolidados: {
+    nivel: (filtros = {}) => responder(agregados.consolidadoNivel(filtros)),
+    libros: (filtros = {}) => responder(agregados.consolidadoLibros(filtros)),
+  },
+
+  alertas: {
+    listar: (filtros = {}) => responder(agregados.alertasInconsistencias(filtros)),
+    marcarRevisada: (id) => responder(agregados.marcarAlertaRevisada(id), RETARDO_ESCRITURA_MS),
+  },
+
+  // ── Fase 7 ──────────────────────────────────────────────────────────────────
+
+  administracion: {
+    docentes: () =>
+      responder(
+        db.DOCENTES.map((d) => {
+          const usuario = db.USUARIOS.find((u) => u.id_docente === d.id_docente)
+          const vigentes = db.asignacionesDe(d.id_docente, db.PERIODO_VIGENTE.id_periodo)
+          return {
+            ...d,
+            nombre: `${d.nombres} ${d.apellidos}`,
+            correo: usuario?.correo ?? null,
+            activo: usuario?.activo ?? false,
+            colegios_vigentes: vigentes.map((a) => db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre),
+          }
+        }),
+      ),
+
+    asignaciones: () =>
+      responder(
+        db.ASIGNACIONES.map((a) => {
+          const docente = db.DOCENTES.find((d) => d.id_docente === a.id_docente)
+          const periodo = db.PERIODOS.find((p) => p.id_periodo === a.id_periodo)
+          return {
+            ...a,
+            docente: docente ? `${docente.nombres} ${docente.apellidos}` : '—',
+            colegio: db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre ?? '—',
+            periodo: periodo?.nombre ?? '—',
+            estado_periodo: periodo?.estado ?? null,
+          }
+        }),
+      ),
+
+    /**
+     * RN-003: la rotación ocurre SOLO al cierre de un periodo y cambia el colegio
+     * completo, no grados sueltos. Por eso la asignación es docente × colegio ×
+     * periodo (los seis grados van juntos) y solo se admite sobre periodos que
+     * todavía no empiezan.
+     */
+    crearAsignacion: async ({ id_docente: idDocente, id_colegio: idColegio, id_periodo: idPeriodo }) => {
+      const periodo = db.PERIODOS.find((p) => p.id_periodo === Number(idPeriodo))
+      if (!periodo) throw errorHttp(422, 'El periodo no existe')
+      if (periodo.estado !== 'programado') {
+        throw errorHttp(422, 'Solo se asigna en periodos que aún no empiezan: la rotación ocurre al cierre de un periodo')
+      }
+      const repetida = db.ASIGNACIONES.some(
+        (a) => a.id_docente === Number(idDocente) && a.id_colegio === Number(idColegio) && a.id_periodo === Number(idPeriodo),
+      )
+      if (repetida) throw errorHttp(422, 'El docente ya tiene ese colegio en ese periodo')
+
+      const nueva = {
+        id_asignacion: Math.max(...db.ASIGNACIONES.map((a) => a.id_asignacion)) + 1,
+        id_docente: Number(idDocente),
+        id_colegio: Number(idColegio),
+        id_periodo: Number(idPeriodo),
+        grados: db.GRADOS.map((g) => g.id_grado),
+      }
+      db.ASIGNACIONES.push(nueva)
+      return responder(nueva, RETARDO_ESCRITURA_MS)
+    },
+
+    eliminarAsignacion: async (idAsignacion) => {
+      const indice = db.ASIGNACIONES.findIndex((a) => a.id_asignacion === Number(idAsignacion))
+      if (indice < 0) throw errorHttp(404, 'La asignación no existe')
+      const periodo = db.PERIODOS.find((p) => p.id_periodo === db.ASIGNACIONES[indice].id_periodo)
+      if (periodo?.estado !== 'programado') {
+        throw errorHttp(422, 'No se retira una asignación de un periodo en curso o cerrado')
+      }
+      db.ASIGNACIONES.splice(indice, 1)
+      return responder({ ok: true }, RETARDO_ESCRITURA_MS)
     },
   },
 }

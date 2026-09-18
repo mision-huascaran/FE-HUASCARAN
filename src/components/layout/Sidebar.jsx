@@ -105,7 +105,7 @@ export default function Sidebar({ abierto = false, onCerrar }) {
 
   return (
     <>
-      <aside className={cn('fixed inset-y-0 left-0 z-40 hidden lg:block', ANCHO)}>
+      <aside className={cn('fixed inset-y-0 left-0 z-40 hidden lg:block print:!hidden', ANCHO)}>
         <Contenido />
       </aside>
 

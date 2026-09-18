@@ -1,14 +1,13 @@
 // Cubre: RF-020, RF-021, RF-022, RF-023, RN-005, RN-010, RN-011, RN-014, RN-015, RNF-005
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Lock, TriangleAlert } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Drawer from '../../components/ui/Drawer'
-import Input from '../../components/ui/Input'
-import LevelChip from '../../components/ui/LevelChip'
-import Select from '../../components/ui/Select'
 import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/Toast'
+import BloqueDecision from './BloqueDecision'
+import CamposPrueba from './CamposPrueba'
 import { guardarEvaluacion } from '../../api/resources/evaluaciones'
 import { mensajeDeError } from '../../api/client'
 import { calcularNivelFinal } from '../../domain/nivelFinal'
@@ -152,111 +151,28 @@ export default function DrawerEvaluacion({ open, onClose, fila, periodos, catalo
       }
     >
       <div className="flex flex-col gap-4">
-        {/* RN-010: los cortes anteriores están bloqueados. */}
-        <div className="flex items-start gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-xs font-medium text-warning-600">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          Los históricos anteriores están bloqueados. Para corregirlos se requiere una justificación.
-        </div>
-
-        <Select
-          label="Periodo de evaluación"
-          required
-          value={idPeriodo}
-          onChange={(e) => setIdPeriodo(e.target.value)}
-          options={periodos.map((p) => ({
-            value: p.id_periodo,
-            label: `${p.nombre}${p.estado === 'cerrado' ? ' 🔒' : ''}`,
-          }))}
-          hint={periodoCerrado ? 'Periodo cerrado: requiere justificación para corregirse' : undefined}
+        <CamposPrueba
+          idPeriodo={idPeriodo}
+          setIdPeriodo={setIdPeriodo}
+          periodoCerrado={periodoCerrado}
+          periodos={periodos}
+          nivelInicial={nivelInicial}
+          valores={valores}
+          cambiar={cambiar}
+          catalogoRazkids={catalogoRazkids}
+          opciones={opciones}
         />
 
-        <Input
-          label="Nivel inicial Raz-Kids"
-          value={nivelInicial?.letra ?? '—'}
-          disabled
-          hint="Automático: es el nivel final del periodo anterior (RN-005)"
+        <BloqueDecision
+          nivelSugerido={nivelSugerido}
+          accion={calculo.accion}
+          nivelFinal={nivelFinal}
+          cambiaSugerencia={cambiaSugerencia}
+          faltaJustificacion={faltaJustificacion}
+          valores={valores}
+          cambiar={cambiar}
+          catalogoRazkids={catalogoRazkids}
         />
-
-        <Select
-          label="Nivel de la prueba tomada"
-          required
-          value={valores.nivel_prueba}
-          onChange={cambiar('nivel_prueba')}
-          placeholder="Seleccione"
-          options={catalogoRazkids.map((n) => ({ value: n.letra, label: n.letra }))}
-        />
-
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Aciertos"
-            type="number"
-            min="0"
-            required
-            value={valores.aciertos}
-            onChange={cambiar('aciertos')}
-          />
-          <Input
-            label="Total de preguntas"
-            type="number"
-            min="1"
-            required
-            value={valores.total}
-            onChange={cambiar('total')}
-          />
-        </div>
-
-        {/* RN-011: las opciones vienen del catálogo, filtradas por programa. */}
-        <Select
-          label="Fluidez lectora"
-          required
-          value={valores.fluidez}
-          onChange={cambiar('fluidez')}
-          placeholder="Seleccione"
-          options={(opciones.Fluidez ?? []).map((n) => ({ value: n.nombre_nivel, label: n.nombre_nivel }))}
-        />
-        <Select
-          label="Comprensión lectora"
-          required
-          value={valores.comprension}
-          onChange={cambiar('comprension')}
-          placeholder="Seleccione"
-          options={(opciones['Comprensión'] ?? []).map((n) => ({ value: n.nombre_nivel, label: n.nombre_nivel }))}
-        />
-
-        {/* Bloque de sugerencia calculada (RNF-005). */}
-        <section className="rounded-xl border border-success-600/20 bg-success-100 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-success-600">
-            Sugerencia (calculada)
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <LevelChip letra={nivelSugerido || '—'} />
-            <span className="text-sm font-semibold text-ink-900">{calculo.accion}</span>
-          </div>
-          <p className="mt-2 text-xs text-ink-700">
-            Las sugerencias no son definitivas hasta que el docente confirme la evaluación.
-          </p>
-        </section>
-
-        <Select
-          label="Nivel final (decisión del docente)"
-          value={nivelFinal}
-          onChange={cambiar('nivel_ajustado')}
-          options={catalogoRazkids.map((n) => ({ value: n.letra, label: n.letra }))}
-          hint="RN-014: el nivel del docente y el de Raz-Kids se conservan por separado"
-        />
-
-        {/* RF-023 / RN-015 */}
-        {cambiaSugerencia && (
-          <Textarea
-            label="Justificación del cambio"
-            required
-            maxLength={500}
-            value={valores.justificacion}
-            onChange={cambiar('justificacion')}
-            error={faltaJustificacion ? 'Obligatoria al modificar el nivel sugerido' : undefined}
-            hint="El sistema propuso otro nivel: explique por qué lo modifica."
-          />
-        )}
 
         <Textarea
           label="Observación"

@@ -80,17 +80,37 @@ export const ENDPOINTS = {
   dashboard: {
     indicadores: '/dashboard/indicadores',
     distribucion: '/dashboard/distribucion',
-    rankingColegios: '/dashboard/ranking-colegios',
-    rankingAulas: '/dashboard/ranking-aulas',
+    rankingColegios: '/dashboard/ranking-colegios', // ?programa=&periodo=
+    rankingAulas: '/dashboard/ranking-aulas', // ?colegio=&periodo=
+    // PROPUESTA DEL FRONTEND: todo el dashboard (P12) en una sola respuesta.
+    // RF-006 pide una sola vista con siete bloques que reaccionan a los mismos
+    // filtros; con la conexión del 70 % de RN-017, una petición es mejor que siete.
+    resumen: '/dashboard/resumen',
+    // PROPUESTA DEL FRONTEND: indicadores del panel ejecutivo (P17).
+    ejecutivo: '/dashboard/ejecutivo',
+  },
+
+  // PROPUESTA DEL FRONTEND: §3 no define el detalle de un colegio (P13).
+  colegios: {
+    detalle: (id) => `/colegios/${id}/resumen`, // ?periodo=&programa=
   },
 
   consolidados: {
-    nivel: '/consolidados/nivel',
-    libros: '/consolidados/libros',
+    nivel: '/consolidados/nivel', // ?colegio=&periodo=
+    libros: '/consolidados/libros', // ?colegio=&mes=&anio=
   },
 
   alertas: {
     inconsistencias: '/alertas/inconsistencias',
+    // PROPUESTA DEL FRONTEND: marcar una alerta como revisada (P15).
+    revisar: (id) => `/alertas/inconsistencias/${id}`,
+  },
+
+  // PROPUESTA DEL FRONTEND: §3 no lista la administración (P16).
+  administracion: {
+    docentes: '/docentes',
+    asignaciones: '/asignaciones',
+    asignacion: (id) => `/asignaciones/${id}`,
   },
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
 import cn from '../../lib/cn'
 import EmptyState from './EmptyState'
+import Paginacion from './Paginacion'
 import Skeleton from './Skeleton'
 
 /**
@@ -166,53 +167,20 @@ export default function DataTable({
       {footNote && <p className="border-t border-line px-4 py-3 text-xs text-ink-500">{footNote}</p>}
 
       {paginated && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
-          <p className="text-xs text-ink-500">
-            Mostrando <span className="font-semibold tabular-nums text-ink-700">{desde}</span> a{' '}
-            <span className="font-semibold tabular-nums text-ink-700">{hasta}</span> de{' '}
-            <span className="font-semibold tabular-nums text-ink-700">{total}</span>
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-ink-500">
-              Por página
-              <select
-                value={porPagina}
-                onChange={(e) => {
-                  setPorPagina(Number(e.target.value))
-                  setPagina(1)
-                }}
-                className="h-8 rounded-lg border border-line-strong bg-surface-0 px-2 text-xs text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              >
-                {pageSizeOptions.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                disabled={paginaActual === 1}
-                className="h-8 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink-700 transition-colors hover:bg-surface-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <span className="px-2 text-xs tabular-nums text-ink-500">
-                {paginaActual} / {totalPaginas}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                disabled={paginaActual === totalPaginas}
-                className="h-8 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink-700 transition-colors hover:bg-surface-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        </div>
+        <Paginacion
+          desde={desde}
+          hasta={hasta}
+          total={total}
+          pagina={paginaActual}
+          totalPaginas={totalPaginas}
+          porPagina={porPagina}
+          opciones={pageSizeOptions}
+          onPagina={setPagina}
+          onPorPagina={(n) => {
+            setPorPagina(n)
+            setPagina(1)
+          }}
+        />
       )}
     </div>
   )

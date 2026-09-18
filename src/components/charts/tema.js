@@ -34,8 +34,49 @@ export const SERIES_RUBRICA = {
   comprension: { color: '#946200', nombre: 'Comprensión lectora' }, // warning-600
 }
 
-/** Series por nivel de rúbrica, para los apilados de distribución. */
+/**
+ * Series por nivel de rúbrica, para los apilados de distribución.
+ *
+ * ADVERTENCIA DE ACCESIBILIDAD. Son los tokens `lvl` que §4.1 impone "SIEMPRE,
+ * en toda la app", y como paleta categórica NO pasan la validación:
+ *   Inicio #B3261E ↔ Proceso #946200 → ΔE 3.2 en deuteranopía y 13.3 con visión
+ *   normal (el mínimo es 8 y 15). Van contiguos en cada barra apilada.
+ * Como el prompt no permite cambiarlos, todo gráfico que los use lleva
+ * codificación secundaria obligatoria: 2 px de separación entre segmentos, el
+ * porcentaje escrito dentro del segmento, leyenda en orden fijo, tooltip y
+ * descarga CSV como vista de tabla. Pendiente de revisión con quien define la
+ * identidad visual.
+ */
 export const SERIES_NIVEL = COLOR_NIVEL
+
+/**
+ * Programas (evolución anual, P12 y P17). Mismo par validado que SERIES_RUBRICA:
+ * #2563EB ↔ #946200 → ΔE 31.2 (protan) · 32.8 (normal) — PASA.
+ */
+export const SERIES_PROGRAMA = {
+  1: { color: '#946200', nombre: 'Alfabetización' }, // warning-600
+  2: { color: '#2563EB', nombre: 'Comprensión Lectora' }, // brand-500
+}
+
+/**
+ * Variación de nivel en el año (dona, P12). Es una escala divergente, no
+ * categórica: baja en rojo, se mantiene en gris neutro y las subidas en una
+ * rampa de azul que oscurece al subir. Cada porción lleva su porcentaje
+ * escrito, porque el gris queda por debajo de 3:1 de contraste.
+ */
+export const SERIES_VARIACION = {
+  Baja: '#B3261E', // danger-600
+  'Se mantiene': '#8A94A6', // ink-400
+  'Sube 1': '#2563EB', // brand-500
+  'Sube 2': '#10428F', // brand-700
+  'Sube 3 o más': '#0A2249', // navy-900
+}
+
+/** Serie única (cobertura, dispersión, alcanzado). */
+export const COLOR_PRINCIPAL = '#2563EB'
+
+/** Porcentaje para ejes y tooltips. */
+export const formatoPct = (valor) => (valor == null ? '—' : `${valor}%`)
 
 /** Ejes y grilla recesivos, igual en todos los gráficos. */
 export const EJE = {

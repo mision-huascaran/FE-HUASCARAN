@@ -100,7 +100,7 @@ export default function Topbar({ onAbrirMenu }) {
   const { pendientes, sincronizando, ultimoError } = useSyncStore()
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-line bg-surface-0 px-4 sm:gap-3 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 print:hidden items-center gap-2 border-b border-line bg-surface-0 px-4 sm:gap-3 sm:px-6">
       <button
         type="button"
         onClick={onAbrirMenu}
