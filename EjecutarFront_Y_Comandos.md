@@ -23,19 +23,8 @@ npm run dev
 
 Abre **http://localhost:5173**. Para detenerlo: `Ctrl + C` en la terminal.
 
-### ¿Con o sin backend?
-
-Lo decide el archivo `.env`:
-
-| Quiero… | En `.env` | Cuentas para entrar |
-|---|---|---|
-| Iniciar sesión con el backend real (debe estar levantado en `127.0.0.1:8000`) | `VITE_AUTH_REAL=true` | `profesor.prueba@sicedu.test` / `ProfesorTest123` · `jefa.prueba@sicedu.test` / `JefaTest123` · `directivo.prueba@sicedu.test` / `DirectivoTest123` |
-| Trabajar sin backend | `VITE_AUTH_REAL=false` | `rcardenas@sicedu.test`, `jefatura@sicedu.test`, `direccion@sicedu.test` / `sicedu123` |
-
-Después de cambiar `.env`, detén el servidor (`Ctrl + C`) y vuelve a correr `npm run dev`.
-
-En la pantalla de login aparece un recuadro con las cuentas y un botón **Usar**: no hace falta
-escribirlas.
+En la pantalla de login aparece un recuadro con las cuentas de prueba y un botón **Usar**: no
+hace falta escribirlas.
 
 ### Otros comandos útiles
 
