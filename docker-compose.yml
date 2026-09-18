@@ -1,0 +1,24 @@
+# Frontend SICEDU. Toma la configuración del .env de esta carpeta (ver
+# .env.example, sección "Despliegue con Docker"):
+#
+#   docker compose up -d --build
+#
+# Las VITE_* se incrustan en el JavaScript al construir: cambiarlas exige
+# reconstruir. API_UPSTREAM se lee al arrancar el contenedor.
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
+        VITE_AUTH_REAL: ${VITE_AUTH_REAL:-true}
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8000}
+    # En Linux host.docker.internal no existe por defecto: apunta al servidor
+    # donde corre Docker, que es donde el backend publica su puerto 8000.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    restart: unless-stopped
