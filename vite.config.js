@@ -61,6 +61,13 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: './src/test/setup.js',
       css: false,
+      // Informe lcov para SonarQube (stage de pruebas en qa y uat).
+      coverage: {
+        provider: 'v8',
+        reporter: ['text-summary', 'lcov'],
+        include: ['src/**/*.{js,jsx}'],
+        exclude: ['src/**/__tests__/**', 'src/test/**'],
+      },
       /**
        * Las pruebas resuelven SIEMPRE contra el mock, pase lo que pase en `.env`.
        * Si tomaran `VITE_AUTH_REAL` del entorno, la suite pasaría o fallaría

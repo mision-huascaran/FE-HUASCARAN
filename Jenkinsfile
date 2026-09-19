@@ -1,12 +1,13 @@
 // Pipeline de FE-HUASCARAN (Jenkins multibranch del curso).
 //
-//   development → despliega el entorno dev
-//   qa          → lint y tests, SonarQube, despliega qa
-//   uat         → despliega uat (presentaciones semanales)
+//   development → despliegue
+//   qa, uat     → pruebas (lint + Vitest con cobertura), SonarQube, Quality Gate y despliegue
 //   main        → todavía no despliega
 //
 // El .env de cada entorno está en Jenkins como credencial "Secret file":
 // HUASCARAN_SECRETS_FRONTEND_DEV, _QA y _UAT. Nunca se imprime en el log.
+// El contenedor no publica puertos: el proxy del servidor lo alcanza por la red
+// proxy_net con el nombre <entorno>-huascaran (ver docker-compose.yml).
 
 pipeline {
     agent any
@@ -28,9 +29,12 @@ pipeline {
             }
         }
 
-        stage('Lint y tests') {
+        stage('Pruebas') {
             when {
-                branch 'qa'
+                anyOf {
+                    branch 'qa'
+                    branch 'uat'
+                }
             }
             agent {
                 docker {
@@ -44,35 +48,38 @@ pipeline {
                     export npm_config_cache="${WORKSPACE}/.npm"
                     npm ci --no-audit --no-fund
                     npm run lint
-                    npm test
+                    npm run test:coverage
                 '''
             }
         }
 
         stage('SonarQube') {
             when {
-                branch 'qa'
+                anyOf {
+                    branch 'qa'
+                    branch 'uat'
+                }
             }
-            agent {
-                docker {
-                    image 'maven:3.9.8-eclipse-temurin-21-alpine'
-                    reuseNode true
+            environment {
+                scannerHome = tool 'SonarScanner'
+            }
+            steps {
+                withSonarQubeEnv('SonarQube-Server') {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            when {
+                anyOf {
+                    branch 'qa'
+                    branch 'uat'
                 }
             }
             steps {
-                // Si SonarQube aún no está configurado para el proyecto, el build
-                // queda UNSTABLE pero el despliegue de qa sigue.
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    script {
-                        def scannerHome = tool 'SonarScanner'
-                        withSonarQubeEnv('SonarQube-Server') {
-                            sh """
-                                export SONAR_USER_HOME="\${WORKSPACE}/.sonar"
-                                mkdir -p "\${SONAR_USER_HOME}"
-                                ${scannerHome}/bin/sonar-scanner
-                            """
-                        }
-                    }
+                timeout(time: 15, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -141,25 +148,11 @@ pipeline {
                 '''
             }
         }
-
-        stage('Quality Gate') {
-            when {
-                branch 'qa'
-            }
-            steps {
-                // Va después del despliegue para no retrasarlo esperando a SonarQube.
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    timeout(time: 5, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: false
-                    }
-                }
-            }
-        }
     }
 
     post {
         always {
-            // El .env solo hace falta para levantar los contenedores.
+            // El .env solo hace falta para levantar el contenedor.
             sh 'rm -f .env'
         }
     }

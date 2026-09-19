@@ -1,10 +1,13 @@
-# Frontend SICEDU. Toma la configuración del .env de esta carpeta (ver
-# .env.example, sección "Despliegue con Docker"):
-#
-#   docker compose up -d --build
+# Frontend SICEDU. Lo levanta Jenkins en el servidor del curso con el .env del
+# entorno (dev, qa o uat); ver .env.example, sección "Despliegue con Docker".
+# Reglas del servidor: no se publica ningún puerto y no se levantan servicios
+# adicionales. El proxy del servidor llega al contenedor por la red externa
+# proxy_net, usando su nombre: <entorno>-huascaran, puerto 80.
 #
 # Las VITE_* se incrustan en el JavaScript al construir: cambiarlas exige
 # reconstruir. API_UPSTREAM se lee al arrancar el contenedor.
+#
+# En local, crea la red una sola vez: docker network create proxy_net
 services:
   frontend:
     build:
@@ -13,12 +16,14 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
         VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
         VITE_AUTH_REAL: ${VITE_AUTH_REAL:-true}
+    container_name: ${ENTORNO:-local}-huascaran
     environment:
-      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8000}
-    # En Linux host.docker.internal no existe por defecto: apunta al servidor
-    # donde corre Docker, que es donde el backend publica su puerto 8000.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      # El backend del mismo entorno, por su nombre en proxy_net.
+      API_UPSTREAM: ${API_UPSTREAM:-http://local-bck-huascaran:8000}
+    networks:
+      - proxy_net
     restart: unless-stopped
+
+networks:
+  proxy_net:
+    external: true
