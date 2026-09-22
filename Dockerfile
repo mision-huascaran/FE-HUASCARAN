@@ -41,7 +41,6 @@ ENV API_UPSTREAM=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY deploy/cabeceras-seguridad.conf /etc/nginx/snippets/cabeceras-seguridad.conf
-COPY --chmod=755 deploy/18-api-upstream-hosts.envsh /docker-entrypoint.d/
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
