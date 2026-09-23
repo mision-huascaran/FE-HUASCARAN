@@ -61,3 +61,27 @@ export function cerrarSesionEnServidor() {
     real: () => api.post(ENDPOINTS.auth.logout),
   }).catch(() => ({ ok: false }))
 }
+
+export function solicitarCodigoRecuperacion() {
+  return resolver({
+    forzarReal: authContraApiReal,
+    mock: () => handlers.auth.passwordCodigo(),
+    real: () => api.post(ENDPOINTS.auth.passwordCodigo),
+  })
+}
+
+export function verificarCodigoRecuperacion({ codigo }) {
+  return resolver({
+    forzarReal: authContraApiReal,
+    mock: () => handlers.auth.verificarCodigo({ codigo }),
+    real: () => api.post(ENDPOINTS.auth.passwordVerificarCodigo, { codigo }),
+  })
+}
+
+export function cambiarPasswordConCodigo({ codigo, contraseña_nueva, confirmar_contraseña_nueva }) {
+  return resolver({
+    forzarReal: authContraApiReal,
+    mock: () => handlers.auth.cambiarPassword({ codigo, contraseña_nueva, confirmar_contraseña_nueva }),
+    real: () => api.post(ENDPOINTS.auth.passwordCambiar, { codigo, contraseña_nueva, confirmar_contraseña_nueva }),
+  })
+}

@@ -357,6 +357,34 @@ export const handlers = {
       // JWT stateless: el cierre real es borrar el token en el cliente (§3).
       return responder({ ok: true }, 80)
     },
+
+    async passwordCodigo({ correo } = {}) {
+      const email = String(correo ?? '').trim().toLowerCase()
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        throw errorHttp(422, 'Debe indicar un correo válido')
+      }
+      return responder({ detail: 'Código enviado a tu correo' }, 150)
+    },
+
+    async verificarCodigo({ codigo } = {}) {
+      const valor = String(codigo ?? '').trim().toUpperCase()
+      if (!valor || valor.length !== 6) {
+        throw errorHttp(400, 'Código incorrecto o expirado')
+      }
+      return responder({ detail: 'Código correcto' }, 120)
+    },
+
+    async cambiarPassword({ codigo, contraseña_nueva, confirmar_contraseña_nueva } = {}) {
+      const valor = String(codigo ?? '').trim().toUpperCase()
+      const nueva = String(contraseña_nueva ?? '').trim()
+      const confirmacion = String(confirmar_contraseña_nueva ?? '').trim()
+      if (!valor || valor.length !== 6 || !nueva || !confirmacion) {
+        throw errorHttp(400, 'Código incorrecto o expirado')
+      }
+      if (nueva.length < 8) throw errorHttp(422, 'La contraseña debe tener al menos 8 caracteres')
+      if (nueva !== confirmacion) throw errorHttp(422, 'Las contraseñas no coinciden')
+      return responder({ detail: 'Contraseña actualizada' }, 150)
+    },
   },
 
   catalogos: {
@@ -541,10 +569,51 @@ export const handlers = {
           const vigentes = db.asignacionesDe(d.id_docente, db.PERIODO_VIGENTE.id_periodo)
           return {
             ...d,
+            id_usuario: usuario?.id_usuario ?? null,
             nombre: `${d.nombres} ${d.apellidos}`,
             correo: usuario?.correo ?? null,
             activo: usuario?.activo ?? false,
             colegios_vigentes: vigentes.map((a) => db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre),
+          }
+        }),
+      ),
+
+    colegios: () =>
+      responder(
+        db.COLEGIOS.map((c) => ({
+          ...c,
+          nombre: c.nombre,
+          abreviatura: c.abreviatura,
+          zona: c.zona,
+          distrito: c.distrito,
+        })),
+      ),
+
+    alumnos: () =>
+      responder(
+        db.ALUMNOS.map((a) => {
+          const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
+          const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
+          const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
+          return {
+            ...a,
+            nombre: db.nombreCompleto(a),
+            codigo: a.codigo,
+            colegio: colegio?.nombre ?? '—',
+            grado: grado?.nombre ?? a.id_grado,
+            programa: programa?.nombre ?? '—',
+          }
+        }),
+      ),
+
+    usuarios: () =>
+      responder(
+        db.USUARIOS.map((u) => {
+          const rol = { 1: 'Docente', 2: 'Supervisor', 3: 'Directivo' }[u.id_rol] ?? 'Usuario'
+          return {
+            ...u,
+            nombre: `${u.nombres} ${u.apellidos}`,
+            rol,
           }
         }),
       ),
@@ -563,6 +632,134 @@ export const handlers = {
           }
         }),
       ),
+
+    crearColegio: async ({ nombre, abreviatura, zona, distrito }) => {
+      const limpioNombre = String(nombre ?? '').trim()
+      const limpioAbreviatura = String(abreviatura ?? '').trim().toUpperCase()
+      const limpioZona = String(zona ?? '').trim()
+      const limpioDistrito = String(distrito ?? '').trim()
+      if (!limpioNombre || !limpioAbreviatura || !limpioZona || !limpioDistrito) {
+        throw errorHttp(422, 'Completa todos los campos del colegio')
+      }
+      const repetido = db.COLEGIOS.some((c) => c.nombre.trim().toLowerCase() === limpioNombre.toLowerCase())
+      if (repetido) throw errorHttp(422, 'Ya existe un colegio con ese nombre')
+      const nuevo = {
+        id_colegio: Math.max(...db.COLEGIOS.map((c) => c.id_colegio)) + 1,
+        nombre: limpioNombre,
+        abreviatura: limpioAbreviatura,
+        zona: limpioZona,
+        distrito: limpioDistrito,
+      }
+      db.COLEGIOS.push(nuevo)
+      return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    crearAlumno: async ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula = 'A' }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const colegioId = Number(idColegio)
+      const gradoId = Number(idGrado)
+      const programaId = Number(idPrograma)
+      if (!nombre || !apellido || !colegioId || !gradoId || !programaId) {
+        throw errorHttp(422, 'Completa nombre, colegio, grado y programa del alumno')
+      }
+      if (!db.COLEGIOS.some((c) => c.id_colegio === colegioId)) throw errorHttp(404, 'El colegio no existe')
+      const ultimo = db.ALUMNOS.at(-1)
+      const nuevo = {
+        id_alumno: (ultimo?.id_alumno ?? 0) + 1,
+        codigo: `EST-${db.COLEGIOS.find((c) => c.id_colegio === colegioId)?.abreviatura ?? 'NUE'}-${String((ultimo?.id_alumno ?? 0) + 1).padStart(4, '0')}`,
+        nombres: nombre,
+        apellidos: apellido,
+        id_colegio: colegioId,
+        id_grado: gradoId,
+        aula: String(aula || 'A').toUpperCase(),
+        id_ciclo_nominal: db.GRADOS.find((g) => g.id_grado === gradoId)?.id_ciclo ?? 1,
+        id_ciclo_evaluado: db.GRADOS.find((g) => g.id_grado === gradoId)?.id_ciclo ?? 1,
+        id_programa: programaId,
+        activo: true,
+      }
+      db.ALUMNOS.push(nuevo)
+      return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    crearUsuario: async ({ nombres, apellidos, correo, password, id_rol: idRol }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const email = String(correo ?? '').trim().toLowerCase()
+      const clave = String(password ?? '').trim()
+      const rol = Number(idRol)
+      if (!nombre || !apellido || !email || !clave || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+
+      const siguienteIdUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
+      const siguienteIdDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
+      const nuevo = {
+        id_usuario: siguienteIdUsuario,
+        id_rol: rol,
+        correo: email,
+        id_docente: rol === 1 ? siguienteIdDocente : null,
+        nombres: nombre,
+        apellidos: apellido,
+        activo: true,
+      }
+
+      db.USUARIOS.push(nuevo)
+      if (rol === 1) {
+        db.DOCENTES.push({
+          id_docente: nuevo.id_docente,
+          nombres: nombre,
+          apellidos: apellido,
+        })
+      }
+      return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarUsuario: async (id, { nombres, apellidos, correo, id_rol: idRol, password }) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      const nombre = String(nombres ?? usuario.nombres).trim()
+      const apellido = String(apellidos ?? usuario.apellidos).trim()
+      const email = String(correo ?? usuario.correo).trim().toLowerCase()
+      const rol = Number(idRol ?? usuario.id_rol)
+      if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los campos del usuario')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+
+      const anteriorRol = usuario.id_rol
+      usuario.nombres = nombre
+      usuario.apellidos = apellido
+      usuario.correo = email
+      usuario.id_rol = rol
+
+      if (rol === 1) {
+        if (!usuario.id_docente) {
+          const siguienteIdDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
+          usuario.id_docente = siguienteIdDocente
+          db.DOCENTES.push({ id_docente: siguienteIdDocente, nombres: nombre, apellidos: apellido })
+        } else {
+          const docente = db.DOCENTES.find((d) => d.id_docente === usuario.id_docente)
+          if (docente) {
+            docente.nombres = nombre
+            docente.apellidos = apellido
+          }
+        }
+      } else if (anteriorRol === 1 && usuario.id_docente) {
+        usuario.id_docente = null
+      }
+
+      if (password && String(password).trim()) {
+        usuario.password = String(password).trim()
+      }
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    desactivarUsuario: async (id) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      usuario.activo = false
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
 
     /**
      * RN-003: la rotación ocurre SOLO al cierre de un periodo y cambia el colegio

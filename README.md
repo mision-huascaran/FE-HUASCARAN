@@ -47,11 +47,48 @@ En desarrollo, la pantalla de inicio de sesión lista las cuentas del modo activ
 
 | Rol | Entra a | Puede |
 |---|---|---|
-| Profesor | `/inicio` | Capturar el reporte semanal, la rúbrica y las evaluaciones de sus colegios; consultar los demás en solo lectura |
-| Jefa_Profesores | `/dashboard` | Ver los nueve colegios, consolidados, alertas y administración |
-| Directivos | `/panel-ejecutivo` | Solo lectura: indicadores, colegios, estudiantes y descargas |
+| Docente | `/inicio` | Capturar el reporte semanal, la rúbrica y las evaluaciones de sus colegios; consultar los demás en solo lectura |
+| Supervisor | `/dashboard` | Ver los nueve colegios, consolidados, alertas y administración |
+| Directivo | `/panel-ejecutivo` | Solo lectura: indicadores, colegios, estudiantes y descargas |
 
 Un rol que entra por URL a una pantalla ajena termina en `/403`.
+
+## Soluciones offline para colegios rurales
+
+Cuando el colegio no tiene internet estable, la plataforma sigue siendo usable si se trata como una aplicación web offline y como una app local instalada. Hay dos opciones prácticas:
+
+### 1) PWA instalable con caché inteligente
+
+- Se habilita un `service worker` para cachear la app principal, los assets y la última sesión del usuario.
+- El formulario de carga y la cola de sincronización quedan guardados en `IndexedDB` y se reenvían cuando vuelve la conexión.
+- Funciona en laptop y en tablet/móvil con navegador moderno sin depender de una instalación nativa.
+- Recomendado para colegios con conexión intermitente y equipos compartidos.
+
+Ventajas:
+- No requiere instalar software extra.
+- Se queda disponible sin conexión tras la primera carga.
+- Permite seguir trabajando con registros pendientes hasta sincronizar.
+
+Límite del enfoque:
+- Si la red es muy mala o el equipo se apaga, la sincronización queda condicionada a la siguiente conexión.
+
+### 2) App empaquetada escritorio con almacenamiento local
+
+- Se genera una versión desktop con Electron/Tauri que sirve el frontend localmente desde el equipo.
+- Los datos se guardan localmente en SQLite o IndexedDB, y la sincronización se dispara solo cuando el colegio tiene internet.
+- Es ideal para un equipo fijo de la escuela o una laptop del docente, y se puede instalar en un solo click.
+- Permite agregar un modo "sin conexión" más robusto que un PWA puro.
+
+Ventajas:
+- Más estable y con mejor control del ciclo de vida de la app.
+- Mejor para equipos de oficina o directivos que trabajan en un mismo dispositivo.
+- Facilita manejar colas, respaldos locales y notificaciones.
+
+Límite del enfoque:
+- Es más costo de mantenimiento que una PWA.
+- No resuelve el problema de la falta total de red por sí mismo; solo evita depender de la web.
+
+> Recomendación práctica: arrancar con PWA para el despliegue rápido y, si el proyecto escala, evolucionar a una app desktop con sincronización controlada.
 
 ## Estructura
 

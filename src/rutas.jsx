@@ -15,6 +15,7 @@ import DashboardPage from './features/dashboard/DashboardPage'
 import EstudiantesPage from './features/estudiantes/EstudiantesPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
+import RegistroPage from './features/login/RegistroPage'
 import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
 import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
 import ReportesPage from './features/reportes/ReportesPage'
@@ -49,7 +50,7 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/colegios/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
   { path: '/consolidados', allow: [JEFA], titulo: 'Consolidados', elemento: <ConsolidadosPage /> },
   { path: '/alertas', allow: [JEFA], titulo: 'Alertas de inconsistencias', elemento: <AlertasPage /> },
-  { path: '/administracion', allow: [JEFA], titulo: 'Administración', elemento: <AdministracionPage /> },
+  { path: '/administracion', allow: [JEFA, DIRECTIVOS], titulo: 'Administración', elemento: <AdministracionPage /> },
   { path: '/panel-ejecutivo', allow: [DIRECTIVOS], titulo: 'Panel ejecutivo', elemento: <PanelEjecutivoPage /> },
   { path: '/reportes', allow: [DIRECTIVOS], titulo: 'Reportes y descargas', elemento: <ReportesPage /> },
 ]
@@ -66,6 +67,7 @@ export default function RutasApp() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/registro" element={<RegistroPage />} />
       <Route path="/403" element={<ForbiddenPage />} />
       {/* Catálogo visual del sistema de diseño. Solo en desarrollo (§11, Fase 1). */}
       {enDesarrollo && <Route path="/_ui" element={<UiKitPage />} />}

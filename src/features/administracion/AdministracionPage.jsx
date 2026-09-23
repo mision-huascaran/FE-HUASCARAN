@@ -4,9 +4,12 @@ import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
 import Tabs from '../../components/ui/Tabs'
+import TabAlumnos from './TabAlumnos'
 import TabAsignaciones from './TabAsignaciones'
 import TabCatalogos from './TabCatalogos'
+import TabColegios from './TabColegios'
 import TabDocentes from './TabDocentes'
+import TabUsuarios from './TabUsuarios'
 import { usePeriodos } from '../../hooks/useCatalogos'
 
 const ESTADO = {
@@ -32,6 +35,9 @@ export default function AdministracionPage() {
         items={[
           { value: 'docentes', label: 'Docentes' },
           { value: 'asignaciones', label: 'Asignaciones' },
+          { value: 'colegios', label: 'Colegios' },
+          { value: 'alumnos', label: 'Alumnos' },
+          { value: 'usuarios', label: 'Usuarios' },
           { value: 'periodos', label: 'Periodos de evaluación' },
           { value: 'catalogos', label: 'Catálogos' },
         ]}
@@ -39,6 +45,9 @@ export default function AdministracionPage() {
 
       {pestana === 'docentes' && <TabDocentes />}
       {pestana === 'asignaciones' && <TabAsignaciones />}
+      {pestana === 'colegios' && <TabColegios />}
+      {pestana === 'alumnos' && <TabAlumnos />}
+      {pestana === 'usuarios' && <TabUsuarios />}
       {pestana === 'periodos' && <TabPeriodos />}
       {pestana === 'catalogos' && <TabCatalogos />}
     </div>

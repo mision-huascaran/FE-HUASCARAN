@@ -19,6 +19,7 @@ import ConsultaColegiosPage from '../consultaColegios/ConsultaColegiosPage'
 import useSessionStore from '../../store/sessionStore'
 import useFiltrosStore, { FILTROS_DASHBOARD_VACIOS } from '../../store/filtrosStore'
 import { ROLES } from '../../auth/roles'
+import { RUTAS_PROTEGIDAS } from '../../rutas'
 import * as db from '../../api/mock/db'
 
 function montar(elemento, { ruta = '/', patron = '/', idRol = ROLES.JEFA } = {}) {
@@ -91,15 +92,74 @@ describe('Alertas (P15)', () => {
 })
 
 describe('Administración (P16)', () => {
-  it('abre en Docentes y ofrece las cuatro pestañas', async () => {
+  it('abre en Docentes y ofrece las pestañas del Supervisor para crear colegios, alumnos y usuarios', async () => {
     montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Docentes',
       'Asignaciones',
+      'Colegios',
+      'Alumnos',
+      'Usuarios',
       'Periodos de evaluación',
       'Catálogos',
     ])
     expect(await screen.findByText('Rosa Elena Cárdenas Villanueva', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /nuevo docente/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Colegios' }))
+    expect(screen.getByRole('button', { name: /nuevo colegio/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Alumnos' }))
+    expect(screen.getByRole('button', { name: /nuevo alumno/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Usuarios' }))
+    expect(screen.getByRole('button', { name: /nuevo usuario/i })).toBeInTheDocument()
+  })
+
+  it('permite que un directivo acceda a administración para crear y gestionar cuentas', () => {
+    const rutaAdmin = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/administracion')
+    expect(rutaAdmin?.allow).toContain(ROLES.DIRECTIVOS)
+  })
+
+  it('permite editar y desactivar usuarios desde la tabla de administración', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Usuarios' }, ESPERA))
+    expect(await screen.findByRole('button', { name: /editar usuario ana lucía bustamante/i }, ESPERA)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /desactivar usuario ana lucía bustamante/i })).toBeInTheDocument()
+  })
+
+  it('bloquea la desactivación del último supervisor activo con un mensaje de validación claro', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Usuarios' }, ESPERA))
+    const boton = await screen.findByRole('button', { name: /desactivar usuario ana lucía bustamante/i }, ESPERA)
+    fireEvent.click(boton)
+
+    expect(await screen.findByText('No se puede desactivar el último Supervisor activo', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('permite que un directivo gestione solo cuentas directivas en administración', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion', idRol: ROLES.DIRECTIVOS })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Usuarios' }, ESPERA))
+
+    expect(await screen.findByRole('button', { name: /editar usuario gerardo ríos del águila/i }, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /desactivar usuario ana lucía bustamante/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /nuevo usuario/i })).toBeInTheDocument()
+  })
+
+  it('permite crear una cuenta de docente desde la pestaña de docentes', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+
+    fireEvent.click(screen.getByRole('button', { name: /nuevo docente/i }))
+    expect(await screen.findByRole('dialog', { name: /nuevo docente/i }, ESPERA)).toBeInTheDocument()
+
+    fireEvent.change(await screen.findByLabelText('Nombres'), { target: { value: 'María' } })
+    fireEvent.change(await screen.findByLabelText('Apellidos'), { target: { value: 'Pérez' } })
+    fireEvent.change(await screen.findByLabelText('Correo institucional'), { target: { value: 'mperez@sicedu.test' } })
+    fireEvent.change(await screen.findByLabelText('Contraseña'), { target: { value: 'secret123' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }))
+
+    expect(await screen.findByText('María Pérez', {}, ESPERA)).toBeInTheDocument()
   })
 })
 

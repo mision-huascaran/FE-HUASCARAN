@@ -23,6 +23,9 @@ export const ENDPOINTS = {
     login: '/login', // body { correo, password } → { access_token, token_type }
     logout: '/logout', // simbólico: el JWT no se revoca en el servidor
     me: '/me', // requiere Authorization: Bearer <token>
+    passwordCodigo: '/me/password/codigo',
+    passwordVerificarCodigo: '/me/password/verificar-codigo',
+    passwordCambiar: '/me/password',
   },
 
   // NO EXISTE AÚN ────────────────────────────────────────────────────────────
