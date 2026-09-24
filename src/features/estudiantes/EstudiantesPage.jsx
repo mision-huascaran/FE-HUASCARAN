@@ -1,12 +1,13 @@
 // Cubre: RF-002, RF-003, RF-004, RF-007, RF-010, RN-001, RN-004, RN-019
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users } from 'lucide-react'
+import { UserCircle2 } from 'lucide-react'
 import AvisoModoConsulta from '../../components/layout/AvisoModoConsulta'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
 import FilterBar from '../../components/ui/FilterBar'
+import ModalAlumno from './ModalAlumno'
 import Select from '../../components/ui/Select'
 import Switch from '../../components/ui/Switch'
 import { listarAlumnos } from '../../api/resources/alumnos'
@@ -25,6 +26,7 @@ export default function EstudiantesPage() {
   const esProfesor = idRol === ROLES.PROFESOR
   const [verOtros, setVerOtros] = useState(false)
   const [filtros, setFiltros] = useState({ colegio: '', grado: '', aula: '', programa: '', estado: '', q: '' })
+  const [alumnoAccion, setAlumnoAccion] = useState(null)
 
   const { data: colegios = [] } = useColegios()
   const { data: grados = [] } = useGrados()
@@ -62,7 +64,11 @@ export default function EstudiantesPage() {
 
   const cambiar = (clave) => (e) => setFiltros((f) => ({ ...f, [clave]: e.target.value }))
 
-  const columnas = columnasEstudiantes({ programas, catalogoRazkids })
+  const abrirFormularioAlumno = (alumno) => setAlumnoAccion(alumno)
+
+  const columnas = columnasEstudiantes({ programas, catalogoRazkids, onAccion: abrirFormularioAlumno })
+
+  const cerrarFormularioAlumno = () => setAlumnoAccion(null)
 
   return (
     <div className="flex flex-col gap-5">
@@ -139,7 +145,7 @@ export default function EstudiantesPage() {
           stickyFirstColumn
           empty={
             <EmptyState
-              icon={Users}
+              icon={UserCircle2}
               title="Sin estudiantes"
               description="Ningún estudiante coincide con los filtros seleccionados."
             />
@@ -147,6 +153,13 @@ export default function EstudiantesPage() {
           footNote="Ley N.° 29733: el sistema solo muestra nombre, código y datos académicos del estudiante."
         />
       </Card>
+
+      <ModalAlumno
+        alumno={alumnoAccion}
+        abierto={Boolean(alumnoAccion)}
+        onCerrar={cerrarFormularioAlumno}
+        soloLectura={enModoConsulta}
+      />
     </div>
   )
 }

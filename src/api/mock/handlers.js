@@ -357,6 +357,34 @@ export const handlers = {
       // JWT stateless: el cierre real es borrar el token en el cliente (§3).
       return responder({ ok: true }, 80)
     },
+
+    async passwordCodigo({ correo } = {}) {
+      const email = String(correo ?? '').trim().toLowerCase()
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        throw errorHttp(422, 'Debe indicar un correo válido')
+      }
+      return responder({ detail: 'Código enviado a tu correo' }, 150)
+    },
+
+    async verificarCodigo({ codigo } = {}) {
+      const valor = String(codigo ?? '').trim().toUpperCase()
+      if (!valor || valor.length !== 6) {
+        throw errorHttp(400, 'Código incorrecto o expirado')
+      }
+      return responder({ detail: 'Código correcto' }, 120)
+    },
+
+    async cambiarPassword({ codigo, contraseña_nueva, confirmar_contraseña_nueva } = {}) {
+      const valor = String(codigo ?? '').trim().toUpperCase()
+      const nueva = String(contraseña_nueva ?? '').trim()
+      const confirmacion = String(confirmar_contraseña_nueva ?? '').trim()
+      if (!valor || valor.length !== 6 || !nueva || !confirmacion) {
+        throw errorHttp(400, 'Código incorrecto o expirado')
+      }
+      if (nueva.length < 8) throw errorHttp(422, 'La contraseña debe tener al menos 8 caracteres')
+      if (nueva !== confirmacion) throw errorHttp(422, 'Las contraseñas no coinciden')
+      return responder({ detail: 'Contraseña actualizada' }, 150)
+    },
   },
 
   catalogos: {
@@ -541,10 +569,51 @@ export const handlers = {
           const vigentes = db.asignacionesDe(d.id_docente, db.PERIODO_VIGENTE.id_periodo)
           return {
             ...d,
+            id_usuario: usuario?.id_usuario ?? null,
             nombre: `${d.nombres} ${d.apellidos}`,
             correo: usuario?.correo ?? null,
             activo: usuario?.activo ?? false,
             colegios_vigentes: vigentes.map((a) => db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre),
+          }
+        }),
+      ),
+
+    colegios: () =>
+      responder(
+        db.COLEGIOS.map((c) => ({
+          ...c,
+          nombre: c.nombre,
+          abreviatura: c.abreviatura,
+          zona: c.zona,
+          distrito: c.distrito,
+        })),
+      ),
+
+    alumnos: () =>
+      responder(
+        db.ALUMNOS.map((a) => {
+          const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
+          const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
+          const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
+          return {
+            ...a,
+            nombre: db.nombreCompleto(a),
+            codigo: a.codigo,
+            colegio: colegio?.nombre ?? '—',
+            grado: grado?.nombre ?? a.id_grado,
+            programa: programa?.nombre ?? '—',
+          }
+        }),
+      ),
+
+    usuarios: () =>
+      responder(
+        db.USUARIOS.map((u) => {
+          const rol = { 1: 'Docente', 2: 'Supervisor', 3: 'Directivo' }[u.id_rol] ?? 'Usuario'
+          return {
+            ...u,
+            nombre: `${u.nombres} ${u.apellidos}`,
+            rol,
           }
         }),
       ),
@@ -563,6 +632,182 @@ export const handlers = {
           }
         }),
       ),
+
+    /**
+     * Igual que `POST /colegios`: solo exige nombre y zona, que es lo único que
+     * guarda el backend. La abreviatura no se pide —se deduce del nombre— porque
+     * solo la usan las etiquetas de los gráficos del propio mock.
+     */
+    crearColegio: async ({ nombre, zona }) => {
+      const limpioNombre = String(nombre ?? '').trim()
+      const limpioZona = String(zona ?? '').trim()
+      if (!limpioNombre || !limpioZona) throw errorHttp(422, 'Completa el nombre y la zona del colegio')
+      const repetido = db.COLEGIOS.some((c) => c.nombre.trim().toLowerCase() === limpioNombre.toLowerCase())
+      if (repetido) throw errorHttp(422, 'Ya existe un colegio con ese nombre')
+      const nuevo = {
+        id_colegio: Math.max(...db.COLEGIOS.map((c) => c.id_colegio)) + 1,
+        nombre: limpioNombre,
+        abreviatura: limpioNombre.replace(/[^A-Za-zÁÉÍÓÚÑ ]/g, '').trim().split(/\s+/).slice(-2).map((x) => x[0] ?? '').join('').toUpperCase() || 'N/D',
+        zona: limpioZona,
+        distrito: limpioZona,
+      }
+      db.COLEGIOS.push(nuevo)
+      return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    crearAlumno: async ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula = 'A' }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const colegioId = Number(idColegio)
+      const gradoId = Number(idGrado)
+      const programaId = Number(idPrograma)
+      if (!nombre || !apellido || !colegioId || !gradoId || !programaId) {
+        throw errorHttp(422, 'Completa nombre, colegio, grado y programa del alumno')
+      }
+      if (!db.COLEGIOS.some((c) => c.id_colegio === colegioId)) throw errorHttp(404, 'El colegio no existe')
+      const ultimo = db.ALUMNOS.at(-1)
+      const nuevo = {
+        id_alumno: (ultimo?.id_alumno ?? 0) + 1,
+        codigo: `EST-${db.COLEGIOS.find((c) => c.id_colegio === colegioId)?.abreviatura ?? 'NUE'}-${String((ultimo?.id_alumno ?? 0) + 1).padStart(4, '0')}`,
+        nombres: nombre,
+        apellidos: apellido,
+        id_colegio: colegioId,
+        id_grado: gradoId,
+        aula: String(aula || 'A').toUpperCase(),
+        id_ciclo_nominal: db.GRADOS.find((g) => g.id_grado === gradoId)?.id_ciclo ?? 1,
+        id_ciclo_evaluado: db.GRADOS.find((g) => g.id_grado === gradoId)?.id_ciclo ?? 1,
+        id_programa: programaId,
+        activo: true,
+      }
+      db.ALUMNOS.push(nuevo)
+      return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Alta de docente con la MISMA forma que `POST /profesores` del backend: no
+     * recibe contraseña, la genera, y la devuelve en `contraseña_temporal` para
+     * que el Supervisor pueda entregarla (el backend solo la devuelve cuando el
+     * correo de bienvenida falla; aquí siempre, que es el caso útil en pruebas).
+     */
+    crearDocente: async ({ nombres, apellidos, correo }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const email = String(correo ?? '').trim().toLowerCase()
+      if (!nombre || !apellido || !email) throw errorHttp(422, 'Completa nombres, apellidos y correo')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      // El backend responde 409 cuando el correo ya está tomado.
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+
+      const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
+      const idDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
+      const temporal = `SICEDU-${String(idUsuario).padStart(3, '0')}`
+
+      const nuevo = { id_usuario: idUsuario, id_rol: 1, correo: email, id_docente: idDocente, nombres: nombre, apellidos: apellido, activo: true }
+      db.USUARIOS.push(nuevo)
+      db.DOCENTES.push({ id_docente: idDocente, nombres: nombre, apellidos: apellido })
+      return responder({ ...nuevo, 'contraseña_temporal': temporal }, RETARDO_ESCRITURA_MS)
+    },
+
+    /** Reactiva una cuenta desactivada (`PATCH /profesores/{id}/activar`). */
+    activarUsuario: async (id) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      usuario.activo = true
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Misma forma que `POST /usuarios`: no recibe contraseña, la genera, y
+     * devuelve `correo_enviado` para que la pantalla decida si mostrarla.
+     * Rechaza el rol Docente, igual que el backend (para eso está crearDocente).
+     */
+    crearUsuario: async ({ nombres, apellidos, correo, id_rol: idRol }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const email = String(correo ?? '').trim().toLowerCase()
+      const rol = Number(idRol)
+      if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (rol === 1) throw errorHttp(400, 'Para crear un docente usa el alta de docentes')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+
+      const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
+      const nuevo = { id_usuario: idUsuario, id_rol: rol, correo: email, id_docente: null, nombres: nombre, apellidos: apellido, activo: true }
+      db.USUARIOS.push(nuevo)
+      // Sin SMTP configurado el envío falla, que es el caso habitual hoy.
+      return responder({ ...nuevo, 'contraseña_temporal': `SICEDU-${String(idUsuario).padStart(3, '0')}`, correo_enviado: false }, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarUsuario: async (id, { nombres, apellidos, correo, id_rol: idRol, password }) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      const nombre = String(nombres ?? usuario.nombres).trim()
+      const apellido = String(apellidos ?? usuario.apellidos).trim()
+      const email = String(correo ?? usuario.correo).trim().toLowerCase()
+      const rol = Number(idRol ?? usuario.id_rol)
+      if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los campos del usuario')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+
+      const anteriorRol = usuario.id_rol
+      usuario.nombres = nombre
+      usuario.apellidos = apellido
+      usuario.correo = email
+      usuario.id_rol = rol
+
+      if (rol === 1) {
+        if (!usuario.id_docente) {
+          const siguienteIdDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
+          usuario.id_docente = siguienteIdDocente
+          db.DOCENTES.push({ id_docente: siguienteIdDocente, nombres: nombre, apellidos: apellido })
+        } else {
+          const docente = db.DOCENTES.find((d) => d.id_docente === usuario.id_docente)
+          if (docente) {
+            docente.nombres = nombre
+            docente.apellidos = apellido
+          }
+        }
+      } else if (anteriorRol === 1 && usuario.id_docente) {
+        usuario.id_docente = null
+      }
+
+      if (password && String(password).trim()) {
+        usuario.password = String(password).trim()
+      }
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Baja lógica. Replica las dos reglas que aplica el servidor: no se puede
+     * dejar sin la última cuenta activa de Supervisor ni de Directivo (409).
+     */
+    desactivarUsuario: async (id) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, `No existe un usuario con id_usuario=${id}`)
+      const NOMBRE = { 2: 'Supervisor', 3: 'Directivo' }
+      if (NOMBRE[usuario.id_rol]) {
+        const activos = db.USUARIOS.filter((u) => u.activo && u.id_rol === usuario.id_rol).length
+        if (activos <= 1) {
+          throw errorHttp(409, `No puedes desactivar la última cuenta activa de ${NOMBRE[usuario.id_rol]}`)
+        }
+      }
+      usuario.activo = false
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarAlumno: async (id, cambios) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${id}`)
+      Object.assign(alumno, cambios)
+      return responder(alumno, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarColegio: async (id, cambios) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(id))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${id}`)
+      Object.assign(colegio, Object.fromEntries(Object.entries(cambios).filter(([, v]) => v != null)))
+      return responder(colegio, RETARDO_ESCRITURA_MS)
+    },
 
     /**
      * RN-003: la rotación ocurre SOLO al cierre de un periodo y cambia el colegio

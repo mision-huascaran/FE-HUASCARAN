@@ -21,6 +21,20 @@ export const authContraApiReal =
   !usarMock || String(import.meta.env.VITE_AUTH_REAL ?? 'false') === 'true'
 
 /**
+ * Administración contra la API real mientras la captura sigue en mock.
+ *
+ * El backend ya publica todo el dominio de administración —colegios, grados,
+ * programas, profesores, alumnos paginados, usuarios y sus altas y bajas— pero
+ * todavía no `/reporte-semanal`, `/evaluacion-diagnostica` ni
+ * `/nivel-final-mensual` (verificado con `npm run verificar:backend`). Sin esta
+ * distinción habría que elegir entre administrar de verdad o poder capturar.
+ *
+ * Cuando el backend publique la captura, esto sobra: basta `VITE_USE_MOCK=false`.
+ */
+export const adminContraApiReal =
+  !usarMock || String(import.meta.env.VITE_ADMIN_REAL ?? 'false') === 'true'
+
+/**
  * Dirección base de la API.
  *
  * En desarrollo es `/api`, una ruta relativa que atiende el proxy de

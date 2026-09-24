@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileDown,
+  GraduationCap,
   Home,
   Layers,
   LayoutDashboard,
@@ -17,18 +18,28 @@ import {
 } from 'lucide-react'
 import { ROLES } from '../../auth/roles'
 
+/**
+ * Un bloque por rol y ni uno más.
+ *
+ * `ROLES` tiene alias (`PROFESOR`/`DOCENTE`, `JEFA`/`SUPERVISOR`,
+ * `DIRECTIVOS`/`DIRECTIVO`) que valen el mismo número. Si se escriben dos
+ * bloques, el segundo PISA al primero sin avisar: así desapareció "Cuentas" del
+ * menú del Directivo. Se usa el nombre nuevo de cada rol, una sola vez.
+ */
 export const NAV_BY_ROLE = {
-  [ROLES.PROFESOR]: [
+  [ROLES.DOCENTE]: [
     { to: '/inicio', label: 'Inicio', icon: Home },
     { to: '/reporte-semanal', label: 'Reporte semanal', icon: ClipboardList },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
+    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
     { to: '/consulta-colegios', label: 'Consulta de colegios', icon: School },
   ],
-  [ROLES.JEFA]: [
+  [ROLES.SUPERVISOR]: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios y ranking', icon: School },
+    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
@@ -36,11 +47,12 @@ export const NAV_BY_ROLE = {
     { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
     { to: '/administracion', label: 'Administración', icon: Settings },
   ],
-  [ROLES.DIRECTIVOS]: [
+  [ROLES.DIRECTIVO]: [
     { to: '/panel-ejecutivo', label: 'Panel ejecutivo', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios', icon: School },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/reportes', label: 'Reportes', icon: FileDown },
+    { to: '/administracion', label: 'Cuentas', icon: Settings },
   ],
 }
 
@@ -49,6 +61,7 @@ export const navegacionDe = (idRol) => NAV_BY_ROLE[idRol] ?? []
 /** Etiqueta de cada segmento de URL para las migas de pan (P2). */
 export const ETIQUETAS_RUTA = {
   inicio: 'Inicio',
+  alumnos: 'Alumnos',
   'reporte-semanal': 'Reporte semanal',
   'registro-vuelo': 'Registro de Vuelo',
   nuevo: 'Nueva evaluación',

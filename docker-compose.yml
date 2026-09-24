@@ -1,7 +1,8 @@
-# Frontend SICEDU. Toma la configuración del .env de esta carpeta (ver
-# .env.example, sección "Despliegue con Docker"):
-#
-#   docker compose up -d --build
+# Frontend SICEDU. Lo levanta Jenkins en el servidor del curso con el .env del
+# entorno (dev, qa o uat); ver .env.example, sección "Despliegue con Docker".
+# Reglas del servidor: no se publica ningún puerto, no se levantan servicios
+# adicionales y el contenedor se conecta a la red proxy_net. El contenedor se llama <entorno>-huascaran y escucha en el puerto
+# 80; es el nombre por el que el proxy del servidor debe alcanzarlo.
 #
 # Las VITE_* se incrustan en el JavaScript al construir: cambiarlas exige
 # reconstruir. API_UPSTREAM se lee al arrancar el contenedor.
@@ -13,12 +14,17 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
         VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
         VITE_AUTH_REAL: ${VITE_AUTH_REAL:-true}
+        VITE_ADMIN_REAL: ${VITE_ADMIN_REAL:-false}
+    container_name: ${ENTORNO:-local}-huascaran
     environment:
-      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8000}
-    # En Linux host.docker.internal no existe por defecto: apunta al servidor
-    # donde corre Docker, que es donde el backend publica su puerto 8000.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      # El backend del mismo entorno (ver .env.example).
+      API_UPSTREAM: ${API_UPSTREAM:?falta API_UPSTREAM en el .env}
+    networks:
+      - proxy_net
     restart: unless-stopped
+
+networks:
+  # Red del proxy del servidor del curso, igual que en el compose de ejemplo:
+  # el proxy alcanza al contenedor por su nombre a través de esta red.
+  proxy_net:
+    external: true

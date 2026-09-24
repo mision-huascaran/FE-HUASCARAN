@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, matchPath } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import PantallaPendiente from './components/layout/PantallaPendiente'
 import ProtectedRoute from './auth/ProtectedRoute'
@@ -12,6 +12,7 @@ import ColegiosPage from './features/colegios/ColegiosPage'
 import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
 import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
 import DashboardPage from './features/dashboard/DashboardPage'
+import AlumnosPage from './features/alumnos/AlumnosPage'
 import EstudiantesPage from './features/estudiantes/EstudiantesPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
@@ -40,6 +41,8 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Reporte semanal y rúbrica', elemento: <ReporteSemanalPage /> },
   { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de vuelo — histórico', elemento: <RegistroVueloPage /> },
   { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
+  // Módulo Alumnos (CU008): gestiona el Docente, el Supervisor solo consulta.
+  { path: '/alumnos', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <AlumnosPage /> },
   { path: '/estudiantes', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Estudiantes', elemento: <EstudiantesPage /> },
   { path: '/estudiantes/:id', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
   { path: '/nivel-final', allow: [PROFESOR, JEFA], titulo: 'Nivel final mensual', elemento: <NivelFinalPage /> },
@@ -49,12 +52,31 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/colegios/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
   { path: '/consolidados', allow: [JEFA], titulo: 'Consolidados', elemento: <ConsolidadosPage /> },
   { path: '/alertas', allow: [JEFA], titulo: 'Alertas de inconsistencias', elemento: <AlertasPage /> },
-  { path: '/administracion', allow: [JEFA], titulo: 'Administración', elemento: <AdministracionPage /> },
+  { path: '/administracion', allow: [JEFA, DIRECTIVOS], titulo: 'Administración', elemento: <AdministracionPage /> },
   { path: '/panel-ejecutivo', allow: [DIRECTIVOS], titulo: 'Panel ejecutivo', elemento: <PanelEjecutivoPage /> },
   { path: '/reportes', allow: [DIRECTIVOS], titulo: 'Reportes y descargas', elemento: <ReportesPage /> },
 ]
 
 const enDesarrollo = import.meta.env.DEV
+
+/**
+ * ¿Ese rol puede entrar a esa ruta?
+ *
+ * Se usa al volver del login: tras cerrar sesión, `ProtectedRoute` guarda la
+ * ruta en la que estaba el usuario anterior. Si la siguiente persona entra con
+ * otro rol y se la devuelve a ciegas, `RoleRoute` la manda a /403 aunque sus
+ * credenciales sean correctas: se veía un "No tiene permisos" al iniciar sesión.
+ */
+export function rolPuedeEntrar(ruta, idRol) {
+  if (!ruta || idRol == null) return false
+  const limpia = String(ruta).split('?')[0]
+  return RUTAS_PROTEGIDAS.some((r) => matchPath({ path: r.path, end: true }, limpia) && r.allow.includes(idRol))
+}
+
+/** Destino tras iniciar sesión: la ruta pedida si el rol la admite, o su inicio. */
+export function destinoTrasLogin(desde, idRol) {
+  return rolPuedeEntrar(desde, idRol) ? desde : rutaInicioDe(idRol)
+}
 
 /** Una URL desconocida lleva al inicio del rol; sin sesión, al login. */
 function Redireccion() {

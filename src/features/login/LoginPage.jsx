@@ -8,9 +8,10 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PanelBienvenida from './PanelBienvenida'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
-import { rutaInicioDe } from '../../auth/roles'
+import { destinoTrasLogin } from '../../rutas'
 import { estadoDe } from '../../api/client'
 import CredencialesDemo from './CredencialesDemo'
 
@@ -24,21 +25,23 @@ export default function LoginPage() {
   const navegar = useNavigate()
   const { state } = useLocation()
   const [errorGeneral, setErrorGeneral] = useState(null)
+  const [resetAbierto, setResetAbierto] = useState(false)
 
   const {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(esquema), defaultValues: { correo: '', password: '' } })
 
-  if (autenticado) return <Navigate to={state?.desde ?? rutaInicioDe(usuario.id_rol)} replace />
+  if (autenticado) return <Navigate to={destinoTrasLogin(state?.desde, usuario.id_rol)} replace />
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
     try {
       const perfil = await entrar({ correo, password })
-      navegar(state?.desde ?? rutaInicioDe(perfil.id_rol), { replace: true })
+      navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
       // Nunca se dice cuál de los dos campos falló (P1).
@@ -49,6 +52,10 @@ export default function LoginPage() {
       setErrorGeneral('No se pudo conectar con el servidor. Intente nuevamente en unos segundos.')
     }
   }
+
+  const cerrarReset = () => setResetAbierto(false)
+
+
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -92,10 +99,10 @@ export default function LoginPage() {
               {...register('password')}
             />
 
-            <div className="flex justify-end">
-              {/* TODO: el backend todavía no expone recuperación de contraseña. */}
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
+                onClick={() => setResetAbierto(true)}
                 className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
               >
                 ¿Olvidó su contraseña?
@@ -111,6 +118,12 @@ export default function LoginPage() {
             setValue('correo', correo, { shouldValidate: true })
             setValue('password', password, { shouldValidate: true })
           }}
+          />
+
+          <ModalRecuperarPassword
+            abierto={resetAbierto}
+            onCerrar={cerrarReset}
+            correoInicial={watch('correo') ?? ''}
           />
 
           <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-400">

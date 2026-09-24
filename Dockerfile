@@ -17,9 +17,12 @@ WORKDIR /app
 ARG VITE_API_BASE_URL=/api
 ARG VITE_USE_MOCK=true
 ARG VITE_AUTH_REAL=true
+# VITE_ADMIN_REAL=true  → las pantallas de Administración usan la API real.
+ARG VITE_ADMIN_REAL=false
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_USE_MOCK=$VITE_USE_MOCK \
-    VITE_AUTH_REAL=$VITE_AUTH_REAL
+    VITE_AUTH_REAL=$VITE_AUTH_REAL \
+    VITE_ADMIN_REAL=$VITE_ADMIN_REAL
 
 # Primero solo los manifiestos: si no cambian, Docker reutiliza la capa de
 # dependencias y el build del pipeline tarda segundos en vez de minutos.
@@ -41,7 +44,6 @@ ENV API_UPSTREAM=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY deploy/cabeceras-seguridad.conf /etc/nginx/snippets/cabeceras-seguridad.conf
-COPY --chmod=755 deploy/18-api-upstream-hosts.envsh /docker-entrypoint.d/
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

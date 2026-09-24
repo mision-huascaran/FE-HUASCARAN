@@ -1,4 +1,5 @@
 // Cubre: RF-004, RN-004, RN-019
+import { SquarePen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Badge from '../../components/ui/Badge'
 import LevelChip from '../../components/ui/LevelChip'
@@ -13,7 +14,7 @@ const ETIQUETA_ESTADO = {
 }
 
 /** Columnas del listado de estudiantes (P10). RN-019: solo nombre, código y datos académicos. */
-export default function columnasEstudiantes({ programas, catalogoRazkids }) {
+export default function columnasEstudiantes({ programas, catalogoRazkids, onAccion }) {
   return [
     {
       key: 'codigo',
@@ -97,6 +98,26 @@ export default function columnasEstudiantes({ programas, catalogoRazkids }) {
       sortable: true,
       render: (a) => (
         <Badge tone={TONO_ESTADO[a.estado_evaluacion]}>{ETIQUETA_ESTADO[a.estado_evaluacion]}</Badge>
+      ),
+    },
+    {
+      key: 'acciones',
+      header: 'Registrar',
+      align: 'right',
+      render: (a) => (
+        <button
+          type="button"
+          aria-label={`Registrar datos de ${a.nombre}`}
+          title="Reporte semanal, registro de vuelo y ficha de este estudiante"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onAccion?.(a)
+          }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface-0 text-ink-500 transition-colors hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <SquarePen className="h-4 w-4" aria-hidden="true" />
+        </button>
       ),
     },
   ]

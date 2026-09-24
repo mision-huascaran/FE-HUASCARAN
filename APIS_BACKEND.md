@@ -3,20 +3,25 @@
 **Rama:** `development` · **Base URL (desarrollo):** `http://127.0.0.1:8000`
 **Formato:** JSON · **Autenticación:** JWT Bearer
 
-Todos los endpoints de esta referencia están verificados contra el servidor en
-ejecución. Lo que aparece aquí responde tal cual está escrito.
+Esta referencia refleja el estado real del backend actual: autenticación, recuperación
+de contraseña, autorización por rol, gestión de cuentas y endpoints de creación,
+consulta y edición de colegios, alumnos, profesores y catálogos.
+
+Todos los endpoints documentados están verificados contra el servidor en ejecución.
 
 ---
 
 ## Índice
 
 - [Flujo de autenticación](#flujo-de-autenticación)
-- [Endpoints](#endpoints)
-- [El token JWT](#el-token-jwt)
 - [Roles](#roles)
-- [Usuarios de prueba](#usuarios-de-prueba)
+- [Endpoints principales](#endpoints-principales)
+- [Cambio de contraseña](#cambio-de-contraseña)
+- [Recuperar contraseña sin sesión](#recuperar-contraseña-sin-sesión)
+- [Cuentas de Supervisor y Directivo](#cuentas-de-supervisor-y-directivo)
 - [Errores](#errores)
 - [CORS](#cors)
+- [Usuarios de prueba](#usuarios-de-prueba)
 - [Levantar el backend](#levantar-el-backend)
 
 ---
@@ -24,19 +29,50 @@ ejecución. Lo que aparece aquí responde tal cual está escrito.
 ## Flujo de autenticación
 
 1. El usuario envía correo y contraseña a `POST /login`.
-2. La API devuelve un `access_token` (JWT, válido **480 minutos = 8 horas**).
-3. El frontend guarda el token y lo manda en cada petición protegida:
+2. La API devuelve un `access_token` JWT con vigencia de `480` minutos (8 horas).
+3. El frontend guarda el token y lo manda en cada petición protegida como:
    `Authorization: Bearer <access_token>`.
-4. `GET /me` devuelve los datos del usuario autenticado.
-5. `POST /logout` es simbólico: el token se invalida **borrándolo en el cliente**.
+4. `GET /me` devuelve la información del usuario autenticado.
+5. `POST /logout` es de cierre local: el backend no invalida el JWT; el frontend debe borrar el token del almacenamiento.
 
 ---
 
-## Endpoints
+## Roles
+
+| `id_rol` | Nombre       |
+| -------- | ------------ |
+| `1`      | `Docente`    |
+| `2`      | `Supervisor`  |
+| `3`      | `Directivo`  |
+
+El backend ya implementa validación por rol con `require_role(...)` en `app/dependencies.py`.
+
+**Requieren `Supervisor`:**
+
+- `POST /colegios`, `PATCH /colegios/{id_colegio}`
+- `POST /alumnos`, `PATCH /alumnos/{id_alumno}`
+- `POST /profesores`, `GET /profesores`, `PATCH /profesores/{id_usuario}`
+- `PATCH /profesores/{id_usuario}/activar` y `/desactivar`
+- `POST /usuarios`, `GET /usuarios`
+- `PATCH /usuarios/{id_usuario}/activar` y `/desactivar`
+
+**Cualquier usuario autenticado:**
+
+- `GET /me`, `GET /colegios`, `GET /alumnos`, `GET /grados`, `GET /programas`
+- `POST /me/password/codigo`, `POST /me/password/verificar-codigo`, `POST /me/password`
+
+**Sin autenticación (públicos):**
+
+- `POST /login`, `POST /logout`, `GET /`
+- `POST /password/recuperar`, `POST /password/restablecer`
+
+---
+
+## Endpoints principales
 
 ### `GET /`
 
-Comprobación de que el servicio responde. No requiere token.
+Comprobación de salud del backend.
 
 **Respuesta `200`:**
 
@@ -48,14 +84,9 @@ Comprobación de que el servicio responde. No requiere token.
 
 ### `POST /login`
 
-Autentica al usuario y devuelve el token. No requiere token.
+Autentica al usuario y devuelve un token.
 
 **Body (`application/json`):**
-
-| Campo      | Tipo     | Requerido | Descripción                |
-| ---------- | -------- | --------- | -------------------------- |
-| `correo`   | `string` | Sí        | Correo del usuario.        |
-| `password` | `string` | Sí        | Contraseña en texto plano. |
 
 ```json
 {
@@ -73,75 +104,43 @@ Autentica al usuario y devuelve el token. No requiere token.
 }
 ```
 
-| Campo          | Tipo     | Descripción                        |
-| -------------- | -------- | ---------------------------------- |
-| `access_token` | `string` | JWT firmado. Expira a las 8 horas. |
-| `token_type`   | `string` | Siempre `"bearer"`.                |
+**Errores:**
 
-**Respuesta `401`** — credenciales incorrectas, o usuario con `activo = false`:
-
-```json
-{ "detail": "Correo o contraseña incorrectos" }
-```
-
-> El mismo mensaje cubre los tres casos (correo inexistente, contraseña errónea,
-> usuario desactivado). Es intencional: no revela si un correo está registrado.
-> En la interfaz, muéstralo tal cual y no intentes distinguir la causa.
-
-**Respuesta `422`** — falta un campo o el body no es válido. Ver [Errores](#errores).
+- `401` si el correo no existe o la contraseña es incorrecta.
+- `403` si la contraseña es correcta pero la cuenta está desactivada.
+- `422` si el body no es válido.
 
 ---
 
 ### `GET /me`
 
-Datos del usuario autenticado. **Requiere token.**
+Devuelve el usuario autenticado.
 
 **Headers:**
 
-```
+```http
 Authorization: Bearer <access_token>
 ```
-
-**Recibe:** nada más (sin body ni parámetros).
 
 **Respuesta `200`:**
 
 ```json
 {
   "id_usuario": 1,
-  "id_rol": 1,
-  "correo": "profesor.prueba@sicedu.test",
-  "id_docente": 1,
-  "nombres": "Docente",
+  "id_rol": 2,
+  "correo": "jefa.prueba@sicedu.test",
+  "id_docente": null,
+  "nombres": "Jefa",
   "apellidos": "de Prueba",
   "activo": true
 }
 ```
 
-| Campo        | Tipo             | Descripción                                                         |
-| ------------ | ---------------- | ------------------------------------------------------------------- |
-| `id_usuario` | `number`         | Identificador del usuario.                                          |
-| `id_rol`     | `number`         | Rol asignado. Ver [Roles](#roles).                                  |
-| `correo`     | `string`         | Correo del usuario.                                                 |
-| `id_docente` | `number \| null` | Ficha de docente vinculada. **`null` si el usuario no es docente.** |
-| `nombres`    | `string`         | Nombres.                                                            |
-| `apellidos`  | `string`         | Apellidos.                                                          |
-| `activo`     | `boolean`        | Si la cuenta está habilitada.                                       |
-
-> `id_docente` es nulo para roles no docentes (por ejemplo `Jefa_Profesores`).
-> Tipa ese campo como opcional y compruébalo antes de usarlo, o romperás la vista
-> al entrar con una cuenta administrativa.
-
-**Respuesta `401`** — sin token, token mal formado, expirado, o usuario desactivado.
-Ver [Errores](#errores).
-
 ---
 
 ### `POST /logout`
 
-Cierra la sesión. No requiere token y **no invalida el JWT en el servidor**.
-
-**Recibe:** nada.
+Cierre de sesión local. El backend responde con éxito pero no revoca el token real.
 
 **Respuesta `200`:**
 
@@ -149,79 +148,639 @@ Cierra la sesión. No requiere token y **no invalida el JWT en el servidor**.
 { "detail": "Sesión cerrada correctamente" }
 ```
 
-> Importante: no hay lista de tokens revocados. Un token robado sigue siendo
-> válido hasta que expire, aunque se haya llamado a `/logout`. El cierre de sesión
-> real lo hace el frontend al borrar el token de su almacenamiento; llamar a este
-> endpoint es opcional.
-
 ---
 
-## El token JWT
+### `POST /colegios` — requiere `Supervisor`
 
-El `access_token` es un JWT estándar. Su payload, una vez decodificado:
+**Body:**
 
 ```json
 {
-  "id_usuario": 1,
-  "id_rol": 1,
-  "correo": "profesor.prueba@sicedu.test",
-  "id_docente": 1,
-  "exp": 1789716522
+  "nombre": "Colegio Yungay",
+  "zona": "Yungay"
 }
 ```
 
-Puedes leer `id_rol` desde el token (con `jwt-decode`, por ejemplo) para pintar el
-menú según el rol sin esperar a `GET /me`, y aprovechar `exp` (segundos Unix) para
-detectar la expiración antes de lanzar la petición.
+**Respuesta `200`:**
 
-Eso sirve para la interfaz, no para la seguridad: el payload va en base64, es
-legible y editable por cualquiera. Quien decide de verdad es el backend en cada
-petición, así que no bases permisos reales en lo que dice el token en el cliente.
+```json
+{
+  "id_colegio": 3,
+  "nombre": "Colegio Yungay",
+  "zona": "Yungay",
+  "creado_por": 1,
+  "creado_en": "2026-09-22",
+  "modificado_por": null,
+  "modificado_en": null
+}
+```
 
----
+**Errores:**
 
-## Roles
-
-| `id_rol` | Nombre            |
-| -------- | ----------------- |
-| `1`      | `Profesor`        |
-| `2`      | `Jefa_Profesores` |
-| `3`      | `Directivos`      |
-
-La API todavía **no restringe ningún endpoint por rol**: cualquier usuario
-autenticado puede llamar a `/me`. El control por rol está pendiente en el backend.
+- `403` si el usuario autenticado no tiene rol `Supervisor`
 
 ---
 
-## Usuarios de prueba
+### `GET /colegios` — cualquier usuario autenticado
 
-Creados por `python -m app.seed_data`. Son ficticios, no son datos reales.
+Devuelve un array con todos los colegios.
 
-| Rol               | Correo                        | Contraseña        |
-| ----------------- | ----------------------------- | ----------------- |
-| `Profesor`        | `profesor.prueba@sicedu.test` | `ProfesorTest123` |
-| `Jefa_Profesores` | `jefa.prueba@sicedu.test`     | `JefaTest123`     |
+**Respuesta `200`:**
 
-El usuario `Profesor` trae `id_docente: 1`; el de `Jefa_Profesores` trae
-`id_docente: null` — útil para probar los dos caminos de la interfaz.
+```json
+[
+  {
+    "id_colegio": 1,
+    "nombre": "Colegio de Prueba",
+    "zona": "Zona de Prueba",
+    "creado_por": 1,
+    "creado_en": "2026-09-22",
+    "modificado_por": null,
+    "modificado_en": null
+  }
+]
+```
+
+---
+
+### `POST /alumnos` — requiere `Supervisor`
+
+**Body:**
+
+```json
+{
+  "nombres": "Ana",
+  "apellidos": "Pérez",
+  "id_colegio": 1,
+  "id_grado": 1,
+  "id_programa_actual": 1,
+  "activo": true
+}
+```
+
+**Respuesta `200`:**
+
+```json
+{
+  "id_alumno": 1,
+  "nombres": "Ana",
+  "apellidos": "Pérez",
+  "id_colegio": 1,
+  "id_grado": 1,
+  "id_programa_actual": 1,
+  "fecha_registro": "2026-09-22",
+  "activo": true,
+  "creado_por": 1,
+  "creado_en": "2026-09-22",
+  "modificado_por": null,
+  "modificado_en": null
+}
+```
+
+**Errores:**
+
+- `404` si `id_colegio`, `id_grado` o `id_programa_actual` no existe.
+- Ejemplo: `{"detail": "No existe un grado con id_grado=999"}`
+
+---
+
+### `GET /alumnos` — cualquier usuario autenticado
+
+Lista alumnos con filtros y paginación. Son cientos de registros, así que la
+respuesta **siempre viene paginada**: por defecto 50 por página.
+
+**Parámetros (todos opcionales, combinables entre sí):**
+
+| Parámetro  | Tipo      | Descripción                                        |
+| ---------- | --------- | -------------------------------------------------- |
+| `colegio`  | `number`  | Filtra por `id_colegio`.                           |
+| `grado`    | `number`  | Filtra por `id_grado`.                             |
+| `programa` | `number`  | Filtra por `id_programa_actual`.                   |
+| `q`        | `string`  | Busca en nombres y apellidos.                      |
+| `activo`   | `boolean` | Filtra por estado.                                 |
+| `limit`    | `number`  | Por página. Por defecto `50`, máximo `500`.        |
+| `offset`   | `number`  | Registros a saltar. Por defecto `0`.               |
+
+Ejemplo: `GET /alumnos?colegio=2&grado=1&q=perez&limit=20&offset=0`
+
+**Respuesta `200`:**
+
+```json
+{
+  "total": 413,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+    {
+      "id_alumno": 1,
+      "nombres": "Juan Carlos",
+      "apellidos": "Pérez Quispe",
+      "id_colegio": 2,
+      "id_grado": 1,
+      "id_programa_actual": 1,
+      "fecha_registro": "2026-09-24",
+      "activo": true,
+      "creado_por": 1,
+      "creado_en": "2026-09-24",
+      "modificado_por": null,
+      "modificado_en": null
+    }
+  ]
+}
+```
+
+`total` es el total que cumple el filtro, no el de la página: sirve para calcular
+cuántas páginas hay (`Math.ceil(total / limit)`). Los resultados vienen ordenados
+por apellidos y luego nombres.
+
+> **Sobre `q`:** ignora mayúsculas y tildes, y busca cada palabra por separado en
+> cualquier orden. `perez` encuentra a "Pérez", y `juan perez` encuentra a
+> "Juan Carlos Pérez Quispe" aunque el "Carlos" quede en medio. Puedes enviar
+> directamente lo que el usuario escriba en el buscador, sin normalizarlo.
+
+---
+
+### `PATCH /alumnos/{id_alumno}` — requiere `Supervisor`
+
+Corrige los datos de un alumno. **Actualización parcial:** solo los campos que envíes
+se modifican; los que omitas quedan intactos.
+
+**Body** (todos los campos son opcionales):
+
+```json
+{
+  "nombres": "Juan Carlos",
+  "apellidos": "Pérez Quispe",
+  "id_colegio": 2,
+  "id_grado": 3,
+  "id_programa_actual": 1,
+  "activo": true
+}
+```
+
+**Respuesta `200`:** el alumno completo, ya actualizado, con `modificado_por` y
+`modificado_en` puestos al usuario y fecha de la edición.
+
+**Errores:**
+
+- `404` si el alumno no existe: `{"detail": "No existe un alumno con id_alumno=99"}`
+- `404` si algún `id_colegio`, `id_grado` o `id_programa_actual` nuevo no existe.
+
+---
+
+### `PATCH /colegios/{id_colegio}` — requiere `Supervisor`
+
+Corrige un colegio. Parcial, igual que el de alumnos.
+
+**Body** (campos opcionales): `{ "nombre": "Colegio Carhuaz", "zona": "Carhuaz" }`
+
+**Respuesta `200`:** el colegio completo actualizado.
+**Error `404`:** `{"detail": "No existe un colegio con id_colegio=999"}`
+
+---
+
+### `PATCH /profesores/{id_usuario}` — requiere `Supervisor`
+
+Corrige los datos de un profesor. Parcial.
+
+**Body** (campos opcionales): `{ "nombres": "Ana", "apellidos": "Torres", "correo": "ana@sicedu.test" }`
+
+**Respuesta `200`:** el profesor actualizado, con el mismo formato que `POST /profesores`
+(`contraseña_temporal` llega en `null`, porque aquí no se genera ninguna).
+
+**Errores:**
+
+- `404` si no existe, o si ese `id_usuario` no es un profesor.
+- `409` si el correo nuevo ya lo usa otra cuenta.
+
+> Los nombres del profesor viven en dos tablas (`usuario` y `docente`). Este endpoint
+> escribe en ambas, así que no hace falta que el frontend haga nada especial para
+> mantenerlas sincronizadas.
+
+---
+
+### `GET /grados` — cualquier usuario autenticado
+
+Devuelve el catálogo de grados.
+
+**Respuesta `200`:**
+
+```json
+[
+  { "id_grado": 1, "nombre": "1.º", "id_ciclo": 1 },
+  { "id_grado": 2, "nombre": "2.º", "id_ciclo": 1 }
+]
+```
+
+---
+
+### `GET /programas` — cualquier usuario autenticado
+
+Devuelve el catálogo de programas.
+
+**Respuesta `200`:**
+
+```json
+[
+  { "id_programa": 1, "nombre": "Alfabetización" },
+  { "id_programa": 2, "nombre": "Comprensión Lectora" }
+]
+```
+
+---
+
+### `POST /profesores` — requiere `Supervisor`
+
+**Body:**
+
+```json
+{
+  "nombres": "Luis",
+  "apellidos": "Ramos",
+  "correo": "luis.ramos@sicedu.test",
+  "activo": true
+}
+```
+
+**Respuesta `200`:**
+
+```json
+{
+  "id_usuario": 4,
+  "id_rol": 1,
+  "correo": "luis.ramos@sicedu.test",
+  "id_docente": 2,
+  "nombres": "Luis",
+  "apellidos": "Ramos",
+  "activo": true,
+  "contraseña_temporal": "A1b2C3d4E5"
+}
+```
+
+**Comportamiento especial de `contraseña_temporal`:**
+
+- Si el correo de bienvenida se envía bien, la respuesta devuelve `null`.
+- Si el envío falla, el valor real vuelve en la respuesta para que el Supervisor lo entregue manualmente.
+- Actualmente, con las credenciales de Gmail de juguete, el envío falla con frecuencia; por eso es normal ver la contraseña temporal en la respuesta.
+
+**Errores:**
+
+- `409` si el correo ya existe.
+- `500` si no existe el rol `Docente` en el catálogo.
+
+---
+
+### `GET /profesores` — requiere `Supervisor`
+
+Devuelve un array con todos los profesores, activos e inactivos por igual.
+
+**Respuesta `200`:**
+
+```json
+[
+  {
+    "id_usuario": 4,
+    "id_docente": 2,
+    "correo": "luis.ramos@sicedu.test",
+    "nombres": "Luis",
+    "apellidos": "Ramos",
+    "activo": true
+  }
+]
+```
+
+Este schema (`ProfesorListItem`) es más chico que la respuesta de `POST /profesores` — no trae `id_rol` ni `contraseña_temporal`, solo lo necesario para armar una tabla/listado.
+
+---
+
+### `PATCH /profesores/{id_usuario}/desactivar` — requiere `Supervisor`
+
+Sin body — el `id_usuario` va en la URL. Es borrado lógico: desactiva tanto la fila de `usuario` como la de `docente` juntas, no elimina ningún registro.
+
+**Respuesta `200`:**
+
+```json
+{
+  "id_usuario": 4,
+  "id_rol": 1,
+  "correo": "luis.ramos@sicedu.test",
+  "id_docente": 2,
+  "nombres": "Luis",
+  "apellidos": "Ramos",
+  "activo": false,
+  "contraseña_temporal": null
+}
+```
+
+`contraseña_temporal` siempre viene `null` en este endpoint — no aplica a esta operación.
+
+**Errores:**
+
+- `404` si el `id_usuario` no existe o no corresponde a un profesor (por ejemplo, si es el id de un Supervisor/Directivo): `{"detail": "No existe un profesor con id_usuario={id}"}`
+
+---
+
+### `PATCH /profesores/{id_usuario}/activar` — requiere `Supervisor`
+
+Sin body — el `id_usuario` va en la URL. Operación inversa a `desactivar`: reactiva tanto `usuario` como `docente`, y el login vuelve a funcionar normalmente.
+
+**Respuesta `200`:** misma forma que `desactivar`, con `"activo": true`.
+
+**Errores:**
+
+- `404` — mismo caso que `desactivar`.
+
+---
+
+## Cambio de contraseña
+
+El cambio de contraseña requiere verificar un código de 6 caracteres enviado al correo del usuario — reemplaza el chequeo de "contraseña actual". El flujo son 3 llamadas:
+
+1. `POST /me/password/codigo` — genera el código y lo envía por correo.
+2. `POST /me/password/verificar-codigo` — opcional, solo para UX. Permite mostrarle al usuario feedback inmediato ("código correcto"/"código incorrecto") antes de avanzar a la pantalla de nueva contraseña. No consume el código ni tiene ningún efecto en el backend.
+3. `POST /me/password` — el que realmente cambia la contraseña. Debe recibir el código de nuevo, el mismo que el usuario ingresó en el paso 2 — el backend nunca asume que el paso 2 se llamó antes, vuelve a validar el código de forma independiente. El frontend tiene que guardar el código que el usuario tipeó (en el estado de la pantalla 1) y reenviarlo en el request final del paso 3, no solo en el paso 2.
+
+### `POST /me/password/codigo` — cualquier usuario autenticado
+
+Sin body.
+
+**Respuesta `200`:**
+
+```json
+{ "detail": "Código enviado a tu correo" }
+```
+
+**Errores:**
+
+- `503` si el envío de correo falla: `{"detail": "No pudimos enviar el código, intenta de nuevo"}`
+
+---
+
+### `POST /me/password/verificar-codigo` — cualquier usuario autenticado
+
+**Body:**
+
+```json
+{ "codigo": "AB12CD" }
+```
+
+**Respuesta `200`:**
+
+```json
+{ "detail": "Código correcto" }
+```
+
+**Errores:**
+
+- `400`: `{"detail": "Código incorrecto o expirado"}`
+
+---
+
+### `POST /me/password` — cualquier usuario autenticado
+
+**Body:**
+
+```json
+{
+  "codigo": "AB12CD",
+  "contraseña_nueva": "nuevacontrasena123",
+  "confirmar_contraseña_nueva": "nuevacontrasena123"
+}
+```
+
+**Respuesta `200`:**
+
+```json
+{ "detail": "Contraseña actualizada correctamente" }
+```
+
+**Errores:**
+
+- `400` — código incorrecto o expirado, mismo mensaje que `POST /me/password/verificar-codigo`.
+- `400` — `{"detail": "La contraseña nueva no puede ser igual a la actual"}`
+- `422` — si `contraseña_nueva` y `confirmar_contraseña_nueva` no coinciden, o si la contraseña no cumple el formato (mínimo 8 caracteres, solo letras y números — sin símbolos, sin espacios).
+
+El código expira 10 minutos después de generado, y se consume (no reutilizable) apenas se usa con éxito para cambiar la contraseña.
+
+---
+
+## Recuperar contraseña sin sesión
+
+El flujo de "olvidé mi contraseña", desde la pantalla de login. **Ninguno de los dos
+endpoints requiere token** — es la diferencia con los de [Cambio de contraseña](#cambio-de-contraseña),
+que son para un usuario que ya entró y exigen `Authorization`.
+
+### `POST /password/recuperar` — público
+
+Envía un código de 6 caracteres al correo indicado. El código vale **10 minutos**.
+
+**Body:**
+
+```json
+{ "correo": "profesor.prueba@sicedu.test" }
+```
+
+**Respuesta `200` — siempre, exista el correo o no:**
+
+```json
+{ "detail": "Si el correo está registrado, enviamos un código de verificación" }
+```
+
+> Responde `200` incluso con correos inexistentes o cuentas desactivadas, a propósito.
+> Si devolviera `404` para los desconocidos, cualquiera podría ir probando direcciones
+> para averiguar quién tiene cuenta en el sistema. Para el frontend esto significa que
+> **no puedes saber si el correo existe**: muestra siempre la pantalla de "revisa tu
+> correo" y deja que el usuario vuelva si no le llega nada.
+
+### `POST /password/restablecer` — público
+
+Cambia la contraseña usando el código recibido.
+
+**Body:**
+
+```json
+{
+  "correo": "profesor.prueba@sicedu.test",
+  "codigo": "D6S3QC",
+  "contraseña_nueva": "NuevaClave123",
+  "confirmar_contraseña_nueva": "NuevaClave123"
+}
+```
+
+**Reglas de la contraseña** (las valida el backend, conviene repetirlas en el formulario):
+
+- Mínimo 8 caracteres.
+- Solo letras y números, sin espacios ni símbolos.
+- No puede ser igual a la actual.
+- `contraseña_nueva` y `confirmar_contraseña_nueva` deben coincidir.
+
+**Respuesta `200`:**
+
+```json
+{ "detail": "Contraseña actualizada correctamente" }
+```
+
+**Errores:**
+
+| Código | Cuándo                                                        | `detail`                                          |
+| ------ | ------------------------------------------------------------- | -------------------------------------------------- |
+| `400`  | Código incorrecto, expirado, ya usado, o correo inexistente   | `"Código incorrecto o expirado"`                  |
+| `400`  | La contraseña nueva es igual a la actual                       | `"La contraseña nueva no puede ser igual a la actual"` |
+| `422`  | No coinciden, muy corta, o con símbolos                        | array de validación                               |
+
+> El código es de **un solo uso**: al restablecer se borra, y reutilizarlo devuelve
+> `400`. Si el usuario se equivoca al escribir la contraseña nueva y el formulario la
+> rechaza, el código sigue vivo (no se consumió); pero si la petición llegó a
+> completarse, hay que pedir uno nuevo con `/password/recuperar`.
+
+---
+
+## Cuentas de Supervisor y Directivo
+
+Alta, baja y listado de cuentas administrativas. **Todos requieren rol `Supervisor`.**
+
+Para crear profesores sigue usándose [`POST /profesores`](#post-profesores--requiere-supervisor),
+que además crea la ficha de docente asociada.
+
+### `POST /usuarios` — requiere `Supervisor`
+
+Crea una cuenta de `Supervisor` o `Directivo`.
+
+**Body:**
+
+```json
+{
+  "nombres": "Ana",
+  "apellidos": "Torres",
+  "correo": "ana.torres@sicedu.test",
+  "id_rol": 2,
+  "activo": true
+}
+```
+
+**Respuesta `201`:**
+
+```json
+{
+  "id_usuario": 4,
+  "id_rol": 2,
+  "correo": "ana.torres@sicedu.test",
+  "id_docente": null,
+  "nombres": "Ana",
+  "apellidos": "Torres",
+  "activo": true,
+  "contraseña_temporal": null,
+  "correo_enviado": true
+}
+```
+
+| Campo                 | Tipo             | Descripción                                                      |
+| --------------------- | ---------------- | ---------------------------------------------------------------- |
+| `correo_enviado`      | `boolean`        | Si el correo con la credencial salió bien.                       |
+| `contraseña_temporal` | `string \| null` | **Solo llega si `correo_enviado` es `false`.** Si el correo salió, viene `null`. |
+
+> Mira `correo_enviado` antes de decidir qué mostrar: si es `true`, di solo "le
+> enviamos sus credenciales por correo". Si es `false`, muestra la contraseña temporal
+> en pantalla — es la única copia que existe — y advierte de que se anote.
+
+**Errores:**
+
+| Código | Cuándo                                             |
+| ------ | --------------------------------------------------- |
+| `400`  | `id_rol` es el de `Docente` (usa `POST /profesores`) |
+| `404`  | El `id_rol` no existe                               |
+| `409`  | El correo ya está registrado                        |
+| `403`  | Quien llama no es `Supervisor`                      |
+
+### `GET /usuarios` — requiere `Supervisor`
+
+Lista todas las cuentas, con el nombre del rol ya resuelto.
+
+**Parámetro opcional:** `?rol=Supervisor` filtra por nombre de rol exacto
+(`Docente`, `Supervisor` o `Directivo`).
+
+**Respuesta `200`:**
+
+```json
+[
+  {
+    "id_usuario": 1,
+    "id_rol": 2,
+    "rol": "Supervisor",
+    "correo": "jefa.prueba@sicedu.test",
+    "id_docente": null,
+    "nombres": "Jefa",
+    "apellidos": "de Prueba",
+    "activo": true
+  }
+]
+```
+
+Incluye el campo `rol` con el nombre, así no hace falta cruzar `id_rol` contra otra tabla.
+
+### `PATCH /usuarios/{id_usuario}/desactivar` — requiere `Supervisor`
+
+### `PATCH /usuarios/{id_usuario}/activar` — requiere `Supervisor`
+
+Cambian el estado de cualquier cuenta. Si es la de un profesor, la ficha de docente
+queda con el mismo estado automáticamente.
+
+**Respuesta `200`:** la cuenta con su `activo` ya actualizado.
+
+**Errores:**
+
+| Código | Cuándo                                             | `detail`                                                         |
+| ------ | --------------------------------------------------- | ----------------------------------------------------------------- |
+| `404`  | No existe ese usuario                               | `"No existe un usuario con id_usuario=99"`                        |
+| `409`  | Es la última cuenta activa de `Supervisor` o `Directivo` | `"No puedes desactivar la última cuenta activa de Supervisor..."` |
+| `409`  | Es tu propia cuenta                                 | `"No puedes desactivar tu propia cuenta. Pídeselo a otro Supervisor."` |
+
+> Las dos reglas de `409` **las aplica el servidor**, no el navegador: aunque el
+> frontend no oculte el botón, la petición se rechaza. Muestra el `detail` tal cual,
+> que ya viene redactado para el usuario final.
+>
+> La regla de la cuenta propia existe porque `GET /me` y todas las rutas protegidas
+> rechazan a los usuarios inactivos: desactivarse a uno mismo cerraría la sesión en la
+> siguiente petición, sin forma de revertirlo desde la propia aplicación.
 
 ---
 
 ## Errores
 
-**`401 Unauthorized`** — el `detail` es un **string**:
+### `401 Unauthorized`
 
-| Situación                                   | `detail`                                     |
-| ------------------------------------------- | -------------------------------------------- |
-| Credenciales incorrectas en login           | `"Correo o contraseña incorrectos"`          |
-| Petición sin cabecera `Authorization`       | `"Not authenticated"`                        |
-| Token inválido, expirado o usuario inactivo | `"Credenciales inválidas o sesión expirada"` |
+El backend devuelve un `detail` tipo string.
 
 ```json
 { "detail": "Credenciales inválidas o sesión expirada" }
 ```
 
-**`422 Unprocessable Entity`** — el `detail` es un **array**:
+Situaciones:
+
+- token faltante
+- token inválido
+- token expirado
+- usuario deshabilitado
+
+### `403 Forbidden`
+
+Se usa para autorización por rol.
+
+```json
+{ "detail": "No tienes permisos para realizar esta acción" }
+```
+
+### `404 Not Found`
+
+Usado cuando un FK no existe.
+
+```json
+{ "detail": "No existe un grado con id_grado=999" }
+```
+
+### `422 Unprocessable Entity`
+
+Se usa cuando falta un campo o el payload no es válido.
 
 ```json
 {
@@ -236,169 +795,95 @@ El usuario `Profesor` trae `id_docente: 1`; el de `Jefa_Profesores` trae
 }
 ```
 
-> `detail` cambia de tipo según el error: string en los `401`, array en los `422`.
-> Si tu manejador de errores asume siempre string, un `422` mostrará `[object Object]`.
-> Conviene comprobar `Array.isArray(detail)` en un único punto:
-
-```js
-function mensajeDeError(detail) {
-  if (Array.isArray(detail)) return detail.map((e) => e.msg).join(", ");
-  return detail ?? "Error inesperado";
-}
-```
-
 ---
 
 ## CORS
 
-**Ya está configurado.** Puedes llamar a la API directamente desde el navegador,
-sin proxy, y enviar tanto `Content-Type` como `Authorization`.
+La API acepta peticiones desde navegadores en varios orígenes locales por defecto.
 
-Orígenes permitidos por defecto:
+**Configuración por defecto:**
 
-| Origen                  | Uso habitual              |
-| ----------------------- | ------------------------- |
-| `http://127.0.0.1:5173` | Vite (React, Vue, Svelte) |
-| `http://localhost:5173` | Vite, por nombre de host  |
-| `http://127.0.0.1:3000` | Next.js, Create React App |
-| `http://localhost:3000` | Next.js / CRA, por nombre |
-
-Cada puerto está listado con las dos formas, `127.0.0.1` y `localhost`, así que
-funciona entres como entres a tu aplicación.
-
-Verificado: el preflight `OPTIONS /login` desde los cuatro orígenes devuelve `200`
-con su `access-control-allow-origin` correspondiente, y `POST /login` y `GET /me`
-responden con las cabeceras puestas. Un origen no listado recibe `400 Bad Request`
-en el preflight y ninguna cabecera `Access-Control-*`, así que el navegador lo
-bloquea.
-
-### Si tu frontend corre en otro puerto
-
-No hace falta tocar el código. La lista sale de la variable `CORS_ORIGINS` del
-`.env`, separada por comas:
-
-```
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:4200
+```env
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000
 ```
 
-Reinicia el servidor después de cambiarla.
-
-> Los orígenes deben coincidir **exactamente**: el esquema, el host y el puerto.
-> `http://localhost:5173` y `http://127.0.0.1:5173` son orígenes distintos para el
-> navegador, igual que `http://` y `https://`. Si tu app abre en `127.0.0.1`,
-> añádelo aparte o entra siempre por `localhost`.
-
-En producción, añade ahí el dominio real del frontend. Conviene no usar `["*"]`:
-con `allow_credentials=True` el comodín no es válido según la especificación y los
-navegadores rechazan la respuesta.
+Esto permite que un frontend en Vite o React pueda consumir la API sin proxy.
 
 ---
 
-## Ejemplo de consumo
+## Usuarios de prueba
 
-```js
-const API = "http://127.0.0.1:8000";
+Los usuarios se crean con `python -m app.seed_data`.
 
-export async function login(correo, password) {
-  const res = await fetch(`${API}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ correo, password }),
-  });
+| Rol        | Correo                         | Contraseña        |
+| ---------- | ------------------------------ | ----------------- |
+| `Docente`  | `profesor.prueba@sicedu.test`  | `ProfesorTest123` |
+| `Supervisor` | `jefa.prueba@sicedu.test`     | `JefaTest123`     |
+| `Directivo` | `directivo.prueba@sicedu.test` | `DirectivoTest123` |
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(mensajeDeError(data.detail));
-
-  localStorage.setItem("token", data.access_token);
-  return data;
-}
-
-export async function getMe() {
-  const res = await fetch(`${API}/me`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-  });
-
-  if (res.status === 401) {
-    localStorage.removeItem("token"); // token expirado: forzar nuevo login
-    throw new Error("Sesión expirada");
-  }
-  return res.json();
-}
-```
-
-Centraliza el manejo del `401` en un interceptor (o en un wrapper como el de
-arriba): como el token dura 8 horas, la sesión caducará mientras el usuario navega,
-y conviene que eso lo redirija al login desde un solo sitio.
-
----
-
-## Documentación interactiva
-
-| Ruta            | Contenido                                  |
-| --------------- | ------------------------------------------ |
-| `/docs`         | Swagger UI — permite probar los endpoints. |
-| `/redoc`        | ReDoc — referencia de lectura.             |
-| `/openapi.json` | Esquema OpenAPI 3.1.                       |
-
-Para TypeScript, los tipos se pueden generar desde el esquema en lugar de
-escribirlos a mano, y así no se desincronizan del backend:
-
-```bash
-npx openapi-typescript http://127.0.0.1:8000/openapi.json -o src/types/api.ts
-```
+El usuario de rol `Docente` tiene `id_docente` asociado. Los de `Supervisor` y `Directivo` no lo tienen.
 
 ---
 
 ## Pendiente
 
-No existe todavía; se documentará aquí conforme se implemente:
+Lo que aún no está implementado en el backend:
 
-- [ ] Restricción de endpoints por rol
-- [ ] Refresh token / renovación de sesión
-- [ ] Registro y gestión de usuarios
-- [ ] CRUD de alumnos, colegios, grados y programas
-- [ ] Endpoints de evaluaciones por periodo
+- **El núcleo académico:** reporte semanal, rúbrica semanal, evaluaciones diagnósticas
+  y nivel final mensual. Son los Grupos 2 a 5 del modelo de datos y todavía no existen
+  ni las tablas. Es lo que hoy resuelve el simulador del frontend.
+- Refresh token / renovación de sesión
+- Borrado de registros (hoy alumnos y profesores se desactivan, no se eliminan)
+- Control de permisos más granular por módulo
+- Paginación en `GET /colegios` y `GET /profesores` (hoy devuelven la lista completa;
+  con los volúmenes actuales no es problema, pero `GET /alumnos` ya la necesita)
 
-Las tablas ya existen en la base de datos (`alumno`, `colegio`, `grado`, `programa`,
-`periodo_academico`, `periodo_evaluacion`, `docente`, entre otras), pero ningún
-endpoint las expone aún.
+### Un aviso sobre el envío de correos
+
+`POST /profesores` y `POST /usuarios` devuelven la contraseña temporal en la respuesta
+**cuando el correo no se pudo enviar** (`correo_enviado: false`). Está pensado como
+salida de emergencia, pero hoy el envío falla casi siempre porque `GMAIL_SMTP_USER` y
+`GMAIL_SMTP_APP_PASSWORD` no están configurados, así que en la práctica la credencial
+acaba pasando por pantalla en casi todas las altas.
+
+Conviene configurar esas dos variables en el `.env` del servidor. Mientras tanto, el
+frontend debe seguir manejando el caso `correo_enviado: false`, porque será el habitual.
 
 ---
 
 ## Levantar el backend
 
-```bash
-# 1. Base de datos — PostgreSQL 16 en el puerto 5433
-docker start sicedu-db
-# (la primera vez)
-# docker run --name sicedu-db -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=postgres123 \
-#   -e POSTGRES_DB=sicedu -p 5433:5432 -d postgres:16
-
-# 2. Dependencias
-venv\Scripts\activate
-pip install -r requirements.txt
-
-# 3. Migraciones y datos de prueba
-alembic upgrade head
-python -m app.seed_data
-
-# 4. Servidor
-uvicorn app.main:app --reload
-```
-
-Queda sirviendo en `http://127.0.0.1:8000`. Comprueba que responde:
+Desde la raíz del proyecto, usa este comando:
 
 ```bash
-curl http://127.0.0.1:8000/
+python run.py
 ```
 
-El `.env` debe definir estas variables (ojo: `JWT_SECRET_KEY`, no `SECRET_KEY`;
-la aplicación no arranca si falta alguna de las dos primeras):
+El script hace lo siguiente:
 
+1. Verifica que Docker Desktop esté corriendo.
+2. Crea o levanta el contenedor PostgreSQL `sicedu-db` en el puerto `5433`.
+3. Crea el entorno virtual `venv` e instala dependencias si hace falta.
+4. Genera `.env` si no existe.
+5. Ejecuta `alembic upgrade head`.
+6. Carga el seed con `python -m app.seed_data`.
+7. Arranca `uvicorn` con recarga automática.
+
+Opciones:
+
+```bash
+python run.py --puerto 8001
+python run.py --sin-seed
 ```
+
+El API queda en `http://127.0.0.1:8000` y el Swagger en `http://127.0.0.1:8000/docs`.
+
+La configuración mínima del `.env` debe incluir:
+
+```env
 DATABASE_URL=postgresql+psycopg2://admin:postgres123@localhost:5433/sicedu
 JWT_SECRET_KEY=dev-secret-key-cambiar-en-produccion
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=480
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000
 ```

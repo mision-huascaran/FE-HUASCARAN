@@ -16,8 +16,8 @@ import { NOMBRE_ROL, ROLES } from '../../auth/roles'
 
 /** Usuarios sembrados en la base de datos del backend. */
 const CUENTAS_BACKEND = [
-  { id: 'profesor', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', idRol: ROLES.PROFESOR },
-  { id: 'jefa', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', idRol: ROLES.JEFA },
+  { id: 'docente', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', idRol: ROLES.PROFESOR },
+  { id: 'supervisor', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', idRol: ROLES.JEFA },
   { id: 'directivo', correo: 'directivo.prueba@sicedu.test', password: 'DirectivoTest123', idRol: ROLES.DIRECTIVOS },
 ]
 

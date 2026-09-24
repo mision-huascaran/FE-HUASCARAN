@@ -19,6 +19,7 @@ import ConsultaColegiosPage from '../consultaColegios/ConsultaColegiosPage'
 import useSessionStore from '../../store/sessionStore'
 import useFiltrosStore, { FILTROS_DASHBOARD_VACIOS } from '../../store/filtrosStore'
 import { ROLES } from '../../auth/roles'
+import { RUTAS_PROTEGIDAS } from '../../rutas'
 import * as db from '../../api/mock/db'
 
 function montar(elemento, { ruta = '/', patron = '/', idRol = ROLES.JEFA } = {}) {
@@ -41,7 +42,7 @@ function montar(elemento, { ruta = '/', patron = '/', idRol = ROLES.JEFA } = {})
   )
 }
 
-const ESPERA = { timeout: 4000 }
+const ESPERA = { timeout: 8000 }
 
 describe('Dashboard (P12)', () => {
   it('pinta los cuatro indicadores y una pestaña por colegio (RF-006)', async () => {
@@ -91,15 +92,86 @@ describe('Alertas (P15)', () => {
 })
 
 describe('Administración (P16)', () => {
-  it('abre en Docentes y ofrece las cuatro pestañas', async () => {
+  it('abre en Docentes y ofrece las pestañas del Supervisor', async () => {
     montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    // Alumnos ya no está aquí: es su propio módulo y lo gestiona el Docente.
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Docentes',
       'Asignaciones',
+      'Colegios',
+      'Cuentas',
       'Periodos de evaluación',
       'Catálogos',
     ])
     expect(await screen.findByText('Rosa Elena Cárdenas Villanueva', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /nuevo docente/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Colegios' }))
+    expect(screen.getByRole('button', { name: /nuevo colegio/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Cuentas' }))
+    expect(screen.getByRole('button', { name: /nueva cuenta/i })).toBeInTheDocument()
+  })
+
+  it('permite que un directivo acceda a administración para crear y gestionar cuentas', () => {
+    const rutaAdmin = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/administracion')
+    expect(rutaAdmin?.allow).toContain(ROLES.DIRECTIVOS)
+  })
+
+  it('permite desactivar y reactivar cuentas desde la tabla de administración', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Cuentas' }, ESPERA))
+
+    expect(await screen.findByRole('button', { name: /nueva cuenta/i }, ESPERA)).toBeInTheDocument()
+    // El botón de alta está en la cabecera de la tarjeta y aparece antes que las
+    // filas: hay que esperar a que la consulta de cuentas resuelva.
+    expect((await screen.findAllByRole('button', { name: /desactivar cuenta de/i }, ESPERA)).length).toBeGreaterThan(0)
+    // Corregir los datos de una cuenta no existe en la API: no debe haber botón.
+    expect(screen.queryByRole('button', { name: /editar usuario/i })).not.toBeInTheDocument()
+  })
+
+  it('bloquea la desactivación del último supervisor activo con un mensaje de validación claro', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Cuentas' }, ESPERA))
+    const boton = await screen.findByRole('button', { name: /desactivar cuenta de ana lucía bustamante/i }, ESPERA)
+    fireEvent.click(boton)
+
+    // La regla la aplica el servidor con un 409: la pantalla solo muestra el
+    // mensaje que llega, sin adelantarse a decidir si se puede o no.
+    expect(
+      await screen.findByText(/No puedes desactivar la última cuenta activa de Supervisor/i, {}, ESPERA),
+    ).toBeInTheDocument()
+  })
+
+  it('permite que un directivo gestione solo cuentas directivas en administración', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion', idRol: ROLES.DIRECTIVOS })
+    // El Directivo no administra el programa: solo sus propias cuentas, así que
+    // no hay pestañas de docentes, colegios ni catálogos.
+    expect(screen.getByRole('heading', { name: 'Cuentas' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Docentes' })).not.toBeInTheDocument()
+
+    expect(await screen.findByRole('button', { name: /desactivar cuenta de/i }, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('Ana Lucía Bustamante Rojas')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /nueva cuenta/i })).toBeInTheDocument()
+  })
+
+  it('permite crear una cuenta de docente desde la pestaña de docentes', async () => {
+    montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+
+    fireEvent.click(screen.getByRole('button', { name: /nuevo docente/i }))
+    expect(await screen.findByRole('dialog', { name: /nuevo docente/i }, ESPERA)).toBeInTheDocument()
+
+    fireEvent.change(await screen.findByLabelText('Nombres'), { target: { value: 'María' } })
+    fireEvent.change(await screen.findByLabelText('Apellidos'), { target: { value: 'Pérez' } })
+    fireEvent.change(await screen.findByLabelText('Correo institucional'), { target: { value: 'mperez@sicedu.test' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    // El backend genera la contraseña: la pantalla no la pide y la muestra para
+    // que el Supervisor pueda entregarla.
+    expect(await screen.findByText(/Entregue esta contraseña/i, {}, ESPERA)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /entendido/i }))
+    expect(await screen.findByText('María Pérez', {}, ESPERA)).toBeInTheDocument()
   })
 })
 
