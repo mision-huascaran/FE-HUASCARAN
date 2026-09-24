@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileDown,
+  GraduationCap,
   Home,
   Layers,
   LayoutDashboard,
@@ -30,6 +31,7 @@ export const NAV_BY_ROLE = {
     { to: '/inicio', label: 'Inicio', icon: Home },
     { to: '/reporte-semanal', label: 'Reporte semanal', icon: ClipboardList },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
+    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
     { to: '/consulta-colegios', label: 'Consulta de colegios', icon: School },
@@ -37,6 +39,7 @@ export const NAV_BY_ROLE = {
   [ROLES.SUPERVISOR]: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios y ranking', icon: School },
+    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
@@ -58,6 +61,7 @@ export const navegacionDe = (idRol) => NAV_BY_ROLE[idRol] ?? []
 /** Etiqueta de cada segmento de URL para las migas de pan (P2). */
 export const ETIQUETAS_RUTA = {
   inicio: 'Inicio',
+  alumnos: 'Alumnos',
   'reporte-semanal': 'Reporte semanal',
   'registro-vuelo': 'Registro de Vuelo',
   nuevo: 'Nueva evaluación',

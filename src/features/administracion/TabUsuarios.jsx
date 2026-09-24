@@ -1,18 +1,19 @@
 // Cubre: RF-002, RN-001
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
+import EmptyState from '../../components/ui/EmptyState'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import Select from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from './ModalCredencialDocente'
 import columnasUsuarios from './columnasUsuarios'
-import { activarUsuario, crearUsuario, desactivarUsuario, listarUsuariosAdmin } from '../../api/resources/administracion'
-import { mensajeDeError } from '../../api/client'
+import { activarUsuario, actualizarUsuario, crearUsuario, desactivarUsuario, listarUsuariosAdmin } from '../../api/resources/administracion'
+import { estadoDe, mensajeDeError } from '../../api/client'
 import { ROLES } from '../../auth/roles'
 import useSessionStore from '../../store/sessionStore'
 
@@ -35,28 +36,53 @@ export default function TabUsuarios() {
   const idRolSesion = Number(useSessionStore((s) => s.usuario?.id_rol) ?? ROLES.SUPERVISOR)
   const esDirectivo = idRolSesion === ROLES.DIRECTIVO
 
-  const opcionesRol = esDirectivo
-    ? [{ value: String(ROLES.DIRECTIVO), label: 'Directivo' }]
-    : [
-        { value: String(ROLES.SUPERVISOR), label: 'Supervisor' },
-        { value: String(ROLES.DIRECTIVO), label: 'Directivo' },
-      ]
+  /**
+   * Plan de Prueba, módulo Usuarios: «el Supervisor gestiona Docentes y
+   * Supervisores; el Directivo, otros Directivos». Nadie crea cuentas del otro
+   * lado, así que cada rol tiene una única opción y el desplegable queda fijo.
+   * Las de Docente se crean en su pestaña, porque necesitan ficha de docente.
+   */
+  const opcionesRol = [
+    esDirectivo
+      ? { value: String(ROLES.DIRECTIVO), label: 'Directivo' }
+      : { value: String(ROLES.SUPERVISOR), label: 'Supervisor' },
+  ]
 
   const [abierto, setAbierto] = useState(false)
+  // Con cuenta en edición el mismo formulario corrige; sin ella, da de alta.
+  const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(() => formBase(esDirectivo ? ROLES.DIRECTIVO : ROLES.SUPERVISOR))
   const [credencial, setCredencial] = useState(null)
 
-  const { data = [], isLoading } = useQuery({ queryKey: ['admin', 'usuarios'], queryFn: () => listarUsuariosAdmin() })
+  const consulta = useQuery({ queryKey: ['admin', 'usuarios'], queryFn: () => listarUsuariosAdmin() })
+  const { data = [], isLoading } = consulta
+  // El backend reserva `GET /usuarios` al Supervisor, así que al Directivo le
+  // responde 403 aunque el Plan de Prueba le atribuya la gestión de otros
+  // Directivos. Se dice con todas las letras en vez de dejar la tabla vacía.
+  const sinPermisoEnServidor = consulta.isError && estadoDe(consulta.error) === 403
 
-  // Nadie administra cuentas de Docente desde aquí, y el Directivo solo las suyas.
+  // Cada rol ve solo las cuentas que le toca administrar. Las de Docente tienen
+  // su propia pestaña, así que aquí el Supervisor ve únicamente Supervisores.
   const visibles = useMemo(() => {
-    const permitidos = esDirectivo ? [ROLES.DIRECTIVO] : [ROLES.SUPERVISOR, ROLES.DIRECTIVO]
+    const permitidos = esDirectivo ? [ROLES.DIRECTIVO] : [ROLES.SUPERVISOR]
     return data.filter((u) => permitidos.includes(Number(u.id_rol)))
   }, [data, esDirectivo])
 
   const cerrar = () => {
     setAbierto(false)
+    setEditando(null)
     setForm(formBase(esDirectivo ? ROLES.DIRECTIVO : ROLES.SUPERVISOR))
+  }
+
+  const abrirEdicion = (usuario) => {
+    setEditando(usuario)
+    setForm({
+      nombres: usuario.nombres ?? '',
+      apellidos: usuario.apellidos ?? '',
+      correo: usuario.correo ?? '',
+      id_rol: String(usuario.id_rol),
+    })
+    setAbierto(true)
   }
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
@@ -75,6 +101,16 @@ export default function TabUsuarios() {
       }
     },
     onError: (error) => toast.error('No se pudo crear la cuenta', mensajeDeError(error)),
+  })
+
+  const edicion = useMutation({
+    mutationFn: ({ id, cambios }) => actualizarUsuario(id, cambios),
+    onSuccess: () => {
+      refrescar()
+      cerrar()
+      toast.success('Cuenta actualizada')
+    },
+    onError: (error) => toast.error('No se pudo actualizar la cuenta', mensajeDeError(error)),
   })
 
   const baja = useMutation({
@@ -100,35 +136,60 @@ export default function TabUsuarios() {
   return (
     <>
       <Card
-        title={esDirectivo ? 'Cuentas de Directivo' : 'Cuentas administrativas'}
-        subtitle="Supervisores y directivos con acceso al sistema"
+        title={esDirectivo ? 'Cuentas de Directivo' : 'Cuentas de Supervisor'}
+        subtitle={esDirectivo ? 'Otros directivos con acceso al sistema' : 'Supervisores con acceso al sistema'}
         padded={false}
         actions={
-          <Button size="sm" iconLeft={Plus} onClick={() => setAbierto(true)}>
+          <Button size="sm" iconLeft={Plus} disabled={sinPermisoEnServidor} onClick={() => setAbierto(true)}>
             Nueva cuenta
           </Button>
         }
       >
+        {sinPermisoEnServidor ? (
+          <EmptyState
+            icon={Lock}
+            title="El servidor no autoriza a este rol a listar cuentas"
+            description="La API reserva la gestión de cuentas al Supervisor. Para que el Directivo administre otros Directivos, el backend debe permitirle GET y POST /usuarios y las bajas, limitados al rol Directivo."
+          />
+        ) : consulta.isError ? (
+          <EmptyState title="No se pudieron cargar las cuentas" description={mensajeDeError(consulta.error)} />
+        ) : (
         <DataTable
           loading={isLoading}
           rows={visibles}
           getRowId={(u) => u.id_usuario}
           paginated={false}
-          columns={columnasUsuarios({ baja, alta: reactivar, ocupado: baja.isPending || reactivar.isPending })}
-          footNote="Siempre debe quedar al menos una cuenta activa de Supervisor y una de Directivo: el servidor rechaza la última. Corregir los datos de una cuenta todavía no está disponible en la API."
+          columns={columnasUsuarios({ baja, alta: reactivar, editar: abrirEdicion, ocupado: baja.isPending || reactivar.isPending })}
+          footNote={`Siempre debe quedar al menos una cuenta activa de ${esDirectivo ? 'Directivo' : 'Supervisor'}: el servidor rechaza la última. Corregir los datos de una cuenta todavía no está disponible en la API.`}
         />
+        )}
       </Card>
 
       <Modal
         open={abierto}
         onClose={cerrar}
-        title="Nueva cuenta"
-        subtitle="El sistema genera la contraseña y se la envía por correo"
+        title={editando ? 'Editar cuenta' : 'Nueva cuenta'}
+        subtitle={
+          editando
+            ? 'Solo se corrigen el nombre y el correo: el rol de una cuenta no cambia'
+            : 'El sistema genera la contraseña y se la envía por correo'
+        }
         footer={
           <>
             <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
-            <Button disabled={!completa} loading={alta.isPending} onClick={() => alta.mutate(form)}>
-              Crear cuenta
+            <Button
+              disabled={!completa}
+              loading={alta.isPending || edicion.isPending}
+              onClick={() =>
+                editando
+                  ? edicion.mutate({
+                      id: editando.id_usuario,
+                      cambios: { nombres: form.nombres, apellidos: form.apellidos, correo: form.correo },
+                    })
+                  : alta.mutate(form)
+              }
+            >
+              {editando ? 'Guardar' : 'Crear cuenta'}
             </Button>
           </>
         }
@@ -147,11 +208,12 @@ export default function TabUsuarios() {
           <Select
             label="Rol"
             required
+            disabled={Boolean(editando)}
             className="md:col-span-2"
             value={form.id_rol}
             onChange={(e) => setForm((f) => ({ ...f, id_rol: e.target.value }))}
             options={opcionesRol}
-            hint="Las cuentas de docente se crean en la pestaña Docentes"
+            hint={editando ? 'El rol de una cuenta no se cambia' : 'Las cuentas de docente se crean en la pestaña Docentes'}
           />
         </div>
       </Modal>

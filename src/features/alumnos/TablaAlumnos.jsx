@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PencilLine, Plus } from 'lucide-react'
+import { Ban, PencilLine, Plus, RotateCcw } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
@@ -17,10 +17,25 @@ import {
   listarProgramasAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { ROLES } from '../../auth/roles'
+import useSessionStore from '../../store/sessionStore'
+import Badge from '../../components/ui/Badge'
 
-export default function TabAlumnos() {
+/**
+ * Módulo Alumnos (CU008).
+ *
+ * Quién escribe cambió: **gestiona el Docente, el Supervisor solo consulta**.
+ * El backend lo aplica —al Supervisor le responde 403 en `POST`/`PATCH`
+ * /alumnos—, así que aquí no se pintan acciones que acabarían en un error.
+ *
+ * Al Docente el servidor le acota la lista a sus asignaciones vigentes: si no
+ * tiene ninguna recibe cero alumnos, y eso es correcto, no un fallo de carga.
+ */
+export default function TablaAlumnos() {
   const toast = useToast()
   const queryClient = useQueryClient()
+  const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
+  const puedeGestionar = idRol === ROLES.DOCENTE
   /**
    * Los desplegables se piden con las consultas de administración, no con el
    * catálogo compartido: el alta envía estos ids al backend real y tienen que
@@ -95,6 +110,16 @@ export default function TabAlumnos() {
     onError: (error) => toast.error('No se pudo actualizar el alumno', mensajeDeError(error)),
   })
 
+  const baja = useMutation({
+    mutationFn: ({ id, activo }) => actualizarAlumno(id, { activo }),
+    onSuccess: (_d, { activo }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] })
+      queryClient.invalidateQueries({ queryKey: ['alumnos'] })
+      toast.success(activo ? 'Alumno reactivado' : 'Alumno dado de baja')
+    },
+    onError: (error) => toast.error('No se pudo cambiar el estado del alumno', mensajeDeError(error)),
+  })
+
   const alta = useMutation({
     mutationFn: crearAlumno,
     onSuccess: () => {
@@ -112,12 +137,14 @@ export default function TabAlumnos() {
     <>
       <Card
         title="Alumnos"
-        subtitle="Estudiantes por colegio, grado y programa"
+        subtitle={puedeGestionar ? 'Estudiantes de sus colegios y grados asignados' : 'Consulta: la gestión de alumnos corresponde al Docente'}
         padded={false}
         actions={
-          <Button size="sm" iconLeft={Plus} onClick={() => setAbierto(true)}>
-            Nuevo alumno
-          </Button>
+          puedeGestionar ? (
+            <Button size="sm" iconLeft={Plus} onClick={() => setAbierto(true)}>
+              Nuevo alumno
+            </Button>
+          ) : null
         }
       >
         <DataTable
@@ -133,15 +160,53 @@ export default function TabAlumnos() {
             { key: 'grado', header: 'Grado', align: 'center' },
             { key: 'programa', header: 'Programa', sortable: true },
             {
-              key: 'acciones',
-              header: 'Acciones',
+              key: 'activo',
+              header: 'Estado',
               align: 'center',
-              render: (a) => (
-                <Button size="sm" variant="ghost" iconLeft={PencilLine} aria-label={`Editar ${a.nombre}`} onClick={() => abrirEdicion(a)}>
-                  Editar
-                </Button>
-              ),
+              render: (a) => <Badge tone={a.activo === false ? 'neutral' : 'success'}>{a.activo === false ? 'Inactivo' : 'Activo'}</Badge>,
             },
+            // La baja es lógica: `PATCH /alumnos/{id}` con activo:false. El
+            // borrado definitivo está prohibido, así que no hay botón de borrar.
+            ...(puedeGestionar
+              ? [
+                  {
+                    key: 'acciones',
+                    header: 'Acciones',
+                    align: 'center',
+                    render: (a) => (
+                      <div className="flex items-center justify-center gap-1">
+                        <Button size="sm" variant="ghost" iconLeft={PencilLine} aria-label={`Editar ${a.nombre}`} onClick={() => abrirEdicion(a)}>
+                          Editar
+                        </Button>
+                        {a.activo === false ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            iconLeft={RotateCcw}
+                            aria-label={`Reactivar ${a.nombre}`}
+                            disabled={baja.isPending}
+                            onClick={() => baja.mutate({ id: a.id_alumno, activo: true })}
+                          >
+                            Reactivar
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            iconLeft={Ban}
+                            aria-label={`Dar de baja a ${a.nombre}`}
+                            disabled={baja.isPending}
+                            className="text-danger-600"
+                            onClick={() => baja.mutate({ id: a.id_alumno, activo: false })}
+                          >
+                            Dar de baja
+                          </Button>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
           ]}
         />
 

@@ -4,7 +4,6 @@ import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
 import Tabs from '../../components/ui/Tabs'
-import TabAlumnos from './TabAlumnos'
 import TabAsignaciones from './TabAsignaciones'
 import TabCatalogos from './TabCatalogos'
 import TabColegios from './TabColegios'
@@ -33,7 +32,6 @@ const PESTANAS = {
     { value: 'docentes', label: 'Docentes' },
     { value: 'asignaciones', label: 'Asignaciones' },
     { value: 'colegios', label: 'Colegios' },
-    { value: 'alumnos', label: 'Alumnos' },
     { value: 'usuarios', label: 'Cuentas' },
     { value: 'periodos', label: 'Periodos de evaluación' },
     { value: 'catalogos', label: 'Catálogos' },
@@ -57,7 +55,7 @@ export default function AdministracionPage() {
         <p className="mt-1 text-sm text-ink-500">
           {esDirectivo
             ? 'Cuentas de Directivo con acceso al panel ejecutivo.'
-            : 'Docentes, asignaciones por periodo, colegios, alumnos, cuentas, cortes de evaluación y catálogos oficiales.'}
+            : 'Docentes, asignaciones por periodo, colegios, cuentas, cortes de evaluación y catálogos oficiales.'}
         </p>
       </header>
 
@@ -66,7 +64,6 @@ export default function AdministracionPage() {
       {activa === 'docentes' && <TabDocentes />}
       {activa === 'asignaciones' && <TabAsignaciones />}
       {activa === 'colegios' && <TabColegios />}
-      {activa === 'alumnos' && <TabAlumnos />}
       {activa === 'usuarios' && <TabUsuarios />}
       {activa === 'periodos' && <TabPeriodos />}
       {activa === 'catalogos' && <TabCatalogos />}

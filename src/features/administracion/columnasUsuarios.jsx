@@ -1,15 +1,16 @@
 // Cubre: RF-002, RN-001
-import { UserCheck, UserX } from 'lucide-react'
+import { PencilLine, UserCheck, UserX } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 
 /**
  * Columnas de la tabla de cuentas (P16).
  *
- * No hay botón de editar: el backend no publica un `PATCH /usuarios/{id}` para
- * cuentas de Supervisor o Directivo. Ponerlo daría la impresión de que guarda.
+ * `PATCH /usuarios/{id}` corrige nombre y correo, no el rol: una cuenta no
+ * cambia de parcela editándola. El servidor aplica además la parcela del rol,
+ * así que un Supervisor no puede tocar a un Directivo aunque falsee la petición.
  */
-export default function columnasUsuarios({ baja, alta, ocupado }) {
+export default function columnasUsuarios({ baja, alta, editar, ocupado }) {
   return [
     { key: 'nombre', header: 'Usuario', sortable: true, className: 'font-medium text-ink-900' },
     { key: 'correo', header: 'Correo', sortable: true },
@@ -24,8 +25,19 @@ export default function columnasUsuarios({ baja, alta, ocupado }) {
       key: 'acciones',
       header: 'Acciones',
       align: 'center',
-      render: (u) =>
-        u.activo ? (
+      render: (u) => (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            iconLeft={PencilLine}
+            aria-label={`Editar cuenta de ${u.nombre}`}
+            disabled={ocupado}
+            onClick={() => editar(u)}
+          >
+            Editar
+          </Button>
+          {u.activo ? (
           <Button
             size="sm"
             variant="ghost"
@@ -48,7 +60,9 @@ export default function columnasUsuarios({ baja, alta, ocupado }) {
           >
             Reactivar
           </Button>
-        ),
+          )}
+        </div>
+      ),
     },
   ]
 }

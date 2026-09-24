@@ -172,11 +172,18 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
     total: Array.isArray(datos) ? datos.length : (datos?.total ?? items.length),
     limit: Array.isArray(datos) ? items.length : (datos?.limit ?? 50),
     offset: Array.isArray(datos) ? 0 : (datos?.offset ?? 0),
-    items: items.map((a) => ({
-      ...a,
-      nombre: a.nombre ?? [a.apellidos, a.nombres].filter(Boolean).join(', '),
-      id_programa: a.id_programa ?? a.id_programa_actual,
-    })),
+    items: items.map((a) => {
+      // Al Directivo el backend le manda `nombres` y `apellidos` en null: no
+      // puede ver datos identificables. Sin este respaldo la fila saldría en
+      // blanco y parecería un fallo de carga, no una regla de privacidad.
+      const nombre = a.nombre || [a.apellidos, a.nombres].filter(Boolean).join(', ')
+      return {
+        ...a,
+        anonimo: !nombre,
+        nombre: nombre || `Estudiante n.º ${a.id_alumno}`,
+        id_programa: a.id_programa ?? a.id_programa_actual,
+      }
+    }),
   }
 }
 
@@ -263,33 +270,70 @@ export const activarUsuario = (idUsuario) =>
   })
 
 /**
- * TODO: el backend no publica un `PATCH /usuarios/{id}`. Editar una cuenta de
- * Supervisor o Directivo solo funciona contra el mock; la de un Docente sí se
- * corrige de verdad con `actualizarDocente`.
+ * `PATCH /usuarios/{id}` — corrige nombre y correo de una cuenta.
+ *
+ * El backend solo admite esos tres campos: el rol no se cambia editando (una
+ * cuenta no cambia de parcela) y la contraseña se gestiona aparte. Además
+ * aplica la parcela del rol: un Supervisor no puede tocar a un Directivo.
  */
-export const actualizarUsuario = (id, payload) =>
+export const actualizarUsuario = (id, { nombres, apellidos, correo }) =>
   resolver({
-    mock: () => handlers.administracion.actualizarUsuario(id, payload),
-    real: () => handlers.administracion.actualizarUsuario(id, payload),
+    mock: () => handlers.administracion.actualizarUsuario(id, { nombres, apellidos, correo }),
+    real: () => api.patch(administracion.usuario(id), { nombres, apellidos, correo }),
+    forzarReal: adminContraApiReal,
   })
 
-/** Editar una cuenta administrativa todavía no existe en la API. */
-export const edicionDeCuentasEnMock = true
+export const edicionDeCuentasEnMock = false
 export const negocioEnMock = usarMock
 
-// ── Asignaciones (solo mock) ────────────────────────────────────────────────
+// ── Asignaciones ────────────────────────────────────────────────────────────
 
-export const listarAsignaciones = () =>
-  resolver({ mock: () => handlers.administracion.asignaciones(), real: () => handlers.administracion.asignaciones() })
+/**
+ * `GET /asignaciones` — de ellas depende TODO lo que ve un Docente.
+ *
+ * El backend acota por asignación vigente: un docente sin ninguna recibe cero
+ * alumnos y cero colegios, y eso es correcto, no un fallo de carga. El
+ * Supervisor las ve todas; al Directivo le responde 403, porque no gestiona
+ * docentes.
+ *
+ * La respuesta ya trae resueltos los nombres (`docente`, `colegio`, `grado`,
+ * `periodo`) junto a sus ids, así que la tabla no tiene que cruzarlos.
+ */
+export const listarAsignaciones = async () => {
+  const filas = await resolver({
+    mock: () => handlers.administracion.asignaciones(),
+    real: () => api.get(administracion.asignaciones),
+    forzarReal: adminContraApiReal,
+  })
+  // La API nombra la clave `id` y el periodo `id_periodo_academico`; el mock y
+  // la tabla usan `id_asignacion` e `id_periodo`. Se unifica aquí para que la
+  // pantalla no tenga que saber de dónde vino la fila.
+  return (filas ?? []).map((a) => ({
+    ...a,
+    id_asignacion: a.id_asignacion ?? a.id,
+    id_periodo: a.id_periodo ?? a.id_periodo_academico,
+    // El backend solo dice si la asignación está vigente; la tabla pinta el
+    // estado del periodo, y solo deja retirar las que aún no empezaron.
+    estado_periodo: a.estado_periodo ?? (a.vigente ? 'abierto' : 'cerrado'),
+  }))
+}
 
-export const crearAsignacion = (payload) =>
+export const crearAsignacion = ({ id_docente: idDocente, id_colegio: idColegio, id_grado: idGrado, id_periodo_academico: idPeriodo }) =>
   resolver({
-    mock: () => handlers.administracion.crearAsignacion(payload),
-    real: () => handlers.administracion.crearAsignacion(payload),
+    mock: () => handlers.administracion.crearAsignacion({ id_docente: idDocente, id_colegio: idColegio, id_grado: idGrado, id_periodo_academico: idPeriodo }),
+    real: () =>
+      api.post(administracion.asignaciones, {
+        id_docente: Number(idDocente),
+        id_colegio: Number(idColegio),
+        id_grado: Number(idGrado),
+        id_periodo_academico: Number(idPeriodo),
+      }),
+    forzarReal: adminContraApiReal,
   })
 
 export const eliminarAsignacion = (id) =>
   resolver({
     mock: () => handlers.administracion.eliminarAsignacion(id),
-    real: () => handlers.administracion.eliminarAsignacion(id),
+    real: () => api.delete(administracion.asignacion(id)),
+    forzarReal: adminContraApiReal,
   })

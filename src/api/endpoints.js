@@ -130,13 +130,13 @@ export const ENDPOINTS = {
     // Cuentas de Supervisor y Directivo. `POST /usuarios` NO crea docentes:
     // para eso está `POST /profesores`, que además crea su ficha.
     usuarios: '/usuarios', // GET admite ?rol=Supervisor|Directivo|Docente
+    usuario: (idUsuario) => `/usuarios/${idUsuario}`, // PATCH: nombres, apellidos, correo
     activarUsuario: (idUsuario) => `/usuarios/${idUsuario}/activar`,
     desactivarUsuario: (idUsuario) => `/usuarios/${idUsuario}/desactivar`,
 
-    // NO EXISTE AÚN ───────────────────────────────────────────────────────────
-    // No hay PATCH para una cuenta de Supervisor o Directivo, ni asignaciones
-    // docente-colegio-periodo.
-    docentes: '/docentes',
+    // Asignaciones docente-colegio-grado-periodo. De ellas depende lo que ve un
+    // Docente: sin asignación vigente no tiene alumnos ni colegios.
+    docentes: '/docentes', // NO EXISTE: el listado de docentes es GET /profesores
     asignaciones: '/asignaciones',
     asignacion: (id) => `/asignaciones/${id}`,
   },

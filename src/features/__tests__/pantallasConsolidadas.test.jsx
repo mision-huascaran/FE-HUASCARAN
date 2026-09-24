@@ -92,13 +92,13 @@ describe('Alertas (P15)', () => {
 })
 
 describe('Administración (P16)', () => {
-  it('abre en Docentes y ofrece las pestañas del Supervisor para crear colegios, alumnos y usuarios', async () => {
+  it('abre en Docentes y ofrece las pestañas del Supervisor', async () => {
     montar(<AdministracionPage />, { ruta: '/administracion', patron: '/administracion' })
+    // Alumnos ya no está aquí: es su propio módulo y lo gestiona el Docente.
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Docentes',
       'Asignaciones',
       'Colegios',
-      'Alumnos',
       'Cuentas',
       'Periodos de evaluación',
       'Catálogos',
@@ -108,9 +108,6 @@ describe('Administración (P16)', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Colegios' }))
     expect(screen.getByRole('button', { name: /nuevo colegio/i })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Alumnos' }))
-    expect(screen.getByRole('button', { name: /nuevo alumno/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Cuentas' }))
     expect(screen.getByRole('button', { name: /nueva cuenta/i })).toBeInTheDocument()
