@@ -3,7 +3,11 @@
 **Rama:** `development` · **Base URL (desarrollo):** `http://127.0.0.1:8000`
 **Formato:** JSON · **Autenticación:** JWT Bearer
 
-Esta referencia refleja el estado real del backend actual: autenticación, autorización por rol y endpoints de creación/consulta de colegios, alumnos, profesores y catálogos.
+Esta referencia refleja el estado real del backend actual: autenticación, recuperación
+de contraseña, autorización por rol, gestión de cuentas y endpoints de creación,
+consulta y edición de colegios, alumnos, profesores y catálogos.
+
+Todos los endpoints documentados están verificados contra el servidor en ejecución.
 
 ---
 
@@ -13,6 +17,8 @@ Esta referencia refleja el estado real del backend actual: autenticación, autor
 - [Roles](#roles)
 - [Endpoints principales](#endpoints-principales)
 - [Cambio de contraseña](#cambio-de-contraseña)
+- [Recuperar contraseña sin sesión](#recuperar-contraseña-sin-sesión)
+- [Cuentas de Supervisor y Directivo](#cuentas-de-supervisor-y-directivo)
 - [Errores](#errores)
 - [CORS](#cors)
 - [Usuarios de prueba](#usuarios-de-prueba)
@@ -41,17 +47,24 @@ Esta referencia refleja el estado real del backend actual: autenticación, autor
 
 El backend ya implementa validación por rol con `require_role(...)` en `app/dependencies.py`.
 
-- `POST /colegios` → requiere `Supervisor`
-- `POST /alumnos` → requiere `Supervisor`
-- `POST /profesores` → requiere `Supervisor`
-- `GET /profesores` → requiere `Supervisor`
-- `PATCH /profesores/{id_usuario}/activar` → requiere `Supervisor`
-- `PATCH /profesores/{id_usuario}/desactivar` → requiere `Supervisor`
-- `GET /colegios`, `GET /grados`, `GET /programas` → cualquier usuario autenticado
-- `GET /me` → cualquier usuario autenticado
-- `POST /me/password/codigo` → cualquier usuario autenticado
-- `POST /me/password/verificar-codigo` → cualquier usuario autenticado
-- `POST /me/password` → cualquier usuario autenticado
+**Requieren `Supervisor`:**
+
+- `POST /colegios`, `PATCH /colegios/{id_colegio}`
+- `POST /alumnos`, `PATCH /alumnos/{id_alumno}`
+- `POST /profesores`, `GET /profesores`, `PATCH /profesores/{id_usuario}`
+- `PATCH /profesores/{id_usuario}/activar` y `/desactivar`
+- `POST /usuarios`, `GET /usuarios`
+- `PATCH /usuarios/{id_usuario}/activar` y `/desactivar`
+
+**Cualquier usuario autenticado:**
+
+- `GET /me`, `GET /colegios`, `GET /alumnos`, `GET /grados`, `GET /programas`
+- `POST /me/password/codigo`, `POST /me/password/verificar-codigo`, `POST /me/password`
+
+**Sin autenticación (públicos):**
+
+- `POST /login`, `POST /logout`, `GET /`
+- `POST /password/recuperar`, `POST /password/restablecer`
 
 ---
 
@@ -228,6 +241,121 @@ Devuelve un array con todos los colegios.
 
 - `404` si `id_colegio`, `id_grado` o `id_programa_actual` no existe.
 - Ejemplo: `{"detail": "No existe un grado con id_grado=999"}`
+
+---
+
+### `GET /alumnos` — cualquier usuario autenticado
+
+Lista alumnos con filtros y paginación. Son cientos de registros, así que la
+respuesta **siempre viene paginada**: por defecto 50 por página.
+
+**Parámetros (todos opcionales, combinables entre sí):**
+
+| Parámetro  | Tipo      | Descripción                                        |
+| ---------- | --------- | -------------------------------------------------- |
+| `colegio`  | `number`  | Filtra por `id_colegio`.                           |
+| `grado`    | `number`  | Filtra por `id_grado`.                             |
+| `programa` | `number`  | Filtra por `id_programa_actual`.                   |
+| `q`        | `string`  | Busca en nombres y apellidos.                      |
+| `activo`   | `boolean` | Filtra por estado.                                 |
+| `limit`    | `number`  | Por página. Por defecto `50`, máximo `500`.        |
+| `offset`   | `number`  | Registros a saltar. Por defecto `0`.               |
+
+Ejemplo: `GET /alumnos?colegio=2&grado=1&q=perez&limit=20&offset=0`
+
+**Respuesta `200`:**
+
+```json
+{
+  "total": 413,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+    {
+      "id_alumno": 1,
+      "nombres": "Juan Carlos",
+      "apellidos": "Pérez Quispe",
+      "id_colegio": 2,
+      "id_grado": 1,
+      "id_programa_actual": 1,
+      "fecha_registro": "2026-09-24",
+      "activo": true,
+      "creado_por": 1,
+      "creado_en": "2026-09-24",
+      "modificado_por": null,
+      "modificado_en": null
+    }
+  ]
+}
+```
+
+`total` es el total que cumple el filtro, no el de la página: sirve para calcular
+cuántas páginas hay (`Math.ceil(total / limit)`). Los resultados vienen ordenados
+por apellidos y luego nombres.
+
+> **Sobre `q`:** ignora mayúsculas y tildes, y busca cada palabra por separado en
+> cualquier orden. `perez` encuentra a "Pérez", y `juan perez` encuentra a
+> "Juan Carlos Pérez Quispe" aunque el "Carlos" quede en medio. Puedes enviar
+> directamente lo que el usuario escriba en el buscador, sin normalizarlo.
+
+---
+
+### `PATCH /alumnos/{id_alumno}` — requiere `Supervisor`
+
+Corrige los datos de un alumno. **Actualización parcial:** solo los campos que envíes
+se modifican; los que omitas quedan intactos.
+
+**Body** (todos los campos son opcionales):
+
+```json
+{
+  "nombres": "Juan Carlos",
+  "apellidos": "Pérez Quispe",
+  "id_colegio": 2,
+  "id_grado": 3,
+  "id_programa_actual": 1,
+  "activo": true
+}
+```
+
+**Respuesta `200`:** el alumno completo, ya actualizado, con `modificado_por` y
+`modificado_en` puestos al usuario y fecha de la edición.
+
+**Errores:**
+
+- `404` si el alumno no existe: `{"detail": "No existe un alumno con id_alumno=99"}`
+- `404` si algún `id_colegio`, `id_grado` o `id_programa_actual` nuevo no existe.
+
+---
+
+### `PATCH /colegios/{id_colegio}` — requiere `Supervisor`
+
+Corrige un colegio. Parcial, igual que el de alumnos.
+
+**Body** (campos opcionales): `{ "nombre": "Colegio Carhuaz", "zona": "Carhuaz" }`
+
+**Respuesta `200`:** el colegio completo actualizado.
+**Error `404`:** `{"detail": "No existe un colegio con id_colegio=999"}`
+
+---
+
+### `PATCH /profesores/{id_usuario}` — requiere `Supervisor`
+
+Corrige los datos de un profesor. Parcial.
+
+**Body** (campos opcionales): `{ "nombres": "Ana", "apellidos": "Torres", "correo": "ana@sicedu.test" }`
+
+**Respuesta `200`:** el profesor actualizado, con el mismo formato que `POST /profesores`
+(`contraseña_temporal` llega en `null`, porque aquí no se genera ninguna).
+
+**Errores:**
+
+- `404` si no existe, o si ese `id_usuario` no es un profesor.
+- `409` si el correo nuevo ya lo usa otra cuenta.
+
+> Los nombres del profesor viven en dos tablas (`usuario` y `docente`). Este endpoint
+> escribe en ambas, así que no hace falta que el frontend haga nada especial para
+> mantenerlas sincronizadas.
 
 ---
 
@@ -436,6 +564,187 @@ El código expira 10 minutos después de generado, y se consume (no reutilizable
 
 ---
 
+## Recuperar contraseña sin sesión
+
+El flujo de "olvidé mi contraseña", desde la pantalla de login. **Ninguno de los dos
+endpoints requiere token** — es la diferencia con los de [Cambio de contraseña](#cambio-de-contraseña),
+que son para un usuario que ya entró y exigen `Authorization`.
+
+### `POST /password/recuperar` — público
+
+Envía un código de 6 caracteres al correo indicado. El código vale **10 minutos**.
+
+**Body:**
+
+```json
+{ "correo": "profesor.prueba@sicedu.test" }
+```
+
+**Respuesta `200` — siempre, exista el correo o no:**
+
+```json
+{ "detail": "Si el correo está registrado, enviamos un código de verificación" }
+```
+
+> Responde `200` incluso con correos inexistentes o cuentas desactivadas, a propósito.
+> Si devolviera `404` para los desconocidos, cualquiera podría ir probando direcciones
+> para averiguar quién tiene cuenta en el sistema. Para el frontend esto significa que
+> **no puedes saber si el correo existe**: muestra siempre la pantalla de "revisa tu
+> correo" y deja que el usuario vuelva si no le llega nada.
+
+### `POST /password/restablecer` — público
+
+Cambia la contraseña usando el código recibido.
+
+**Body:**
+
+```json
+{
+  "correo": "profesor.prueba@sicedu.test",
+  "codigo": "D6S3QC",
+  "contraseña_nueva": "NuevaClave123",
+  "confirmar_contraseña_nueva": "NuevaClave123"
+}
+```
+
+**Reglas de la contraseña** (las valida el backend, conviene repetirlas en el formulario):
+
+- Mínimo 8 caracteres.
+- Solo letras y números, sin espacios ni símbolos.
+- No puede ser igual a la actual.
+- `contraseña_nueva` y `confirmar_contraseña_nueva` deben coincidir.
+
+**Respuesta `200`:**
+
+```json
+{ "detail": "Contraseña actualizada correctamente" }
+```
+
+**Errores:**
+
+| Código | Cuándo                                                        | `detail`                                          |
+| ------ | ------------------------------------------------------------- | -------------------------------------------------- |
+| `400`  | Código incorrecto, expirado, ya usado, o correo inexistente   | `"Código incorrecto o expirado"`                  |
+| `400`  | La contraseña nueva es igual a la actual                       | `"La contraseña nueva no puede ser igual a la actual"` |
+| `422`  | No coinciden, muy corta, o con símbolos                        | array de validación                               |
+
+> El código es de **un solo uso**: al restablecer se borra, y reutilizarlo devuelve
+> `400`. Si el usuario se equivoca al escribir la contraseña nueva y el formulario la
+> rechaza, el código sigue vivo (no se consumió); pero si la petición llegó a
+> completarse, hay que pedir uno nuevo con `/password/recuperar`.
+
+---
+
+## Cuentas de Supervisor y Directivo
+
+Alta, baja y listado de cuentas administrativas. **Todos requieren rol `Supervisor`.**
+
+Para crear profesores sigue usándose [`POST /profesores`](#post-profesores--requiere-supervisor),
+que además crea la ficha de docente asociada.
+
+### `POST /usuarios` — requiere `Supervisor`
+
+Crea una cuenta de `Supervisor` o `Directivo`.
+
+**Body:**
+
+```json
+{
+  "nombres": "Ana",
+  "apellidos": "Torres",
+  "correo": "ana.torres@sicedu.test",
+  "id_rol": 2,
+  "activo": true
+}
+```
+
+**Respuesta `201`:**
+
+```json
+{
+  "id_usuario": 4,
+  "id_rol": 2,
+  "correo": "ana.torres@sicedu.test",
+  "id_docente": null,
+  "nombres": "Ana",
+  "apellidos": "Torres",
+  "activo": true,
+  "contraseña_temporal": null,
+  "correo_enviado": true
+}
+```
+
+| Campo                 | Tipo             | Descripción                                                      |
+| --------------------- | ---------------- | ---------------------------------------------------------------- |
+| `correo_enviado`      | `boolean`        | Si el correo con la credencial salió bien.                       |
+| `contraseña_temporal` | `string \| null` | **Solo llega si `correo_enviado` es `false`.** Si el correo salió, viene `null`. |
+
+> Mira `correo_enviado` antes de decidir qué mostrar: si es `true`, di solo "le
+> enviamos sus credenciales por correo". Si es `false`, muestra la contraseña temporal
+> en pantalla — es la única copia que existe — y advierte de que se anote.
+
+**Errores:**
+
+| Código | Cuándo                                             |
+| ------ | --------------------------------------------------- |
+| `400`  | `id_rol` es el de `Docente` (usa `POST /profesores`) |
+| `404`  | El `id_rol` no existe                               |
+| `409`  | El correo ya está registrado                        |
+| `403`  | Quien llama no es `Supervisor`                      |
+
+### `GET /usuarios` — requiere `Supervisor`
+
+Lista todas las cuentas, con el nombre del rol ya resuelto.
+
+**Parámetro opcional:** `?rol=Supervisor` filtra por nombre de rol exacto
+(`Docente`, `Supervisor` o `Directivo`).
+
+**Respuesta `200`:**
+
+```json
+[
+  {
+    "id_usuario": 1,
+    "id_rol": 2,
+    "rol": "Supervisor",
+    "correo": "jefa.prueba@sicedu.test",
+    "id_docente": null,
+    "nombres": "Jefa",
+    "apellidos": "de Prueba",
+    "activo": true
+  }
+]
+```
+
+Incluye el campo `rol` con el nombre, así no hace falta cruzar `id_rol` contra otra tabla.
+
+### `PATCH /usuarios/{id_usuario}/desactivar` — requiere `Supervisor`
+
+### `PATCH /usuarios/{id_usuario}/activar` — requiere `Supervisor`
+
+Cambian el estado de cualquier cuenta. Si es la de un profesor, la ficha de docente
+queda con el mismo estado automáticamente.
+
+**Respuesta `200`:** la cuenta con su `activo` ya actualizado.
+
+**Errores:**
+
+| Código | Cuándo                                             | `detail`                                                         |
+| ------ | --------------------------------------------------- | ----------------------------------------------------------------- |
+| `404`  | No existe ese usuario                               | `"No existe un usuario con id_usuario=99"`                        |
+| `409`  | Es la última cuenta activa de `Supervisor` o `Directivo` | `"No puedes desactivar la última cuenta activa de Supervisor..."` |
+| `409`  | Es tu propia cuenta                                 | `"No puedes desactivar tu propia cuenta. Pídeselo a otro Supervisor."` |
+
+> Las dos reglas de `409` **las aplica el servidor**, no el navegador: aunque el
+> frontend no oculte el botón, la petición se rechaza. Muestra el `detail` tal cual,
+> que ya viene redactado para el usuario final.
+>
+> La regla de la cuenta propia existe porque `GET /me` y todas las rutas protegidas
+> rechazan a los usuarios inactivos: desactivarse a uno mismo cerraría la sesión en la
+> siguiente petición, sin forma de revertirlo desde la propia aplicación.
+
+---
+
 ## Errores
 
 ### `401 Unauthorized`
@@ -520,12 +829,25 @@ El usuario de rol `Docente` tiene `id_docente` asociado. Los de `Supervisor` y `
 
 Lo que aún no está implementado en el backend:
 
+- **El núcleo académico:** reporte semanal, rúbrica semanal, evaluaciones diagnósticas
+  y nivel final mensual. Son los Grupos 2 a 5 del modelo de datos y todavía no existen
+  ni las tablas. Es lo que hoy resuelve el simulador del frontend.
 - Refresh token / renovación de sesión
-- Edición de datos (nombre, correo, etc.) de alumnos, colegios y profesores
-- CRUD de colegios y alumnos más allá de la creación (para profesores ya existe activar/desactivar y listado; para colegios y alumnos, todavía no)
-- Recuperar contraseña sin sesión iniciada ("olvidé mi contraseña") — el flujo de hoy requiere estar logueado
-- Endpoints de evaluaciones y periodos
+- Borrado de registros (hoy alumnos y profesores se desactivan, no se eliminan)
 - Control de permisos más granular por módulo
+- Paginación en `GET /colegios` y `GET /profesores` (hoy devuelven la lista completa;
+  con los volúmenes actuales no es problema, pero `GET /alumnos` ya la necesita)
+
+### Un aviso sobre el envío de correos
+
+`POST /profesores` y `POST /usuarios` devuelven la contraseña temporal en la respuesta
+**cuando el correo no se pudo enviar** (`correo_enviado: false`). Está pensado como
+salida de emergencia, pero hoy el envío falla casi siempre porque `GMAIL_SMTP_USER` y
+`GMAIL_SMTP_APP_PASSWORD` no están configurados, así que en la práctica la credencial
+acaba pasando por pantalla en casi todas las altas.
+
+Conviene configurar esas dos variables en el `.env` del servidor. Mientras tanto, el
+frontend debe seguir manejando el caso `correo_enviado: false`, porque será el habitual.
 
 ---
 

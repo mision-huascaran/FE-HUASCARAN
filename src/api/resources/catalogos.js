@@ -5,6 +5,13 @@ import handlers from '../mock/handlers'
 
 const { catalogos } = ENDPOINTS
 
+/*
+ * Estos catálogos alimentan el dashboard, los filtros y las pantallas de
+ * captura, que siguen resolviéndose contra el mock: si aquí llegaran los
+ * colegios reales, el dashboard pintaría nombres reales sobre métricas del
+ * mock. Administración pide los suyos aparte (resources/administracion.js),
+ * porque allí los ids tienen que ser los del backend de verdad.
+ */
 export const obtenerColegios = () =>
   resolver({ mock: () => handlers.catalogos.colegios(), real: () => api.get(catalogos.colegios) })
 

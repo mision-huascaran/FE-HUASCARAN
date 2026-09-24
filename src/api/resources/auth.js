@@ -85,3 +85,35 @@ export function cambiarPasswordConCodigo({ codigo, contraseña_nueva, confirmar_
     real: () => api.post(ENDPOINTS.auth.passwordCambiar, { codigo, contraseña_nueva, confirmar_contraseña_nueva }),
   })
 }
+
+// ── Recuperar contraseña SIN sesión (desde el login) ────────────────────────
+//
+// Son públicos: no llevan token. Van siempre contra la API real, porque su
+// única razón de existir es que el usuario no puede entrar.
+
+/**
+ * `POST /password/recuperar` → envía un código de 6 caracteres al correo.
+ *
+ * Responde 200 SIEMPRE, exista el correo o no. Es deliberado: si distinguiera,
+ * cualquiera podría probar direcciones para averiguar quién tiene cuenta. La
+ * interfaz no debe afirmar que el correo existe.
+ */
+export const recuperarPassword = ({ correo }) =>
+  api.post(ENDPOINTS.auth.passwordRecuperar, { correo }).then((r) => r.data)
+
+/**
+ * `POST /password/restablecer` → cambia la contraseña con el código recibido.
+ *
+ * El código es de un solo uso y vale 10 minutos. Un 400 puede significar código
+ * incorrecto, caducado, ya usado o correo inexistente: el backend no los
+ * distingue a propósito, así que se muestra su mensaje tal cual.
+ */
+export const restablecerPassword = ({ correo, codigo, passwordNueva, confirmacion }) =>
+  api
+    .post(ENDPOINTS.auth.passwordRestablecer, {
+      correo,
+      codigo,
+      'contraseña_nueva': passwordNueva,
+      'confirmar_contraseña_nueva': confirmacion,
+    })
+    .then((r) => r.data)

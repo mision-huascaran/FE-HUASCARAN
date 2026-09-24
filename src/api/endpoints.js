@@ -23,9 +23,13 @@ export const ENDPOINTS = {
     login: '/login', // body { correo, password } → { access_token, token_type }
     logout: '/logout', // simbólico: el JWT no se revoca en el servidor
     me: '/me', // requiere Authorization: Bearer <token>
+    // Cambio de contraseña CON sesión: los tres exigen Authorization.
     passwordCodigo: '/me/password/codigo',
     passwordVerificarCodigo: '/me/password/verificar-codigo',
     passwordCambiar: '/me/password',
+    // Recuperación SIN sesión, desde el login. Públicos: no llevan token.
+    passwordRecuperar: '/password/recuperar', // { correo }
+    passwordRestablecer: '/password/restablecer', // { correo, codigo, contraseña_nueva, confirmar_contraseña_nueva }
   },
 
   // NO EXISTE AÚN ────────────────────────────────────────────────────────────
@@ -111,6 +115,27 @@ export const ENDPOINTS = {
 
   // PROPUESTA DEL FRONTEND: §3 no lista la administración (P16).
   administracion: {
+    // IMPLEMENTADO en el backend ─────────────────────────────────────────────
+    colegios: '/colegios', // POST requiere Supervisor · GET cualquier autenticado
+    alumnos: '/alumnos', // POST requiere Supervisor
+    profesores: '/profesores', // POST y GET requieren Supervisor
+    activarProfesor: (idUsuario) => `/profesores/${idUsuario}/activar`,
+    desactivarProfesor: (idUsuario) => `/profesores/${idUsuario}/desactivar`,
+
+    // Edición parcial: solo viajan los campos que cambian (PATCH, no PUT).
+    alumno: (id) => `/alumnos/${id}`,
+    colegio: (id) => `/colegios/${id}`,
+    profesor: (idUsuario) => `/profesores/${idUsuario}`,
+
+    // Cuentas de Supervisor y Directivo. `POST /usuarios` NO crea docentes:
+    // para eso está `POST /profesores`, que además crea su ficha.
+    usuarios: '/usuarios', // GET admite ?rol=Supervisor|Directivo|Docente
+    activarUsuario: (idUsuario) => `/usuarios/${idUsuario}/activar`,
+    desactivarUsuario: (idUsuario) => `/usuarios/${idUsuario}/desactivar`,
+
+    // NO EXISTE AÚN ───────────────────────────────────────────────────────────
+    // No hay PATCH para una cuenta de Supervisor o Directivo, ni asignaciones
+    // docente-colegio-periodo.
     docentes: '/docentes',
     asignaciones: '/asignaciones',
     asignacion: (id) => `/asignaciones/${id}`,

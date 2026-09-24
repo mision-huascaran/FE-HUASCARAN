@@ -19,6 +19,45 @@
 Verificación a la fecha: `npm run lint` sin hallazgos, `npm run test` con **172 pruebas en verde**
 y `npm run build` correcto.
 
+## Revisión de los cambios de roles y cuentas (24/09/2026)
+
+Se revisó lo que quedó de la iteración anterior y se corrigió lo siguiente.
+
+### Errores encontrados y corregidos
+
+| Qué estaba mal | Corrección |
+|---|---|
+| Al cerrar sesión y entrar con otro rol aparecía "No tiene permisos" antes del inicio | El login devolvía al usuario a la ruta del rol anterior. Ahora `destinoTrasLogin()` comprueba si el rol nuevo puede entrar y, si no, lo lleva a su propio inicio |
+| Registro público (`/registro`) que no creaba nada: solo hacía `console.info` y redirigía | Eliminado. Las cuentas se crean desde Administración, como pediste |
+| El alta de docente pedía una contraseña que el backend ignora | El backend genera la contraseña y la devuelve si el correo falla: ahora la pantalla no la pide y muestra la temporal para entregarla |
+| "¿Olvidó su contraseña?" llamaba a `/me/password/codigo`, que exige sesión iniciada: siempre habría dado 401 | En el login se explica qué hacer; el cambio real de contraseña (3 pasos) vive en el menú de usuario, donde sí hay sesión |
+| `POST /alumnos` enviaba `id_programa`; el backend espera `id_programa_actual` | Se mapea en la capa de recursos |
+| `POST /colegios` enviaba abreviatura y distrito, que el backend no acepta, y los exigía en el formulario | Al backend solo van `nombre` y `zona`; los otros dos quedaron opcionales |
+| `administracion.colegios/alumnos/usuarios` no existían en `endpoints.js`: con la API real habrían llamado a `undefined` | Endpoints declarados, separando lo implementado de lo que no |
+| El listado de alumnos llamaba a `GET /alumnos`, que responde 405 | Se resuelve con el mock hasta que publiquen ese método |
+| El Directivo veía todas las pestañas de Administración | Solo ve sus cuentas de Directivo |
+| `output-acciones.txt` (216 KB) y `vitest-acciones.json` commiteados | Eliminados |
+
+### La ventana de captura de un estudiante
+
+Era un menú de accesos directos que sacaba de la pantalla, con un "Guardar" que no
+guardaba nada. Se rehízo como pediste: una sola ventana con **Reporte semanal**,
+**Registro de vuelo** y **Ficha** de ese alumno, con sus formularios completos y un Guardar
+que sí escribe. El reporte semanal usa la misma cola offline y la misma clave de
+idempotencia que la grilla completa, así que capturar por un lado o por el otro no duplica
+la fila (RNF-001).
+
+### Estado del backend hoy
+
+`npm run verificar:backend` confirma qué existe: `/`, `/login`, `/me`, `/logout`,
+`/colegios`, `/grados`, `/programas` y `/profesores` (con activar y desactivar). `/alumnos`
+acepta POST pero todavía no GET. Reporte semanal, evaluaciones y nivel final siguen en 404
+y los resuelve el mock.
+
+Las cuentas de Supervisor y Directivo ya se gestionan contra el backend (`POST /usuarios`,
+`PATCH /usuarios/{id}/activar` y `/desactivar`). Lo único que sigue sin endpoint es corregir
+los datos de una cuenta administrativa: por eso la tabla no ofrece botón de editar.
+
 ## Estado real del backend (APIS_BACKEND.md)
 
 Verificado contra el servidor en ejecución con `npm run verificar:backend`:
@@ -29,19 +68,33 @@ Verificado contra el servidor en ejecución con `npm run verificar:backend`:
 | `POST /login` | **Implementado** — `{ correo, password }` → `{ access_token, token_type }` |
 | `GET /me` | **Implementado** — requiere `Authorization: Bearer`; devuelve `nombres` y `apellidos` por separado |
 | `POST /logout` | **Implementado** — simbólico: el JWT no se revoca en el servidor |
-| Todo el negocio (`/colegios`, `/alumnos`, `/evaluacion-diagnostica`…) | 404 — las tablas existen, ningún endpoint las expone |
+| `GET /colegios`, `/grados`, `/programas`, `/profesores` | **Implementado** |
+| `GET /alumnos?limit&offset` | **Implementado** — paginado: `{ total, limit, offset, items }` |
+| `GET /usuarios?rol=` | **Implementado** — trae el nombre del rol ya resuelto |
+| `POST /usuarios` | **Implementado** — genera la contraseña; con `correo_enviado: false` devuelve `contraseña_temporal` |
+| `PATCH /usuarios/{id}/activar` y `/desactivar` | **Implementado** — 409 en la última cuenta activa de un rol y en la propia |
+| `PATCH /alumnos/{id}`, `/colegios/{id}`, `/profesores/{id}` | **Implementado** — parciales |
+| `POST /password/recuperar` y `/password/restablecer` | **Implementado** — públicos, sin sesión; no revelan si el correo existe |
+| `/reporte-semanal`, `/evaluacion-diagnostica`, `/nivel-final-mensual` | 404 — la captura sigue pendiente |
 
 ### Cómo está configurado el frontend
 
-La **autenticación va contra la API real** y el **negocio sigue en el mock**. Lo controlan dos
-variables de `.env`:
+La **autenticación va contra la API real**, la **administración puede ir contra la API real**
+y la **captura sigue en el mock**, que es lo único que el backend todavía no publica. Lo
+controlan tres variables de `.env`:
 
 ```
-VITE_USE_MOCK=true    # alumnos, evaluaciones y consolidados salen del mock
+VITE_USE_MOCK=true    # evaluaciones y consolidados salen del mock
 VITE_AUTH_REAL=true   # la sesión, el token y el perfil salen del backend
+VITE_ADMIN_REAL=false # en true, administración y sus catálogos van al backend
 ```
 
-Cuando el backend publique el negocio, basta `VITE_USE_MOCK=false` y `VITE_AUTH_REAL` sobra.
+`VITE_ADMIN_REAL` **no** arrastra el catálogo compartido: el dashboard y la captura seguirían
+pintando nombres reales sobre métricas del mock. Administración pide sus propios colegios,
+grados y programas (`listarColegiosAdmin`, `listarGradosAdmin`, `listarProgramasAdmin`), porque
+el alta de un alumno envía esos ids al backend y tienen que ser los suyos.
+
+Cuando el backend publique la captura, basta `VITE_USE_MOCK=false` y las otras dos sobran.
 
 ### Conexión: proxy de desarrollo
 

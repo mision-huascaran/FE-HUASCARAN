@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, LogOut, Menu } from 'lucide-react'
+import { ChevronDown, KeyRound, LogOut, Menu } from 'lucide-react'
 import Breadcrumbs from './Breadcrumbs'
+import ModalCambiarPassword from '../../features/perfil/ModalCambiarPassword'
 import PanelSincronizacion from './PanelSincronizacion'
 import Select from '../ui/Select'
 import SyncBadge from '../ui/SyncBadge'
@@ -40,7 +41,7 @@ function SelectorPeriodo() {
   )
 }
 
-function MenuUsuario() {
+function MenuUsuario({ onCambiarPassword }) {
   const { usuario, salir } = useAuth()
   const [abierto, setAbierto] = useState(false)
   useOnEscape(abierto, () => setAbierto(false))
@@ -79,6 +80,20 @@ function MenuUsuario() {
               <p className="truncate text-xs text-ink-500">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</p>
             </div>
             <p className="truncate px-3 py-1 text-xs text-ink-400">{usuario?.correo}</p>
+            {/* El cambio de contraseña exige sesión iniciada, por eso vive aquí
+                y no en la pantalla de inicio de sesión (APIS_BACKEND.md). */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAbierto(false)
+                onCambiarPassword()
+              }}
+              className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              Cambiar contraseña
+            </button>
             <button
               type="button"
               role="menuitem"
@@ -97,6 +112,7 @@ function MenuUsuario() {
 
 export default function Topbar({ onAbrirMenu }) {
   const [panelAbierto, setPanelAbierto] = useState(false)
+  const [passwordAbierto, setPasswordAbierto] = useState(false)
   const { pendientes, sincronizando, ultimoError } = useSyncStore()
 
   return (
@@ -120,8 +136,10 @@ export default function Topbar({ onAbrirMenu }) {
           error={Boolean(ultimoError)}
           onClick={() => setPanelAbierto(true)}
         />
-        <MenuUsuario />
+        <MenuUsuario onCambiarPassword={() => setPasswordAbierto(true)} />
       </div>
+
+      <ModalCambiarPassword abierto={passwordAbierto} onCerrar={() => setPasswordAbierto(false)} />
 
       <PanelSincronizacion abierto={panelAbierto} onCerrar={() => setPanelAbierto(false)} />
     </header>

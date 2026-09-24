@@ -8,13 +8,11 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PanelBienvenida from './PanelBienvenida'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
-import Modal from '../../components/ui/Modal'
+import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
-import { rutaInicioDe } from '../../auth/roles'
-import { estadoDe, mensajeDeError } from '../../api/client'
-import { cambiarPasswordConCodigo, solicitarCodigoRecuperacion, verificarCodigoRecuperacion } from '../../api/resources/auth'
-import { useToast } from '../../components/ui/Toast'
+import { destinoTrasLogin } from '../../rutas'
+import { estadoDe } from '../../api/client'
 import CredencialesDemo from './CredencialesDemo'
 
 const esquema = z.object({
@@ -26,30 +24,24 @@ export default function LoginPage() {
   const { entrar, autenticado, usuario } = useAuth()
   const navegar = useNavigate()
   const { state } = useLocation()
-  const toast = useToast()
   const [errorGeneral, setErrorGeneral] = useState(null)
   const [resetAbierto, setResetAbierto] = useState(false)
-  const [resetEmail, setResetEmail] = useState('')
-  const [resetCodigo, setResetCodigo] = useState('')
-  const [resetPassword, setResetPassword] = useState('')
-  const [resetConfirmacion, setResetConfirmacion] = useState('')
-  const [resetEnviando, setResetEnviando] = useState(false)
-  const [resetPaso, setResetPaso] = useState('solicitar')
 
   const {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(esquema), defaultValues: { correo: '', password: '' } })
 
-  if (autenticado) return <Navigate to={state?.desde ?? rutaInicioDe(usuario.id_rol)} replace />
+  if (autenticado) return <Navigate to={destinoTrasLogin(state?.desde, usuario.id_rol)} replace />
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
     try {
       const perfil = await entrar({ correo, password })
-      navegar(state?.desde ?? rutaInicioDe(perfil.id_rol), { replace: true })
+      navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
       // Nunca se dice cuál de los dos campos falló (P1).
@@ -61,64 +53,9 @@ export default function LoginPage() {
     }
   }
 
-  const cerrarReset = () => {
-    setResetAbierto(false)
-    setResetEmail('')
-    setResetCodigo('')
-    setResetPassword('')
-    setResetConfirmacion('')
-    setResetPaso('solicitar')
-    setResetEnviando(false)
-  }
+  const cerrarReset = () => setResetAbierto(false)
 
-  const pedirCodigo = async () => {
-    if (!resetEmail.trim()) {
-      toast.error('Falta el correo para recuperar la contraseña')
-      return
-    }
 
-    setResetEnviando(true)
-    try {
-      await solicitarCodigoRecuperacion({ correo: resetEmail })
-      setResetPaso('verificar')
-      toast.success('Código enviado. Revisa tu correo institucional.')
-    } catch (error) {
-      toast.error('No se pudo enviar el código', mensajeDeError(error))
-    } finally {
-      setResetEnviando(false)
-    }
-  }
-
-  const cambiarPassword = async () => {
-    if (!resetCodigo.trim() || !resetPassword.trim() || !resetConfirmacion.trim()) {
-      toast.error('Completa el código y la nueva contraseña')
-      return
-    }
-    if (resetPassword.length < 8) {
-      toast.error('La nueva contraseña debe tener al menos 8 caracteres')
-      return
-    }
-    if (resetPassword !== resetConfirmacion) {
-      toast.error('Las contraseñas no coinciden')
-      return
-    }
-
-    setResetEnviando(true)
-    try {
-      await verificarCodigoRecuperacion({ codigo: resetCodigo })
-      await cambiarPasswordConCodigo({
-        codigo: resetCodigo,
-        contraseña_nueva: resetPassword,
-        confirmar_contraseña_nueva: resetConfirmacion,
-      })
-      toast.success('Contraseña actualizada. Ya puedes volver a ingresar.')
-      cerrarReset()
-    } catch (error) {
-      toast.error('No se pudo actualizar la contraseña', mensajeDeError(error))
-    } finally {
-      setResetEnviando(false)
-    }
-  }
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -183,58 +120,11 @@ export default function LoginPage() {
           }}
           />
 
-          <Modal
-            open={resetAbierto}
-            onClose={cerrarReset}
-            title="Recuperar contraseña"
-            subtitle="Solicita un código de seguridad para restablecerla desde tu correo institucional."
-            footer={
-              <>
-                <Button variant="ghost" onClick={cerrarReset}>Cancelar</Button>
-                <Button
-                  loading={resetEnviando}
-                  onClick={resetPaso === 'solicitar' ? pedirCodigo : cambiarPassword}
-                >
-                  {resetPaso === 'solicitar' ? 'Enviar código' : 'Actualizar contraseña'}
-                </Button>
-              </>
-            }
-          >
-            <div className="space-y-4">
-              <Input
-                label="Correo institucional"
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                placeholder="nombre@sicedu.test"
-              />
-
-              {resetPaso === 'verificar' && (
-                <>
-                  <Input
-                    label="Código de verificación"
-                    value={resetCodigo}
-                    onChange={(e) => setResetCodigo(e.target.value)}
-                    placeholder="AB12CD"
-                  />
-                  <Input
-                    label="Nueva contraseña"
-                    type="password"
-                    value={resetPassword}
-                    onChange={(e) => setResetPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                  />
-                  <Input
-                    label="Confirmar contraseña"
-                    type="password"
-                    value={resetConfirmacion}
-                    onChange={(e) => setResetConfirmacion(e.target.value)}
-                    placeholder="Repite la contraseña"
-                  />
-                </>
-              )}
-            </div>
-          </Modal>
+          <ModalRecuperarPassword
+            abierto={resetAbierto}
+            onCerrar={cerrarReset}
+            correoInicial={watch('correo') ?? ''}
+          />
 
           <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-400">
             <p>Conexión cifrada (TLS).</p>

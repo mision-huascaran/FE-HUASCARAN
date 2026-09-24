@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, matchPath } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import PantallaPendiente from './components/layout/PantallaPendiente'
 import ProtectedRoute from './auth/ProtectedRoute'
@@ -15,7 +15,6 @@ import DashboardPage from './features/dashboard/DashboardPage'
 import EstudiantesPage from './features/estudiantes/EstudiantesPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
-import RegistroPage from './features/login/RegistroPage'
 import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
 import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
 import ReportesPage from './features/reportes/ReportesPage'
@@ -57,6 +56,25 @@ export const RUTAS_PROTEGIDAS = [
 
 const enDesarrollo = import.meta.env.DEV
 
+/**
+ * ¿Ese rol puede entrar a esa ruta?
+ *
+ * Se usa al volver del login: tras cerrar sesión, `ProtectedRoute` guarda la
+ * ruta en la que estaba el usuario anterior. Si la siguiente persona entra con
+ * otro rol y se la devuelve a ciegas, `RoleRoute` la manda a /403 aunque sus
+ * credenciales sean correctas: se veía un "No tiene permisos" al iniciar sesión.
+ */
+export function rolPuedeEntrar(ruta, idRol) {
+  if (!ruta || idRol == null) return false
+  const limpia = String(ruta).split('?')[0]
+  return RUTAS_PROTEGIDAS.some((r) => matchPath({ path: r.path, end: true }, limpia) && r.allow.includes(idRol))
+}
+
+/** Destino tras iniciar sesión: la ruta pedida si el rol la admite, o su inicio. */
+export function destinoTrasLogin(desde, idRol) {
+  return rolPuedeEntrar(desde, idRol) ? desde : rutaInicioDe(idRol)
+}
+
 /** Una URL desconocida lleva al inicio del rol; sin sesión, al login. */
 function Redireccion() {
   const usuario = useSessionStore((s) => s.usuario)
@@ -67,7 +85,6 @@ export default function RutasApp() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/registro" element={<RegistroPage />} />
       <Route path="/403" element={<ForbiddenPage />} />
       {/* Catálogo visual del sistema de diseño. Solo en desarrollo (§11, Fase 1). */}
       {enDesarrollo && <Route path="/_ui" element={<UiKitPage />} />}

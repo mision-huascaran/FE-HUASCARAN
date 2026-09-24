@@ -52,8 +52,12 @@ export default function Modal({ open, onClose, title, subtitle, footer, size = '
           </button>
         </header>
         <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        {/* El pie lleva fondo propio: sin redondear sus esquinas, el gris pinta
+            cuadradas las de la tarjeta y el borde inferior parece faltar. En
+            móvil la ventana sube desde abajo a sangre, así que solo se redondea
+            desde `sm`, igual que la tarjeta. */}
         {footer && (
-          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface-50 px-5 py-4">
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface-50 px-5 py-4 sm:rounded-b-xl">
             {footer}
           </footer>
         )}

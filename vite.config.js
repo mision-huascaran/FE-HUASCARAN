@@ -78,7 +78,11 @@ export default defineConfig(({ mode }) => {
       env: {
         VITE_USE_MOCK: 'true',
         VITE_AUTH_REAL: 'false',
+        VITE_ADMIN_REAL: 'false',
       },
+      // Montar el dashboard con sus seis gráficos pasa de los 5 s por defecto
+      // cuando la suite corre entera.
+      testTimeout: 15_000,
     },
   }
 })

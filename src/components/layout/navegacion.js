@@ -17,24 +17,22 @@ import {
 } from 'lucide-react'
 import { ROLES } from '../../auth/roles'
 
+/**
+ * Un bloque por rol y ni uno más.
+ *
+ * `ROLES` tiene alias (`PROFESOR`/`DOCENTE`, `JEFA`/`SUPERVISOR`,
+ * `DIRECTIVOS`/`DIRECTIVO`) que valen el mismo número. Si se escriben dos
+ * bloques, el segundo PISA al primero sin avisar: así desapareció "Cuentas" del
+ * menú del Directivo. Se usa el nombre nuevo de cada rol, una sola vez.
+ */
 export const NAV_BY_ROLE = {
-  [ROLES.PROFESOR]: [
+  [ROLES.DOCENTE]: [
     { to: '/inicio', label: 'Inicio', icon: Home },
     { to: '/reporte-semanal', label: 'Reporte semanal', icon: ClipboardList },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
     { to: '/consulta-colegios', label: 'Consulta de colegios', icon: School },
-  ],
-  [ROLES.JEFA]: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/colegios', label: 'Colegios y ranking', icon: School },
-    { to: '/estudiantes', label: 'Estudiantes', icon: Users },
-    { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
-    { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
-    { to: '/consolidados', label: 'Consolidados', icon: Layers },
-    { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
-    { to: '/administracion', label: 'Administración', icon: Settings },
   ],
   [ROLES.SUPERVISOR]: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,18 +44,12 @@ export const NAV_BY_ROLE = {
     { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
     { to: '/administracion', label: 'Administración', icon: Settings },
   ],
-  [ROLES.DIRECTIVOS]: [
-    { to: '/panel-ejecutivo', label: 'Panel ejecutivo', icon: LayoutDashboard },
-    { to: '/colegios', label: 'Colegios', icon: School },
-    { to: '/estudiantes', label: 'Estudiantes', icon: Users },
-    { to: '/reportes', label: 'Reportes', icon: FileDown },
-    { to: '/administracion', label: 'Administración', icon: Settings },
-  ],
   [ROLES.DIRECTIVO]: [
     { to: '/panel-ejecutivo', label: 'Panel ejecutivo', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios', icon: School },
     { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/reportes', label: 'Reportes', icon: FileDown },
+    { to: '/administracion', label: 'Cuentas', icon: Settings },
   ],
 }
 

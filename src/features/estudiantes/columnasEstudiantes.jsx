@@ -1,5 +1,5 @@
 // Cubre: RF-004, RN-004, RN-019
-import { MoreHorizontal } from 'lucide-react'
+import { SquarePen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Badge from '../../components/ui/Badge'
 import LevelChip from '../../components/ui/LevelChip'
@@ -102,13 +102,13 @@ export default function columnasEstudiantes({ programas, catalogoRazkids, onAcci
     },
     {
       key: 'acciones',
-      header: '',
+      header: 'Registrar',
       align: 'right',
       render: (a) => (
         <button
           type="button"
-          aria-label={`Abrir acciones rápidas para ${a.nombre}`}
-          title="Acciones rápidas"
+          aria-label={`Registrar datos de ${a.nombre}`}
+          title="Reporte semanal, registro de vuelo y ficha de este estudiante"
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -116,7 +116,7 @@ export default function columnasEstudiantes({ programas, catalogoRazkids, onAcci
           }}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface-0 text-ink-500 transition-colors hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         >
-          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          <SquarePen className="h-4 w-4" aria-hidden="true" />
         </button>
       ),
     },

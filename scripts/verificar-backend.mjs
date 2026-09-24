@@ -42,12 +42,14 @@ else console.log(fallo(`GET  /            → inesperado: ${JSON.stringify(raiz.
 
 // ── 2. Autenticación ────────────────────────────────────────────────────────
 const CUENTAS = [
-  { rol: 'Profesor', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', esperaDocente: true },
-  { rol: 'Jefa_Profesores', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', esperaDocente: false },
-  { rol: 'Directivos', correo: 'directivo.prueba@sicedu.test', password: 'DirectivoTest123', esperaDocente: false },
+  { rol: 'Docente', correo: 'profesor.prueba@sicedu.test', password: 'ProfesorTest123', esperaDocente: true },
+  { rol: 'Supervisor', correo: 'jefa.prueba@sicedu.test', password: 'JefaTest123', esperaDocente: false },
+  { rol: 'Directivo', correo: 'directivo.prueba@sicedu.test', password: 'DirectivoTest123', esperaDocente: false },
 ]
 
 let algunToken = null
+// Varios endpoints exigen rol Supervisor: con el token del Docente darían 403.
+let tokenSupervisor = null
 
 for (const cuenta of CUENTAS) {
   const login = await pedir('/login', {
@@ -61,6 +63,7 @@ for (const cuenta of CUENTAS) {
     continue
   }
   algunToken ??= login.cuerpo.access_token
+  if (cuenta.rol === 'Supervisor') tokenSupervisor = login.cuerpo.access_token
 
   const me = await pedir('/me', { headers: { Authorization: `Bearer ${login.cuerpo.access_token}` } })
   const perfil = me.cuerpo ?? {}
@@ -130,17 +133,107 @@ for (const candidato of [origen, origen.replace('localhost', '127.0.0.1')]) {
 
 // ── 5. Lo que el frontend consume y todavía no existe ───────────────────────
 console.log('\nEndpoints de negocio que el frontend consume:\n')
-const pendientes = ['/colegios', '/grados', '/alumnos', '/reporte-semanal', '/evaluacion-diagnostica', '/nivel-final-mensual']
+// Un 405 significa que la ruta existe pero no con ese método (por ejemplo,
+// `/alumnos` acepta POST y todavía no GET).
+const pendientes = ['/colegios', '/grados', '/programas', '/profesores', '/alumnos', '/reporte-semanal', '/evaluacion-diagnostica', '/nivel-final-mensual']
 let algunoPublicado = false
 for (const ruta of pendientes) {
-  const r = await pedir(ruta, algunToken ? { headers: { Authorization: `Bearer ${algunToken}` } } : {})
+  const token = tokenSupervisor ?? algunToken
+  const r = await pedir(ruta, token ? { headers: { Authorization: `Bearer ${token}` } } : {})
   if (r.estado === 404) console.log(aviso(`${ruta.padEnd(26)} 404 — no implementado`))
   else if (r.estado === null) console.log(fallo(`${ruta.padEnd(26)} sin respuesta`))
   else {
     algunoPublicado = true
-    console.log(ok(`${ruta.padEnd(26)} HTTP ${r.estado} — ¡ya existe! Actualice endpoints.js y quite el mock`))
+    const nota = r.estado === 405 ? 'la ruta existe, pero no con GET' : 'publicado'
+    console.log(ok(`${ruta.padEnd(26)} HTTP ${r.estado} — ${nota}`))
   }
 }
+
+
+// ── 6. Endpoints nuevos (administración y recuperación) ─────────────────────
+// Todo lo de aquí es de SOLO LECTURA: no crea ni desactiva nada. Los PATCH van
+// contra un id que no existe, así que la respuesta dice si la ruta está
+// publicada sin tocar ningún dato real.
+console.log('\nAdministración y recuperación de contraseña:\n')
+
+const ID_INEXISTENTE = 999999
+const auth = tokenSupervisor ? { Authorization: `Bearer ${tokenSupervisor}` } : {}
+
+const alumnosPag = await pedir('/alumnos?limit=5&offset=0', { headers: auth })
+if (alumnosPag.estado === 200) {
+  const cuerpo = alumnosPag.cuerpo
+  const envuelto = cuerpo && !Array.isArray(cuerpo) && 'items' in cuerpo && 'total' in cuerpo
+  console.log(
+    envuelto
+      ? ok(`GET   /alumnos?limit&offset     ${cuerpo.items.length} de ${cuerpo.total} — paginado`)
+      : fallo(`GET   /alumnos                  responde ${Array.isArray(cuerpo) ? 'un array suelto' : 'una forma inesperada'}; el frontend espera { total, limit, offset, items }`),
+  )
+} else {
+  console.log(fallo(`GET   /alumnos                  HTTP ${alumnosPag.estado}`))
+}
+
+const usuarios = await pedir('/usuarios', { headers: auth })
+console.log(
+  usuarios.estado === 200
+    ? ok(`GET   /usuarios                 ${Array.isArray(usuarios.cuerpo) ? usuarios.cuerpo.length : (usuarios.cuerpo?.items?.length ?? '?')} cuentas`)
+    : fallo(`GET   /usuarios                 HTTP ${usuarios.estado} ${JSON.stringify(usuarios.cuerpo)}`),
+)
+
+const filtrado = await pedir('/usuarios?rol=Supervisor', { headers: auth })
+console.log(
+  filtrado.estado === 200
+    ? ok('GET   /usuarios?rol=…           filtro por rol aceptado')
+    : fallo(`GET   /usuarios?rol=…           HTTP ${filtrado.estado}`),
+)
+
+// Un 404 o un 422 confirman que la ruta existe y llegó al handler; un 405 dice
+// que el camino existe pero no admite PATCH.
+const patches = [
+  ['PATCH /alumnos/{id}', `/alumnos/${ID_INEXISTENTE}`, { nombres: 'X' }],
+  ['PATCH /colegios/{id}', `/colegios/${ID_INEXISTENTE}`, { nombre: 'X' }],
+  ['PATCH /profesores/{id}', `/profesores/${ID_INEXISTENTE}`, { nombres: 'X' }],
+  ['PATCH /usuarios/{id}/desactivar', `/usuarios/${ID_INEXISTENTE}/desactivar`, null],
+  ['PATCH /usuarios/{id}/activar', `/usuarios/${ID_INEXISTENTE}/activar`, null],
+]
+for (const [etiqueta, ruta, cuerpo] of patches) {
+  const r = await pedir(ruta, {
+    method: 'PATCH',
+    headers: { ...auth, ...(cuerpo ? json() : {}) },
+    ...(cuerpo ? { body: JSON.stringify(cuerpo) } : {}),
+  })
+  if (r.estado === 405) console.log(fallo(`${etiqueta.padEnd(31)} 405 — la ruta existe pero no admite PATCH`))
+  else if (r.estado === 404 || r.estado === 422) console.log(ok(`${etiqueta.padEnd(31)} HTTP ${r.estado} — publicado (id inexistente)`))
+  else console.log(aviso(`${etiqueta.padEnd(31)} HTTP ${r.estado} ${JSON.stringify(r.cuerpo)}`))
+}
+
+// Recuperación sin sesión: no debe revelar si el correo existe, así que
+// responde 200 también con uno inventado.
+const recuperar = await pedir('/password/recuperar', {
+  method: 'POST',
+  headers: json(),
+  body: JSON.stringify({ correo: 'no-existe-en-ninguna-parte@sicedu.test' }),
+})
+console.log(
+  recuperar.estado === 200
+    ? ok('POST  /password/recuperar       200 sin revelar si el correo existe')
+    : fallo(`POST  /password/recuperar       HTTP ${recuperar.estado} ${JSON.stringify(recuperar.cuerpo)} — si distingue el correo inexistente, filtra qué cuentas hay`),
+)
+
+const restablecer = await pedir('/password/restablecer', {
+  method: 'POST',
+  headers: json(),
+  body: JSON.stringify({
+    correo: 'no-existe-en-ninguna-parte@sicedu.test',
+    codigo: '000000',
+    'contraseña_nueva': 'PruebaFalsa12345',
+    'confirmar_contraseña_nueva': 'PruebaFalsa12345',
+  }),
+})
+console.log(
+  restablecer.estado && restablecer.estado !== 404 && restablecer.estado !== 405
+    ? ok(`POST  /password/restablecer     HTTP ${restablecer.estado} — publicado (rechaza el código falso)`)
+    : fallo(`POST  /password/restablecer     HTTP ${restablecer.estado}`),
+)
 
 console.log(
   algunoPublicado

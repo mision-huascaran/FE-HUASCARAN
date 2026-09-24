@@ -633,22 +633,23 @@ export const handlers = {
         }),
       ),
 
-    crearColegio: async ({ nombre, abreviatura, zona, distrito }) => {
+    /**
+     * Igual que `POST /colegios`: solo exige nombre y zona, que es lo único que
+     * guarda el backend. La abreviatura no se pide —se deduce del nombre— porque
+     * solo la usan las etiquetas de los gráficos del propio mock.
+     */
+    crearColegio: async ({ nombre, zona }) => {
       const limpioNombre = String(nombre ?? '').trim()
-      const limpioAbreviatura = String(abreviatura ?? '').trim().toUpperCase()
       const limpioZona = String(zona ?? '').trim()
-      const limpioDistrito = String(distrito ?? '').trim()
-      if (!limpioNombre || !limpioAbreviatura || !limpioZona || !limpioDistrito) {
-        throw errorHttp(422, 'Completa todos los campos del colegio')
-      }
+      if (!limpioNombre || !limpioZona) throw errorHttp(422, 'Completa el nombre y la zona del colegio')
       const repetido = db.COLEGIOS.some((c) => c.nombre.trim().toLowerCase() === limpioNombre.toLowerCase())
       if (repetido) throw errorHttp(422, 'Ya existe un colegio con ese nombre')
       const nuevo = {
         id_colegio: Math.max(...db.COLEGIOS.map((c) => c.id_colegio)) + 1,
         nombre: limpioNombre,
-        abreviatura: limpioAbreviatura,
+        abreviatura: limpioNombre.replace(/[^A-Za-zÁÉÍÓÚÑ ]/g, '').trim().split(/\s+/).slice(-2).map((x) => x[0] ?? '').join('').toUpperCase() || 'N/D',
         zona: limpioZona,
-        distrito: limpioDistrito,
+        distrito: limpioZona,
       }
       db.COLEGIOS.push(nuevo)
       return responder(nuevo, RETARDO_ESCRITURA_MS)
@@ -682,37 +683,59 @@ export const handlers = {
       return responder(nuevo, RETARDO_ESCRITURA_MS)
     },
 
-    crearUsuario: async ({ nombres, apellidos, correo, password, id_rol: idRol }) => {
+    /**
+     * Alta de docente con la MISMA forma que `POST /profesores` del backend: no
+     * recibe contraseña, la genera, y la devuelve en `contraseña_temporal` para
+     * que el Supervisor pueda entregarla (el backend solo la devuelve cuando el
+     * correo de bienvenida falla; aquí siempre, que es el caso útil en pruebas).
+     */
+    crearDocente: async ({ nombres, apellidos, correo }) => {
       const nombre = String(nombres ?? '').trim()
       const apellido = String(apellidos ?? '').trim()
       const email = String(correo ?? '').trim().toLowerCase()
-      const clave = String(password ?? '').trim()
-      const rol = Number(idRol)
-      if (!nombre || !apellido || !email || !clave || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
+      if (!nombre || !apellido || !email) throw errorHttp(422, 'Completa nombres, apellidos y correo')
       if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
-      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+      // El backend responde 409 cuando el correo ya está tomado.
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
 
-      const siguienteIdUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
-      const siguienteIdDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
-      const nuevo = {
-        id_usuario: siguienteIdUsuario,
-        id_rol: rol,
-        correo: email,
-        id_docente: rol === 1 ? siguienteIdDocente : null,
-        nombres: nombre,
-        apellidos: apellido,
-        activo: true,
-      }
+      const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
+      const idDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
+      const temporal = `SICEDU-${String(idUsuario).padStart(3, '0')}`
 
+      const nuevo = { id_usuario: idUsuario, id_rol: 1, correo: email, id_docente: idDocente, nombres: nombre, apellidos: apellido, activo: true }
       db.USUARIOS.push(nuevo)
-      if (rol === 1) {
-        db.DOCENTES.push({
-          id_docente: nuevo.id_docente,
-          nombres: nombre,
-          apellidos: apellido,
-        })
-      }
-      return responder(nuevo, RETARDO_ESCRITURA_MS)
+      db.DOCENTES.push({ id_docente: idDocente, nombres: nombre, apellidos: apellido })
+      return responder({ ...nuevo, 'contraseña_temporal': temporal }, RETARDO_ESCRITURA_MS)
+    },
+
+    /** Reactiva una cuenta desactivada (`PATCH /profesores/{id}/activar`). */
+    activarUsuario: async (id) => {
+      const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
+      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      usuario.activo = true
+      return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Misma forma que `POST /usuarios`: no recibe contraseña, la genera, y
+     * devuelve `correo_enviado` para que la pantalla decida si mostrarla.
+     * Rechaza el rol Docente, igual que el backend (para eso está crearDocente).
+     */
+    crearUsuario: async ({ nombres, apellidos, correo, id_rol: idRol }) => {
+      const nombre = String(nombres ?? '').trim()
+      const apellido = String(apellidos ?? '').trim()
+      const email = String(correo ?? '').trim().toLowerCase()
+      const rol = Number(idRol)
+      if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
+      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (rol === 1) throw errorHttp(400, 'Para crear un docente usa el alta de docentes')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+
+      const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
+      const nuevo = { id_usuario: idUsuario, id_rol: rol, correo: email, id_docente: null, nombres: nombre, apellidos: apellido, activo: true }
+      db.USUARIOS.push(nuevo)
+      // Sin SMTP configurado el envío falla, que es el caso habitual hoy.
+      return responder({ ...nuevo, 'contraseña_temporal': `SICEDU-${String(idUsuario).padStart(3, '0')}`, correo_enviado: false }, RETARDO_ESCRITURA_MS)
     },
 
     actualizarUsuario: async (id, { nombres, apellidos, correo, id_rol: idRol, password }) => {
@@ -754,11 +777,36 @@ export const handlers = {
       return responder(usuario, RETARDO_ESCRITURA_MS)
     },
 
+    /**
+     * Baja lógica. Replica las dos reglas que aplica el servidor: no se puede
+     * dejar sin la última cuenta activa de Supervisor ni de Directivo (409).
+     */
     desactivarUsuario: async (id) => {
       const usuario = db.USUARIOS.find((u) => u.id_usuario === Number(id))
-      if (!usuario) throw errorHttp(404, 'El usuario no existe')
+      if (!usuario) throw errorHttp(404, `No existe un usuario con id_usuario=${id}`)
+      const NOMBRE = { 2: 'Supervisor', 3: 'Directivo' }
+      if (NOMBRE[usuario.id_rol]) {
+        const activos = db.USUARIOS.filter((u) => u.activo && u.id_rol === usuario.id_rol).length
+        if (activos <= 1) {
+          throw errorHttp(409, `No puedes desactivar la última cuenta activa de ${NOMBRE[usuario.id_rol]}`)
+        }
+      }
       usuario.activo = false
       return responder(usuario, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarAlumno: async (id, cambios) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${id}`)
+      Object.assign(alumno, cambios)
+      return responder(alumno, RETARDO_ESCRITURA_MS)
+    },
+
+    actualizarColegio: async (id, cambios) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(id))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${id}`)
+      Object.assign(colegio, Object.fromEntries(Object.entries(cambios).filter(([, v]) => v != null)))
+      return responder(colegio, RETARDO_ESCRITURA_MS)
     },
 
     /**
