@@ -58,17 +58,28 @@ pipeline {
 
         stage('SonarQube') {
             when {
+                beforeAgent true
                 anyOf {
                     branch 'qa'
                     branch 'uat'
                 }
             }
-            environment {
-                scannerHome = tool 'SonarScanner'
+            agent {
+                // El análisis de JavaScript necesita Node.js y el servidor de Jenkins
+                // no lo tiene; la imagen oficial del scanner lo trae.
+                docker {
+                    image 'sonarsource/sonar-scanner-cli'
+                    args '--entrypoint='
+                    reuseNode true
+                }
             }
             steps {
                 withSonarQubeEnv('SonarQube-Server') {
-                    sh "${scannerHome}/bin/sonar-scanner"
+                    // El contenedor corre con el usuario de Jenkins: la caché del scanner va al workspace.
+                    sh '''
+                        export SONAR_USER_HOME="${WORKSPACE}/.sonar"
+                        SONAR_TOKEN="${SONAR_AUTH_TOKEN}" sonar-scanner
+                    '''
                 }
             }
         }
