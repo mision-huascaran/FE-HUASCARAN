@@ -20,7 +20,9 @@ export function MarcaCard() {
             <Logo tone="dark" size="md" showLabel={false} />
           </div>
           <p className="text-xs text-ink-500">
-            El PNG entregado es blanco con canal alfa. Se usa como máscara CSS y el relleno lo pone
+            <span>
+              El PNG entregado es blanco con canal alfa. Se usa como máscara CSS y el relleno lo pone
+            </span>
             <code className="mx-1 rounded bg-surface-100 px-1">currentColor</code>, de modo que un
             mismo componente sirve en los dos fondos.
           </p>

@@ -12,7 +12,7 @@ export default function Paginacion({ desde, hasta, total, pagina, totalPaginas, 
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-ink-500">
-          Por página
+          <span>Por página</span>
           <select
             value={porPagina}
             onChange={(e) => onPorPagina(Number(e.target.value))}

@@ -19,6 +19,17 @@ import { porcentaje } from '../../lib/format'
 import { imprimirComoPDF } from '../../lib/export'
 import { ROLES } from '../../auth/roles'
 
+/** Signo explícito solo cuando sube: "+2", "-1", "0". */
+const conSigno = (valor) => (valor > 0 ? `+${valor}` : String(valor))
+
+/** Hacia dónde apunta la flecha de variación; sin corte anterior no hay comparación. */
+function direccionDeVariacion(ordenAnterior, delta) {
+  if (ordenAnterior == null) return 'unknown'
+  if (delta > 0) return 'up'
+  if (delta < 0) return 'down'
+  return 'flat'
+}
+
 export default function FichaEstudiantePage() {
   const { id } = useParams()
   const { data: catalogoRazkids = [] } = useNivelesRazkids()
@@ -60,8 +71,8 @@ export default function FichaEstudiantePage() {
 
   const variacion = alumno.variacion ?? {}
   const delta = (variacion.orden_actual ?? 0) - (variacion.orden_anterior ?? 0)
-  const dirVariacion =
-    variacion.orden_anterior == null ? 'unknown' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat'
+  const dirVariacion = direccionDeVariacion(variacion.orden_anterior, delta)
+  const textoVariacion = variacion.orden_anterior == null ? '—' : conSigno(delta)
 
   const mes = alumno.mes_actual ?? {}
 
@@ -117,7 +128,7 @@ export default function FichaEstudiantePage() {
         <StatCard
           icon={TrendingUp}
           label="Variación"
-          value={variacion.orden_anterior == null ? '—' : `${delta > 0 ? '+' : ''}${delta}`}
+          value={textoVariacion}
           hint={
             variacion.anterior
               ? `${variacion.anterior} → ${variacion.actual ?? '—'}`

@@ -11,7 +11,7 @@
 //
 // Los catálogos de rúbrica se leen con `useCatalogos` y NO tienen escritura: la
 // rúbrica es un instrumento oficial de Misión Huascarán (RF-025, RN-016).
-import { api, resolver, usarMock, adminContraApiReal } from '../client'
+import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 
@@ -284,7 +284,7 @@ export const actualizarUsuario = (id, { nombres, apellidos, correo }) =>
   })
 
 export const edicionDeCuentasEnMock = false
-export const negocioEnMock = usarMock
+export { usarMock as negocioEnMock } from '../client'
 
 // ── Asignaciones ────────────────────────────────────────────────────────────
 

@@ -35,7 +35,10 @@ export default function GraficoDistribucion({ datos, altura = 300 }) {
           <YAxis {...EJE} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={formatoPct} />
           <Tooltip
             {...TOOLTIP}
-            formatter={(valor, nombre, item) => [`${formatoPct(valor)} (${item.payload[`n_${nombre}`]} de ${item.payload.total})`, nombre]}
+            formatter={(valor, nombre, item) => {
+              const cuenta = item.payload[`n_${nombre}`]
+              return [`${formatoPct(valor)} (${cuenta} de ${item.payload.total})`, nombre]
+            }}
           />
           <Legend {...LEYENDA} />
           {niveles.map((nivel) => (

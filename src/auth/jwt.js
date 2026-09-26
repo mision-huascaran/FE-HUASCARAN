@@ -28,7 +28,7 @@ export function leerPayload(token) {
     const json = decodeURIComponent(
       atob(relleno)
         .split('')
-        .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .map((c) => `%${c.codePointAt(0).toString(16).padStart(2, '0')}`)
         .join(''),
     )
     return JSON.parse(json)

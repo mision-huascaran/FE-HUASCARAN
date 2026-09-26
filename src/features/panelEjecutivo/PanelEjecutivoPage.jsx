@@ -13,6 +13,15 @@ import { mensajeDeError } from '../../api/client'
 import useFiltrosStore from '../../store/filtrosStore'
 import cn from '../../lib/cn'
 
+/** Signo explícito solo cuando sube: "+3 pp", "-1 pp". */
+const conSigno = (valor) => (valor > 0 ? `+${valor}` : String(valor))
+
+/** Sin corte anterior no hay avance que colorear. */
+function tonoDelAvance(avance) {
+  if (avance == null) return ''
+  return avance >= 0 ? 'text-success-600' : 'text-danger-600'
+}
+
 /**
  * Panel ejecutivo (P17), pensado para proyector: números grandes y pocos.
  *
@@ -35,6 +44,8 @@ export default function PanelEjecutivoPage() {
   if (consulta.isError) return <EmptyState title="No se pudo cargar el panel" description={mensajeDeError(consulta.error)} />
 
   const avance = ind?.avance_pp
+  const textoAvance = avance == null ? '—' : `${conSigno(avance)} pp`
+  const tonoAvance = tonoDelAvance(avance)
   const indicadores = ind
     ? [
         { Icon: Users, label: 'Estudiantes atendidos', valor: ind.estudiantes },
@@ -42,8 +53,8 @@ export default function PanelEjecutivoPage() {
         {
           Icon: TrendingUp,
           label: 'Avance frente al corte anterior',
-          valor: avance == null ? '—' : `${avance > 0 ? '+' : ''}${avance} pp`,
-          tono: avance == null ? '' : avance >= 0 ? 'text-success-600' : 'text-danger-600',
+          valor: textoAvance,
+          tono: tonoAvance,
         },
         { Icon: School, label: 'Colegios con datos al día', valor: `${ind.colegios_al_dia} de ${ind.total_colegios}`, pie: `≥ ${ind.umbral_al_dia} % de registro en la última semana cerrada` },
         { Icon: BookOpen, label: 'Libros leídos en el año', valor: ind.libros_anio.toLocaleString('es-PE') },

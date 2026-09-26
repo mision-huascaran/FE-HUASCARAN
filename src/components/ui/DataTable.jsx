@@ -5,6 +5,25 @@ import EmptyState from './EmptyState'
 import Paginacion from './Paginacion'
 import Skeleton from './Skeleton'
 
+/** Flecha de la cabecera: doble mientras no se ordena por esa columna. */
+function iconoDeOrden(activa, direccion) {
+  if (!activa) return ChevronsUpDown
+  return direccion === 'asc' ? ChevronUp : ChevronDown
+}
+
+/** `aria-sort` solo va en la columna por la que se está ordenando. */
+function ariaSort(activa, direccion) {
+  if (!activa) return undefined
+  return direccion === 'asc' ? 'ascending' : 'descending'
+}
+
+/** Alineación de la columna. Los números van a la derecha y con cifras de ancho fijo. */
+function alineacion(align, extra = '') {
+  if (align === 'right') return `text-right ${extra}`.trim()
+  if (align === 'center') return 'text-center'
+  return 'text-left'
+}
+
 /**
  * Tabla propia sobre Tailwind (el stack prohíbe librerías de tablas).
  *
@@ -91,20 +110,16 @@ export default function DataTable({
             <tr className="bg-surface-100">
               {columns.map((col, i) => {
                 const activa = orden.key === col.key
-                const Icono = !activa ? ChevronsUpDown : orden.dir === 'asc' ? ChevronUp : ChevronDown
+                const Icono = iconoDeOrden(activa, orden.dir)
                 return (
                   <th
                     key={col.key}
                     scope="col"
                     style={col.width ? { width: col.width } : undefined}
-                    aria-sort={activa ? (orden.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    aria-sort={ariaSort(activa, orden.dir)}
                     className={cn(
                       'whitespace-nowrap border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-500',
-                      col.align === 'right'
-                        ? 'text-right'
-                        : col.align === 'center'
-                          ? 'text-center'
-                          : 'text-left',
+                      alineacion(col.align),
                       stickyFirstColumn && i === 0 && 'sticky left-0 z-10 bg-surface-100',
                       col.headerClassName,
                     )}
@@ -146,11 +161,7 @@ export default function DataTable({
                     key={col.key}
                     className={cn(
                       'px-4 py-3 align-middle text-ink-700',
-                      col.align === 'right'
-                        ? 'text-right tabular-nums'
-                        : col.align === 'center'
-                          ? 'text-center'
-                          : 'text-left',
+                      alineacion(col.align, 'tabular-nums'),
                       stickyFirstColumn && ci === 0 && 'sticky left-0 z-10 bg-surface-0',
                       col.className,
                     )}

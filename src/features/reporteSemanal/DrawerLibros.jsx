@@ -88,7 +88,7 @@ export default function DrawerLibros({ abierto, onCerrar, fila, onGuardar, soloL
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                    Título del libro
+                    <span>Título del libro</span>
                     <input
                       type="text"
                       value={libro.titulo}
@@ -100,7 +100,7 @@ export default function DrawerLibros({ abierto, onCerrar, fila, onGuardar, soloL
 
                   <div className="mt-2 flex items-end gap-2">
                     <label className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                      Aciertos
+                      <span>Aciertos</span>
                       <input
                         type="number"
                         min="0"
@@ -112,7 +112,7 @@ export default function DrawerLibros({ abierto, onCerrar, fila, onGuardar, soloL
                     </label>
                     <span className="pb-2 text-sm text-ink-400">de</span>
                     <label className="text-xs font-semibold uppercase tracking-wide text-ink-400">
-                      Total
+                      <span>Total</span>
                       <input
                         type="number"
                         min="1"

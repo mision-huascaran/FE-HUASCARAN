@@ -14,6 +14,22 @@
 
 import { normalizarNivel } from './niveles'
 
+/** Regla provisional §P7: ≥0.8 sube un nivel, ≤0.4 baja uno, en otro caso se mantiene. */
+function deltaPorRazon(razon) {
+  if (razon == null) return 0
+  if (razon >= UMBRAL_SUBE) return 1
+  if (razon <= UMBRAL_BAJA) return -1
+  return 0
+}
+
+/** Qué se le propone al docente. Sin datos completos, revisar antes que sugerir. */
+function accionSugerida(completo, delta) {
+  if (!completo) return ACCIONES.REVISAR
+  if (delta > 0) return ACCIONES.SUBIR
+  if (delta < 0) return ACCIONES.BAJAR
+  return ACCIONES.MANTENER
+}
+
 /** Umbrales de la regla provisional (§P7). */
 export const UMBRAL_SUBE = 0.8
 export const UMBRAL_BAJA = 0.4
@@ -102,17 +118,11 @@ export function calcularNivelFinal({
   const completo = pruebaValida && rubricaCompleta && Boolean(nivelEntrada)
 
   // Regla provisional §P7: ≥0.8 sube un nivel, ≤0.4 baja uno, en otro caso se mantiene.
-  const delta = razon == null ? 0 : razon >= UMBRAL_SUBE ? 1 : razon <= UMBRAL_BAJA ? -1 : 0
+  const delta = deltaPorRazon(razon)
 
   const nivelSugerido = pruebaValida ? moverNivelRazkids(nivelEntrada, delta, catalogoRazkids) : null
 
-  const accion = !completo
-    ? ACCIONES.REVISAR
-    : delta > 0
-      ? ACCIONES.SUBIR
-      : delta < 0
-        ? ACCIONES.BAJAR
-        : ACCIONES.MANTENER
+  const accion = accionSugerida(completo, delta)
 
   const nivelGeneral = rubricaCompleta
     ? calcularNivelGeneral({

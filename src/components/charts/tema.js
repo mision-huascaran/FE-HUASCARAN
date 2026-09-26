@@ -11,7 +11,6 @@
 // no solo el color añadido. Además del color, cada serie lleva SIEMPRE leyenda,
 // de modo que la identidad nunca depende únicamente del color.
 
-import { COLOR_NIVEL } from '../../domain/niveles'
 
 export const COLORES = {
   ejes: '#8A94A6', // ink-400
@@ -47,7 +46,7 @@ export const SERIES_RUBRICA = {
  * descarga CSV como vista de tabla. Pendiente de revisión con quien define la
  * identidad visual.
  */
-export const SERIES_NIVEL = COLOR_NIVEL
+export { COLOR_NIVEL as SERIES_NIVEL } from '../../domain/niveles'
 
 /**
  * Programas (evolución anual, P12 y P17). Mismo par validado que SERIES_RUBRICA:

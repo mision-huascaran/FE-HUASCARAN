@@ -9,6 +9,21 @@
 // para calcularlo", que NO es lo mismo que 0 %: la interfaz lo muestra como "—".
 import * as db from './db'
 
+/** Cuántos niveles subió o bajó un alumno entre su primera y su última evaluación. */
+function categoriaDeAvance(delta) {
+  if (delta < 0) return 'Baja'
+  if (delta === 0) return 'Se mantiene'
+  if (delta === 1) return 'Sube 1'
+  if (delta === 2) return 'Sube 2'
+  return 'Sube 3 o más'
+}
+
+/** Descuadre de uno a tres libros, arriba o abajo. Gasta dos tiradas del generador. */
+function ajusteDeDescuadre(random) {
+  const signo = random() < 0.5 ? -1 : 1
+  return signo * (1 + Math.floor(random() * 3))
+}
+
 export const esLogro = (nivel) => nivel === 'Logrado' || nivel === 'Destacado'
 
 export const pct = (parte, total) => (total ? Math.round((parte / total) * 100) : null)
@@ -114,7 +129,7 @@ export function variacion(filtros = {}) {
     const propias = db.evaluacionesDe(a.id_alumno).filter((e) => e.id_periodo <= idPeriodo)
     if (propias.length < 2) return
     const delta = db.ordenDeLetra(propias.at(-1).nivel_ajustado) - db.ordenDeLetra(propias[0].nivel_ajustado)
-    const categoria = delta < 0 ? 'Baja' : delta === 0 ? 'Se mantiene' : delta === 1 ? 'Sube 1' : delta === 2 ? 'Sube 2' : 'Sube 3 o más'
+    const categoria = categoriaDeAvance(delta)
     categorias[categoria] += 1
     total += 1
   })
@@ -392,7 +407,7 @@ export function alertasInconsistencias({ colegio } = {}) {
         return suma + librosDeFila(fila) + salaDeFila(fila)
       }, 0)
       const descuadra = random() < 0.03
-      const ajuste = descuadra ? (random() < 0.5 ? -1 : 1) * (1 + Math.floor(random() * 3)) : 0
+      const ajuste = descuadra ? ajusteDeDescuadre(random) : 0
       if (!descuadra) return
 
       const id = `${a.id_alumno}-${mes}`
