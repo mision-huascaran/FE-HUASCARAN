@@ -308,7 +308,7 @@ export const nombreCompleto = (alumno) => `${alumno.apellidos}, ${alumno.nombres
 const sinTildes = (texto) =>
   String(texto ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replaceAll(/[̀-ͯ]/g, '')
     .toLowerCase()
 
 export function alumnosDe({ colegio, grado, programa, q } = {}) {

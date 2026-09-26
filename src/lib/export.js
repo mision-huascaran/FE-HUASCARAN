@@ -18,10 +18,10 @@
 export function nombreArchivo(base, extension) {
   const limpio = String(base || 'sicedu')
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-zA-Z0-9-_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+    .replaceAll(/\p{Diacritic}/gu, '')
+    .replaceAll(/[^a-zA-Z0-9-_]+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/^-|-$/g, '')
     .toLowerCase()
   const fecha = new Date().toISOString().slice(0, 10)
   return `${limpio}-${fecha}.${extension}`
@@ -50,7 +50,7 @@ export function aCSV(filas = [], columnas = []) {
   const escapar = (valor) => {
     if (valor == null) return ''
     const texto = String(valor)
-    return /[",\n;]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto
+    return /[",\n;]/.test(texto) ? `"${texto.replaceAll(/"/g, '""')}"` : texto
   }
   const cabecera = columnas.map((c) => escapar(c.titulo)).join(',')
   const cuerpo = filas.map((fila) => columnas.map((c) => escapar(celda(fila, c))).join(','))
@@ -65,10 +65,10 @@ export function descargarCSV(filas, columnas, base) {
 
 const escaparXML = (valor) =>
   String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replaceAll(/&/g, '&amp;')
+    .replaceAll(/</g, '&lt;')
+    .replaceAll(/>/g, '&gt;')
+    .replaceAll(/"/g, '&quot;')
 
 /** Hoja de cálculo XML 2003: los números viajan como números, no como texto. */
 export function aSpreadsheetML(filas = [], columnas = [], hoja = 'SICEDU') {

@@ -23,7 +23,7 @@ export function leerPayload(token) {
     const payload = String(token ?? '').split('.')[1]
     if (!payload) return null
     // base64url → base64, y relleno hasta múltiplo de 4.
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const base64 = payload.replaceAll(/-/g, '+').replaceAll(/_/g, '/')
     const relleno = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
     const json = decodeURIComponent(
       atob(relleno)
