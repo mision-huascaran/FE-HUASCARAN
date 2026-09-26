@@ -1,16 +1,35 @@
 // Validaciones de formulario compartidas por las pantallas y por el mock de la API.
 
-// Correo: sin espacios, un solo @ y al menos un punto después del @.
-//
-// Las clases niegan @ y espacio a propósito, y el patrón va anclado: así cada tramo
-// tiene un único corte posible y el motor no retrocede. La versión corta que había
-// antes repetida, /\S+@\S+\.\S+/, parece equivalente, pero al no excluir el @ el motor
-// prueba todos los cortes posibles: con un texto largo sin @ el tiempo crece con el
-// cuadrado de la longitud, y SonarQube lo marca como security hotspot (S5852, ReDoS).
-//
-// De paso valida mejor: la anterior, al no estar anclada, daba por bueno "juan
-// perez@colegio.pe" porque le bastaba con encontrar una parte válida dentro del texto.
-const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/**
+ * ¿El valor tiene forma de correo? Recorta los espacios de los extremos antes de mirar.
+ *
+ * Se comprueba partiendo la cadena en vez de con un patrón completo, y la razón
+ * es concreta: cualquier expresión del tipo `a+@a+\.a+` deja que los tramos
+ * compitan por los mismos caracteres, porque la clase que acepta el dominio
+ * acepta también el punto. Con un texto largo y sin punto el motor prueba todos
+ * los cortes y el tiempo crece con el cuadrado de la longitud — es lo que
+ * SonarQube marca como ReDoS (S5852), y lo seguía marcando con
+ * `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, más estricta pero con el mismo solape.
+ *
+ * `split` recorre la cadena una sola vez, así que el coste es lineal y no hay
+ * retroceso posible. La única expresión que queda no lleva cuantificador.
+ */
+export const esCorreoValido = (valor) => {
+  const correo = String(valor ?? '').trim()
+  // Un correo no lleva espacios: esto descarta de paso "juan perez@colegio.pe",
+  // que una expresión sin anclar daba por bueno.
+  if (!correo || /\s/.test(correo)) return false
 
-/** ¿El valor tiene forma de correo? Recorta los espacios de los extremos antes de mirar. */
-export const esCorreoValido = (valor) => CORREO.test(String(valor ?? '').trim())
+  const partes = correo.split('@')
+  if (partes.length !== 2) return false
+
+  const [local, dominio] = partes
+  if (!local) return false
+
+  // El dominio necesita al menos un punto, y ninguna etiqueta puede ir vacía:
+  // así caen "sin@punto", "a@.pe" y "a@pe.".
+  const etiquetas = dominio.split('.')
+  return etiquetas.length >= 2 && etiquetas.every((etiqueta) => etiqueta.length > 0)
+}
+
+export default esCorreoValido
