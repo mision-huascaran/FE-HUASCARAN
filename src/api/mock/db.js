@@ -361,7 +361,7 @@ function nivelPorDesempeno(random, idPrograma, dimension, razon) {
   return opciones[indice].nombre_nivel
 }
 
-/** RN-014: sube un nivel si acertó casi todo, baja si falló casi todo. */
+/** RN-014: sube un nivel si acertó casi en su totalidad, baja si falló casi en su totalidad. */
 function deltaDeNivel(razon) {
   if (razon >= 0.8) return 1
   if (razon <= 0.4) return -1
