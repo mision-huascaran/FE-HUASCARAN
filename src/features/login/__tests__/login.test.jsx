@@ -53,6 +53,13 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Correo o contraseña incorrectos')
   })
 
+  it('oculta la creación de cuenta en el login y ofrece recuperación de contraseña', async () => {
+    renderLogin()
+
+    expect(screen.queryByRole('button', { name: /crear cuenta/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /¿olvidó su contraseña\?/i })).toBeInTheDocument()
+  })
+
   it('con credenciales válidas lleva al inicio que corresponde al rol', async () => {
     renderLogin()
     await userEvent.type(screen.getByLabelText(/Correo/), DOCENTE.correo)

@@ -23,6 +23,7 @@ const Input = forwardRef(function Input(
           ref={ref}
           id={inputId}
           type={tipoReal}
+          aria-label={label ?? undefined}
           aria-invalid={Boolean(error) || undefined}
           className={cn(controlClases(error, 'h-10'), IconLeft && 'pl-9', esPassword && 'pr-10')}
           {...props}

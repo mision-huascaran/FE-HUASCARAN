@@ -1,17 +1,38 @@
 // Todas las rutas del backend en un solo lugar (§3). Ningún componente escribe
 // una URL a mano: si Swagger cambia una ruta, se corrige aquí y nada más.
 //
-// Las rutas marcadas con POR CONFIRMAR todavía no existen en el backend; están
-// tomadas del contrato provisional de §3 y deben verificarse contra
-// {API_BASE_URL}/docs cuando el equipo de backend las publique.
+// ESTADO DEL CONTRATO — contrastado con APIS_BACKEND.md y verificado contra el
+// servidor en ejecución con `npm run verificar:backend`.
+//
+//   IMPLEMENTADO   `GET /`, `POST /login`, `GET /me`, `POST /logout`.
+//                  La autenticación es JWT Bearer y el token dura 8 horas.
+//   NO EXISTE AÚN  todos los endpoints de negocio. Las tablas ya están en la
+//                  base de datos, pero ningún endpoint las expone.
+//
+// Por eso el negocio sigue resolviéndose contra el mock. Las rutas marcadas
+// como pendientes son el contrato provisional de §3 del prompt y hay que
+// verificarlas contra {API_BASE_URL}/docs conforme el backend las publique.
 export const ENDPOINTS = {
-  auth: {
-    login: '/login',
-    logout: '/logout',
-    me: '/me',
+  // IMPLEMENTADO ─────────────────────────────────────────────────────────────
+  servicio: {
+    raiz: '/', // → { status: "ok" }
   },
 
-  // POR CONFIRMAR ────────────────────────────────────────────────────────────
+  // IMPLEMENTADO — JWT Bearer, token válido 8 horas ──────────────────────────
+  auth: {
+    login: '/login', // body { correo, password } → { access_token, token_type }
+    logout: '/logout', // simbólico: el JWT no se revoca en el servidor
+    me: '/me', // requiere Authorization: Bearer <token>
+    // Cambio de contraseña CON sesión: los tres exigen Authorization.
+    passwordCodigo: '/me/password/codigo',
+    passwordVerificarCodigo: '/me/password/verificar-codigo',
+    passwordCambiar: '/me/password',
+    // Recuperación SIN sesión, desde el login. Públicos: no llevan token.
+    passwordRecuperar: '/password/recuperar', // { correo }
+    passwordRestablecer: '/password/restablecer', // { correo, codigo, contraseña_nueva, confirmar_contraseña_nueva }
+  },
+
+  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
   catalogos: {
     colegios: '/colegios',
     grados: '/grados',
@@ -24,6 +45,7 @@ export const ENDPOINTS = {
     semanas: '/semanas',
   },
 
+  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
   alumnos: {
     listar: '/alumnos', // ?colegio=&grado=&programa=&q=
     detalle: (id) => `/alumnos/${id}`,
@@ -65,17 +87,58 @@ export const ENDPOINTS = {
   dashboard: {
     indicadores: '/dashboard/indicadores',
     distribucion: '/dashboard/distribucion',
-    rankingColegios: '/dashboard/ranking-colegios',
-    rankingAulas: '/dashboard/ranking-aulas',
+    rankingColegios: '/dashboard/ranking-colegios', // ?programa=&periodo=
+    rankingAulas: '/dashboard/ranking-aulas', // ?colegio=&periodo=
+    // PROPUESTA DEL FRONTEND: todo el dashboard (P12) en una sola respuesta.
+    // RF-006 pide una sola vista con siete bloques que reaccionan a los mismos
+    // filtros; con la conexión del 70 % de RN-017, una petición es mejor que siete.
+    resumen: '/dashboard/resumen',
+    // PROPUESTA DEL FRONTEND: indicadores del panel ejecutivo (P17).
+    ejecutivo: '/dashboard/ejecutivo',
+  },
+
+  // PROPUESTA DEL FRONTEND: §3 no define el detalle de un colegio (P13).
+  colegios: {
+    detalle: (id) => `/colegios/${id}/resumen`, // ?periodo=&programa=
   },
 
   consolidados: {
-    nivel: '/consolidados/nivel',
-    libros: '/consolidados/libros',
+    nivel: '/consolidados/nivel', // ?colegio=&periodo=
+    libros: '/consolidados/libros', // ?colegio=&mes=&anio=
   },
 
   alertas: {
     inconsistencias: '/alertas/inconsistencias',
+    // PROPUESTA DEL FRONTEND: marcar una alerta como revisada (P15).
+    revisar: (id) => `/alertas/inconsistencias/${id}`,
+  },
+
+  // PROPUESTA DEL FRONTEND: §3 no lista la administración (P16).
+  administracion: {
+    // IMPLEMENTADO en el backend ─────────────────────────────────────────────
+    colegios: '/colegios', // POST requiere Supervisor · GET cualquier autenticado
+    alumnos: '/alumnos', // POST requiere Supervisor
+    profesores: '/profesores', // POST y GET requieren Supervisor
+    activarProfesor: (idUsuario) => `/profesores/${idUsuario}/activar`,
+    desactivarProfesor: (idUsuario) => `/profesores/${idUsuario}/desactivar`,
+
+    // Edición parcial: solo viajan los campos que cambian (PATCH, no PUT).
+    alumno: (id) => `/alumnos/${id}`,
+    colegio: (id) => `/colegios/${id}`,
+    profesor: (idUsuario) => `/profesores/${idUsuario}`,
+
+    // Cuentas de Supervisor y Directivo. `POST /usuarios` NO crea docentes:
+    // para eso está `POST /profesores`, que además crea su ficha.
+    usuarios: '/usuarios', // GET admite ?rol=Supervisor|Directivo|Docente
+    usuario: (idUsuario) => `/usuarios/${idUsuario}`, // PATCH: nombres, apellidos, correo
+    activarUsuario: (idUsuario) => `/usuarios/${idUsuario}/activar`,
+    desactivarUsuario: (idUsuario) => `/usuarios/${idUsuario}/desactivar`,
+
+    // Asignaciones docente-colegio-grado-periodo. De ellas depende lo que ve un
+    // Docente: sin asignación vigente no tiene alumnos ni colegios.
+    docentes: '/docentes', // NO EXISTE: el listado de docentes es GET /profesores
+    asignaciones: '/asignaciones',
+    asignacion: (id) => `/asignaciones/${id}`,
   },
 }
 

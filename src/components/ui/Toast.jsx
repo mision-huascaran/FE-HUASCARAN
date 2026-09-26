@@ -75,8 +75,7 @@ function ToastItem({ tone = 'info', message, description, onClose }) {
   }, [onClose])
 
   return (
-    <div
-      role="status"
+    <output
       className={cn(
         'pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface-0 p-4 shadow-card animate-slide-up',
         clases,
@@ -95,7 +94,7 @@ function ToastItem({ tone = 'info', message, description, onClose }) {
       >
         <X className="h-4 w-4" />
       </button>
-    </div>
+    </output>
   )
 }
 

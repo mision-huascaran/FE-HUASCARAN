@@ -21,7 +21,7 @@ export default function AppShell() {
     <div className="min-h-screen bg-surface-50">
       <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
 
-      <div className="lg:pl-[248px]">
+      <div className="lg:pl-[248px] print:pl-0">
         <Topbar onAbrirMenu={() => setMenuAbierto(true)} />
         {/* `key` fuerza el reinicio del scroll y del estado al cambiar de pantalla. */}
         <main key={pathname} className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">

@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+.vscode
+.idea
+*.log
+# El .env local NO entra en la imagen: las variables VITE_* llegan como ARG.
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+.npm
+.sonar

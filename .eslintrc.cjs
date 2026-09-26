@@ -21,6 +21,12 @@ module.exports = {
   },
   overrides: [
     {
+      // Herramientas de terminal: imprimir es su trabajo y no corren en el
+      // navegador, así que no pueden filtrar datos de alumnos a la consola.
+      files: ['scripts/**'],
+      rules: { 'no-console': 'off' },
+    },
+    {
       files: ['**/*.test.{js,jsx}', 'src/test/**'],
       globals: { describe: 'readonly', it: 'readonly', expect: 'readonly', vi: 'readonly', beforeEach: 'readonly', afterEach: 'readonly' },
     },
