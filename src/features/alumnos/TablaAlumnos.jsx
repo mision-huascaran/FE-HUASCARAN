@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, PencilLine, Plus, RotateCcw } from 'lucide-react'
+import { Ban, ClipboardEdit, PencilLine, Plus, RotateCcw } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
@@ -12,6 +12,7 @@ import {
   actualizarAlumno,
   crearAlumno,
   listarAlumnosAdmin,
+  listarAsignaciones,
   listarColegiosAdmin,
   listarGradosAdmin,
   listarProgramasAdmin,
@@ -20,6 +21,7 @@ import { mensajeDeError } from '../../api/client'
 import { ROLES } from '../../auth/roles'
 import useSessionStore from '../../store/sessionStore'
 import Badge from '../../components/ui/Badge'
+import ModalAlumno from '../estudiantes/ModalAlumno'
 
 /**
  * Módulo Alumnos (CU008).
@@ -45,6 +47,36 @@ export default function TablaAlumnos() {
   const { data: colegios = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: listarColegiosAdmin, ...SIEMPRE })
   const { data: grados = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'grados'], queryFn: listarGradosAdmin, ...SIEMPRE })
   const { data: programas = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'programas'], queryFn: listarProgramasAdmin, ...SIEMPRE })
+
+  const [form, setForm] = useState({ nombres: '', apellidos: '', id_colegio: '', id_grado: '', id_programa: '' })
+
+  /**
+   * El Docente solo puede dar de alta en los colegios y grados que tiene
+   * asignados: fuera de ahí el servidor responde
+   * «Ese alumno no pertenece a un colegio y grado que tengas asignado».
+   * `GET /colegios` ya le llega acotado, pero `GET /grados` devuelve los seis,
+   * así que sin este recorte el formulario ofrecía grados que iban a fallar.
+   */
+  const { data: asignaciones = [] } = useQuery({
+    queryKey: ['admin', 'asignaciones'],
+    queryFn: listarAsignaciones,
+    enabled: puedeGestionar,
+  })
+
+  const permitidos = useMemo(() => {
+    if (!puedeGestionar) return { colegios, grados }
+    if (!asignaciones.length) return { colegios: [], grados: [] }
+    const idsColegio = new Set(asignaciones.map((a) => Number(a.id_colegio)))
+    const porColegio = Number(form.id_colegio)
+    const gradosDe = asignaciones
+      .filter((a) => !porColegio || Number(a.id_colegio) === porColegio)
+      .map((a) => Number(a.id_grado))
+    const idsGrado = new Set(gradosDe)
+    return {
+      colegios: colegios.filter((c) => idsColegio.has(Number(c.id_colegio))),
+      grados: grados.filter((g) => idsGrado.has(Number(g.id_grado))),
+    }
+  }, [puedeGestionar, asignaciones, colegios, grados, form.id_colegio])
   // `GET /alumnos` viene paginado: la respuesta trae `total` e `items`.
   const [pagina, setPagina] = useState({ limit: 50, offset: 0 })
   const { data, isLoading } = useQuery({
@@ -77,9 +109,10 @@ export default function TablaAlumnos() {
   const hasta = pagina.offset + alumnos.length
 
   const [abierto, setAbierto] = useState(false)
+  // Ventana de captura del alumno: reporte semanal, registro de vuelo y ficha.
+  const [enCaptura, setEnCaptura] = useState(null)
   const [editando, setEditando] = useState(null)
   // Sin `aula`: `POST /alumnos` no la guarda. El mock la da por defecto 'A'.
-  const [form, setForm] = useState({ nombres: '', apellidos: '', id_colegio: '', id_grado: '', id_programa: '' })
 
   const cerrar = () => {
     setAbierto(false)
@@ -137,7 +170,6 @@ export default function TablaAlumnos() {
     <>
       <Card
         title="Alumnos"
-        subtitle={puedeGestionar ? 'Estudiantes de sus colegios y grados asignados' : 'Consulta: la gestión de alumnos corresponde al Docente'}
         padded={false}
         actions={
           puedeGestionar ? (
@@ -159,6 +191,22 @@ export default function TablaAlumnos() {
             { key: 'colegio', header: 'Colegio', sortable: true },
             { key: 'grado', header: 'Grado', align: 'center' },
             { key: 'programa', header: 'Programa', sortable: true },
+            {
+              key: 'captura',
+              header: '',
+              align: 'center',
+              render: (a) => (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  iconLeft={ClipboardEdit}
+                  aria-label={`Abrir registro de ${a.nombre}`}
+                  onClick={() => setEnCaptura(a)}
+                >
+                  Registro
+                </Button>
+              ),
+            },
             {
               key: 'activo',
               header: 'Estado',
@@ -230,6 +278,13 @@ export default function TablaAlumnos() {
         </div>
       </Card>
 
+      <ModalAlumno
+        alumno={enCaptura}
+        abierto={Boolean(enCaptura)}
+        onCerrar={() => setEnCaptura(null)}
+        soloLectura={!puedeGestionar}
+      />
+
       <Modal
         open={abierto}
         onClose={cerrar}
@@ -264,8 +319,8 @@ export default function TablaAlumnos() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input label="Nombres" required value={form.nombres} onChange={(e) => setForm((f) => ({ ...f, nombres: e.target.value }))} />
           <Input label="Apellidos" required value={form.apellidos} onChange={(e) => setForm((f) => ({ ...f, apellidos: e.target.value }))} />
-          <Select label="Colegio" required value={form.id_colegio} onChange={(e) => setForm((f) => ({ ...f, id_colegio: e.target.value }))} placeholder="Seleccione" options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))} />
-          <Select label="Grado" required value={form.id_grado} onChange={(e) => setForm((f) => ({ ...f, id_grado: e.target.value }))} placeholder="Seleccione" options={grados.map((g) => ({ value: g.id_grado, label: g.nombre }))} />
+          <Select label="Colegio" required value={form.id_colegio} onChange={(e) => setForm((f) => ({ ...f, id_colegio: e.target.value }))} placeholder="Seleccione" options={permitidos.colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))} />
+          <Select label="Grado" required value={form.id_grado} onChange={(e) => setForm((f) => ({ ...f, id_grado: e.target.value }))} placeholder="Seleccione" options={permitidos.grados.map((g) => ({ value: g.id_grado, label: g.nombre }))} />
           <Select label="Programa" required value={form.id_programa} onChange={(e) => setForm((f) => ({ ...f, id_programa: e.target.value }))} placeholder="Seleccione" options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))} />
         </div>
       </Modal>

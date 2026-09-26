@@ -12,7 +12,7 @@ import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
 import { destinoTrasLogin } from '../../rutas'
-import { estadoDe } from '../../api/client'
+import { estadoDe, mensajeDeError } from '../../api/client'
 import CredencialesDemo from './CredencialesDemo'
 
 const esquema = z.object({
@@ -47,6 +47,18 @@ export default function LoginPage() {
       // Nunca se dice cuál de los dos campos falló (P1).
       if (estado === 401) {
         setErrorGeneral('Correo o contraseña incorrectos')
+        return
+      }
+      // Cuenta dada de baja: el servidor ya manda el texto que toca ("Tu cuenta
+      // está deshabilitada. Contacta a tu supervisor."), y distingue si hay que
+      // acudir a un supervisor o a un directivo según el rol. Antes caía en el
+      // mensaje de red y parecía que el servidor estaba caído.
+      if (estado === 403) {
+        setErrorGeneral(mensajeDeError(error, 'Su cuenta está desactivada. Comuníquese con su supervisor.'))
+        return
+      }
+      if (estado) {
+        setErrorGeneral(mensajeDeError(error, 'No se pudo iniciar sesión. Intente nuevamente.'))
         return
       }
       setErrorGeneral('No se pudo conectar con el servidor. Intente nuevamente en unos segundos.')

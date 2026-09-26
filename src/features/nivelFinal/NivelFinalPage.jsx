@@ -17,7 +17,7 @@ import {
   useProgramas,
   useSemanas,
 } from '../../hooks/useCatalogos'
-import columnasNivelFinal, { MINIMO_SEMANAS } from './columnasNivelFinal'
+import columnasNivelFinal from './columnasNivelFinal'
 
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -125,7 +125,6 @@ export default function NivelFinalPage() {
             getRowId={(f) => f.id_nivel_final}
             initialPageSize={10}
             stickyFirstColumn
-            footNote={`El consolidado se deriva de las rúbricas semanales del mes. Con menos de ${MINIMO_SEMANAS} semanas registradas se marca en advertencia.`}
           />
         )}
       </Card>

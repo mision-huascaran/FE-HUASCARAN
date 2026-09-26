@@ -170,7 +170,6 @@ export default function TabDocentes() {
               ),
             },
           ]}
-          footNote="Desactivar no borra nada: la cuenta y su ficha quedan guardadas y se pueden reactivar."
         />
       </Card>
 
@@ -202,7 +201,7 @@ export default function TabDocentes() {
             className="md:col-span-2"
             value={form.correo}
             onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))}
-            hint="Con este correo iniciará sesión. La contraseña la genera el sistema y se la envía."
+            hint="La contraseña la genera el sistema"
           />
         </div>
       </Modal>

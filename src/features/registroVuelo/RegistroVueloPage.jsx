@@ -78,7 +78,6 @@ export default function RegistroVueloPage() {
           onChange={() => {}}
           options={anios}
           disabled={anios.length <= 1}
-          hint="Solo el año lectivo en curso"
         />
         <Select
           label="Periodo"

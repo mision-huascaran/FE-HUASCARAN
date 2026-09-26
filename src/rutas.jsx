@@ -13,7 +13,6 @@ import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
 import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
-import EstudiantesPage from './features/estudiantes/EstudiantesPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
 import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
@@ -42,8 +41,11 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de vuelo — histórico', elemento: <RegistroVueloPage /> },
   { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
   // Módulo Alumnos (CU008): gestiona el Docente, el Supervisor solo consulta.
-  { path: '/alumnos', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <AlumnosPage /> },
-  { path: '/estudiantes', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Estudiantes', elemento: <EstudiantesPage /> },
+  // `/estudiantes` era una segunda pantalla sobre otra fuente de datos, así que
+  // un alumno recién creado no aparecía allí. Se mantiene la ruta redirigiendo
+  // para no romper enlaces guardados.
+  { path: '/alumnos', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Alumnos', elemento: <AlumnosPage /> },
+  { path: '/estudiantes', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
   { path: '/estudiantes/:id', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
   { path: '/nivel-final', allow: [PROFESOR, JEFA], titulo: 'Nivel final mensual', elemento: <NivelFinalPage /> },
   { path: '/consulta-colegios', allow: [PROFESOR], titulo: 'Consulta de otros colegios', elemento: <ConsultaColegiosPage /> },

@@ -29,7 +29,6 @@ export default function BloqueDecision({ nivelSugerido, accion, nivelFinal, camb
         value={nivelFinal}
         onChange={cambiar('nivel_ajustado')}
         options={catalogoRazkids.map((n) => ({ value: n.letra, label: n.letra }))}
-        hint="RN-014: el nivel del docente y el de Raz-Kids se conservan por separado"
       />
 
       {/* RF-023 / RN-015 */}
@@ -41,7 +40,7 @@ export default function BloqueDecision({ nivelSugerido, accion, nivelFinal, camb
           value={valores.justificacion}
           onChange={cambiar('justificacion')}
           error={faltaJustificacion ? 'Obligatoria al modificar el nivel sugerido' : undefined}
-          hint="El sistema propuso otro nivel: explique por qué lo modifica."
+          hint="Explique por qué modifica el nivel propuesto"
         />
       )}
     </>

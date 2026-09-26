@@ -33,7 +33,6 @@ export default function PasoEstudiante({ alumno, programas, onSeleccionar }) {
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
         placeholder="Nombre o código (mínimo 3 caracteres)"
-        hint="Los datos se completan automáticamente al seleccionar al estudiante"
       />
 
       {busqueda.trim().length >= 3 && (

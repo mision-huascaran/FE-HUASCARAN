@@ -24,7 +24,7 @@ export default function FormularioVuelo({ periodos, idPeriodo, onPeriodo, valore
           label="Nivel inicial Raz-Kids"
           value={nivelInicial?.letra ?? '—'}
           disabled
-          hint="Automático: el nivel final del corte anterior (RN-005)."
+          hint="Automático"
         />
       </div>
 
