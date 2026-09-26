@@ -667,7 +667,7 @@ export const handlers = {
       const nuevo = {
         id_colegio: Math.max(...db.COLEGIOS.map((c) => c.id_colegio)) + 1,
         nombre: limpioNombre,
-        abreviatura: limpioNombre.replaceAll(/[^A-Za-zÁÉÍÓÚÑ ]/g, '').trim().split(/\s+/).slice(-2).map((x) => x[0] ?? '').join('').toUpperCase() || 'N/D',
+        abreviatura: limpioNombre.replace(/[^A-Za-zÁÉÍÓÚÑ ]/g, '').trim().split(/\s+/).slice(-2).map((x) => x[0] ?? '').join('').toUpperCase() || 'N/D',
         zona: limpioZona,
         distrito: limpioZona,
       }

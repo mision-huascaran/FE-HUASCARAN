@@ -16,9 +16,9 @@ export function normalizarNivel(nombre) {
   if (!nombre) return null
   return String(nombre)
     .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replaceAll(/[^a-z]/g, '')
+    .replace(/[^a-z]/g, '')
 }
 
 /** Clases de Tailwind (texto + fondo + borde) por nivel. Tokens `lvl` de §4.1. */
