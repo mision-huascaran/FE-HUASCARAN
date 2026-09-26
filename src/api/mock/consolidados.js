@@ -9,7 +9,7 @@
 // para calcularlo", que NO es lo mismo que 0 %: la interfaz lo muestra como "—".
 import * as db from './db'
 
-/** Cuántos niveles subió o bajó un alumno entre su primera y su última evaluación. */
+/** Cuántos niveles subió o bajó un alumno entre su primera y su última evaluación.  */
 function categoriaDeAvance(delta) {
   if (delta < 0) return 'Baja'
   if (delta === 0) return 'Se mantiene'
