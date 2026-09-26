@@ -5,6 +5,7 @@
 // modo que el resto de la aplicación trata igual al mock y a la API.
 import * as db from './db'
 import * as agregados from './consolidados'
+import { esCorreoValido } from '../../lib/validacion'
 
 const RETARDO_MS = 300
 
@@ -360,7 +361,7 @@ export const handlers = {
 
     async passwordCodigo({ correo } = {}) {
       const email = String(correo ?? '').trim().toLowerCase()
-      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      if (!email || !esCorreoValido(email)) {
         throw errorHttp(422, 'Debe indicar un correo válido')
       }
       return responder({ detail: 'Código enviado a tu correo' }, 150)
@@ -694,7 +695,7 @@ export const handlers = {
       const apellido = String(apellidos ?? '').trim()
       const email = String(correo ?? '').trim().toLowerCase()
       if (!nombre || !apellido || !email) throw errorHttp(422, 'Completa nombres, apellidos y correo')
-      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
       // El backend responde 409 cuando el correo ya está tomado.
       if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
 
@@ -727,7 +728,7 @@ export const handlers = {
       const email = String(correo ?? '').trim().toLowerCase()
       const rol = Number(idRol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
-      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
       if (rol === 1) throw errorHttp(400, 'Para crear un docente usa el alta de docentes')
       if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
 
@@ -746,7 +747,7 @@ export const handlers = {
       const email = String(correo ?? usuario.correo).trim().toLowerCase()
       const rol = Number(idRol ?? usuario.id_rol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los campos del usuario')
-      if (!/\S+@\S+\.\S+/.test(email)) throw errorHttp(422, 'El correo no es válido')
+      if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
       if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
 
       const anteriorRol = usuario.id_rol

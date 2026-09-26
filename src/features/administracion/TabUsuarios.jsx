@@ -16,6 +16,7 @@ import { activarUsuario, actualizarUsuario, crearUsuario, desactivarUsuario, lis
 import { estadoDe, mensajeDeError } from '../../api/client'
 import { ROLES } from '../../auth/roles'
 import useSessionStore from '../../store/sessionStore'
+import { esCorreoValido } from '../../lib/validacion'
 
 const formBase = (idRol) => ({ nombres: '', apellidos: '', correo: '', id_rol: String(idRol) })
 
@@ -131,7 +132,7 @@ export default function TabUsuarios() {
     onError: (error) => toast.error('No se pudo reactivar', mensajeDeError(error)),
   })
 
-  const completa = form.nombres.trim() && form.apellidos.trim() && /\S+@\S+\.\S+/.test(form.correo.trim())
+  const completa = form.nombres.trim() && form.apellidos.trim() && esCorreoValido(form.correo.trim())
 
   return (
     <>

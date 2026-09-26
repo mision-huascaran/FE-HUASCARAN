@@ -8,6 +8,7 @@ import Stepper from '../../components/ui/Stepper'
 import { useToast } from '../../components/ui/Toast'
 import { recuperarPassword, restablecerPassword } from '../../api/resources/auth'
 import { mensajeDeError } from '../../api/client'
+import { esCorreoValido } from '../../lib/validacion'
 
 /**
  * "Olvidé mi contraseña", desde el login y SIN sesión iniciada.
@@ -75,7 +76,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
     }
   }
 
-  const correoValido = /\S+@\S+\.\S+/.test(correo.trim())
+  const correoValido = esCorreoValido(correo.trim())
   const formatoValido = FORMATO.test(password)
   const coinciden = password === confirmacion
   const puedeGuardar = codigo.trim().length === 6 && formatoValido && coinciden

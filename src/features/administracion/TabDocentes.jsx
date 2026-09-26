@@ -12,6 +12,7 @@ import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from './ModalCredencialDocente'
 import { activarDocente, actualizarDocente, crearDocente, desactivarDocente, listarDocentes } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { esCorreoValido } from '../../lib/validacion'
 
 const formBase = () => ({ nombres: '', apellidos: '', correo: '' })
 
@@ -90,7 +91,7 @@ export default function TabDocentes() {
   })
 
   const completa = useMemo(
-    () => form.nombres.trim() && form.apellidos.trim() && /\S+@\S+\.\S+/.test(form.correo.trim()),
+    () => form.nombres.trim() && form.apellidos.trim() && esCorreoValido(form.correo.trim()),
     [form],
   )
   const ocupado = baja.isPending || reactivar.isPending
