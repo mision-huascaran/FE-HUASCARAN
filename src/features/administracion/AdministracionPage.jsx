@@ -73,7 +73,7 @@ export default function AdministracionPage() {
 
 /**
  * Los cuatro cortes del año (RN-010): solo uno está abierto a la vez.
- * TODO: abrir y cerrar un periodo es una operación del backend que todavía no
+ * Pendiente: abrir y cerrar un periodo es una operación del backend que todavía no
  * está definida; por ahora la pestaña es de consulta.
  */
 function TabPeriodos() {

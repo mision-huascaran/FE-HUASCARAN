@@ -27,7 +27,7 @@ function tonoDelAvance(avance) {
  *
  * Es de lectura pura: no tiene ni un formulario de captura, y si el rol 3 llega
  * por URL a una pantalla de registro, `RoleRoute` lo manda a /403 (RNF-004).
- * TODO: las funcionalidades propias de Directivos están "a definir" en el
+ * Pendiente: las funcionalidades propias de Directivos están "a definir" en el
  * diseño (§13); este panel es una propuesta.
  */
 export default function PanelEjecutivoPage() {

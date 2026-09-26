@@ -3,7 +3,7 @@ import BloqueDescargas from './BloqueDescargas'
 
 /**
  * Reportes y descargas (rol Directivos). Solo lectura: ningún formulario.
- * TODO: las funcionalidades propias de Directivos están "a definir" (§13);
+ * Pendiente: las funcionalidades propias de Directivos están "a definir" (§13);
  * esta pantalla es una propuesta y así queda señalada en docs/trazabilidad-rf.md.
  */
 export default function ReportesPage() {

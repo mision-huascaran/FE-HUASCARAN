@@ -250,7 +250,7 @@ function asignacionesConColegio(idDocente, idPeriodo) {
 /**
  * Indicadores del panel del docente (P3).
  *
- * TODO: "Ajustes por revisar" se cuenta aquí como las evaluaciones del periodo
+ * Pendiente: "Ajustes por revisar" se cuenta aquí como las evaluaciones del periodo
  * vigente cuya sugerencia el docente todavía no confirma. El documento nombra el
  * indicador pero no lo define; hay que confirmarlo con Misión Huascarán.
  */
