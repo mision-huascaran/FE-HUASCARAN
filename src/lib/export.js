@@ -59,7 +59,7 @@ export function aCSV(filas = [], columnas = []) {
 
 export function descargarCSV(filas, columnas, base) {
   // El BOM le dice a Excel que el archivo es UTF-8.
-  const BOM = String.fromCharCode(0xfeff)
+  const BOM = String.fromCodePoint(0xfeff)
   descargarBlob(new Blob([BOM, aCSV(filas, columnas)], { type: 'text/csv;charset=utf-8' }), nombreArchivo(base, 'csv'))
 }
 

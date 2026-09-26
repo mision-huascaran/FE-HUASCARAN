@@ -37,9 +37,13 @@ describe('Sistema de diseño (/_ui)', () => {
     montar()
 
     await usuario.click(screen.getByRole('tab', { name: 'Paleta' }))
-    expect(screen.queryByRole('tab', { name: 'Paleta' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Paleta' })).toHaveAttribute('aria-selected', 'true')
+    // Los grupos de tokens de color del sistema de diseño.
+    expect(screen.getByText('estado')).toBeInTheDocument()
+    expect(screen.getByText('lvl')).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('tab', { name: 'Tipografía' }))
-    expect(screen.queryByRole('tab', { name: 'Tipografía' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Tipografía' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Escala tipográfica')).toBeInTheDocument()
   })
 })

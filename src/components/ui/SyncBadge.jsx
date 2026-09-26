@@ -5,20 +5,27 @@ import cn from '../../lib/cn'
  * Estado de la cola de envíos pendientes (RNF-001).
  * Presentacional: recibe el estado y notifica el clic; la cola vive en IndexedDB.
  */
+/** Los cuatro estados posibles de la cola, de más urgente a menos. */
+function aspectoDeLaCola(pendientes, sincronizando, error) {
+  if (sincronizando) {
+    return { Icon: RefreshCw, texto: 'Sincronizando…', clases: 'border-info-600/20 bg-info-100 text-info-600' }
+  }
+  if (error) {
+    return { Icon: CloudOff, texto: `${pendientes} sin enviar`, clases: 'border-danger-600/20 bg-danger-100 text-danger-600' }
+  }
+  if (pendientes > 0) {
+    return {
+      Icon: CloudOff,
+      texto: `${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'}`,
+      clases: 'border-warning-600/20 bg-warning-100 text-warning-600',
+    }
+  }
+  return { Icon: CheckCircle2, texto: 'Todo sincronizado', clases: 'border-success-600/20 bg-success-100 text-success-600' }
+}
+
 export default function SyncBadge({ pendientes = 0, sincronizando = false, error = false, onClick, className }) {
   const hayPendientes = pendientes > 0
-
-  const { Icon, texto, clases } = sincronizando
-    ? { Icon: RefreshCw, texto: 'Sincronizando…', clases: 'border-info-600/20 bg-info-100 text-info-600' }
-    : error
-      ? { Icon: CloudOff, texto: `${pendientes} sin enviar`, clases: 'border-danger-600/20 bg-danger-100 text-danger-600' }
-      : hayPendientes
-        ? {
-            Icon: CloudOff,
-            texto: `${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'}`,
-            clases: 'border-warning-600/20 bg-warning-100 text-warning-600',
-          }
-        : { Icon: CheckCircle2, texto: 'Todo sincronizado', clases: 'border-success-600/20 bg-success-100 text-success-600' }
+  const { Icon, texto, clases } = aspectoDeLaCola(pendientes, sincronizando, error)
 
   return (
     <button

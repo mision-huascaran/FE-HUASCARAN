@@ -134,6 +134,31 @@ export default function TabUsuarios() {
 
   const completa = form.nombres.trim() && form.apellidos.trim() && esCorreoValido(form.correo.trim())
 
+  /** Tres estados excluyentes: sin permiso, error de carga, o la tabla. */
+  function contenidoDeLaTabla() {
+    if (sinPermisoEnServidor) {
+      return (
+        <EmptyState
+          icon={Lock}
+          title="El servidor no autoriza a este rol a listar cuentas"
+          description="La API reserva la gestión de cuentas al Supervisor. Para que el Directivo administre otros Directivos, el backend debe permitirle GET y POST /usuarios y las bajas, limitados al rol Directivo."
+        />
+      )
+    }
+    if (consulta.isError) {
+      return <EmptyState title="No se pudieron cargar las cuentas" description={mensajeDeError(consulta.error)} />
+    }
+    return (
+      <DataTable
+        loading={isLoading}
+        rows={visibles}
+        getRowId={(u) => u.id_usuario}
+        paginated={false}
+        columns={columnasUsuarios({ baja, alta: reactivar, editar: abrirEdicion, ocupado: baja.isPending || reactivar.isPending })}
+      />
+    )
+  }
+
   return (
     <>
       <Card
@@ -145,23 +170,7 @@ export default function TabUsuarios() {
           </Button>
         }
       >
-        {sinPermisoEnServidor ? (
-          <EmptyState
-            icon={Lock}
-            title="El servidor no autoriza a este rol a listar cuentas"
-            description="La API reserva la gestión de cuentas al Supervisor. Para que el Directivo administre otros Directivos, el backend debe permitirle GET y POST /usuarios y las bajas, limitados al rol Directivo."
-          />
-        ) : consulta.isError ? (
-          <EmptyState title="No se pudieron cargar las cuentas" description={mensajeDeError(consulta.error)} />
-        ) : (
-        <DataTable
-          loading={isLoading}
-          rows={visibles}
-          getRowId={(u) => u.id_usuario}
-          paginated={false}
-          columns={columnasUsuarios({ baja, alta: reactivar, editar: abrirEdicion, ocupado: baja.isPending || reactivar.isPending })}
-        />
-        )}
+        {contenidoDeLaTabla()}
       </Card>
 
       <Modal

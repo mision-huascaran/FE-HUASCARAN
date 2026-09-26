@@ -7,6 +7,12 @@ import { ESTADOS } from './useCapturaSemanal'
 import { totalLibros } from '../../domain/totales'
 import cn from '../../lib/cn'
 
+/** "Agregar libro" mientras no hay ninguno; luego el conteo, singular o plural. */
+function etiquetaDeLibros(cuantos) {
+  if (cuantos === 0) return 'Agregar libro'
+  return `${cuantos} ${cuantos === 1 ? 'libro' : 'libros'}`
+}
+
 const MAX_OBSERVACION = 500
 
 function EstadoFila({ estado }) {
@@ -53,6 +59,7 @@ function FilaSemanal({ fila, indice, estado, soloLectura, onCambiar, onAbrirLibr
   const asistio = fila.asistio ?? false
   const bloqueada = soloLectura || fila.asistio === false
   const libros = fila.libros ?? []
+  const etiquetaLibros = etiquetaDeLibros(libros.length)
 
   return (
     <tr className={cn('transition-colors hover:bg-brand-50/60', fila.asistio === false && 'bg-surface-50')}>
@@ -93,7 +100,7 @@ function FilaSemanal({ fila, indice, estado, soloLectura, onCambiar, onAbrirLibr
           )}
         >
           <BookPlus className="h-3.5 w-3.5" aria-hidden="true" />
-          {libros.length > 0 ? `${libros.length} ${libros.length === 1 ? 'libro' : 'libros'}` : 'Agregar libro'}
+          {etiquetaLibros}
         </button>
       </td>
 

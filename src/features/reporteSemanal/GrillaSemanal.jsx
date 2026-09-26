@@ -18,7 +18,7 @@ import { useToast } from '../../components/ui/Toast'
  * No usa `DataTable` a propósito: aquella es una tabla de lectura con orden y
  * paginación, y aquí paginar escondería alumnos sin registrar.
  */
-const COLUMNAS_NAVEGABLES = ['asistencia', 'libros', 'lsl']
+const COLUMNAS_NAVEGABLES = new Set(['asistencia', 'libros', 'lsl'])
 
 export default function GrillaSemanal({ idSemana, idColegio, idGrado, soloLectura = false }) {
   const toast = useToast()
@@ -40,7 +40,7 @@ export default function GrillaSemanal({ idSemana, idColegio, idGrado, soloLectur
   const manejarTeclado = useCallback((evento) => {
     if (evento.key !== 'Enter') return
     const { fila, columna } = evento.target.dataset ?? {}
-    if (!columna || !COLUMNAS_NAVEGABLES.includes(columna)) return
+    if (!columna || !COLUMNAS_NAVEGABLES.has(columna)) return
     evento.preventDefault()
     const siguiente = evento.currentTarget.querySelector(
       `[data-fila="${Number(fila) + 1}"][data-columna="${columna}"]`,

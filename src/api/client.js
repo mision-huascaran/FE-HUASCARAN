@@ -59,11 +59,12 @@ if (import.meta.env.PROD && !usarMock && !baseURL.startsWith('https://')) {
  * ningún token y ninguna credencial se registran nunca en la consola.
  */
 if (import.meta.env.DEV) {
-  const origen = usarMock
-    ? authContraApiReal
+  let origen = 'todo contra la API real'
+  if (usarMock) {
+    origen = authContraApiReal
       ? 'sesión contra la API real · negocio desde el mock'
       : 'todo desde el mock (sin backend)'
-    : 'todo contra la API real'
+  }
   // Excepción única y deliberada a `no-console`: solo en desarrollo y solo con
   // configuración. La regla sigue activa para el resto del código, que es lo que
   // protege el §12 ("no hay console.log con datos de alumnos").

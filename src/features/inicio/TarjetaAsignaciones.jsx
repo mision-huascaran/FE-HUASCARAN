@@ -4,6 +4,13 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import cn from '../../lib/cn'
 
+/** Verde a partir del 90 % de registro, ámbar desde el 50 %, rojo por debajo. */
+function tonoDeAvance(porcentaje) {
+  if (porcentaje >= 90) return 'bg-success-500'
+  if (porcentaje >= 50) return 'bg-warning-500'
+  return 'bg-danger-500'
+}
+
 /**
  * Una fila por colegio y grado asignado en el periodo vigente (P3).
  * RN-003: lo normal es que el docente tenga dos colegios y en cada uno los seis
@@ -11,7 +18,7 @@ import cn from '../../lib/cn'
  */
 function BarraAvance({ registrados, total }) {
   const porcentaje = total === 0 ? 0 : Math.round((registrados / total) * 100)
-  const tono = porcentaje >= 90 ? 'bg-success-500' : porcentaje >= 50 ? 'bg-warning-500' : 'bg-danger-500'
+  const tono = tonoDeAvance(porcentaje)
 
   return (
     <div className="flex items-center gap-2">

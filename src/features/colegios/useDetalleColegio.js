@@ -7,7 +7,7 @@ import useFiltrosStore from '../../store/filtrosStore'
 /** Detalle de un colegio con su selector de periodo (P13 y consulta del profesor). */
 export default function useDetalleColegio(idColegio) {
   const idPeriodoVigente = useFiltrosStore((s) => s.idPeriodo)
-  const [elegido, setPeriodo] = useState('')
+  const [elegido, setElegido] = useState('')
   const periodo = elegido || (idPeriodoVigente ? String(idPeriodoVigente) : '')
 
   const consulta = useQuery({
@@ -23,6 +23,6 @@ export default function useDetalleColegio(idColegio) {
     error: consulta.isError,
     mensaje: consulta.isError ? mensajeDeError(consulta.error) : null,
     periodo,
-    setPeriodo,
+    setPeriodo: setElegido,
   }
 }

@@ -49,7 +49,7 @@ export const GRADOS = [1, 2, 3, 4, 5, 6].map((n) => ({
 }))
 
 /** Escala Raz-Kids: aa, A…Z, Z1, Z2 (29 niveles). Se compara por `orden` (RN-012). */
-export const NIVELES_RAZKIDS = ['aa', ...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)), 'Z1', 'Z2'].map(
+export const NIVELES_RAZKIDS = ['aa', ...Array.from({ length: 26 }, (_, i) => String.fromCodePoint(65 + i)), 'Z1', 'Z2'].map(
   (letra, i) => ({ id_nivel_razkids: i + 1, letra, orden: i + 1 }),
 )
 
@@ -175,7 +175,7 @@ export const SEMANAS = (() => {
 })()
 
 /** La semana que el reporte semanal abre por defecto (P4). */
-export const SEMANA_ACTUAL = SEMANAS[SEMANAS.length - 1]
+export const SEMANA_ACTUAL = SEMANAS.at(-1)
 
 // ── Usuarios, docentes y asignaciones ───────────────────────────────────────
 
@@ -284,7 +284,7 @@ export const ALUMNOS = (() => {
           apellidos: `${elegir(random, APELLIDOS)} ${elegir(random, APELLIDOS)}`,
           id_colegio: colegio.id_colegio,
           id_grado: grado.id_grado,
-          aula: dosAulas ? (n % 2 === 0 ? 'A' : 'B') : 'A',
+          aula: dosAulas && n % 2 !== 0 ? 'B' : 'A',
           id_ciclo_nominal: cicloNominal,
           id_ciclo_evaluado: idCicloEvaluado,
           id_programa: esAlfabetizacion ? 1 : 2,
@@ -346,18 +346,48 @@ const COBERTURA_POR_PERIODO = { 1: 1, 2: 0.98, 3: 0.6, 4: 0.05 }
 export const nivelesRubricaDe = (idPrograma, dimension) =>
   NIVELES_RUBRICA.filter((n) => n.id_programa === idPrograma && n.dimension === dimension)
 
+/** Punto de partida dentro del catálogo de niveles, según qué tan bien le fue. */
+function pisoDeDesempeno(razon) {
+  if (razon >= 0.8) return 0.72
+  if (razon >= 0.6) return 0.5
+  if (razon >= 0.4) return 0.3
+  return 0.1
+}
+
 function nivelPorDesempeno(random, idPrograma, dimension, razon) {
   const opciones = nivelesRubricaDe(idPrograma, dimension)
-  const base = razon >= 0.8 ? 0.72 : razon >= 0.6 ? 0.5 : razon >= 0.4 ? 0.3 : 0.1
+  const base = pisoDeDesempeno(razon)
   const indice = Math.min(opciones.length - 1, Math.floor((base + random() * 0.27) * opciones.length))
   return opciones[indice].nombre_nivel
+}
+
+/** RN-014: sube un nivel si acertó casi todo, baja si falló casi todo. */
+function deltaDeNivel(razon) {
+  if (razon >= 0.8) return 1
+  if (razon <= 0.4) return -1
+  return 0
+}
+
+/** Mueve un índice un puesto arriba o abajo sin salirse de [minimo, maximo]. */
+function desviarUnPuesto(indice, random, minimo, maximo) {
+  const paso = random() < 0.5 ? -1 : 1
+  return Math.max(minimo, Math.min(maximo, indice + paso))
+}
+
+/** Un periodo cerrado ya está revisado casi siempre; uno abierto suele seguir pendiente. */
+function estadoDelRegistro(cerrado, random) {
+  const sorteo = random()
+  if (cerrado) return sorteo < 0.05 ? 'error' : 'revisado'
+  return sorteo < 0.6 ? 'pendiente' : 'revisado'
 }
 
 /** RN-013, tal como lo aplicaría el backend al guardar la evaluación. */
 function nivelGeneralDe(fluidez, ordenAlcanzado, ordenEsperado) {
   if (fluidez === 'Pre Inicio' || ordenAlcanzado < ordenEsperado) return 'Inicio'
   const brecha = ordenAlcanzado - ordenEsperado
-  return brecha >= 3 ? 'Destacado' : brecha >= 1 ? 'Logrado' : 'Proceso'
+  if (brecha >= 3) return 'Destacado'
+  if (brecha >= 1) return 'Logrado'
+  return 'Proceso'
 }
 
 /** Docente a cargo de un colegio en un periodo, para firmar los hitos (P8). */
@@ -427,13 +457,13 @@ export const EVALUACIONES = (() => {
       const total = elegir(random, [5, 5, 10])
       const aciertos = Math.min(total, Math.round(total * (0.3 + random() * 0.72)))
       const razon = aciertos / total
-      const delta = razon >= 0.8 ? 1 : razon <= 0.4 ? -1 : 0
+      const delta = deltaDeNivel(razon)
       const ordenSugerido = Math.max(1, Math.min(TOTAL_NIVELES_RAZKIDS, ordenPrevio + delta))
 
       // RF-023 / RN-015: si el docente cambia la sugerencia, debe justificarlo.
       const ajustado = random() < 0.15
       const ordenFinal = ajustado
-        ? Math.max(1, Math.min(TOTAL_NIVELES_RAZKIDS, ordenSugerido + (random() < 0.5 ? -1 : 1)))
+        ? desviarUnPuesto(ordenSugerido, random, 1, TOTAL_NIVELES_RAZKIDS)
         : ordenSugerido
 
       const fluidez = nivelPorDesempeno(random, alumno.id_programa, 'Fluidez', razon)
@@ -461,7 +491,7 @@ export const EVALUACIONES = (() => {
         ajustado_por_docente: ajustado,
         justificacion: ajustado ? elegir(random, JUSTIFICACIONES) : null,
         observacion: null,
-        estado: cerrado ? (random() < 0.05 ? 'error' : 'revisado') : random() < 0.6 ? 'pendiente' : 'revisado',
+        estado: estadoDelRegistro(cerrado, random),
         fecha,
         // RF-024: hitos de la revisión humana, lo que pinta la línea de tiempo de P8.
         trazabilidad: construirTrazabilidad({
@@ -744,7 +774,7 @@ function generarNivelFinalDeMes(clave) {
     const ajustado = random() < 0.18
     const indiceCalculado = NIVEL_GENERAL.findIndex((n) => n.nombre_nivel === calculado)
     const indiceFinal = ajustado
-      ? Math.max(0, Math.min(NIVEL_GENERAL.length - 1, indiceCalculado + (random() < 0.5 ? -1 : 1)))
+      ? desviarUnPuesto(indiceCalculado, random, 0, NIVEL_GENERAL.length - 1)
       : indiceCalculado
 
     filas.set(alumno.id_alumno, {

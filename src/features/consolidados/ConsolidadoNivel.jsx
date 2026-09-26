@@ -26,9 +26,11 @@ export default function ConsolidadoNivel({ filtros }) {
 
   if (consulta.isError) return <EmptyState title="No se pudo cargar el consolidado" description={mensajeDeError(consulta.error)} />
 
+  const sufijoPeriodo = datos?.periodo ? ` · ${datos.periodo}` : ''
+
   return (
     <Card
-      title={`Consolidado de niveles${datos?.periodo ? ` · ${datos.periodo}` : ''}`}
+      title={`Consolidado de niveles${sufijoPeriodo}`}
       subtitle="Estudiantes por nivel general, separados por programa y grado"
       padded={false}
     >

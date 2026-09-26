@@ -10,7 +10,7 @@ import { esCorreoValido } from '../../lib/validacion'
 const RETARDO_MS = 300
 
 function copiar(datos) {
-  return typeof structuredClone === 'function' ? structuredClone(datos) : JSON.parse(JSON.stringify(datos))
+  return structuredClone(datos)
 }
 
 function responder(datos, ms = RETARDO_MS) {
@@ -388,7 +388,7 @@ export const handlers = {
 
     async verificarCodigo({ codigo } = {}) {
       const valor = String(codigo ?? '').trim().toUpperCase()
-      if (!valor || valor.length !== 6) {
+      if (valor?.length !== 6) {
         throw errorHttp(400, 'Código incorrecto o expirado')
       }
       return responder({ detail: 'Código correcto' }, 120)
@@ -398,7 +398,7 @@ export const handlers = {
       const valor = String(codigo ?? '').trim().toUpperCase()
       const nueva = String(contraseña_nueva ?? '').trim()
       const confirmacion = String(confirmar_contraseña_nueva ?? '').trim()
-      if (!valor || valor.length !== 6 || !nueva || !confirmacion) {
+      if (valor?.length !== 6 || !nueva || !confirmacion) {
         throw errorHttp(400, 'Código incorrecto o expirado')
       }
       if (nueva.length < 8) throw errorHttp(422, 'La contraseña debe tener al menos 8 caracteres')
