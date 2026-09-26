@@ -289,7 +289,7 @@ export { usarMock as negocioEnMock } from '../client'
 // ── Asignaciones ────────────────────────────────────────────────────────────
 
 /**
- * `GET /asignaciones` — de ellas depende TODO lo que ve un Docente.
+ * `GET /asignaciones` — de ellas depende todo lo que ve un Docente.
  *
  * El backend acota por asignación vigente: un docente sin ninguna recibe cero
  * alumnos y cero colegios, y eso es correcto, no un fallo de carga. El

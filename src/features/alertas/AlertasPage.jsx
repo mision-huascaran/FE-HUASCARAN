@@ -24,7 +24,7 @@ const nombreMes = (clave) => {
  * Alertas de inconsistencia (P15): estudiantes cuyo total de libros del mes
  * según el reporte semanal no cuadra con el consolidado mensual.
  *
- * TODO RF-014: el documento no define la regla exacta de "no cuadra"; la del
+ * Pendiente RF-014: el documento no define la regla exacta de "no cuadra"; la del
  * mock es la más literal (los dos totales difieren). RN-006: cero libros es un
  * valor válido y no genera alerta por sí solo.
  */

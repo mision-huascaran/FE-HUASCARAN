@@ -1,6 +1,6 @@
 // RN-009 / RF-019 / RN-013 / RN-012 — ÚNICA fuente del cálculo del nivel final.
 //
-// TODO RN-009: fórmula pendiente de validación con Patricia.
+// Pendiente RN-009: fórmula por validar con Patricia.
 //
 // Lo que está implementado aquí es la REGLA PROVISIONAL documentada en §P7 del
 // prompt del proyecto. La fórmula definitiva no está cerrada con el cliente, así
@@ -58,7 +58,7 @@ export function moverNivelRazkids(nivel, delta, catalogo = []) {
  * nivel esperado para su grado. En caso contrario, la distancia por encima del
  * esperado decide entre Proceso, Logrado y Destacado.
  *
- * TODO RN-013: los cortes de la brecha (1 y 3) son provisionales, igual que la
+ * Pendiente RN-013: los cortes de la brecha (1 y 3) son provisionales, igual que la
  * tabla `nivel_esperado_por_grado`. Pendientes de confirmar.
  */
 export function calcularNivelGeneral({ fluidez, ordenAlcanzado, ordenEsperado }) {

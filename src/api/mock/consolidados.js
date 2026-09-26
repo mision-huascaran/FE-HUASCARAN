@@ -385,7 +385,7 @@ export function consolidadoLibros({ colegio, grado, mes, q } = {}) {
 
 // ── Alertas de inconsistencia (P15, RF-014) ─────────────────────────────────
 //
-// TODO RF-014: el documento no define cuándo un valor "no cuadra". Aquí se toma
+// Pendiente RF-014: el documento no define cuándo un valor "no cuadra". Aquí se toma
 // la regla más literal: el total de libros del mes según el reporte semanal
 // difiere del consolidado mensual guardado. El consolidado del mock replica el
 // semanal salvo en unos pocos casos deterministas, que son los que alertan.
@@ -438,7 +438,7 @@ export function marcarAlertaRevisada(idAlerta) {
 // ── Panel ejecutivo (P17) ───────────────────────────────────────────────────
 
 /**
- * TODO: el umbral de "colegio con datos al día" no está definido. Se toma que al
+ * Pendiente: el umbral de "colegio con datos al día" no está definido. Se toma que al
  * menos el 85 % de sus alumnos tenga registro en la última semana cerrada (la en
  * curso siempre está a medio llenar y castigaría a todos por igual).
  */

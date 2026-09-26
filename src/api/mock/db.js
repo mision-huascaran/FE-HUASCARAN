@@ -60,7 +60,7 @@ export const letraPorOrden = (orden) =>
 
 export const ordenDeLetra = (letra) => NIVELES_RAZKIDS.find((n) => n.letra === letra)?.orden ?? null
 
-// TODO: los descriptores oficiales salen del instrumento de rúbrica de Misión
+// Pendiente: los descriptores oficiales salen del instrumento de rúbrica de Misión
 // Huascarán (RF-025). Los de abajo son provisionales, solo para poder ver el
 // Tooltip de P5 mientras el documento llega.
 const DESCRIPTORES = {
@@ -113,7 +113,7 @@ export const NIVEL_GENERAL = ['Inicio', 'Proceso', 'Logrado', 'Destacado'].map((
   nombre_nivel,
 }))
 
-// TODO RN-013: el nivel Raz-Kids esperado por grado está pendiente de
+// Pendiente RN-013: el nivel Raz-Kids esperado por grado está a la espera de
 // confirmación con Misión Huascarán. Esta tabla es provisional.
 export const NIVEL_ESPERADO_POR_GRADO = [
   { id_grado: 1, letra: 'C' },
