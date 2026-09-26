@@ -99,7 +99,11 @@ export function cambiarPasswordConCodigo({ codigo, contraseña_nueva, confirmar_
  * interfaz no debe afirmar que el correo existe.
  */
 export const recuperarPassword = ({ correo }) =>
-  api.post(ENDPOINTS.auth.passwordRecuperar, { correo }).then((r) => r.data)
+  resolver({
+    mock: () => handlers.auth.recuperarPassword({ correo }),
+    real: () => api.post(ENDPOINTS.auth.passwordRecuperar, { correo }),
+    forzarReal: authContraApiReal,
+  })
 
 /**
  * `POST /password/restablecer` → cambia la contraseña con el código recibido.
@@ -109,11 +113,14 @@ export const recuperarPassword = ({ correo }) =>
  * distingue a propósito, así que se muestra su mensaje tal cual.
  */
 export const restablecerPassword = ({ correo, codigo, passwordNueva, confirmacion }) =>
-  api
-    .post(ENDPOINTS.auth.passwordRestablecer, {
-      correo,
-      codigo,
-      'contraseña_nueva': passwordNueva,
-      'confirmar_contraseña_nueva': confirmacion,
-    })
-    .then((r) => r.data)
+  resolver({
+    mock: () => handlers.auth.restablecerPassword({ correo, codigo }),
+    real: () =>
+      api.post(ENDPOINTS.auth.passwordRestablecer, {
+        correo,
+        codigo,
+        'contraseña_nueva': passwordNueva,
+        'confirmar_contraseña_nueva': confirmacion,
+      }),
+    forzarReal: authContraApiReal,
+  })

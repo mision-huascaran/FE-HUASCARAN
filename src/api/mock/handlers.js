@@ -341,6 +341,25 @@ function normalizarReporte(payload) {
 
 export const handlers = {
   auth: {
+    /**
+     * `POST /password/recuperar`. Responde 200 SIEMPRE, exista el correo o no:
+     * si distinguiera, cualquiera podría probar direcciones para averiguar
+     * quién tiene cuenta. El mock replica ese silencio a propósito.
+     */
+    async recuperarPassword({ correo }) {
+      if (!esCorreoValido(correo)) throw errorHttp(422, 'El correo no es válido')
+      return responder({ detail: 'Si el correo está registrado, enviamos un código de verificación' })
+    },
+
+    /** `POST /password/restablecer`. El código del mock es siempre `AB12CD`. */
+    async restablecerPassword({ correo, codigo }) {
+      if (!esCorreoValido(correo)) throw errorHttp(422, 'El correo no es válido')
+      if (String(codigo ?? '').trim().toUpperCase() !== 'AB12CD') {
+        throw errorHttp(400, 'El código no es válido o ya caducó')
+      }
+      return responder({ detail: 'Contraseña actualizada' }, RETARDO_ESCRITURA_MS)
+    },
+
     async login({ correo, password }) {
       const usuario = db.USUARIOS.find((u) => u.correo.toLowerCase() === String(correo ?? '').trim().toLowerCase())
       // P1: un 401 nunca revela cuál de los dos campos falló.
