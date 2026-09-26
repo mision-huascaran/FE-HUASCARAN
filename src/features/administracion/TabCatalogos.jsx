@@ -54,7 +54,6 @@ export default function TabCatalogos() {
               { key: 'letra', header: 'Nivel esperado', align: 'center', render: (e) => <LevelChip letra={e.letra} orden={e.orden} totalNiveles={razkids.length} size="sm" /> },
               { key: 'orden', header: 'Orden', align: 'center' },
             ]}
-            footNote="TODO RN-013: tabla provisional, pendiente de confirmación con Misión Huascarán."
           />
         </Card>
       </div>

@@ -38,7 +38,6 @@ export default function PasoEvaluacion({
             label: p.nombre,
             disabled: p.estado === 'cerrado',
           }))}
-          hint="Los cortes cerrados no admiten registros nuevos"
         />
 
         <div className="rounded-xl border border-line bg-surface-50 p-4">

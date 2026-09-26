@@ -74,9 +74,6 @@ export default function EstudiantesPage() {
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Estudiantes</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Cada estudiante se identifica por su código del sistema, no por el número de lista.
-        </p>
       </header>
 
       {enModoConsulta && <AvisoModoConsulta />}
@@ -86,9 +83,6 @@ export default function EstudiantesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-0 p-4 shadow-card">
           <div>
             <p className="text-sm font-semibold text-ink-900">Ver otros colegios (solo lectura)</p>
-            <p className="text-xs text-ink-500">
-              Por defecto solo aparecen los colegios que tiene asignados en el periodo vigente.
-            </p>
           </div>
           <Switch
             checked={verOtros}
@@ -150,7 +144,6 @@ export default function EstudiantesPage() {
               description="Ningún estudiante coincide con los filtros seleccionados."
             />
           }
-          footNote="Ley N.° 29733: el sistema solo muestra nombre, código y datos académicos del estudiante."
         />
       </Card>
 

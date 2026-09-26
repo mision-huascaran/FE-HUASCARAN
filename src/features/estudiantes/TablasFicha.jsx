@@ -62,7 +62,6 @@ export function TablaLibrosSemana({ semanas }) {
       rows={semanas}
       getRowId={(s) => s.id_semana}
       initialPageSize={8}
-      footNote="Cero libros es un valor válido en semanas sin actividad lectiva."
     />
   </Card>
   )

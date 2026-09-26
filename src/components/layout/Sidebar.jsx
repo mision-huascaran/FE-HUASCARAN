@@ -1,7 +1,9 @@
 import { createPortal } from 'react-dom'
-import { LogOut, X } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronUp, KeyRound, LogOut, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import Logo from '../ui/Logo'
+import ModalCambiarPassword from '../../features/perfil/ModalCambiarPassword'
 import useOnEscape from '../../hooks/useOnEscape'
 import { useAuth } from '../../auth/AuthProvider'
 import { NOMBRE_ROL } from '../../auth/roles'
@@ -29,6 +31,9 @@ function iniciales(nombre = '') {
 
 function Contenido({ onNavegar, onCerrar }) {
   const { usuario, salir } = useAuth()
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [passwordAbierto, setPasswordAbierto] = useState(false)
+  useOnEscape(menuAbierto, () => setMenuAbierto(false))
   const items = navegacionDe(usuario?.id_rol)
 
   return (
@@ -77,25 +82,59 @@ function Contenido({ onNavegar, onCerrar }) {
         </ul>
       </nav>
 
+      {/* Único sitio con la identidad de quien tiene la sesión: correo, cambio
+          de contraseña y salida. Antes esto estaba además en la barra superior
+          y el nombre salía dos veces en pantalla. */}
       <div className="border-t border-white/10 p-3">
-        <div className="flex items-center gap-3 px-2 py-2">
+        {menuAbierto && (
+          <div role="menu" className="mb-1 rounded-lg bg-white/5 p-1.5">
+            <p className="truncate px-3 py-1.5 text-xs text-white/50">{usuario?.correo}</p>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuAbierto(false)
+                setPasswordAbierto(true)
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <KeyRound className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Cambiar contraseña
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={salir}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Cerrar sesión
+            </button>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setMenuAbierto((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={menuAbierto}
+          className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:ring-offset-navy-900"
+        >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
             {iniciales(usuario?.nombre_completo)}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{usuario?.nombre_completo}</p>
-            <p className="truncate text-xs text-white/60">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={salir}
-          className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:ring-offset-navy-900"
-        >
-          <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Cerrar sesión
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-white">{usuario?.nombre_completo}</span>
+            <span className="block truncate text-xs text-white/60">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</span>
+          </span>
+          <ChevronUp
+            className={cn('h-4 w-4 shrink-0 text-white/50 transition-transform', !menuAbierto && 'rotate-180')}
+            aria-hidden="true"
+          />
         </button>
       </div>
+
+      <ModalCambiarPassword abierto={passwordAbierto} onCerrar={() => setPasswordAbierto(false)} />
     </div>
   )
 }

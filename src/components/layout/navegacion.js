@@ -14,7 +14,6 @@ import {
   Plane,
   School,
   Settings,
-  Users,
 } from 'lucide-react'
 import { ROLES } from '../../auth/roles'
 
@@ -32,7 +31,6 @@ export const NAV_BY_ROLE = {
     { to: '/reporte-semanal', label: 'Reporte semanal', icon: ClipboardList },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
     { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-    { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
     { to: '/consulta-colegios', label: 'Consulta de colegios', icon: School },
   ],
@@ -40,7 +38,6 @@ export const NAV_BY_ROLE = {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios y ranking', icon: School },
     { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-    { to: '/estudiantes', label: 'Estudiantes', icon: Users },
     { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
     { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
     { to: '/consolidados', label: 'Consolidados', icon: Layers },
@@ -50,7 +47,7 @@ export const NAV_BY_ROLE = {
   [ROLES.DIRECTIVO]: [
     { to: '/panel-ejecutivo', label: 'Panel ejecutivo', icon: LayoutDashboard },
     { to: '/colegios', label: 'Colegios', icon: School },
-    { to: '/estudiantes', label: 'Estudiantes', icon: Users },
+    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
     { to: '/reportes', label: 'Reportes', icon: FileDown },
     { to: '/administracion', label: 'Cuentas', icon: Settings },
   ],
@@ -65,7 +62,7 @@ export const ETIQUETAS_RUTA = {
   'reporte-semanal': 'Reporte semanal',
   'registro-vuelo': 'Registro de Vuelo',
   nuevo: 'Nueva evaluación',
-  estudiantes: 'Estudiantes',
+  estudiantes: 'Alumnos',
   'nivel-final': 'Nivel final mensual',
   'consulta-colegios': 'Consulta de colegios',
   dashboard: 'Dashboard',

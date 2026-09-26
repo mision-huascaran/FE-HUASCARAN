@@ -155,7 +155,6 @@ export default function AlertasPage() {
                 ),
               },
             ]}
-            footNote="Cero libros es un valor válido en semanas sin actividad lectiva (RN-006): solo alerta una diferencia entre los dos totales."
           />
         )}
       </Card>

@@ -73,10 +73,12 @@ describe('Nueva evaluación diagnóstica (P7)', () => {
 })
 
 describe('Estudiantes (P10)', () => {
-  it('lista estudiantes y recuerda la Ley N.° 29733 al pie', async () => {
-    montar(<EstudiantesPage />, { ruta: '/estudiantes', patron: '/estudiantes' })
+  it('lista estudiantes sin exponer datos personales de más (RN-019)', async () => {
+    const { container } = montar(<EstudiantesPage />, { ruta: '/estudiantes', patron: '/estudiantes' })
     expect(await screen.findByRole('table', {}, { timeout: 4000 })).toBeInTheDocument()
-    expect(screen.getByText(/Ley N.° 29733/i)).toBeInTheDocument()
+    // Solo nombre, código y datos académicos: ni DNI, ni dirección, ni teléfono.
+    const cabeceras = [...container.querySelectorAll('th')].map((th) => th.textContent.toLowerCase())
+    expect(cabeceras.some((h) => /dni|direcci|tel[eé]fono|nacimiento/.test(h))).toBe(false)
   })
 
   it('ofrece al Profesor el interruptor de consulta de otros colegios (RF-003)', async () => {

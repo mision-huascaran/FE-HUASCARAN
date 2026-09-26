@@ -29,7 +29,7 @@ export default function CamposPrueba({ idPeriodo, setIdPeriodo, periodoCerrado, 
         label="Nivel inicial Raz-Kids"
         value={nivelInicial?.letra ?? '—'}
         disabled
-        hint="Automático: es el nivel final del periodo anterior (RN-005)"
+        hint="Automático"
       />
 
       <Select

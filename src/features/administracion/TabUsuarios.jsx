@@ -137,7 +137,6 @@ export default function TabUsuarios() {
     <>
       <Card
         title={esDirectivo ? 'Cuentas de Directivo' : 'Cuentas de Supervisor'}
-        subtitle={esDirectivo ? 'Otros directivos con acceso al sistema' : 'Supervisores con acceso al sistema'}
         padded={false}
         actions={
           <Button size="sm" iconLeft={Plus} disabled={sinPermisoEnServidor} onClick={() => setAbierto(true)}>
@@ -160,7 +159,6 @@ export default function TabUsuarios() {
           getRowId={(u) => u.id_usuario}
           paginated={false}
           columns={columnasUsuarios({ baja, alta: reactivar, editar: abrirEdicion, ocupado: baja.isPending || reactivar.isPending })}
-          footNote={`Siempre debe quedar al menos una cuenta activa de ${esDirectivo ? 'Directivo' : 'Supervisor'}: el servidor rechaza la última. Corregir los datos de una cuenta todavía no está disponible en la API.`}
         />
         )}
       </Card>
@@ -169,11 +167,6 @@ export default function TabUsuarios() {
         open={abierto}
         onClose={cerrar}
         title={editando ? 'Editar cuenta' : 'Nueva cuenta'}
-        subtitle={
-          editando
-            ? 'Solo se corrigen el nombre y el correo: el rol de una cuenta no cambia'
-            : 'El sistema genera la contraseña y se la envía por correo'
-        }
         footer={
           <>
             <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
@@ -213,7 +206,6 @@ export default function TabUsuarios() {
             value={form.id_rol}
             onChange={(e) => setForm((f) => ({ ...f, id_rol: e.target.value }))}
             options={opcionesRol}
-            hint={editando ? 'El rol de una cuenta no se cambia' : 'Las cuentas de docente se crean en la pestaña Docentes'}
           />
         </div>
       </Modal>

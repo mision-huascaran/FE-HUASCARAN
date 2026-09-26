@@ -91,7 +91,7 @@ export default function FormularioSemanal({ semanas, idSemana, onSemana, valores
           value={valores.lsl}
           disabled={!editable}
           onChange={(e) => setValores((v) => ({ ...v, lsl: e.target.value }))}
-          hint="Solo la cantidad: no llevan título ni puntaje."
+          hint="Solo la cantidad"
         />
         <div className="flex items-end">
           <p className="mb-2 text-sm text-ink-500">
