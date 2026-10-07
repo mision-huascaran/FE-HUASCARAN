@@ -15,7 +15,7 @@
 // corte de conexión. Si IndexedDB no está disponible, sigue funcionando en
 // memoria: el objetivo es no perder el trabajo del docente, no la persistencia.
 import { mensajeDeError } from '../api/client'
-import { get, set } from 'idb-keyval'
+import { del, get, set } from 'idb-keyval'
 import useSyncStore from '../store/syncStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
@@ -196,6 +196,31 @@ export async function iniciarCola() {
   }
 
   if (cola.length > 0) procesar()
+}
+
+/** ¿Cuántos cambios quedan sin enviar? Lo consulta el cierre de sesión. */
+export const hayPendientes = () => cola.length
+
+/**
+ * Limpia los datos locales al cerrar sesión — pero SOLO si no queda nada
+ * pendiente.
+ *
+ * Son dos reglas que parecen contradecirse y no lo hacen: IndexedDB guarda
+ * datos de menores y hay que borrarlo al salir, pero CU007 prohíbe que el
+ * cierre de sesión elimine cambios que todavía no llegaron al servidor. Se
+ * resuelve limpiando solo cuando la cola está vacía; si queda algo, se conserva
+ * y se envía tras el siguiente inicio de sesión.
+ *
+ * @returns {Promise<boolean>} true si se limpió, false si había pendientes.
+ */
+export async function limpiarSiTodoSincronizado() {
+  if (cola.length > 0) return false
+  try {
+    await del(CLAVE_IDB)
+  } catch {
+    // Sin IndexedDB disponible no hay nada que limpiar.
+  }
+  return true
 }
 
 /** Solo para los tests: deja la cola como recién abierta. */

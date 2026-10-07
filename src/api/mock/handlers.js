@@ -17,6 +17,11 @@ function responder(datos, ms = RETARDO_MS) {
   return new Promise((resolver) => setTimeout(() => resolver(copiar(datos)), ms))
 }
 
+// Grillas de asistencia creadas durante la sesión. Viven aquí y no en `db`,
+// que se importa de solo lectura.
+const GRILLAS_ASISTENCIA = {}
+const GRILLAS_SEMANALES = {}
+
 function errorHttp(status, detail) {
   const error = new Error(detail)
   error.isAxiosError = true
@@ -340,6 +345,127 @@ function normalizarReporte(payload) {
 }
 
 export const handlers = {
+  /** Grillas semanales de Rúbrica y Seguimiento de Lectura (T32). */
+  grillas: {
+    /**
+     * Una grilla existe si alguien la creó en esta sesión, o si la semana ya
+     * tiene registros sembrados: en los datos de prueba hay 18 semanas con
+     * capturas, y esas no deben pedir que se "cree" nada.
+     */
+    existe: async ({ tipo, idSemana, idColegio, idGrado }) => {
+      if (GRILLAS_SEMANALES[`${tipo}-${idSemana}-${idColegio}-${idGrado}`]) return responder(true)
+      return responder(db.reporteSemanalDe(Number(idSemana)).size > 0)
+    },
+
+    crear: async ({ tipo, idSemana, idColegio, idGrado, idSeccion }) => {
+      const clave = `${tipo}-${idSemana}-${idColegio}-${idGrado}`
+      GRILLAS_SEMANALES[clave] = { clave, tipo, id_semana: idSemana, id_seccion: idSeccion ?? null }
+      return responder(GRILLAS_SEMANALES[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Ausentes del módulo Asistencia. Si para esa semana no hay ninguna grilla
+     * de asistencia todavía, devuelve una lista vacía: nadie consta ausente,
+     * que no es lo mismo que que todos asistieran.
+     */
+    ausentes: async () => {
+      const ids = Object.values(GRILLAS_ASISTENCIA)
+        .flatMap((g) => g.filas ?? [])
+        .filter((f) => f.presente === false)
+        .map((f) => f.id_alumno)
+      return responder([...new Set(ids)])
+    },
+  },
+
+  /** Resúmenes del Módulo de Inicio (CU010, CU011, CU012). */
+  inicio: {
+    supervisor: async () =>
+      responder({
+        colegios: db.COLEGIOS.length,
+        docentesActivos: db.USUARIOS.filter((u) => u.id_rol === 1 && u.activo !== false).length,
+        docentesConActividad: 1,
+        registrosPendientes: 3,
+        // Los umbrales (4 días, una semana) los decide el servidor: aquí llegan
+        // ya redactados para no codificar reglas de negocio en la interfaz.
+        alertas: [
+          { id: 'a1', mensaje: 'El docente Carlos lleva 4 días sin iniciar actividad.' },
+          { id: 'a2', mensaje: 'La escuela Shilla no tiene registros esta semana.' },
+        ],
+      }),
+
+    docente: async (idDocente) => {
+      const asignaciones = db.ASIGNACIONES.filter((a) => a.id_docente === Number(idDocente))
+      const idsColegio = [...new Set(asignaciones.map((a) => a.id_colegio))]
+      const alumnos = idsColegio.flatMap((id) => db.alumnosDe({ colegio: id }))
+      return responder({
+        colegios: idsColegio.map((id) => db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre).filter(Boolean),
+        // RN-003: la asignación es por colegio completo, con sus seis grados.
+        grados: asignaciones.length ? db.GRADOS.map((g) => g.nombre) : [],
+        ciclos: ['III', 'IV'],
+        subprograma: 'Alfabetización',
+        alumnos: alumnos.length,
+        evaluados: Math.round(alumnos.length * 0.5),
+      })
+    },
+  },
+
+  /** Asistencia por FECHA (T30). Distinta de la asistencia semanal de lectura. */
+  asistencia: {
+    /** Devuelve null si todavía no existe grilla para esa fecha. */
+    grilla: async ({ idColegio, idGrado, fecha }) => {
+      const clave = `${idColegio}-${idGrado}-${fecha}`
+      return responder(GRILLAS_ASISTENCIA[clave] ?? null)
+    },
+
+    crearGrilla: async ({ idColegio, idGrado, idSeccion, fecha }) => {
+      const clave = `${idColegio}-${idGrado}-${fecha}`
+      // Las filas nacen vacías: no se copian de otra fecha a propósito.
+      const filas = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .map((a) => ({
+          id_alumno: a.id_alumno,
+          nombre: a.nombre,
+          codigo: a.codigo,
+          presente: null,
+          observacion: '',
+        }))
+      GRILLAS_ASISTENCIA[clave] = { clave, fecha, id_seccion: idSeccion ?? null, filas }
+      return responder(GRILLAS_ASISTENCIA[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    guardar: async ({ clave, filas }) => {
+      if (!GRILLAS_ASISTENCIA[clave]) throw errorHttp(404, 'No existe la grilla de asistencia')
+      GRILLAS_ASISTENCIA[clave].filas = filas
+      return responder(GRILLAS_ASISTENCIA[clave], RETARDO_ESCRITURA_MS)
+    },
+  },
+
+  /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
+  sesiones: {
+    listar: async ({ todas = false, idDocente, idColegio, fecha } = {}) => {
+      const base = [
+        { id: 'a3f1b2c4', id_docente: 1, docente: 'Rosa Elena Cárdenas Villanueva', id_colegio: 1, colegio: 'I.E. 86021 Ranrahirca', inicio: '2026-10-05T08:05:00', fin: '2026-10-05T11:40:00', estado: 'cerrada', cambios: 23 },
+        { id: '9d2e7f10', id_docente: 1, docente: 'Rosa Elena Cárdenas Villanueva', id_colegio: 2, colegio: 'I.E. 86024 Mancos', inicio: '2026-10-06T08:10:00', fin: null, estado: 'abierta', cambios: 7 },
+        { id: '55c08ab1', id_docente: 2, docente: 'Luis Ramos', id_colegio: 3, colegio: 'I.E. 86031 Shupluy', inicio: '2026-10-05T09:00:00', fin: '2026-10-05T12:15:00', estado: 'pendiente', cambios: 12 },
+      ]
+      let filtradas = todas ? base : base.filter((s) => s.id_docente === 1)
+      if (idDocente) filtradas = filtradas.filter((s) => String(s.id_docente) === String(idDocente))
+      if (idColegio) filtradas = filtradas.filter((s) => String(s.id_colegio) === String(idColegio))
+      if (fecha) filtradas = filtradas.filter((s) => s.inicio.slice(0, 10) === fecha)
+      return responder(filtradas)
+    },
+
+    detalle: async (id) =>
+      responder({
+        id,
+        cambios: [
+          { id_cambio: `${id}-1`, entidad: 'Rúbrica — Pérez Quispe, Ana', campo: 'Fluidez', valor_anterior: 'Inicio', valor_nuevo: 'Proceso', fecha_cliente: '2026-10-05T09:12:00', fecha_servidor: '2026-10-05T11:41:00', diferido: true },
+          { id_cambio: `${id}-2`, entidad: 'Asistencia — Ramírez López, Carlos', campo: 'Presente', valor_anterior: null, valor_nuevo: 'Ausente', fecha_cliente: '2026-10-05T09:20:00', fecha_servidor: '2026-10-05T11:41:00', diferido: true },
+          { id_cambio: `${id}-3`, entidad: 'Seguimiento de Lectura — Pérez Quispe, Ana', campo: 'Libros de sala', valor_anterior: '2', valor_nuevo: '3', fecha_servidor: '2026-10-05T10:05:00', diferido: false },
+        ],
+      }),
+  },
+
   auth: {
     /**
      * `POST /password/recuperar`. Responde 200 SIEMPRE, exista el correo o no:
@@ -636,6 +762,54 @@ export const handlers = {
             rol,
           }
         }),
+      ),
+
+    /** Baja lógica del colegio (D5): cambia el estado, no borra nada. */
+    cambiarEstadoColegio: async (idColegio, activo) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${idColegio}`)
+      colegio.activo = Boolean(activo)
+      return responder(colegio, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Auditoría de un registro. El mock devuelve un rastro de ejemplo para
+     * poder construir y probar la pestaña; el backend aún no la publica.
+     */
+    auditoria: async (entidad, id) =>
+      responder([
+        {
+          id_cambio: `${entidad}-${id}-2`,
+          fecha: '2026-10-05T14:32:00',
+          fecha_cliente: '2026-10-05T11:05:00',
+          fecha_servidor: '2026-10-05T14:32:00',
+          usuario: 'Docente de Prueba',
+          campo: 'nombres',
+          valor_anterior: 'Ana',
+          valor_nuevo: 'Ana María',
+          sesion_actividad_id: 'a3f1b2c4',
+          diferido: true,
+        },
+        {
+          id_cambio: `${entidad}-${id}-1`,
+          fecha: '2026-10-04T09:10:00',
+          usuario: 'Jefa de Prueba',
+          campo: 'creación',
+          valor_anterior: null,
+          valor_nuevo: 'Registro creado',
+          sesion_actividad_id: '9d2e7f10',
+          diferido: false,
+        },
+      ]),
+
+    /** Secciones de un colegio. Mientras el backend no las modele, van fijas. */
+    secciones: async (idColegio) =>
+      responder(
+        ['A', 'B', 'C'].map((letra, i) => ({
+          id_seccion: Number(idColegio) * 10 + i + 1,
+          id_colegio: Number(idColegio),
+          nombre: letra,
+        })),
       ),
 
     asignaciones: () =>

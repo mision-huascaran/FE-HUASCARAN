@@ -1,0 +1,453 @@
+% ---------------------------------------------------------------------------
+% SICEDU - Guia de pruebas manuales
+% Compilar con: pdflatex GUIA_PRUEBAS.tex   (dos veces, por el indice)
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage[margin=2.3cm,headheight=14pt]{geometry}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Los colores se definen ANTES de hyperref: los recibe como opciones y tienen
+% que existir ya cuando se carga.
+\definecolor{azulmarino}{HTML}{14274E}
+\definecolor{grisclaro}{HTML}{F4F6F9}
+\definecolor{ambar}{HTML}{B45309}
+
+\usepackage[colorlinks=true,linkcolor=azulmarino,urlcolor=azulmarino]{hyperref}
+
+\titleformat{\section}{\Large\bfseries\color{azulmarino}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\color{azulmarino}\textbf{SICEDU} \textperiodcentered\ Guia de pruebas}
+\rhead{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\paso}[1]{\textbf{#1}}
+\newcommand{\ruta}[1]{\textcolor{azulmarino}{\texttt{#1}}}
+\newcommand{\ok}{$\square$}
+\newcommand{\flecha}{$\rightarrow$}
+
+% Aviso destacado.
+%
+% Va con minipage dentro de una caja, no con tabularx: en una celda de párrafo
+% el \\ final rompe la linea DENTRO de la celda en vez de cerrar la fila, y el
+% \hline siguiente falla. Asi admite listas y parrafos sin sorpresas.
+\newsavebox{\cajaaviso}
+\newenvironment{aviso}[1]
+  {\par\medskip\noindent
+   \begin{lrbox}{\cajaaviso}
+   \begin{minipage}{\dimexpr\textwidth-2\fboxsep-2\fboxrule\relax}
+   \smallskip
+   \textbf{\textcolor{ambar}{#1}}\par\smallskip}
+  {\smallskip\end{minipage}\end{lrbox}%
+   \fcolorbox{ambar}{grisclaro}{\usebox{\cajaaviso}}\par\medskip}
+
+\setlist[itemize]{itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{itemsep=2pt,topsep=4pt}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries\color{azulmarino} SICEDU\par}
+\vspace{0.4cm}
+{\LARGE Guía de pruebas manuales\par}
+\vspace{0.3cm}
+{\large Sprint de cierre: seguridad, offline y mantenimientos\par}
+\vspace{2cm}
+{\large Misión Huascarán \textperiodcentered\ Frontend\par}
+\vspace{0.3cm}
+{\large 7 de octubre de 2026\par}
+\vfill
+{\normalsize Dirigido a quienes ejecutan las pruebas.\par}
+{\normalsize No hace falta saber programar para seguirla.\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------------------
+\section{Antes de empezar}
+
+Esta guía recorre lo construido en el sprint de cierre. Cada apartado dice
+\emph{qué hacer} y \emph{qué debe ocurrir}. Si lo que ocurre no coincide,
+anótelo en la hoja de incidencias del final (página~\pageref{sec:incidencias}).
+
+\subsection{Dos formas de levantar la aplicación}
+
+\paragraph{Opción A --- sin backend.} Es la más cómoda para casi todo. En el
+fichero \texttt{.env} deje:
+
+\begin{quote}\ttfamily
+VITE\_AUTH\_REAL=false\\
+VITE\_ADMIN\_REAL=false
+\end{quote}
+
+Reinicie con \texttt{npm run dev}. La contraseña de todas las cuentas es
+\texttt{sicedu123}:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Rol} & \textbf{Correo} \\
+\midrule
+Docente    & \texttt{rcardenas@sicedu.test}  \\
+Supervisor & \texttt{jefatura@sicedu.test}   \\
+Directivo  & \texttt{direccion@sicedu.test}  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Opción B --- con backend.} Necesaria solo para lo que toca permisos
+reales y para la expiración de sesión (apartado~\ref{sec:cu007}). Deje los dos
+flags en \texttt{true}, levante el backend y use las cuentas reales
+(\texttt{profesor.prueba@sicedu.test} / \texttt{ProfesorTest123}).
+
+\subsection{Cómo simular que no hay conexión}
+
+En el navegador: \textbf{F12} \flecha{} pestaña \textbf{Network} \flecha{} el
+desplegable de \emph{throttling} \flecha{} \textbf{Offline}.
+
+Para mirar lo que la aplicación guarda en el dispositivo:
+\textbf{F12} \flecha{} \textbf{Application} \flecha{} \textbf{IndexedDB}.
+
+\begin{aviso}{El orden importa en todo lo que sea sin conexión}
+Hay que pulsar \emph{Iniciar actividad} \textbf{con conexión}, esperar a que
+termine la descarga, y \emph{después} ponerse en modo Offline.
+
+Si se inicia la actividad ya sin red no hay nada que descargar, y la aplicación
+lo avisa con el mensaje «Sin conexión al iniciar». En ese caso las pantallas
+saldrán vacías, y \textbf{es el comportamiento correcto}, no un fallo.
+\end{aviso}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{T15 --- Permisos y manejo de errores}
+
+\subsection{El menú cambia según quién entra}
+
+Entre con los tres roles y compare el menú lateral:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Rol} & \textbf{Debe ver} \\
+\midrule
+Docente    & Inicio, Alumnos, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones \\
+Supervisor & Inicio, Usuarios, Colegios, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones, Dashboard \\
+Directivo  & Solo Inicio y Dashboard \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Ojo con Alumnos.} El Supervisor \emph{no} tiene «Alumnos» como
+entrada propia del menú: la ve dentro de \ruta{Usuarios}, y solo de lectura. Eso
+es intencionado, no un olvido.
+
+\subsection{Los botones que no tocan, no están}
+
+Entre como \textbf{Supervisor} en \ruta{Rúbrica}. No debe haber ningún control
+editable ni botón «Crear grilla». El Supervisor mira, no escribe.
+
+\subsection{Entrar sin internet}
+
+Póngase en modo Offline \emph{antes} de entrar y recargue \ruta{/login}.
+
+\textbf{Esperado:} el mensaje «Se requiere conexión para ingresar» y el botón de
+entrar deshabilitado.
+
+\subsection{Sesión caducada (error 401)}
+
+\begin{enumerate}
+  \item Escriba algo en una grilla.
+  \item \textbf{F12} \flecha{} \textbf{Application} \flecha{} \textbf{Session
+        Storage}: borre el token.
+  \item Haga cualquier acción en la aplicación.
+\end{enumerate}
+
+\textbf{Esperado:} vuelve al login. Y, muy importante, en \textbf{IndexedDB}
+\flecha{} \texttt{sicedu.cola-envios} \textbf{los cambios siguen ahí}. Perder la
+sesión no puede perder el trabajo.
+
+\subsection{Sobre el error 403}
+
+Conviene saberlo para no perder tiempo buscándolo: es difícil de provocar
+haciendo clic. Como el menú y los botones salen de la misma matriz de permisos,
+la interfaz ya no ofrece ningún camino que acabe en 403. El manejo que hay es
+una red de seguridad para una petición manual, no un recorrido de usuario.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{T16 y T17 --- Mantenimientos}
+
+Entre como \textbf{Supervisor} en \ruta{Usuarios}. Repita después lo mismo en
+\ruta{Colegios} y en la pestaña \ruta{Alumnos}: las tres pantallas se comportan
+igual a propósito.
+
+\begin{enumerate}
+  \item \paso{Estado = Activo por defecto.} El filtro arranca ahí sin tocarlo.
+  \item \paso{Nuevo.} Abre un formulario vacío. Pulse \emph{Guardar} sin
+        rellenar nada: debe salir «Este campo es obligatorio» debajo de
+        \textbf{cada} campo, no un mensaje genérico arriba.
+  \item \paso{Editar.} El mismo formulario, con los datos cargados. El campo
+        \emph{Rol} aparece bloqueado.
+  \item \paso{Ver.} El mismo formulario con todo bloqueado y \emph{sin} botón de
+        guardar.
+  \item \paso{Inactivar.} Pide confirmación y avisa de que no se borra nada.
+        \begin{itemize}
+          \item Si cancela: no pasa nada.
+          \item Si confirma: la fila desaparece con el filtro \emph{Activos} y
+                \textbf{reaparece} eligiendo \emph{Inactivos}.
+        \end{itemize}
+  \item \paso{Auditoría.} Dentro de \emph{Editar} o \emph{Ver}, pestaña
+        \emph{Auditoría}: quién, cuándo, qué campo, valor antes y valor después.
+\end{enumerate}
+
+\subsection{Lo que añade T17}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Pantalla} & \textbf{Qué comprobar} \\
+\midrule
+Alumnos   & En el formulario hay \emph{Ciclo evaluado}, separado de \emph{Grado}. Un alumno de 6.\textordmasculine{} puede evaluarse con la rúbrica del ciclo~III. \\
+\addlinespace
+Usuarios  & Al elegir rol \emph{Docente} aparecen \emph{Colegios asignados} y \emph{Secciones asignadas}, con cada sección etiquetada con su colegio. \\
+\addlinespace
+Colegios  & \emph{Grados y secciones} ya no es un cuadro de texto libre: es una lista con botón \emph{Añadir sección} y un grado por cada una. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{T18 y T19 --- Actividad de trabajo y modo sin conexión}
+\label{sec:offline}
+
+El botón de actividad está \textbf{arriba a la derecha} y es solo para el
+Docente. Con Supervisor o Directivo no debe aparecer.
+
+\subsection{Sin actividad abierta no se puede escribir}
+
+Como Docente, sin pulsar nada, entre en \ruta{Rúbrica}.
+
+\textbf{Esperado:} el aviso «Pulse Iniciar actividad\ldots» y los selectores
+deshabilitados. Al pulsar el botón, se habilitan.
+
+\subsection{Las horas de la sesión}
+
+Tras iniciar, vaya a \ruta{Inicio}. Debe leerse algo como «Sesión iniciada a las
+08:15. Finaliza a las 16:15.»
+
+\textbf{Recargue la página:} las horas \textbf{no} deben cambiar. Si cambian, la
+sesión se está reiniciando sola, que es justo lo que no debe pasar.
+
+\subsection{La descarga previa}
+
+Pulse \emph{Iniciar actividad} \textbf{con conexión}. Después, en
+\textbf{IndexedDB}, busque \texttt{sicedu.precarga}.
+
+\textbf{Esperado:} debe contener \texttt{alumnos}, \texttt{colegios},
+\texttt{grados}, \texttt{semanas}, \texttt{asignaciones} y los catálogos de
+niveles.
+
+Si sale el aviso «Precarga incompleta», algo no se pudo descargar: anótelo,
+porque es exactamente lo que dejará huecos en los pasos siguientes.
+
+\subsection{Trabajar sin conexión}
+
+\begin{enumerate}
+  \item Con la actividad ya iniciada y descargada, póngase en \textbf{Offline}.
+  \item Arriba aparece la etiqueta «Sin conexión».
+  \item Entre en \ruta{Rúbrica}. \textbf{Los desplegables de colegio y semana
+        deben tener sus opciones}, sacadas de lo descargado antes.
+  \item Edite una fila. La etiqueta pasa a «Sin conexión \textperiodcentered{} 1
+        pendiente».
+\end{enumerate}
+
+\begin{aviso}{Esto es lo que fallaba hasta ahora}
+El punto 3 es nuevo. Antes, al entrar en Rúbrica sin conexión, el desplegable de
+colegios salía vacío y no se podía abrir ninguna grilla, aunque los colegios
+estuvieran descargados. Merece la pena probarlo con calma.
+\end{aviso}
+
+\subsection{Avisos al salir}
+
+Con cambios pendientes, pulse su nombre (abajo a la izquierda) \flecha{}
+\emph{Finalizar sesión}.
+
+\textbf{Esperado:} un aviso de que no se va a perder nada.
+
+\subsection{La limpieza condicional}
+
+Esto comprueba una regla delicada: los datos de menores se borran del
+dispositivo, \textbf{pero nunca si hay trabajo sin enviar}.
+
+\begin{enumerate}
+  \item Salga \textbf{con} cambios pendientes \flecha{} en IndexedDB,
+        \texttt{sicedu.cola-envios} \textbf{sigue existiendo}.
+  \item Vuelva a conectar, espere a que la etiqueta diga «Todo sincronizado», y
+        salga otra vez \flecha{} ahora sí \textbf{desaparece}.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{T20 --- Sesiones}
+
+Como \textbf{Docente} solo se ven las propias. Como \textbf{Supervisor} aparecen
+tres filtros --- docente, colegio y fecha --- y un botón \emph{Ver detalle} en
+cada fila.
+
+En el detalle debe verse, por cada cambio: el registro afectado, el campo, el
+valor anterior y el nuevo.
+
+\paragraph{Lo interesante.} Busque la etiqueta naranja \emph{«Sincronizado de
+forma diferida»}. Aparece solo en los cambios cuya hora de captura es distinta
+de la de recepción, es decir, los que se hicieron sin conexión y llegaron
+después. Es la forma de demostrar que el trabajo offline queda trazado.
+
+% ---------------------------------------------------------------------------
+\section{T22, T30 y T32 --- Grillas del aula}
+
+\subsection{Asistencia (T30)}
+
+Entre como Docente en \ruta{Asistencia}. Los filtros van en este orden:
+colegio \flecha{} ciclo \flecha{} grado \flecha{} sección \flecha{} fecha.
+
+\begin{itemize}
+  \item \textbf{Al entrar, el colegio y el grado ya vienen elegidos}, y el
+        desplegable de \emph{Sección} trae las secciones de ese colegio. No debe
+        quedarse ninguno en blanco.
+  \item Ponga una \textbf{fecha futura}: sale «No existe una grilla registrada
+        para esta fecha» con el botón para crearla.
+  \item Créela: debe nacer con una fila por alumno y \textbf{vacía}. No puede
+        copiar los datos de otro día.
+  \item Marque \emph{Presente} / \emph{Ausente} y guarde.
+\end{itemize}
+
+\begin{aviso}{Esto también acaba de arreglarse}
+Antes, al entrar en Asistencia, la pantalla \emph{aparentaba} tener un colegio
+elegido pero no lo tenía: el desplegable de Sección salía vacío y el cuerpo
+seguía pidiendo «Elija colegio, grado y fecha». Compruebe que ya no pasa.
+\end{aviso}
+
+\subsection{Rúbrica (T32)}
+
+Mismo orden de filtros. Elija una semana sin datos y debe salir «Crear grilla
+para esta semana».
+
+\subsection{La ausencia enlazada}
+
+Esta es la comprobación con más valor del apartado, porque cruza dos módulos:
+
+\begin{enumerate}
+  \item En \ruta{Asistencia}, marque a un alumno como \textbf{Ausente} y guarde.
+  \item Vaya a \ruta{Rúbrica}, misma semana y mismo grado.
+  \item Ese alumno debe aparecer con la etiqueta roja \textbf{Ausente}, y sus
+        selectores de \emph{Fluidez} y \emph{Comprensión} deben estar
+        \textbf{deshabilitados}.
+\end{enumerate}
+
+La idea es que la falta se marque \textbf{una sola vez}, en Asistencia, y que
+nadie pueda evaluar a quien no estuvo.
+
+\subsection{Solo lectura del Supervisor (T22)}
+
+Entre como Supervisor en \ruta{Asistencia} o \ruta{Rúbrica}: aparece el filtro
+\emph{Docente}, y no hay edición ni botón de crear grilla.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU007 --- Expiración a las 8 horas}
+\label{sec:cu007}
+
+\begin{aviso}{Esto no se puede probar sin backend}
+En modo simulado el token es \texttt{mock.4.2026}, que no es un JWT real y no
+lleva fecha de caducidad, así que el temporizador nunca llega a armarse. No es
+un fallo: es que no hay nada que medir.
+\end{aviso}
+
+Para probarlo de verdad, en el \texttt{.env} \textbf{del backend}:
+
+\begin{quote}\ttfamily
+ACCESS\_TOKEN\_EXPIRE\_MINUTES=1
+\end{quote}
+
+Reinicie el backend, entre con \texttt{VITE\_AUTH\_REAL=true} y espere un minuto
+sin tocar nada.
+
+\textbf{Esperado:} la aplicación lleva al login con el aviso «Su sesión terminó
+por alcanzar su tiempo máximo de 8 horas».
+
+\textbf{Acuérdese de dejarlo otra vez en 480} al terminar.
+
+% ---------------------------------------------------------------------------
+\section{Lo que verán simulado}
+
+Conviene saberlo de antemano para no reportar como fallo algo que todavía no
+existe. Estas pantallas funcionan y se ven completas, pero sus datos \textbf{no
+vienen del backend}, porque esos endpoints aún no están publicados:
+
+\begin{itemize}
+  \item Auditoría
+  \item Sesiones
+  \item Secciones
+  \item Asistencia
+  \item Los resúmenes del módulo de Inicio
+\end{itemize}
+
+Cada una se conecta cambiando una línea cuando el backend las publique. Lo que
+sí tiene sentido probar en ellas es el \emph{comportamiento}: los filtros, los
+estados vacíos, los permisos y los avisos.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{Hoja de incidencias}
+\label{sec:incidencias}
+
+Una fila por cada cosa que no coincida con lo esperado. Cuanto más concreto el
+«qué ocurrió», más rápido se arregla.
+
+% longtable se centra sola; meterla en un center descuadra el espaciado.
+\begin{longtable}{p{0.8cm}p{3.2cm}p{4.8cm}p{4.8cm}}
+\toprule
+\textbf{\ok} & \textbf{Apartado} & \textbf{Qué debía ocurrir} & \textbf{Qué ocurrió} \\
+\midrule
+\endhead
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\ok & & & \\[0.8cm]
+\bottomrule
+\end{longtable}
+
+\vfill
+\noindent\rule{\textwidth}{0.4pt}
+
+\noindent\small Al reportar, indique siempre tres cosas: el \textbf{rol} con el
+que entró, si estaba en \textbf{modo simulado o con backend}, y si tenía o no
+\textbf{conexión}. Las tres cambian el comportamiento esperado.
+
+\end{document}

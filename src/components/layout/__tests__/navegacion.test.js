@@ -18,16 +18,23 @@ describe('NAV_BY_ROLE', () => {
     ROLES_REALES.forEach((idRol) => expect(navegacionDe(idRol).length).toBeGreaterThan(0))
   })
 
-  it('el Directivo llega a sus cuentas desde el menú', () => {
-    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toContain('/administracion')
+  it('el Directivo solo tiene Inicio y Dashboard (D2)', () => {
+    // Deja de gestionar cuentas: la matriz no le da ninguna otra sección.
+    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio', '/dashboard'])
   })
 
-  it('el Supervisor llega a administración desde el menú', () => {
-    expect(navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)).toContain('/administracion')
+  it('el Supervisor gestiona usuarios y colegios', () => {
+    const rutas = navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)
+    expect(rutas).toContain('/usuarios')
+    expect(rutas).toContain('/colegios')
+    // D1: los alumnos van dentro de Usuarios, no como sección propia.
+    expect(rutas).not.toContain('/alumnos')
   })
 
-  it('el Docente no ve administración: no es suya', () => {
-    expect(navegacionDe(ROLES.DOCENTE).map((i) => i.to)).not.toContain('/administracion')
+  it('el Docente tiene las tres grillas del aula y sus alumnos', () => {
+    const rutas = navegacionDe(ROLES.DOCENTE).map((i) => i.to)
+    expect(rutas).toEqual(expect.arrayContaining(['/alumnos', '/rubrica', '/seguimiento-lectura', '/registro-vuelo', '/sesiones']))
+    expect(rutas).not.toContain('/usuarios')
   })
 
   it('ningún menú enlaza una ruta que su rol no pueda abrir (RNF-004)', () => {

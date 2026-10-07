@@ -9,10 +9,14 @@ import AdministracionPage from './features/administracion/AdministracionPage'
 import AlertasPage from './features/alertas/AlertasPage'
 import ColegioDetallePage from './features/colegios/ColegioDetallePage'
 import ColegiosPage from './features/colegios/ColegiosPage'
+import MantenimientoColegios from './features/colegios/MantenimientoColegios'
 import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
 import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
+import UsuariosPage from './features/usuarios/UsuariosPage'
+import SesionesPage from './features/sesiones/SesionesPage'
+import AsistenciaPage from './features/asistencia/AsistenciaPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
 import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
@@ -36,25 +40,32 @@ const { PROFESOR, JEFA, DIRECTIVOS } = ROLES
  * definitiva y está cubierta por los tests.
  */
 export const RUTAS_PROTEGIDAS = [
-  { path: '/inicio', allow: [PROFESOR], titulo: 'Inicio del docente', elemento: <InicioPage /> },
-  { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Reporte semanal y rúbrica', elemento: <ReporteSemanalPage /> },
-  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de vuelo — histórico', elemento: <RegistroVueloPage /> },
+  // ── Las 9 secciones de la matriz de permisos del sprint de cierre ──────────
+  { path: '/inicio', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Inicio', elemento: <InicioPage /> },
+  { path: '/alumnos', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <AlumnosPage /> },
+  { path: '/usuarios', allow: [JEFA], titulo: 'Usuarios', elemento: <UsuariosPage /> },
+  { path: '/colegios', allow: [JEFA], titulo: 'Colegios', elemento: <MantenimientoColegios /> },
+  // Rúbrica y Seguimiento de Lectura son DOS secciones con permisos propios: el
+  // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
+  { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencia', elemento: <AsistenciaPage /> },
+  { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <ReporteSemanalPage pestanaFija="rubrica" /> },
+  { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <ReporteSemanalPage pestanaFija="semanal" /> },
+  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloPage /> },
   { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
-  // Módulo Alumnos (CU008): gestiona el Docente, el Supervisor solo consulta.
-  // `/estudiantes` era una segunda pantalla sobre otra fuente de datos, así que
-  // un alumno recién creado no aparecía allí. Se mantiene la ruta redirigiendo
-  // para no romper enlaces guardados.
-  { path: '/alumnos', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Alumnos', elemento: <AlumnosPage /> },
-  { path: '/estudiantes', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
-  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
+  { path: '/sesiones', allow: [PROFESOR, JEFA], titulo: 'Sesiones', elemento: <SesionesPage /> },
+  { path: '/dashboard', allow: [JEFA, DIRECTIVOS], titulo: 'Dashboard', elemento: <DashboardPage /> },
+
+  // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
+  { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
+  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
+  { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
+  { path: '/ranking', allow: [JEFA, DIRECTIVOS], titulo: 'Ranking de colegios', elemento: <ColegiosPage /> },
+  { path: '/ranking/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
   { path: '/nivel-final', allow: [PROFESOR, JEFA], titulo: 'Nivel final mensual', elemento: <NivelFinalPage /> },
   { path: '/consulta-colegios', allow: [PROFESOR], titulo: 'Consulta de otros colegios', elemento: <ConsultaColegiosPage /> },
-  { path: '/dashboard', allow: [JEFA], titulo: 'Dashboard consolidado', elemento: <DashboardPage /> },
-  { path: '/colegios', allow: [JEFA, DIRECTIVOS], titulo: 'Colegios y ranking', elemento: <ColegiosPage /> },
-  { path: '/colegios/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
   { path: '/consolidados', allow: [JEFA], titulo: 'Consolidados', elemento: <ConsolidadosPage /> },
   { path: '/alertas', allow: [JEFA], titulo: 'Alertas de inconsistencias', elemento: <AlertasPage /> },
-  { path: '/administracion', allow: [JEFA, DIRECTIVOS], titulo: 'Administración', elemento: <AdministracionPage /> },
+  { path: '/administracion', allow: [JEFA], titulo: 'Administración', elemento: <AdministracionPage /> },
   { path: '/panel-ejecutivo', allow: [DIRECTIVOS], titulo: 'Panel ejecutivo', elemento: <PanelEjecutivoPage /> },
   { path: '/reportes', allow: [DIRECTIVOS], titulo: 'Reportes y descargas', elemento: <ReportesPage /> },
 ]

@@ -113,9 +113,12 @@ describe('Administración (P16)', () => {
     expect(screen.getByRole('button', { name: /nueva cuenta/i })).toBeInTheDocument()
   })
 
-  it('permite que un directivo acceda a administración para crear y gestionar cuentas', () => {
-    const rutaAdmin = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/administracion')
-    expect(rutaAdmin?.allow).toContain(ROLES.DIRECTIVOS)
+  it('el Directivo ya no gestiona cuentas (D2 del sprint de cierre)', () => {
+    // Antes el Directivo administraba a otros Directivos. El flujo acordado se
+    // lo retira: el Supervisor crea a todos los roles.
+    const usuarios = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/usuarios')
+    expect(usuarios?.allow).toEqual([ROLES.SUPERVISOR])
+    expect(usuarios?.allow).not.toContain(ROLES.DIRECTIVO)
   })
 
   it('permite desactivar y reactivar cuentas desde la tabla de administración', async () => {

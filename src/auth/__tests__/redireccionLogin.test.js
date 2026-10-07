@@ -14,7 +14,9 @@ describe('rolPuedeEntrar', () => {
     expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(true)
     expect(rolPuedeEntrar('/dashboard', ROLES.DOCENTE)).toBe(false)
     expect(rolPuedeEntrar('/inicio', ROLES.DOCENTE)).toBe(true)
-    expect(rolPuedeEntrar('/panel-ejecutivo', ROLES.DIRECTIVO)).toBe(true)
+    expect(rolPuedeEntrar('/dashboard', ROLES.DIRECTIVO)).toBe(true)
+    // El Directivo ya no gestiona cuentas (D2 del sprint de cierre).
+    expect(rolPuedeEntrar('/usuarios', ROLES.DIRECTIVO)).toBe(false)
   })
 
   it('resuelve rutas con parámetros y con query', () => {
@@ -33,8 +35,8 @@ describe('destinoTrasLogin', () => {
   it('manda al inicio de su rol cuando la ruta anterior era de otro rol', () => {
     // Supervisor cierra sesión en /dashboard y entra un Docente.
     expect(destinoTrasLogin('/dashboard', ROLES.DOCENTE)).toBe('/inicio')
-    // Docente cierra sesión en /reporte-semanal y entra un Directivo.
-    expect(destinoTrasLogin('/reporte-semanal', ROLES.DIRECTIVO)).toBe('/panel-ejecutivo')
+    // Docente cierra sesión en /rubrica y entra un Directivo.
+    expect(destinoTrasLogin('/rubrica', ROLES.DIRECTIVO)).toBe('/inicio')
   })
 
   it('respeta la ruta pedida cuando el rol sí puede entrar', () => {
@@ -42,9 +44,11 @@ describe('destinoTrasLogin', () => {
     expect(destinoTrasLogin('/consolidados', ROLES.SUPERVISOR)).toBe('/consolidados')
   })
 
-  it('sin ruta previa lleva al inicio de cada rol', () => {
+  it('sin ruta previa los tres roles aterrizan en Inicio', () => {
+    // La matriz del sprint da la sección Inicio a los tres, con contenido
+    // distinto por rol; ya no hay una ruta de aterrizaje por cada uno.
     expect(destinoTrasLogin(undefined, ROLES.DOCENTE)).toBe('/inicio')
-    expect(destinoTrasLogin(undefined, ROLES.SUPERVISOR)).toBe('/dashboard')
-    expect(destinoTrasLogin(undefined, ROLES.DIRECTIVO)).toBe('/panel-ejecutivo')
+    expect(destinoTrasLogin(undefined, ROLES.SUPERVISOR)).toBe('/inicio')
+    expect(destinoTrasLogin(undefined, ROLES.DIRECTIVO)).toBe('/inicio')
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Menu } from 'lucide-react'
+import BarraActividades from './BarraActividades'
 import Breadcrumbs from './Breadcrumbs'
 import PanelSincronizacion from './PanelSincronizacion'
 import Select from '../ui/Select'
@@ -40,7 +41,6 @@ function SelectorPeriodo() {
 export default function Topbar({ onAbrirMenu }) {
   const [panelAbierto, setPanelAbierto] = useState(false)
   const { pendientes, sincronizando, ultimoError } = useSyncStore()
-
   return (
     <header className="sticky top-0 z-30 flex h-16 print:hidden items-center gap-2 border-b border-line bg-surface-0 px-4 sm:gap-3 sm:px-6">
       <button
@@ -55,6 +55,7 @@ export default function Topbar({ onAbrirMenu }) {
       <Breadcrumbs className="flex-1" />
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <BarraActividades />
         <SelectorPeriodo />
         <SyncBadge
           pendientes={pendientes}

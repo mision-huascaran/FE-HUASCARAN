@@ -13,6 +13,7 @@ import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
 import { destinoTrasLogin } from '../../rutas'
 import { estadoDe, mensajeDeError } from '../../api/client'
+import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
 
 const esquema = z.object({
@@ -21,10 +22,13 @@ const esquema = z.object({
 })
 
 export default function LoginPage() {
-  const { entrar, autenticado, usuario } = useAuth()
+  const { entrar, autenticado, usuario, motivoCierre, limpiarMotivoCierre } = useAuth()
   const navegar = useNavigate()
   const { state } = useLocation()
   const [errorGeneral, setErrorGeneral] = useState(null)
+  // El inicio de sesión NUNCA es offline: hace falta el servidor para validar
+  // las credenciales y emitir el token. Se avisa antes de dejar escribir.
+  const enLinea = useConexion()
   const [resetAbierto, setResetAbierto] = useState(false)
 
   const {
@@ -39,6 +43,7 @@ export default function LoginPage() {
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
+    limpiarMotivoCierre()
     try {
       const perfil = await entrar({ correo, password })
       navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
@@ -79,6 +84,31 @@ export default function LoginPage() {
 
           <h1 className="mt-8 text-2xl font-bold text-ink-900 md:text-3xl">Iniciar sesión</h1>
           <p className="mt-1 text-sm text-ink-500">Ingrese con el correo institucional que le asignaron.</p>
+
+          {/* CU007: si la sesión venció sola hay que decirlo, o el usuario
+              aparece aquí sin saber por qué y cree que perdió su trabajo. */}
+          {motivoCierre === 'expiracion' && (
+            <div
+              role="status"
+              className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                Su sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
+                hubieran enviado siguen guardados y se sincronizarán al volver a entrar.
+              </span>
+            </div>
+          )}
+
+          {!enLinea && (
+            <div
+              role="alert"
+              className="mt-6 flex items-start gap-2 rounded-lg border border-warning-600/20 bg-warning-100 p-3 text-sm font-medium text-warning-600"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Se requiere conexión para ingresar.
+            </div>
+          )}
 
           {errorGeneral && (
             <div
@@ -121,7 +151,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            <Button type="submit" loading={isSubmitting} className="w-full">
+            <Button type="submit" loading={isSubmitting} disabled={!enLinea} className="w-full">
               Ingresar
             </Button>
           </form>

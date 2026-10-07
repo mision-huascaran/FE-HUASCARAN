@@ -96,6 +96,16 @@ api.interceptors.response.use(
     if (error?.response?.status === 401 && !error.config?.url?.includes('/login')) {
       useSessionStore.getState().cerrarSesion()
     }
+    /**
+     * 403 — el rol o el alcance no alcanzan para esta operación (T15).
+     *
+     * Se marca aquí para que las pantallas puedan mostrar "Sin permiso" sin
+     * repetir la comprobación. No se cierra la sesión: el usuario sigue siendo
+     * quien dice ser, simplemente eso no le corresponde.
+     */
+    if (error?.response?.status === 403) {
+      error.sinPermiso = true
+    }
     return Promise.reject(error)
   },
 )
@@ -148,6 +158,10 @@ export function mensajeDeError(error, porDefecto = 'Intente nuevamente.') {
   }
 
   if (typeof detalle === 'string' && detalle.trim()) return detalle
+
+  // 403 sin detalle: el texto por defecto no puede ser "intente de nuevo",
+  // porque reintentar no va a cambiar nada.
+  if (error?.response?.status === 403) return 'Sin permiso para realizar esta acción'
 
   if (!error.response) return 'Sin conexión con el servidor. El dato quedó guardado en este dispositivo.'
 

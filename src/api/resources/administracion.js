@@ -114,12 +114,14 @@ export const listarProgramasAdmin = () =>
   })
 
 
-export const listarColegiosAdmin = () =>
-  resolver({
+export const listarColegiosAdmin = async (filtros = {}) => {
+  const filas = await resolver({
     mock: () => handlers.administracion.colegios(),
     real: () => api.get(administracion.colegios),
     forzarReal: adminContraApiReal,
   })
+  return porEstado(filas ?? [], filtros.estado)
+}
 
 /**
  * `POST /colegios`. El backend guarda `{ nombre, zona }` y nada más, así que el
@@ -285,6 +287,50 @@ export const actualizarUsuario = (id, { nombres, apellidos, correo }) =>
 
 export const edicionDeCuentasEnMock = false
 export { usarMock as negocioEnMock } from '../client'
+
+// ── Sprint de cierre: estado, auditoría y secciones ─────────────────────────
+
+/**
+ * Filtra por estado en el cliente mientras el backend no acepte `?activo=`.
+ * La regla transversal es que toda grilla abre en Activo.
+ */
+const porEstado = (filas, estado = 'activo') => {
+  if (estado === 'todos') return filas
+  const quiero = estado !== 'inactivo'
+  return filas.filter((f) => (f.activo ?? true) === quiero)
+}
+
+/**
+ * `PATCH /colegios/{id}` con `{ activo }` — baja lógica (D5).
+ *
+ * TODO BACKEND: hoy el modelo de `colegio` no tiene columna `activo`, así que
+ * esto solo funciona contra el mock. Ver "Pendiente" en APIS_BACKEND.md.
+ */
+export const cambiarEstadoColegio = (idColegio, activo) =>
+  resolver({
+    mock: () => handlers.administracion.cambiarEstadoColegio(idColegio, activo),
+    real: () => api.patch(administracion.colegio(idColegio), { activo }),
+    forzarReal: false,
+  })
+
+/**
+ * Auditoría de un registro: quién, cuándo, campo, antes, después y sesión.
+ *
+ * TODO BACKEND: no existe el endpoint. Se resuelve con el mock para que la
+ * pestaña de la plantilla se pueda construir y probar.
+ */
+export const listarAuditoria = (entidad, id) =>
+  resolver({
+    mock: () => handlers.administracion.auditoria(entidad, id),
+    real: () => handlers.administracion.auditoria(entidad, id),
+  })
+
+/** Secciones de un colegio (A, B, C…). TODO BACKEND: tampoco existe. */
+export const listarSecciones = (idColegio) =>
+  resolver({
+    mock: () => handlers.administracion.secciones(idColegio),
+    real: () => handlers.administracion.secciones(idColegio),
+  })
 
 // ── Asignaciones ────────────────────────────────────────────────────────────
 
