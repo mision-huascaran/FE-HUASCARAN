@@ -627,29 +627,114 @@ Lo que sí tiene sentido probar en ellas es el \emph{comportamiento}: filtros,
 estados vacíos, permisos, avisos y qué pasa sin conexión.
 
 % ---------------------------------------------------------------------------
-\section{Hoja de incidencias}
+\section{Lista de verificación e incidencias}
 \label{sec:incidencias}
 
-Una fila por cada cosa que no coincida. Cuanto más concreto el «qué ocurrió»,
-más rápido se arregla.
+Marque la casilla de lo que sí ocurrió como se describe. Deje la casilla vacía y
+rellene la última columna cuando no coincida: cuanto más concreto el «qué
+ocurrió», más rápido se arregla.
+
+Las filas van en el mismo orden que la guía, así que puede recorrerla de arriba
+abajo sin saltar.
 
 % longtable se centra sola; meterla en un center descuadra el espaciado.
-\begin{longtable}{p{0.8cm}p{1.6cm}p{4.6cm}p{4.6cm}}
-\toprule
+% La columna del CU necesita 2 cm: "CU013/14/16" se parte en tres líneas si no.
+\begin{longtable}{|c|p{1.9cm}|p{6.1cm}|p{4.3cm}|}
+\hline
 \textbf{\ok} & \textbf{CU} & \textbf{Qué debía ocurrir} & \textbf{Qué ocurrió} \\
-\midrule
+\hline
 \endhead
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\ok & & & \\[0.8cm]
-\bottomrule
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Ingresar al sistema}} \\ \hline
+\ok & CU001 & Docente ve: Inicio, Alumnos, Asistencia, Rúbrica, Lectura, Vuelo, Sesiones & \\[0.5cm] \hline
+\ok & CU001 & Supervisor ve además Usuarios, Colegios y Dashboard; Alumnos vive dentro de Usuarios & \\[0.5cm] \hline
+\ok & CU001 & Directivo ve solo Inicio y Dashboard & \\[0.5cm] \hline
+\ok & CU001 & Al entrar no se recarga la página (es una SPA) & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: el botón \emph{Ingresar} queda deshabilitado y gris & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: \emph{¿Olvidó su contraseña?} queda \textbf{también} deshabilitada y gris & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: texto exacto «No se pudo establecer conexión con el servidor\ldots» & \\[0.5cm] \hline
+\ok & CU002 & Contraseña mal escrita \flecha{} «Correo o contraseña incorrectos.» & \\[0.5cm] \hline
+\ok & CU002 & Correo inexistente \flecha{} \textbf{el mismo} texto, sin delatar que no existe & \\[0.5cm] \hline
+\ok & CU002 & Cuenta desactivada \flecha{} «Su cuenta se encuentra desactivada\ldots» & \\[0.5cm] \hline
+\ok & CU002 & 5 intentos fallidos \flecha{} «Demasiados intentos fallidos\ldots 15 minutos.» & \\[0.5cm] \hline
+\ok & CU003 & Docente: \texttt{sicedu.precarga} con alumnos, asignaciones, colegios, grados, semanas y niveles & \\[0.5cm] \hline
+\ok & CU003 & Supervisor: la misma clave, pero sin asignaciones ni niveles & \\[0.5cm] \hline
+\ok & CU003 & Directivo: \textbf{no} se crea \texttt{sicedu.precarga} & \\[0.5cm] \hline
+\ok & CU003 & La descarga es silenciosa: ni aviso, ni spinner, ni bloqueo & \\[0.5cm] \hline
+\ok & CU003 & La hora de fin no cambia al recargar, cambiar de módulo, perder ni recuperar conexión & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Recuperar contraseña}} \\ \hline
+\ok & CU004 & Sin conexión: aviso «No es posible recuperar o cambiar la contraseña\ldots» y botones deshabilitados & \\[0.5cm] \hline
+\ok & CU005 & Correo real y correo inventado dan \textbf{el mismo} texto: «Si el correo está registrado y activo, recibirá un PIN.» & \\[0.5cm] \hline
+\ok & CU005 & Al escribir \texttt{AB12CD} en el PIN, el campo se queda en \texttt{12} & \\[0.5cm] \hline
+\ok & CU005 & Pedir un PIN nuevo invalida el anterior & \\[0.5cm] \hline
+\ok & CU006 & \texttt{corta}: faltan requisitos y el botón sigue deshabilitado & \\[0.5cm] \hline
+\ok & CU006 & \texttt{Sicedu2026}: falta \emph{Un carácter especial} & \\[0.5cm] \hline
+\ok & CU006 & \texttt{Sicedu2026!}: los cinco marcados y el botón se habilita & \\[0.5cm] \hline
+\ok & CU006 & PIN equivocado, expirado y agotado tienen \textbf{tres} textos distintos & \\[0.5cm] \hline
+\ok & CU006 & Contraseñas distintas \flecha{} «Las contraseñas no coinciden.» & \\[0.5cm] \hline
+\ok & CU006 & Tras cambiarla, la otra pestaña abierta con ese usuario va al login & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Finalizar sesión}} \\ \hline
+\ok & CU007 & «Cerrar sesión» está en la barra lateral y desde cualquier módulo & \\[0.5cm] \hline
+\ok & CU007 & Tras salir, escribir \ruta{/rubrica} a mano no entra & \\[0.5cm] \hline
+\ok & CU007 & Al expirar, lleva al login avisando de las 8 horas & \\[0.5cm] \hline
+\ok & CU008 & Salir \textbf{con} pendientes: \texttt{sicedu.cola-envios} sigue existiendo & \\[0.5cm] \hline
+\ok & CU008 & Al volver a entrar, los cambios pendientes se envían solos & \\[0.5cm] \hline
+\ok & CU008 & Salir ya sincronizado: \texttt{sicedu.cola-envios} desaparece & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Actividad de trabajo del Docente}} \\ \hline
+\ok & CU010 & Los botones de actividad solo aparecen al Docente & \\[0.5cm] \hline
+\ok & CU010 & Sin actividad abierta, los selectores de Rúbrica están deshabilitados & \\[0.5cm] \hline
+\ok & CU010 & Texto exacto «Actividad iniciada a las HH:MM. La sesión finaliza a las HH:MM.» & \\[0.5cm] \hline
+\ok & CU010 & No hay cronómetro regresivo, solo texto fijo & \\[0.5cm] \hline
+\ok & CU010 & La hora de fin es la del \textbf{ingreso} más 8 h, no la de la actividad más 8 h & \\[0.5cm] \hline
+\ok & CU010 & Sin asignaciones: botón deshabilitado \textbf{y no oculto}, con el texto que lo explica & \\[0.5cm] \hline
+\ok & CU009 & Segunda actividad en la misma sesión: la hora de fin \textbf{no} cambia & \\[0.5cm] \hline
+\ok & CU009 & Offline: Rúbrica, Lectura y Vuelo se siguen pudiendo editar & \\[0.5cm] \hline
+\ok & CU009 & Offline: Alumnos queda en solo lectura & \\[0.5cm] \hline
+\ok & CU009 & Los filtros se conservan al cambiar de módulo & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Módulo de Inicio: Supervisor y Directivo}} \\ \hline
+\ok & CU011 & Salen los seis indicadores y las Alertas de Inactividad & \\[0.5cm] \hline
+\ok & CU011 & Las alertas críticas llevan rojo \textbf{y además} texto o icono & \\[0.5cm] \hline
+\ok & CU011 & Offline: se muestra el último resumen, marcado como desactualizado & \\[0.5cm] \hline
+\ok & CU011 & Offline y sin nada guardado: avisa de que no hay información disponible & \\[0.5cm] \hline
+\ok & CU012 & Exactamente tres tarjetas, ni una más & \\[0.5cm] \hline
+\ok & CU012 & Sin gráficos, rankings ni nombres de estudiantes & \\[0.5cm] \hline
+\ok & CU012 & Sin datos suficientes: «Sin datos disponibles», nunca un porcentaje estimado & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Mantenimientos}} \\ \hline
+\ok & CU013/14/16 & El filtro Estado arranca en \emph{Activo} sin tocarlo & \\[0.5cm] \hline
+\ok & CU013/14/16 & Paginación de 10 por página con Anterior / Siguiente & \\[0.5cm] \hline
+\ok & CU013/14/16 & Guardar vacío: el error sale bajo \textbf{cada} campo, no arriba & \\[0.5cm] \hline
+\ok & CU013/14/16 & Inactivar pide confirmación y la fila reaparece en \emph{Inactivos} & \\[0.5cm] \hline
+\ok & CU013/14/16 & Auditoría: quién, cuándo, campo, valor antes y después & \\[0.5cm] \hline
+\ok & CU013/14/16 & Offline: Agregar, lápices e interruptores grises; la tabla se sigue leyendo & \\[0.5cm] \hline
+\ok & CU013 & \emph{Grados y secciones} es una lista, no un cuadro de texto libre & \\[0.5cm] \hline
+\ok & CU014 & Existe \emph{Ciclo evaluado} aparte de \emph{Grado} & \\[0.5cm] \hline
+\ok & CU014 & Como Docente, el desplegable de Colegio solo muestra los suyos & \\[0.5cm] \hline
+\ok & CU016 & Al elegir rol Docente aparecen Colegios y Secciones asignados & \\[0.5cm] \hline
+\ok & CU015 & El nombre del alumno es un enlace; el resto de la fila no abre nada & \\[0.5cm] \hline
+\ok & CU015 & Cabecera con avatar, nombre y cinco etiquetas; debajo, cinco pestañas & \\[0.5cm] \hline
+\ok & CU015 & Offline: Historial muestra estado vacío; las demás pestañas funcionan & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Sesiones del Docente}} \\ \hline
+\ok & CU017 & El Docente solo ve sus propias sesiones & \\[0.5cm] \hline
+\ok & CU017 & Están todas las columnas, incluida duración y tipo de cierre & \\[0.5cm] \hline
+\ok & CU017 & Una sesión puede estar \emph{Finalizada} y \emph{Pendiente} a la vez & \\[0.5cm] \hline
+\ok & CU018 & Fecha inicial posterior a la final: no busca y avisa & \\[0.5cm] \hline
+\ok & CU018 & Los filtros se conservan al salir y volver al módulo & \\[0.5cm] \hline
+\ok & CU018 & \emph{Limpiar filtros} los devuelve a sus valores por defecto & \\[0.5cm] \hline
+\ok & CU019 & El detalle agrupa los cambios por módulo & \\[0.5cm] \hline
+\ok & CU019 & Aparece la etiqueta «Sincronizado de forma diferida» donde corresponde & \\[0.5cm] \hline
+\ok & CU019 & Offline: estado vacío, sin sacar nada de la memoria local & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Seguimiento de docentes (Supervisor)}} \\ \hline
+\ok & CU020 & Están todas las columnas y el botón de ver detalle & \\[0.5cm] \hline
+\ok & CU020 & Los docentes con pendientes salen \textbf{primero} & \\[0.5cm] \hline
+\ok & CU021 & Bitácora de la más reciente a la más antigua, 10 por página & \\[0.5cm] \hline
+\ok & CU021 & Los atajos llevan al módulo con filtros puestos y \textbf{en solo lectura} & \\[0.5cm] \hline
+\ok & CU020/21 & Offline: estado vacío en los dos, sin memoria local & \\[0.5cm] \hline
 \end{longtable}
 
 \vfill
