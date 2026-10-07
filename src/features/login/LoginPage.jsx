@@ -1,4 +1,8 @@
-// Cubre: RF-001, RNF-002, RNF-003, RNF-004
+// Cubre: RF-001, RNF-002, RNF-003, RNF-004 - CU001 y CU002.
+//
+// Los textos de error NO son libres: CU002 los fija palabra por palabra, para
+// que el mensaje no delate si un correo existe. Se definen en MENSAJE y se usan
+// tal cual; cambiarlos rompe el caso de uso.
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +19,15 @@ import { destinoTrasLogin } from '../../rutas'
 import { estadoDe, mensajeDeError } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
+
+/** Textos literales de CU001 y CU002. No se improvisan ni se traducen. */
+export const MENSAJE = {
+  sinConexion:
+    'No se pudo establecer conexión con el servidor. Para iniciar sesión es necesario disponer de conexión a Internet.',
+  credenciales: 'Correo o contraseña incorrectos.',
+  bloqueo: 'Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.',
+  desactivada: 'Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.',
+}
 
 const esquema = z.object({
   correo: z.string().min(1, 'Ingrese su correo').email('Ingrese un correo válido'),
@@ -49,24 +62,30 @@ export default function LoginPage() {
       navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
-      // Nunca se dice cuál de los dos campos falló (P1).
+      // Nunca se dice cuál de los dos campos falló: decirlo permitiría ir
+      // probando correos para averiguar quién tiene cuenta (CU002).
       if (estado === 401) {
-        setErrorGeneral('Correo o contraseña incorrectos')
+        setErrorGeneral(MENSAJE.credenciales)
         return
       }
-      // Cuenta dada de baja: el servidor ya manda el texto que toca ("Tu cuenta
-      // está deshabilitada. Contacta a tu supervisor."), y distingue si hay que
-      // acudir a un supervisor o a un directivo según el rol. Antes caía en el
-      // mensaje de red y parecía que el servidor estaba caído.
+      // 429: cinco intentos seguidos fallidos bloquean ese correo 15 minutos,
+      // exista la cuenta o no. El bloqueo no desactiva nada.
+      if (estado === 429) {
+        setErrorGeneral(MENSAJE.bloqueo)
+        return
+      }
+      // Credenciales correctas pero cuenta dada de baja. El texto lo fija
+      // CU002: se ignora el del servidor para no decir de más.
       if (estado === 403) {
-        setErrorGeneral(mensajeDeError(error, 'Su cuenta está desactivada. Comuníquese con su supervisor.'))
+        setErrorGeneral(MENSAJE.desactivada)
         return
       }
       if (estado) {
         setErrorGeneral(mensajeDeError(error, 'No se pudo iniciar sesión. Intente nuevamente.'))
         return
       }
-      setErrorGeneral('No se pudo conectar con el servidor. Intente nuevamente en unos segundos.')
+      // Sin respuesta del servidor: para CU001 es el mismo caso que estar sin red.
+      setErrorGeneral(MENSAJE.sinConexion)
     }
   }
 
@@ -106,7 +125,7 @@ export default function LoginPage() {
               className="mt-6 flex items-start gap-2 rounded-lg border border-warning-600/20 bg-warning-100 p-3 text-sm font-medium text-warning-600"
             >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              Se requiere conexión para ingresar.
+              {MENSAJE.sinConexion}
             </div>
           )}
 
@@ -142,10 +161,13 @@ export default function LoginPage() {
             />
 
             <div className="flex items-center justify-end gap-2">
+              {/* CU001: sin conexión también se deshabilita y se ve gris. El
+                  proceso de recuperación necesita servidor de principio a fin. */}
               <button
                 type="button"
+                disabled={!enLinea}
                 onClick={() => setResetAbierto(true)}
-                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-ink-400 disabled:hover:text-ink-400"
               >
                 ¿Olvidó su contraseña?
               </button>

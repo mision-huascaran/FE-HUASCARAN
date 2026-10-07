@@ -8,7 +8,8 @@ import Stepper from '../../components/ui/Stepper'
 import { useToast } from '../../components/ui/Toast'
 import { recuperarPassword, restablecerPassword } from '../../api/resources/auth'
 import { mensajeDeError } from '../../api/client'
-import { esCorreoValido } from '../../lib/validacion'
+import { REQUISITOS_PASSWORD, esCorreoValido, esPinValido, requisitosIncumplidos } from '../../lib/validacion'
+import useConexion from '../../hooks/useConexion'
 
 /**
  * "Olvidé mi contraseña", desde el login y SIN sesión iniciada.
@@ -21,13 +22,38 @@ import { esCorreoValido } from '../../lib/validacion'
  * el formulario para averiguar quién tiene cuenta—, de modo que esta pantalla
  * nunca afirma que el correo existe: solo dice "si está registrado, le llegará".
  */
-const PASOS = ['Pedir código', 'Nueva contraseña']
+const PASOS = ['Pedir PIN', 'Nueva contraseña']
 
-// El backend exige mínimo 8 caracteres, solo letras y números.
-const FORMATO = /^[A-Za-z0-9]{8,}$/
+/** Textos literales de CU004, CU005 y CU006. */
+export const MENSAJE = {
+  enviado: 'Si el correo está registrado y activo, recibirá un PIN.',
+  sinConexion:
+    'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctese a Internet e inténtelo nuevamente.',
+  pinIncorrecto: 'El código ingresado es incorrecto. Inténtelo nuevamente.',
+  pinExpirado: 'El código ha expirado. Solicite un nuevo PIN.',
+  pinAgotado: 'Se alcanzó el número máximo de intentos permitidos. Solicite un nuevo PIN para continuar.',
+  noCoinciden: 'Las contraseñas no coinciden.',
+  igualAnterior: 'La nueva contraseña debe ser diferente de la contraseña anterior.',
+}
+
+/**
+ * CU006 distingue PIN incorrecto, expirado y agotado, pero hoy el backend
+ * responde 400 con un único texto para los tres. Se traduce por el `motivo` que
+ * se le ha pedido añadir (APIS_BACKEND.md §12) y, mientras no llegue, se usa su
+ * mensaje tal cual en vez de inventar cuál de los tres fue.
+ */
+function mensajeDelPin(error) {
+  const motivo = error?.response?.data?.motivo
+  if (motivo === 'expirado') return MENSAJE.pinExpirado
+  if (motivo === 'intentos_agotados') return MENSAJE.pinAgotado
+  if (motivo === 'incorrecto') return MENSAJE.pinIncorrecto
+  if (motivo === 'password_igual') return MENSAJE.igualAnterior
+  return mensajeDeError(error)
+}
 
 export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicial = '' }) {
   const toast = useToast()
+  const enLinea = useConexion()
   const [paso, setPaso] = useState(0)
   const [correo, setCorreo] = useState(correoInicial)
   const [codigo, setCodigo] = useState('')
@@ -48,9 +74,12 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
     setOcupado(true)
     try {
       await recuperarPassword({ correo: correo.trim() })
+      // El mismo texto exista el correo o no: distinguir permitiría averiguar
+      // quién tiene cuenta probando direcciones (CU005).
+      toast.success('Solicitud enviada', MENSAJE.enviado)
       setPaso(1)
     } catch (error) {
-      toast.error('No se pudo enviar el código', mensajeDeError(error))
+      toast.error('No se pudo enviar el PIN', mensajeDeError(error))
     } finally {
       setOcupado(false)
     }
@@ -65,21 +94,23 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
         passwordNueva: password,
         confirmacion,
       })
-      toast.success('Contraseña actualizada', 'Ya puede iniciar sesión con la nueva.')
+      // CU006: el restablecimiento invalida TODAS las sesiones del usuario, así
+      // que hay que volver a entrar aunque ya se estuviera dentro.
+      toast.success('Contraseña actualizada', 'Vuelva a iniciar sesión con la nueva contraseña.')
       cerrar()
     } catch (error) {
-      // Un 400 puede ser código incorrecto, caducado, ya usado o correo
-      // inexistente: el backend no los distingue, así que se muestra su mensaje.
-      toast.error('No se pudo cambiar la contraseña', mensajeDeError(error))
+      toast.error('No se pudo cambiar la contraseña', mensajeDelPin(error))
     } finally {
       setOcupado(false)
     }
   }
 
   const correoValido = esCorreoValido(correo.trim())
-  const formatoValido = FORMATO.test(password)
+  const faltan = requisitosIncumplidos(password)
+  const formatoValido = faltan.length === 0
   const coinciden = password === confirmacion
-  const puedeGuardar = codigo.trim().length === 6 && formatoValido && coinciden
+  const pinValido = esPinValido(codigo.trim())
+  const puedeGuardar = enLinea && pinValido && formatoValido && coinciden
 
   return (
     <Modal
@@ -87,13 +118,13 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
       onClose={cerrar}
       size="max-w-lg"
       title="Recuperar contraseña"
-      subtitle="Le enviaremos un código a su correo institucional"
+      subtitle="Le enviaremos un PIN a su correo institucional"
       footer={
         <>
           <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
           {paso === 0 ? (
-            <Button loading={ocupado} disabled={!correoValido} iconLeft={MailCheck} onClick={pedirCodigo}>
-              Enviarme el código
+            <Button loading={ocupado} disabled={!correoValido || !enLinea} iconLeft={MailCheck} onClick={pedirCodigo}>
+              Enviarme el PIN
             </Button>
           ) : (
             <Button loading={ocupado} disabled={!puedeGuardar} onClick={restablecer}>
@@ -104,6 +135,13 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
       }
     >
       <Stepper steps={PASOS} current={paso} />
+
+      {/* CU004: sin conexión no se puede ni pedir el PIN ni cambiar nada. */}
+      {!enLinea && (
+        <p role="alert" className="mt-4 rounded-xl border border-warning-600/20 bg-warning-100 p-4 text-sm font-medium text-warning-600">
+          {MENSAJE.sinConexion}
+        </p>
+      )}
 
       <div className="mt-5 flex flex-col gap-4">
         <Input
@@ -119,16 +157,20 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
         {paso === 1 && (
           <>
             <p className="rounded-xl border border-info-600/20 bg-info-100 p-4 text-sm text-ink-700">
-              Si ese correo está registrado, le enviamos un código de 6 caracteres. Caduca en 10 minutos
-              y solo sirve una vez.
+              {MENSAJE.enviado} El PIN tiene 6 dígitos, caduca en 15 minutos, admite 5 intentos y solo sirve
+              una vez.
             </p>
             <Input
-              label="Código recibido"
+              label="PIN recibido"
               required
               value={codigo}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              /* CU005: son 6 DÍGITOS. Se filtra al teclear para que no se pueda
+                 escribir una letra y luego culpar al servidor del rechazo. */
+              onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))}
               maxLength={6}
-              placeholder="AB12CD"
+              placeholder="123456"
             />
             <Input
               label="Nueva contraseña"
@@ -136,16 +178,25 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              error={password && !formatoValido ? 'Mínimo 8 caracteres, solo letras y números' : undefined}
-              hint="Mínimo 8 caracteres, sin símbolos ni espacios"
             />
+            {/* CU006 pide decir QUÉ requisitos faltan, no solo que no vale. */}
+            <ul className="-mt-2 flex flex-col gap-1 text-xs">
+              {REQUISITOS_PASSWORD.map((requisito) => {
+                const cumple = requisito.cumple(password)
+                return (
+                  <li key={requisito.id} className={cumple ? 'text-success-600' : 'text-ink-400'}>
+                    {cumple ? '✓' : '○'} {requisito.texto}
+                  </li>
+                )
+              })}
+            </ul>
             <Input
               label="Repita la nueva contraseña"
               type="password"
               required
               value={confirmacion}
               onChange={(e) => setConfirmacion(e.target.value)}
-              error={confirmacion && !coinciden ? 'Las contraseñas no coinciden' : undefined}
+              error={confirmacion && !coinciden ? MENSAJE.noCoinciden : undefined}
             />
           </>
         )}

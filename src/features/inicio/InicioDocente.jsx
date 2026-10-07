@@ -6,6 +6,7 @@ import AccesosRapidos from './AccesosRapidos'
 import TarjetaAsignaciones from './TarjetaAsignaciones'
 import useResumenDocente from './useResumenDocente'
 import { horaFinDe } from '../../store/actividadStore'
+import { caducaEn } from '../../auth/jwt'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad from './useActividad'
 import Badge from '../../components/ui/Badge'
@@ -33,7 +34,22 @@ export default function InicioDocente() {
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
-  const { sesion } = useActividad()
+  const { sesion, sinAsignaciones } = useActividad()
+
+  /**
+   * La hora de fin es la de la SESIÓN AUTENTICADA, no la de la actividad.
+   *
+   * CU009 y CU010 son explícitos: una actividad no tiene vigencia propia de 8
+   * horas, hereda la expiración fijada en CU003. Antes se pintaba "inicio de
+   * actividad + 8 h", así que quien entraba a las 08:00 y abría actividad a las
+   * 14:00 leía que acababa a las 22:00 cuando su sesión moría a las 16:00.
+   *
+   * Con el simulador el token no es un JWT y no trae `exp`; ahí se cae al
+   * cálculo antiguo, que es lo único disponible.
+   */
+  const token = useSessionStore((s) => s.token)
+  const expira = caducaEn(token)
+  const finDeSesion = expira ? dayjs(expira) : horaFinDe(sesion?.inicio)
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,8 +73,16 @@ export default function InicioDocente() {
             inicio y la de fin, sin cronómetro regresivo. */}
         {sesion && (
           <p className="text-sm text-ink-500">
-            Sesión iniciada a las {dayjs(sesion.inicio).format('HH:mm')}. Finaliza a las{' '}
-            {horaFinDe(sesion.inicio).format('HH:mm')}.
+            Actividad iniciada a las {dayjs(sesion.inicio).format('HH:mm')}. La sesión finaliza a las{' '}
+            {finDeSesion.format('HH:mm')}.
+          </p>
+        )}
+
+        {/* CU010: sin asignaciones el botón se ve pero deshabilitado, y hay que
+            decir por qué; si no, parece que la aplicación está rota. */}
+        {!sesion && sinAsignaciones && (
+          <p className="text-sm font-medium text-warning-600">
+            No puede iniciar una actividad porque no tiene asignaciones activas.
           </p>
         )}
       </header>

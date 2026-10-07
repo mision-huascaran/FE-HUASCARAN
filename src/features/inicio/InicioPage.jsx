@@ -5,6 +5,7 @@
 // (CU010), el Supervisor el resumen operativo con alertas (CU011) y el
 // Directivo tres indicadores institucionales y nada más (CU012).
 import InicioDocente from './InicioDocente'
+import useSincronizacionLocal from './useSincronizacionLocal'
 import InicioSupervisor from './InicioSupervisor'
 import InicioDirectivo from './InicioDirectivo'
 import useSessionStore from '../../store/sessionStore'
@@ -12,6 +13,10 @@ import { ROLES } from '../../auth/roles'
 
 export default function InicioPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
+
+  // CU003: cada entrada a Inicio con conexión refresca en segundo plano lo que
+  // el rol puede usar sin red. No bloquea ni avisa: la pantalla se pinta igual.
+  useSincronizacionLocal()
 
   if (idRol === ROLES.SUPERVISOR) return <InicioSupervisor />
   if (idRol === ROLES.DIRECTIVO) return <InicioDirectivo />

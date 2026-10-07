@@ -1144,3 +1144,128 @@ falle.
 - El **Supervisor no precarga** nada: no abre actividades. Si se decide que
   también debe trabajar sin conexión, habría que hablarlo antes, porque implica
   bajarse los datos de **todos** los docentes a un dispositivo.
+
+---
+
+## 12. Actualización de casos de uso (07/10/2026) — CU001 a CU006
+
+Los casos de uso actualizados **contradicen el contrato vigente** en dos puntos.
+No es una mejora opcional: con el backend actual, el flujo de recuperación
+queda roto a mitad de camino. El frontend ya implementa lo que dicen los CU.
+
+### 12.1 ⚠️ BLOQUEANTE — La política de contraseña es incompatible
+
+| | Contrato actual (§ *Recuperar contraseña*) | CU006 |
+| --- | --- | --- |
+| Longitud | mínimo 8 | mínimo 8 |
+| Símbolos | **prohibidos** | **obligatorio al menos uno** |
+| Mayúscula / minúscula / número | no se exigen | se exigen las tres |
+
+Las dos reglas no pueden cumplirse a la vez: **toda contraseña válida según
+CU006 es rechazada hoy con `422`**, porque lleva un símbolo. El formulario ya
+exige los cinco requisitos de CU006, así que hasta que el backend cambie, nadie
+podrá completar un restablecimiento.
+
+Lo que debe aceptar `POST /password/restablecer` y `POST /me/password`:
+
+- mínimo 8 caracteres;
+- al menos una mayúscula, una minúscula, un número y **un carácter especial**;
+- distinta de la contraseña inmediatamente anterior.
+
+### 12.2 El código pasa a ser un PIN de 6 dígitos
+
+CU005 lo redefine. Lo actual son 6 caracteres alfanuméricos con 10 minutos de
+vigencia; lo que hace falta:
+
+- **6 dígitos numéricos** (0–9), no alfanumérico.
+- Vigencia de **15 minutos**, no 10.
+- Máximo **5 intentos fallidos** de validación; al quinto, el PIN se invalida.
+- Máximo **5 solicitudes por hora** y por correo ingresado, aplicando el límite
+  igual a correos registrados, no registrados y cuentas desactivadas.
+- **Un único PIN vigente por cuenta**: generar uno nuevo invalida el anterior.
+- Un PIN usado, expirado, reemplazado o agotado no se reutiliza.
+
+### 12.3 `motivo` en los errores del PIN
+
+CU006 exige tres mensajes distintos, y hoy los tres llegan como un único `400`
+con `"Código incorrecto o expirado"`, así que el frontend no puede saber cuál
+mostrar. Basta con añadir un campo al cuerpo del error:
+
+```json
+{ "detail": "...", "motivo": "incorrecto" }
+```
+
+| `motivo` | Mensaje que mostrará el frontend |
+| --- | --- |
+| `incorrecto` | El código ingresado es incorrecto. Inténtelo nuevamente. |
+| `expirado` | El código ha expirado. Solicite un nuevo PIN. |
+| `intentos_agotados` | Se alcanzó el número máximo de intentos permitidos. Solicite un nuevo PIN para continuar. |
+| `password_igual` | La nueva contraseña debe ser diferente de la contraseña anterior. |
+
+Mientras no llegue `motivo`, se muestra el texto del servidor tal cual: es
+preferible a adivinar cuál de los tres fue.
+
+### 12.4 `429` al quinto intento de login fallido
+
+CU002 fija el bloqueo temporal, que hoy no existe:
+
+- **5 intentos consecutivos fallidos** sobre el mismo correo ingresado →
+  bloqueo de **15 minutos** para ese correo.
+- Se aplica igual exista la cuenta o no, y esté activa o desactivada: si el
+  bloqueo se comportara distinto, serviría para averiguar qué correos existen.
+- Un intento sobre una **cuenta desactivada cuenta como fallido**.
+- El bloqueo **no cambia** el estado activo/inactivo de ninguna cuenta.
+- Una autenticación satisfactoria reinicia el contador.
+
+El frontend ya distingue `429` y muestra el texto de CU002. Si el backend
+responde `401` también durante el bloqueo, el usuario leerá "Correo o contraseña
+incorrectos" y seguirá intentando sin entender por qué nunca entra.
+
+### 12.5 Textos que el backend ya no decide
+
+Estos mensajes los fija el caso de uso y el frontend los escribe por su cuenta,
+ignorando el `detail` del servidor. Se anota para que nadie intente "arreglar"
+el texto desde el backend:
+
+- `401` → `Correo o contraseña incorrectos.`
+- `403` (cuenta desactivada) → `Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.`
+- `429` → `Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.`
+- Tras pedir PIN, siempre → `Si el correo está registrado y activo, recibirá un PIN.`
+
+### 12.6 Invalidar las sesiones al restablecer
+
+CU006: un restablecimiento satisfactorio debe invalidar **todas las sesiones y
+tokens vigentes** del usuario. Hoy el backend no revoca JWT (lo dice la sección
+de `logout`), así que un token emitido con la contraseña anterior sigue siendo
+válido hasta que expire. Con la contraseña ya cambiada, eso es justo lo que
+CU006 prohíbe. Hace falta una lista de revocación o un `token_version` por
+usuario que invalide lo emitido antes del cambio.
+
+### 12.7 Cuenta de Supervisor original
+
+CU001 y CU016 la describen y el backend tendrá que marcarla:
+
+- No puede eliminarse ni desactivarse **por nadie**, ni editarse su rol.
+- Necesita exponerse como un campo (p. ej. `es_supervisor_original: true`) en
+  `GET /usuarios`, para que la interfaz bloquee el interruptor y el lápiz en vez
+  de dejar intentarlo y fallar con un error.
+- Recuperación por **Recovery Keys** de un solo uso, entregadas en un `.txt`, sin
+  depender del correo. Es un flujo que el frontend todavía **no** implementa: si
+  se quiere en la aplicación, hace falta decidir su pantalla.
+
+### 12.8 CU003 — Qué llama el frontend al entrar a Inicio
+
+Ya implementado en el cliente, se anota para que el backend conozca la carga.
+Cada vez que un usuario entra al Módulo de Inicio **con conexión**, se lanza una
+sincronización silenciosa en segundo plano, acotada por rol:
+
+| Rol | Qué baja a IndexedDB |
+| --- | --- |
+| Docente | alumnos activos, asignaciones, colegios, grados, semanas, niveles |
+| Supervisor | alumnos activos, colegios, grados, semanas |
+| Directivo | **nada** — no trabaja sin conexión (CU012) |
+
+Son peticiones `GET` normales y no bloquean la pantalla. Si alguna falla, se
+conserva la última copia buena y no se avisa al usuario. Si esto resultara
+costoso en el servidor, el endpoint único del punto 11.2 lo resolvería de golpe.
+
