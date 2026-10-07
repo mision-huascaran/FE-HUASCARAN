@@ -10,18 +10,23 @@ import { crearQueryClient } from '../../App'
 import { ToastProvider } from '../../components/ui'
 import ReporteSemanalPage from '../reporteSemanal/ReporteSemanalPage'
 import useSessionStore from '../../store/sessionStore'
+import useActividadStore from '../../store/actividadStore'
 import useFiltrosStore from '../../store/filtrosStore'
 import { ROLES } from '../../auth/roles'
 import * as db from '../../api/mock/db'
 
 const ESPERA = { timeout: 6000 }
 
-function montar(ruta = '/captura') {
+function montar(ruta = '/captura', pestanaFija = null, { conActividades = true } = {}) {
   useSessionStore.setState({
     token: 'mock.1.2026',
     usuario: { id_usuario: 1, id_rol: ROLES.PROFESOR, id_docente: 1, nombres: 'Docente de prueba' },
     cargando: false,
   })
+  // D4: la grilla solo se edita con actividades iniciadas. En las pruebas que
+  // comprueban la captura se abren; hay una que verifica justo lo contrario.
+  if (conActividades) useActividadStore.getState().iniciar({ idDocente: 1 })
+  else useActividadStore.setState({ sesion: null })
   useFiltrosStore.setState({ idPeriodo: db.PERIODO_VIGENTE.id_periodo })
 
   return render(
@@ -29,7 +34,7 @@ function montar(ruta = '/captura') {
       <ToastProvider>
         <MemoryRouter initialEntries={[ruta]}>
           <Routes>
-            <Route path="/captura" element={<ReporteSemanalPage />} />
+            <Route path="/captura" element={<ReporteSemanalPage pestanaFija={pestanaFija} />} />
           </Routes>
         </MemoryRouter>
       </ToastProvider>
@@ -89,17 +94,25 @@ describe('Rúbrica semanal (P5)', () => {
     expect(screen.getByText(/se registran siempre juntas/i)).toBeInTheDocument()
   })
 
-  it('se puede ir y volver entre las dos pestañas', async () => {
-    const usuario = userEvent.setup()
-    montar()
-    await screen.findByRole('table', {}, ESPERA)
-
-    await usuario.click(screen.getByRole('tab', { name: 'Rúbrica' }))
+  it('cada sección entra en su grilla, sin pestañas que crucen permisos', async () => {
+    // La matriz del sprint trata Rúbrica y Seguimiento de Lectura como dos
+    // secciones con permisos propios: desde una no se llega a la otra.
+    const { unmount } = montar('/captura', 'rubrica')
     expect(await screen.findByText(/se registran siempre juntas/i, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Reporte semanal' })).not.toBeInTheDocument()
+    unmount()
 
-    await usuario.click(screen.getByRole('tab', { name: 'Reporte semanal' }))
+    montar('/captura', 'semanal')
     expect(
       await screen.findByRole('button', { name: /Marcar toda la asistencia/i }, ESPERA),
     ).toBeInTheDocument()
+  })
+
+  it('sin actividades iniciadas la grilla se ve pero no se edita (D4)', async () => {
+    montar('/captura', 'semanal', { conActividades: false })
+    await screen.findByRole('table', {}, ESPERA)
+
+    expect(screen.getByText(/Iniciar actividades/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Marcar toda la asistencia/i })).not.toBeInTheDocument()
   })
 })

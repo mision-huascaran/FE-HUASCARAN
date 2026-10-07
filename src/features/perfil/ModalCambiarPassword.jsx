@@ -8,6 +8,8 @@ import Stepper from '../../components/ui/Stepper'
 import { useToast } from '../../components/ui/Toast'
 import { cambiarPasswordConCodigo, solicitarCodigoRecuperacion, verificarCodigoRecuperacion } from '../../api/resources/auth'
 import { mensajeDeError } from '../../api/client'
+import { REQUISITOS_PASSWORD, esPinValido, requisitosIncumplidos } from '../../lib/validacion'
+import useConexion from '../../hooks/useConexion'
 
 /**
  * Cambio de contraseña del usuario con sesión iniciada (APIS_BACKEND.md).
@@ -25,11 +27,17 @@ import { mensajeDeError } from '../../api/client'
  */
 const PASOS = ['Pedir código', 'Verificar código', 'Nueva contraseña']
 
-// El backend exige mínimo 8 caracteres, solo letras y números.
-const FORMATO = /^[A-Za-z0-9]{8,}$/
+/**
+ * CU004 cubre recuperar Y cambiar la contraseña: las dos exigen conexión, y las
+ * dos aplican la política de CU006 (8 caracteres, mayúscula, minúscula, número
+ * y carácter especial), que vive en `lib/validacion`.
+ */
+const SIN_CONEXION =
+  'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctese a Internet e inténtelo nuevamente.'
 
 export default function ModalCambiarPassword({ abierto, onCerrar }) {
   const toast = useToast()
+  const enLinea = useConexion()
   const [paso, setPaso] = useState(0)
   const [codigo, setCodigo] = useState('')
   const [password, setPassword] = useState('')
@@ -49,7 +57,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
     setOcupado(true)
     try {
       await solicitarCodigoRecuperacion()
-      toast.success('Código enviado', 'Revise su correo institucional. Caduca en 10 minutos.')
+      toast.success('PIN enviado', 'Revise su correo institucional. Caduca en 15 minutos.')
       setPaso(1)
     } catch (error) {
       toast.error('No se pudo enviar el código', mensajeDeError(error))
@@ -87,9 +95,10 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
     }
   }
 
-  const formatoValido = FORMATO.test(password)
+  const faltan = requisitosIncumplidos(password)
+  const formatoValido = faltan.length === 0
   const coinciden = password === confirmacion
-  const puedeGuardar = formatoValido && coinciden
+  const puedeGuardar = enLinea && formatoValido && coinciden && esPinValido(codigo.trim())
 
   return (
     <Modal
@@ -109,12 +118,18 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
     >
       <Stepper steps={PASOS} current={paso} />
 
+      {!enLinea && (
+        <p role="alert" className="mt-4 rounded-xl border border-warning-600/20 bg-warning-100 p-4 text-sm font-medium text-warning-600">
+          {SIN_CONEXION}
+        </p>
+      )}
+
       <div className="mt-5">
         {paso === 0 && (
           <div className="flex items-start gap-3 rounded-xl border border-info-600/20 bg-info-100 p-4 text-sm text-ink-700">
             <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-info-600" aria-hidden="true" />
             <p>
-              Se enviará un código de 6 caracteres a su correo institucional. Caduca a los 10 minutos y
+              Se enviará un PIN de 6 dígitos a su correo institucional. Caduca a los 15 minutos y
               solo sirve una vez.
             </p>
           </div>
@@ -127,8 +142,10 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
             value={codigo}
             onChange={(e) => setCodigo(e.target.value.toUpperCase())}
             maxLength={6}
-            placeholder="AB12CD"
-            hint="Son 6 caracteres. Si no llegó, cierre y vuelva a pedirlo."
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            hint="Son 6 dígitos. Si no llegó, cierre y vuelva a pedirlo."
           />
         )}
 
@@ -140,9 +157,19 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              error={password && !formatoValido ? 'Mínimo 8 caracteres, solo letras y números' : undefined}
-              hint="Mínimo 8 caracteres, sin símbolos ni espacios"
+              hint="Debe cumplir los cinco requisitos de abajo"
             />
+            {/* CU006 pide decir QUÉ falta, no solo que la contraseña no vale. */}
+            <ul className="-mt-2 flex flex-col gap-1 text-xs">
+              {REQUISITOS_PASSWORD.map((requisito) => {
+                const cumple = requisito.cumple(password)
+                return (
+                  <li key={requisito.id} className={cumple ? 'text-success-600' : 'text-ink-400'}>
+                    {cumple ? '✓' : '○'} {requisito.texto}
+                  </li>
+                )
+              })}
+            </ul>
             <Input
               label="Repita la nueva contraseña"
               type="password"

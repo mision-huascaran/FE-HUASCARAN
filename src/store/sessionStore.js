@@ -46,6 +46,11 @@ export const useSessionStore = create((set, get) => ({
   cerrarSesion: () => {
     try {
       sessionStorage.removeItem(CLAVE_TOKEN)
+      // D4: la sesión de ACTIVIDADES muere con la de autenticación, tanto al
+      // cerrar sesión como al vencer el JWT. No se puede seguir editando las
+      // grillas del aula con un token muerto. La COLA no se toca: los cambios
+      // pendientes sobreviven y se envían tras el siguiente login (CU005).
+      sessionStorage.removeItem('sicedu.actividad')
     } catch {
       // nada que limpiar
     }

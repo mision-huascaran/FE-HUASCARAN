@@ -98,7 +98,9 @@ describe('guardas de rol (RNF-004)', () => {
   })
 
   it('una URL desconocida lleva al inicio del rol', async () => {
+    // Los tres roles aterrizan en /inicio desde el sprint de cierre; lo que
+    // cambia es el contenido, no la ruta.
     renderRuta('/ruta-que-no-existe', USUARIOS_DE_PRUEBA[ROLES.DIRECTIVOS])
-    expect(await screen.findByRole('heading', { name: 'Panel ejecutivo' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
   })
 })

@@ -1,0 +1,748 @@
+% ---------------------------------------------------------------------------
+% SICEDU - Guia de pruebas por casos de uso (CU001 - CU021)
+% Compilar con: pdflatex GUIA_PRUEBAS.tex   (dos veces, por el indice)
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage[margin=2.3cm,headheight=14pt]{geometry}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Los colores se definen ANTES de hyperref: los recibe como opciones y tienen
+% que existir ya cuando se carga.
+\definecolor{azulmarino}{HTML}{14274E}
+\definecolor{grisclaro}{HTML}{F4F6F9}
+\definecolor{ambar}{HTML}{B45309}
+\definecolor{rojo}{HTML}{B91C1C}
+
+\usepackage[colorlinks=true,linkcolor=azulmarino,urlcolor=azulmarino]{hyperref}
+
+\titleformat{\section}{\Large\bfseries\color{azulmarino}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\color{azulmarino}\textbf{SICEDU} \textperiodcentered\ Pruebas por caso de uso}
+\rhead{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\paso}[1]{\textbf{#1}}
+\newcommand{\ruta}[1]{\textcolor{azulmarino}{\texttt{#1}}}
+\newcommand{\ok}{$\square$}
+\newcommand{\flecha}{$\rightarrow$}
+\newcommand{\cu}[1]{\textbf{CU#1}}
+
+% Aviso destacado.
+%
+% Va con minipage dentro de una caja, no con tabularx: en una celda de parrafo
+% el \\ final rompe la linea DENTRO de la celda en vez de cerrar la fila, y el
+% \hline siguiente falla. Asi admite listas y parrafos sin sorpresas.
+\newsavebox{\cajaaviso}
+\newenvironment{aviso}[1]
+  {\par\medskip\noindent
+   \begin{lrbox}{\cajaaviso}
+   \begin{minipage}{\dimexpr\textwidth-2\fboxsep-2\fboxrule\relax}
+   \smallskip
+   \textbf{\textcolor{ambar}{#1}}\par\smallskip}
+  {\smallskip\end{minipage}\end{lrbox}%
+   \fcolorbox{ambar}{grisclaro}{\usebox{\cajaaviso}}\par\medskip}
+
+\newsavebox{\cajabloqueo}
+\newenvironment{bloqueo}[1]
+  {\par\medskip\noindent
+   \begin{lrbox}{\cajabloqueo}
+   \begin{minipage}{\dimexpr\textwidth-2\fboxsep-2\fboxrule\relax}
+   \smallskip
+   \textbf{\textcolor{rojo}{#1}}\par\smallskip}
+  {\smallskip\end{minipage}\end{lrbox}%
+   \fcolorbox{rojo}{white}{\usebox{\cajabloqueo}}\par\medskip}
+
+\setlist[itemize]{itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{itemsep=2pt,topsep=4pt}
+
+\begin{document}
+
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries\color{azulmarino} SICEDU\par}
+\vspace{0.4cm}
+{\LARGE Guía de pruebas por caso de uso\par}
+\vspace{0.3cm}
+{\large CU001 a CU021\par}
+\vspace{2cm}
+{\large Misión Huascarán \textperiodcentered\ Frontend\par}
+\vspace{0.3cm}
+{\large 7 de octubre de 2026\par}
+\vfill
+{\normalsize Dirigido a quienes ejecutan las pruebas.\par}
+{\normalsize No hace falta saber programar para seguirla.\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ---------------------------------------------------------------------------
+\section{Antes de empezar}
+
+Esta guía recorre los casos de uso uno por uno. Cada apartado dice \emph{qué
+hacer} y \emph{qué debe ocurrir}; donde el caso de uso fija un texto palabra por
+palabra, aparece entre comillas y debe coincidir \textbf{exactamente}. Si algo
+no coincide, anótelo en la hoja de incidencias (página~\pageref{sec:incidencias}).
+
+\subsection{Dos formas de levantar la aplicación}
+
+\paragraph{Opción A --- sin backend.} Es la más cómoda para casi todo. En el
+fichero \texttt{.env} deje:
+
+\begin{quote}\ttfamily
+VITE\_AUTH\_REAL=false\\
+VITE\_ADMIN\_REAL=false
+\end{quote}
+
+Reinicie con \texttt{npm run dev}. La contraseña de todas las cuentas es
+\texttt{sicedu123}:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Rol} & \textbf{Correo} \\
+\midrule
+Docente    & \texttt{rcardenas@sicedu.test}  \\
+Supervisor & \texttt{jefatura@sicedu.test}   \\
+Directivo  & \texttt{direccion@sicedu.test}  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Opción B --- con backend.} Necesaria para \cu{002} (bloqueo por
+intentos), \cu{003} (vigencia real de 8 horas) y \cu{004}--\cu{006} (PIN por
+correo). Deje los dos flags en \texttt{true} y levante el backend.
+
+\subsection{Cómo simular que no hay conexión}
+
+En el navegador: \textbf{F12} \flecha{} pestaña \textbf{Network} \flecha{} el
+desplegable de \emph{throttling} \flecha{} \textbf{Offline}.
+
+Para mirar lo que la aplicación guarda en el dispositivo:
+\textbf{F12} \flecha{} \textbf{Application} \flecha{} \textbf{IndexedDB} y
+\textbf{LocalStorage}.
+
+\begin{aviso}{El orden importa en todo lo que sea sin conexión}
+Hay que entrar \textbf{con conexión}, esperar unos segundos en el Módulo de
+Inicio (ahí se descarga lo que hace falta, \cu{003}) y \emph{después} ponerse en
+modo Offline.
+
+Si se carga la aplicación ya sin red, no hay nada descargado y las pantallas
+saldrán vacías: \textbf{es el comportamiento correcto}, no un fallo.
+\end{aviso}
+
+\begin{bloqueo}{Lo que hoy NO se puede probar de extremo a extremo}
+\begin{itemize}
+  \item \textbf{\cu{006} con backend real.} El caso de uso exige que la
+        contraseña lleve un carácter especial; el backend actual rechaza
+        cualquier contraseña con símbolos. Las dos reglas se contradicen, así
+        que el restablecimiento falla al guardar. El formulario ya aplica
+        \cu{006}; falta que el backend lo acepte.
+  \item \textbf{Recovery Keys del Supervisor original} (\cu{001}). No existe
+        pantalla todavía: está por decidir si entra en la aplicación.
+  \item \textbf{\cu{002}, bloqueo de 15 minutos.} El backend aún no responde
+        \texttt{429}. La interfaz ya lo trata; no hay forma de provocarlo.
+\end{itemize}
+\end{bloqueo}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU001, CU002 y CU003 --- Ingresar al sistema}
+
+\subsection{CU001 --- Ingreso correcto y renderizado por rol}
+
+Entre con los tres roles y compare el menú lateral. No debe haber recarga de
+página al entrar: es una SPA.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Rol} & \textbf{Debe ver} \\
+\midrule
+Docente    & Inicio, Alumnos, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones \\
+Supervisor & Inicio, Usuarios, Colegios, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones, Dashboard \\
+Directivo  & Solo Inicio y Dashboard \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Ojo con Alumnos.} El Supervisor no tiene «Alumnos» como entrada
+propia: la ve dentro de \ruta{Usuarios}. Es intencionado.
+
+\subsection{CU001 --- Sin conexión}
+
+Póngase en Offline \emph{antes} de entrar y recargue \ruta{/login}.
+
+\textbf{Esperado, los tres a la vez:}
+\begin{enumerate}
+  \item El botón \textbf{Ingresar} está deshabilitado y gris.
+  \item La opción \textbf{¿Olvidó su contraseña?} está \emph{también}
+        deshabilitada y gris. Es lo que más se olvida al probar.
+  \item Se lee exactamente: \emph{«No se pudo establecer conexión con el
+        servidor. Para iniciar sesión es necesario disponer de conexión a
+        Internet.»}
+\end{enumerate}
+
+\subsection{CU002 --- Mensajes de validación}
+
+Con backend. Los textos son literales; cualquier diferencia es una incidencia.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Qué hacer} & \textbf{Texto que debe salir} \\
+\midrule
+Contraseña mal escrita & «Correo o contraseña incorrectos.» \\
+\addlinespace
+Correo que no existe & «Correo o contraseña incorrectos.» \emph{(el mismo: si fuera distinto, se podría averiguar qué correos están registrados)} \\
+\addlinespace
+Cuenta desactivada & «Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.» \\
+\addlinespace
+5 intentos fallidos seguidos & «Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.» \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{CU003 --- Vigencia de 8 horas y descarga silenciosa}
+
+\paragraph{La descarga.} Entre con conexión y quédese unos segundos en Inicio.
+En \textbf{IndexedDB} busque \texttt{sicedu.precarga}.
+
+\textbf{Esperado:} como Docente debe contener \texttt{alumnos},
+\texttt{asignaciones}, \texttt{colegios}, \texttt{grados}, \texttt{semanas} y
+los catálogos de niveles. Como Supervisor, sin \texttt{asignaciones} ni niveles.
+Como \textbf{Directivo no debe crearse nada}: no trabaja sin conexión, y no
+tiene sentido dejarle datos de menores en el dispositivo.
+
+Esto ocurre \emph{cada vez} que entra a Inicio habiendo conexión, en segundo
+plano. No debe verse ningún aviso, ni spinner, ni bloqueo de la pantalla.
+
+\paragraph{Las 8 horas no se reinician.} Entre, anote la hora de fin que muestra
+Inicio, y luego: recargue la página, cambie de módulo, póngase Offline y vuelva
+a conectar.
+
+\textbf{Esperado:} la hora de fin \textbf{no cambia} en ninguno de los cuatro
+casos. Si cambia, la sesión se está alargando sola.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU004, CU005 y CU006 --- Recuperar contraseña}
+
+\subsection{CU004 --- Sin conexión}
+
+Póngase Offline y abra \textbf{¿Olvidó su contraseña?}
+
+\textbf{Esperado:} el aviso \emph{«No es posible recuperar o cambiar la
+contraseña sin conexión a Internet. Conéctese a Internet e inténtelo
+nuevamente.»} y los botones deshabilitados. Nada debe cambiar en la contraseña.
+
+\subsection{CU005 --- Solicitar el PIN}
+
+\begin{enumerate}
+  \item Escriba un correo \textbf{que exista} y pida el PIN.
+  \item Repítalo con un correo \textbf{inventado}.
+\end{enumerate}
+
+\textbf{Esperado en los dos casos, con el mismo texto:} \emph{«Si el correo está
+registrado y activo, recibirá un PIN.»} Si los mensajes se diferencian en algo
+--- aunque sea el tiempo que tardan --- es una incidencia de seguridad.
+
+\paragraph{El PIN son 6 dígitos.} En el campo del PIN intente escribir
+\texttt{AB12CD}.
+
+\textbf{Esperado:} el campo se queda en \texttt{12}; las letras ni se escriben.
+El PIN que llega al correo debe ser numérico, caducar a los \textbf{15 minutos}
+y admitir \textbf{5 intentos}.
+
+\paragraph{Un PIN nuevo invalida el anterior.} Pida un PIN, pida otro, e intente
+usar el primero. Debe rechazarse.
+
+\subsection{CU006 --- Restablecer la contraseña}
+
+\paragraph{La política.} Debajo del campo aparece una lista de cinco requisitos
+que se van marcando conforme se cumplen. Pruebe estas contraseñas:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Contraseña} & \textbf{Esperado} \\
+\midrule
+\texttt{corta} & Faltan cuatro requisitos; el botón sigue deshabilitado \\
+\texttt{Sicedu2026} & Falta \emph{Un carácter especial}; sigue deshabilitado \\
+\texttt{Sicedu2026!} & Los cinco marcados; el botón se habilita \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{aviso}{Aquí es donde choca con el backend}
+\texttt{Sicedu2026!} es válida según \cu{006} y el formulario la acepta, pero el
+backend actual la rechaza por llevar \texttt{!}. Hasta que el backend cambie su
+validación, el guardado fallará. Repórtelo una vez y siga: no es un fallo nuevo
+cada vez que lo intente.
+\end{aviso}
+
+\paragraph{Mensajes del PIN.} Cada uno tiene su texto propio:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Situación} & \textbf{Texto} \\
+\midrule
+PIN equivocado & «El código ingresado es incorrecto. Inténtelo nuevamente.» \\
+Más de 15 minutos & «El código ha expirado. Solicite un nuevo PIN.» \\
+5 intentos fallidos & «Se alcanzó el número máximo de intentos permitidos. Solicite un nuevo PIN para continuar.» \\
+Las dos no coinciden & «Las contraseñas no coinciden.» \\
+Igual que la anterior & «La nueva contraseña debe ser diferente de la contraseña anterior.» \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Después del cambio.} \cu{006} exige que se invaliden \emph{todas} las
+sesiones. Si tiene la aplicación abierta en otra pestaña con ese usuario, al
+hacer cualquier acción debería mandarle al login.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU007 y CU008 --- Finalizar sesión}
+
+\subsection{CU007 --- Cierre manual}
+
+La opción se llama exactamente \textbf{«Cerrar sesión»} y está en la
+\textbf{barra lateral}, disponible desde cualquier módulo.
+
+\textbf{Esperado:} vuelve al login y las rutas protegidas quedan bloqueadas
+(pruebe a escribir \ruta{/rubrica} en la barra de direcciones).
+
+\subsection{CU007 --- Expiración automática a las 8 horas}
+
+\begin{aviso}{No se puede probar en modo simulado}
+El token del simulador (\texttt{mock.4.2026}) no es un JWT y no lleva fecha de
+caducidad, así que el temporizador nunca se arma. No es un fallo.
+\end{aviso}
+
+Con backend, en su \texttt{.env}:
+
+\begin{quote}\ttfamily
+ACCESS\_TOKEN\_EXPIRE\_MINUTES=1
+\end{quote}
+
+Reinicie, entre con \texttt{VITE\_AUTH\_REAL=true} y espere un minuto sin tocar
+nada.
+
+\textbf{Esperado:} lleva al login con el aviso de que la sesión terminó por
+alcanzar su tiempo máximo de 8 horas. \textbf{Déjelo otra vez en 480} al acabar.
+
+\subsection{CU008 --- Lo que se conserva al cerrar}
+
+Esta es la comprobación más delicada de toda la guía: \textbf{cerrar sesión no
+puede perder trabajo}.
+
+\begin{enumerate}
+  \item Como Docente, inicie actividad con conexión.
+  \item Póngase Offline y edite una fila de Rúbrica.
+  \item Confirme que arriba pone «Sin conexión \textperiodcentered{} 1 pendiente».
+  \item Cierre sesión.
+\end{enumerate}
+
+\textbf{Esperado:} avisa de que no se va a perder nada, y en \textbf{IndexedDB}
+la clave \texttt{sicedu.cola-envios} \textbf{sigue existiendo}. Vuelva a entrar:
+los cambios se envían solos.
+
+\paragraph{Y el caso contrario.} Vuelva a conectar, espere a «Todo
+sincronizado», y cierre sesión otra vez. Ahora \texttt{sicedu.cola-envios}
+\textbf{sí desaparece}: son datos de menores y no deben quedarse en un
+dispositivo compartido una vez enviados.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU009 y CU010 --- Actividad de trabajo del Docente}
+
+Los botones están en la \textbf{esquina superior derecha} y son solo del
+Docente. Con Supervisor o Directivo no deben aparecer.
+
+\subsection{CU010 --- Sin actividad no se escribe}
+
+Como Docente, sin pulsar nada, entre en \ruta{Rúbrica}.
+
+\textbf{Esperado:} aviso de que debe iniciar actividad y los selectores
+deshabilitados. Al pulsar el botón, se habilitan.
+
+\subsection{CU010 --- El texto de las horas}
+
+Tras iniciar actividad, en \ruta{Inicio} debe leerse con esta forma exacta:
+
+\begin{quote}
+\emph{«Actividad iniciada a las HH:MM. La sesión finaliza a las HH:MM.»}
+\end{quote}
+
+\textbf{No debe haber cronómetro regresivo}, solo texto fijo.
+
+\begin{aviso}{La prueba que destapa el error más sutil}
+Las dos horas son de cosas distintas: la primera es cuándo abrió la actividad;
+la segunda es cuándo muere \emph{la sesión}, que se fijó al entrar.
+
+Para comprobarlo: entre, \textbf{espere un rato} sin iniciar actividad, y recién
+entonces púlsela. La hora de fin debe seguir siendo la de su ingreso más ocho
+horas, \textbf{no} la de ahora más ocho. Si una actividad abierta a las 14:00
+dice que termina a las 22:00 cuando usted entró a las 08:00, está mal: la sesión
+muere a las 16:00 y el docente perdería el trabajo sin avisar.
+\end{aviso}
+
+\subsection{CU010 --- Docente sin asignaciones}
+
+Con una cuenta de Docente sin asignaciones vigentes:
+
+\textbf{Esperado:} el botón \textbf{Iniciar actividad} se ve \emph{deshabilitado
+y no oculto}, acompañado del texto \emph{«No puede iniciar una actividad porque
+no tiene asignaciones activas.»}
+
+\subsection{CU009 --- Varias actividades en una sesión}
+
+Inicie actividad, finalícela, y vuelva a iniciar otra.
+
+\textbf{Esperado:} se permite, la sesión sigue viva, y la hora de fin mostrada
+\textbf{es la misma que antes}. Una actividad nueva no regala ocho horas más.
+
+\subsection{CU009 --- Sin conexión durante la actividad}
+
+Con actividad abierta, póngase Offline:
+
+\begin{itemize}
+  \item Rúbrica, Seguimiento de Lectura y Registro de Vuelo \textbf{se siguen
+        pudiendo editar}; lo editado va a IndexedDB.
+  \item \ruta{Alumnos} queda en \textbf{solo lectura}: no se puede crear, editar
+        ni desactivar a nadie sin conexión.
+  \item Los filtros que tenía puestos se conservan al cambiar de módulo.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU011 y CU012 --- Módulo de Inicio de Supervisor y Directivo}
+
+\subsection{CU011 --- Supervisor}
+
+\textbf{Esperado:} colegios registrados, docentes activos, docentes con
+actividad en curso, registros pendientes, registros incompletos y las Alertas de
+Inactividad. Las alertas críticas van en rojo \textbf{y además} con texto o
+icono: el color no puede ser la única señal.
+
+El umbral de inactividad es de \textbf{4 días hábiles} sin iniciar actividad, y
+no es configurable desde la interfaz.
+
+\paragraph{Sin conexión.} Entre con conexión, luego póngase Offline y recargue
+el Módulo de Inicio.
+
+\textbf{Esperado:} se muestra el último resumen guardado, \textbf{marcado como
+potencialmente desactualizado}. No debe generar alertas nuevas estando sin red.
+
+\paragraph{Sin nada guardado.} Con \textbf{LocalStorage} vacío y sin conexión,
+debe informar de que no hay información operativa disponible sin conexión.
+
+\subsection{CU012 --- Directivo}
+
+\textbf{Esperado: exactamente tres tarjetas}, ni una más:
+
+\begin{enumerate}
+  \item Total de Beneficiarios Activos
+  \item Total de Colegios Operando
+  \item Salud del Sistema (porcentaje de sincronización)
+\end{enumerate}
+
+\textbf{No debe haber} gráficos, tendencias, rankings ni comparaciones. Tampoco
+nombres de estudiantes. Si el servidor no puede calcular el porcentaje, la
+tercera tarjeta dice \emph{«Sin datos disponibles»} y \textbf{nunca} un número
+estimado.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU013 a CU016 --- Mantenimientos}
+
+Las tres pantallas se comportan igual a propósito. Entre como \textbf{Supervisor}
+y repita en \ruta{Colegios} (\cu{013}), \ruta{Alumnos} (\cu{014}) y
+\ruta{Usuarios} (\cu{016}).
+
+\begin{enumerate}
+  \item \paso{Estado = Activo por defecto.} El filtro arranca ahí sin tocarlo.
+  \item \paso{Paginación de 10 por página}, con Anterior / Siguiente abajo.
+  \item \paso{Agregar.} Pulse \emph{Guardar} vacío: sale «Este campo es
+        obligatorio» bajo \textbf{cada} campo, no un aviso genérico arriba.
+  \item \paso{Editar.} Mismo formulario con datos. El \emph{Rol} va bloqueado.
+  \item \paso{Inactivar.} Pide confirmación y avisa de que no se borra nada.
+        Al confirmar, la fila desaparece del filtro \emph{Activos} y
+        \textbf{reaparece} en \emph{Inactivos}. Nunca se borra de verdad.
+  \item \paso{Auditoría.} Dentro de Editar o Ver: quién, cuándo, qué campo,
+        valor antes y después.
+\end{enumerate}
+
+\subsection{Lo propio de cada pantalla}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Pantalla} & \textbf{Qué comprobar} \\
+\midrule
+Colegios (\cu{013}) & \emph{Grados y secciones} es una lista con \emph{Añadir sección}, no un cuadro de texto libre. \\
+\addlinespace
+Alumnos (\cu{014}) & Existe \emph{Ciclo evaluado} aparte de \emph{Grado}: un alumno de 6.\textordmasculine{} puede evaluarse con la rúbrica del ciclo~III. Como Docente, el desplegable de Colegio solo muestra \textbf{sus} colegios; como Supervisor, los nueve. \\
+\addlinespace
+Usuarios (\cu{016}) & Al elegir rol \emph{Docente} aparecen \emph{Colegios asignados} y \emph{Secciones asignadas}; con Supervisor o Directivo, no. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Modo sin conexión en los tres}
+
+Póngase Offline estando en cualquiera de las tres.
+
+\textbf{Esperado:} \emph{Agregar}, los lápices y los interruptores quedan
+\textbf{deshabilitados y grises}, y la tabla se sigue viendo en solo lectura.
+Los filtros siguen funcionando.
+
+\subsection{CU015 --- Detalle del alumno}
+
+Haga clic sobre el \textbf{nombre} de un alumno (es un enlace; el resto de la
+fila no abre nada, para poder copiar datos sin abrir el perfil por accidente).
+
+\textbf{Esperado:} cabecera con avatar de iniciales, nombre y las etiquetas
+Colegio, Subprograma, Ciclo EBR, Grado y Estado; debajo, cinco pestañas
+(Resumen, Registro de Vuelo, Rúbrica, Seguimiento de Lectura e Historial).
+
+\paragraph{Sin conexión.} Las pestañas operativas siguen funcionando con lo
+descargado, pero \textbf{Historial} muestra un estado vacío con el mensaje de
+que no está disponible sin conexión. Es intencionado: ese historial no se
+descarga al dispositivo.
+
+\begin{aviso}{Cuenta protegida}
+\cu{016} obliga a proteger la cuenta de \textbf{Supervisor original}: no se
+puede desactivar, ni eliminar, ni cambiarle el rol, y nadie puede
+auto\-desactivarse. Hoy el backend todavía no marca cuál es esa cuenta, así que
+la interfaz no puede bloquear el interruptor. Compruébelo cuando esté.
+\end{aviso}
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{CU017, CU018 y CU019 --- Sesiones del Docente}
+
+Entre como \textbf{Docente} en \ruta{Sesiones}. Solo debe ver \textbf{las
+suyas}.
+
+\subsection{CU017 --- El listado}
+
+\textbf{Esperado por fila:} identificador, fecha, hora de inicio y de fin,
+duración, cantidad de cambios, estado (\emph{En curso} / \emph{Finalizada}),
+estado de sincronización (\emph{Sincronizada} / \emph{Pendiente} /
+\emph{Error}) y tipo de cierre.
+
+\paragraph{Son dos cosas distintas.} Una sesión puede estar \emph{Finalizada} y
+a la vez \emph{Pendiente} de sincronización. Si la pantalla las mezcla o una
+depende de la otra, es una incidencia.
+
+\subsection{CU018 --- Los filtros}
+
+Filtre por fecha desde / hasta, estado, sincronización y tipo de cierre.
+
+\begin{itemize}
+  \item Ponga la fecha inicial \textbf{posterior} a la final: no debe buscar, y
+        debe avisar de que el rango no es válido.
+  \item Aplique filtros, salga del módulo y vuelva: \textbf{se conservan}.
+  \item Pulse \emph{Limpiar filtros}: vuelven a los valores por defecto.
+\end{itemize}
+
+\subsection{CU019 --- El detalle}
+
+Pulse \emph{Ver detalle}. Debe mostrar el resumen de cambios agrupados por
+módulo (Rúbrica, Seguimiento de Lectura, Registro de Vuelo).
+
+\paragraph{Lo más interesante.} Busque la etiqueta naranja \emph{«Sincronizado
+de forma diferida»}. Sale solo en los cambios cuya hora de captura es distinta
+de la de recepción, es decir, los hechos sin conexión. Es la prueba de que el
+trabajo offline queda trazado con su hora real y no con la de llegada.
+
+\paragraph{Sin conexión.} Este módulo es estrictamente en línea. Estando Offline
+debe mostrar un estado vacío diciendo que el detalle no está disponible sin
+conexión, y \textbf{no} sacar nada de la memoria local.
+
+% ---------------------------------------------------------------------------
+\section{CU020 y CU021 --- Seguimiento de docentes (Supervisor)}
+
+\subsection{CU020 --- La grilla}
+
+\textbf{Esperado por fila:} docente, colegios asignados, última conexión, estado
+de sincronización y cantidad de registros pendientes, con un botón de ver
+detalle.
+
+El orden por defecto pone \textbf{primero a los que tienen pendientes}, y
+después el resto alfabéticamente. Es lo que hace útil la pantalla: los problemas
+arriba.
+
+\subsection{CU021 --- Historial de un docente}
+
+Pulse el ojo de una fila. Debe abrirse una vista con la cabecera del docente y
+su bitácora de sesiones, de la más reciente a la más antigua, paginada de 10 en
+10.
+
+\paragraph{Los atajos.} Desde una sesión, los botones llevan al módulo operativo
+con los filtros ya puestos para ese docente y esa fecha. \textbf{Compruebe que
+llega en solo lectura}: el Supervisor no puede modificar notas académicas por
+mucho que haya llegado desde aquí.
+
+\paragraph{Sin conexión.} Los dos módulos son estrictamente en línea: deben
+mostrar un estado vacío y no tirar de memoria local.
+
+% ---------------------------------------------------------------------------
+\newpage
+\section{Lo que verán simulado}
+
+Estas pantallas funcionan y se ven completas, pero sus datos \textbf{no vienen
+del backend} porque esos endpoints aún no están publicados. No tiene sentido
+reportar que «los datos no son reales»:
+
+\begin{itemize}
+  \item Auditoría
+  \item Sesiones y seguimiento de docentes
+  \item Secciones
+  \item Asistencia
+  \item Los resúmenes del Módulo de Inicio
+\end{itemize}
+
+Lo que sí tiene sentido probar en ellas es el \emph{comportamiento}: filtros,
+estados vacíos, permisos, avisos y qué pasa sin conexión.
+
+% ---------------------------------------------------------------------------
+\section{Lista de verificación e incidencias}
+\label{sec:incidencias}
+
+Marque la casilla de lo que sí ocurrió como se describe. Deje la casilla vacía y
+rellene la última columna cuando no coincida: cuanto más concreto el «qué
+ocurrió», más rápido se arregla.
+
+Las filas van en el mismo orden que la guía, así que puede recorrerla de arriba
+abajo sin saltar.
+
+% longtable se centra sola; meterla en un center descuadra el espaciado.
+% La columna del CU necesita 2 cm: "CU013/14/16" se parte en tres líneas si no.
+\begin{longtable}{|c|p{1.9cm}|p{6.1cm}|p{4.3cm}|}
+\hline
+\textbf{\ok} & \textbf{CU} & \textbf{Qué debía ocurrir} & \textbf{Qué ocurrió} \\
+\hline
+\endhead
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Ingresar al sistema}} \\ \hline
+\ok & CU001 & Docente ve: Inicio, Alumnos, Asistencia, Rúbrica, Lectura, Vuelo, Sesiones & \\[0.5cm] \hline
+\ok & CU001 & Supervisor ve además Usuarios, Colegios y Dashboard; Alumnos vive dentro de Usuarios & \\[0.5cm] \hline
+\ok & CU001 & Directivo ve solo Inicio y Dashboard & \\[0.5cm] \hline
+\ok & CU001 & Al entrar no se recarga la página (es una SPA) & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: el botón \emph{Ingresar} queda deshabilitado y gris & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: \emph{¿Olvidó su contraseña?} queda \textbf{también} deshabilitada y gris & \\[0.5cm] \hline
+\ok & CU001 & Sin conexión: texto exacto «No se pudo establecer conexión con el servidor\ldots» & \\[0.5cm] \hline
+\ok & CU002 & Contraseña mal escrita \flecha{} «Correo o contraseña incorrectos.» & \\[0.5cm] \hline
+\ok & CU002 & Correo inexistente \flecha{} \textbf{el mismo} texto, sin delatar que no existe & \\[0.5cm] \hline
+\ok & CU002 & Cuenta desactivada \flecha{} «Su cuenta se encuentra desactivada\ldots» & \\[0.5cm] \hline
+\ok & CU002 & 5 intentos fallidos \flecha{} «Demasiados intentos fallidos\ldots 15 minutos.» & \\[0.5cm] \hline
+\ok & CU003 & Docente: \texttt{sicedu.precarga} con alumnos, asignaciones, colegios, grados, semanas y niveles & \\[0.5cm] \hline
+\ok & CU003 & Supervisor: la misma clave, pero sin asignaciones ni niveles & \\[0.5cm] \hline
+\ok & CU003 & Directivo: \textbf{no} se crea \texttt{sicedu.precarga} & \\[0.5cm] \hline
+\ok & CU003 & La descarga es silenciosa: ni aviso, ni spinner, ni bloqueo & \\[0.5cm] \hline
+\ok & CU003 & La hora de fin no cambia al recargar, cambiar de módulo, perder ni recuperar conexión & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Recuperar contraseña}} \\ \hline
+\ok & CU004 & Sin conexión: aviso «No es posible recuperar o cambiar la contraseña\ldots» y botones deshabilitados & \\[0.5cm] \hline
+\ok & CU005 & Correo real y correo inventado dan \textbf{el mismo} texto: «Si el correo está registrado y activo, recibirá un PIN.» & \\[0.5cm] \hline
+\ok & CU005 & Al escribir \texttt{AB12CD} en el PIN, el campo se queda en \texttt{12} & \\[0.5cm] \hline
+\ok & CU005 & Pedir un PIN nuevo invalida el anterior & \\[0.5cm] \hline
+\ok & CU006 & \texttt{corta}: faltan requisitos y el botón sigue deshabilitado & \\[0.5cm] \hline
+\ok & CU006 & \texttt{Sicedu2026}: falta \emph{Un carácter especial} & \\[0.5cm] \hline
+\ok & CU006 & \texttt{Sicedu2026!}: los cinco marcados y el botón se habilita & \\[0.5cm] \hline
+\ok & CU006 & PIN equivocado, expirado y agotado tienen \textbf{tres} textos distintos & \\[0.5cm] \hline
+\ok & CU006 & Contraseñas distintas \flecha{} «Las contraseñas no coinciden.» & \\[0.5cm] \hline
+\ok & CU006 & Tras cambiarla, la otra pestaña abierta con ese usuario va al login & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Finalizar sesión}} \\ \hline
+\ok & CU007 & «Cerrar sesión» está en la barra lateral y desde cualquier módulo & \\[0.5cm] \hline
+\ok & CU007 & Tras salir, escribir \ruta{/rubrica} a mano no entra & \\[0.5cm] \hline
+\ok & CU007 & Al expirar, lleva al login avisando de las 8 horas & \\[0.5cm] \hline
+\ok & CU008 & Salir \textbf{con} pendientes: \texttt{sicedu.cola-envios} sigue existiendo & \\[0.5cm] \hline
+\ok & CU008 & Al volver a entrar, los cambios pendientes se envían solos & \\[0.5cm] \hline
+\ok & CU008 & Salir ya sincronizado: \texttt{sicedu.cola-envios} desaparece & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Actividad de trabajo del Docente}} \\ \hline
+\ok & CU010 & Los botones de actividad solo aparecen al Docente & \\[0.5cm] \hline
+\ok & CU010 & Sin actividad abierta, los selectores de Rúbrica están deshabilitados & \\[0.5cm] \hline
+\ok & CU010 & Texto exacto «Actividad iniciada a las HH:MM. La sesión finaliza a las HH:MM.» & \\[0.5cm] \hline
+\ok & CU010 & No hay cronómetro regresivo, solo texto fijo & \\[0.5cm] \hline
+\ok & CU010 & La hora de fin es la del \textbf{ingreso} más 8 h, no la de la actividad más 8 h & \\[0.5cm] \hline
+\ok & CU010 & Sin asignaciones: botón deshabilitado \textbf{y no oculto}, con el texto que lo explica & \\[0.5cm] \hline
+\ok & CU009 & Segunda actividad en la misma sesión: la hora de fin \textbf{no} cambia & \\[0.5cm] \hline
+\ok & CU009 & Offline: Rúbrica, Lectura y Vuelo se siguen pudiendo editar & \\[0.5cm] \hline
+\ok & CU009 & Offline: Alumnos queda en solo lectura & \\[0.5cm] \hline
+\ok & CU009 & Los filtros se conservan al cambiar de módulo & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Módulo de Inicio: Supervisor y Directivo}} \\ \hline
+\ok & CU011 & Salen los seis indicadores y las Alertas de Inactividad & \\[0.5cm] \hline
+\ok & CU011 & Las alertas críticas llevan rojo \textbf{y además} texto o icono & \\[0.5cm] \hline
+\ok & CU011 & Offline: se muestra el último resumen, marcado como desactualizado & \\[0.5cm] \hline
+\ok & CU011 & Offline y sin nada guardado: avisa de que no hay información disponible & \\[0.5cm] \hline
+\ok & CU012 & Exactamente tres tarjetas, ni una más & \\[0.5cm] \hline
+\ok & CU012 & Sin gráficos, rankings ni nombres de estudiantes & \\[0.5cm] \hline
+\ok & CU012 & Sin datos suficientes: «Sin datos disponibles», nunca un porcentaje estimado & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Mantenimientos}} \\ \hline
+\ok & CU013/14/16 & El filtro Estado arranca en \emph{Activo} sin tocarlo & \\[0.5cm] \hline
+\ok & CU013/14/16 & Paginación de 10 por página con Anterior / Siguiente & \\[0.5cm] \hline
+\ok & CU013/14/16 & Guardar vacío: el error sale bajo \textbf{cada} campo, no arriba & \\[0.5cm] \hline
+\ok & CU013/14/16 & Inactivar pide confirmación y la fila reaparece en \emph{Inactivos} & \\[0.5cm] \hline
+\ok & CU013/14/16 & Auditoría: quién, cuándo, campo, valor antes y después & \\[0.5cm] \hline
+\ok & CU013/14/16 & Offline: Agregar, lápices e interruptores grises; la tabla se sigue leyendo & \\[0.5cm] \hline
+\ok & CU013 & \emph{Grados y secciones} es una lista, no un cuadro de texto libre & \\[0.5cm] \hline
+\ok & CU014 & Existe \emph{Ciclo evaluado} aparte de \emph{Grado} & \\[0.5cm] \hline
+\ok & CU014 & Como Docente, el desplegable de Colegio solo muestra los suyos & \\[0.5cm] \hline
+\ok & CU016 & Al elegir rol Docente aparecen Colegios y Secciones asignados & \\[0.5cm] \hline
+\ok & CU015 & El nombre del alumno es un enlace; el resto de la fila no abre nada & \\[0.5cm] \hline
+\ok & CU015 & Cabecera con avatar, nombre y cinco etiquetas; debajo, cinco pestañas & \\[0.5cm] \hline
+\ok & CU015 & Offline: Historial muestra estado vacío; las demás pestañas funcionan & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Sesiones del Docente}} \\ \hline
+\ok & CU017 & El Docente solo ve sus propias sesiones & \\[0.5cm] \hline
+\ok & CU017 & Están todas las columnas, incluida duración y tipo de cierre & \\[0.5cm] \hline
+\ok & CU017 & Una sesión puede estar \emph{Finalizada} y \emph{Pendiente} a la vez & \\[0.5cm] \hline
+\ok & CU018 & Fecha inicial posterior a la final: no busca y avisa & \\[0.5cm] \hline
+\ok & CU018 & Los filtros se conservan al salir y volver al módulo & \\[0.5cm] \hline
+\ok & CU018 & \emph{Limpiar filtros} los devuelve a sus valores por defecto & \\[0.5cm] \hline
+\ok & CU019 & El detalle agrupa los cambios por módulo & \\[0.5cm] \hline
+\ok & CU019 & Aparece la etiqueta «Sincronizado de forma diferida» donde corresponde & \\[0.5cm] \hline
+\ok & CU019 & Offline: estado vacío, sin sacar nada de la memoria local & \\[0.5cm] \hline
+
+\multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Seguimiento de docentes (Supervisor)}} \\ \hline
+\ok & CU020 & Están todas las columnas y el botón de ver detalle & \\[0.5cm] \hline
+\ok & CU020 & Los docentes con pendientes salen \textbf{primero} & \\[0.5cm] \hline
+\ok & CU021 & Bitácora de la más reciente a la más antigua, 10 por página & \\[0.5cm] \hline
+\ok & CU021 & Los atajos llevan al módulo con filtros puestos y \textbf{en solo lectura} & \\[0.5cm] \hline
+\ok & CU020/21 & Offline: estado vacío en los dos, sin memoria local & \\[0.5cm] \hline
+\end{longtable}
+
+\vfill
+\noindent\rule{\textwidth}{0.4pt}
+
+\noindent\small Al reportar, indique siempre cuatro cosas: el \textbf{caso de
+uso}, el \textbf{rol} con el que entró, si estaba en \textbf{modo simulado o con
+backend}, y si tenía o no \textbf{conexión}. Las cuatro cambian el
+comportamiento esperado.
+
+\end{document}

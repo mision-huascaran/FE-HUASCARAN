@@ -1,76 +1,65 @@
-// Menú lateral y etiquetas de las migas de pan, en una sola constante (§5).
-// Nada de condicionales de rol repartidos por los componentes: si un rol no debe
-// ver un enlace, no está en su lista de aquí — y además `RoleRoute` bloquea la
-// ruta, porque ocultar el enlace no es una medida de seguridad (RNF-004).
+// Menú lateral y etiquetas de las migas de pan.
+//
+// El menú se DERIVA de la matriz de permisos (`auth/permisos.js`), que el
+// documento del sprint declara fuente única. Antes había una lista por rol
+// escrita a mano y se desincronizaba con las guardas; ahora, si un rol no tiene
+// la sección en la matriz, no aparece el enlace y la ruta además lo rechaza.
 import {
-  AlertTriangle,
-  ClipboardCheck,
+  BookOpenCheck,
+  CalendarCheck,
   ClipboardList,
-  FileDown,
   GraduationCap,
+  History,
   Home,
-  Layers,
   LayoutDashboard,
   Plane,
   School,
-  Settings,
+  Users,
 } from 'lucide-react'
-import { ROLES } from '../../auth/roles'
+import { seccionesDeMenu } from '../../auth/permisos'
 
-/**
- * Un bloque por rol y ni uno más.
- *
- * `ROLES` tiene alias (`PROFESOR`/`DOCENTE`, `JEFA`/`SUPERVISOR`,
- * `DIRECTIVOS`/`DIRECTIVO`) que valen el mismo número. Si se escriben dos
- * bloques, el segundo PISA al primero sin avisar: así desapareció "Cuentas" del
- * menú del Directivo. Se usa el nombre nuevo de cada rol, una sola vez.
- */
-export const NAV_BY_ROLE = {
-  [ROLES.DOCENTE]: [
-    { to: '/inicio', label: 'Inicio', icon: Home },
-    { to: '/reporte-semanal', label: 'Reporte semanal', icon: ClipboardList },
-    { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
-    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-    { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
-    { to: '/consulta-colegios', label: 'Consulta de colegios', icon: School },
-  ],
-  [ROLES.SUPERVISOR]: [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/colegios', label: 'Colegios y ranking', icon: School },
-    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-    { to: '/registro-vuelo', label: 'Registro de vuelo', icon: Plane },
-    { to: '/nivel-final', label: 'Nivel final', icon: ClipboardCheck },
-    { to: '/consolidados', label: 'Consolidados', icon: Layers },
-    { to: '/alertas', label: 'Alertas', icon: AlertTriangle },
-    { to: '/administracion', label: 'Administración', icon: Settings },
-  ],
-  [ROLES.DIRECTIVO]: [
-    { to: '/panel-ejecutivo', label: 'Panel ejecutivo', icon: LayoutDashboard },
-    { to: '/colegios', label: 'Colegios', icon: School },
-    { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-    { to: '/reportes', label: 'Reportes', icon: FileDown },
-    { to: '/administracion', label: 'Cuentas', icon: Settings },
-  ],
+const ICONOS = {
+  inicio: Home,
+  alumnos: GraduationCap,
+  usuarios: Users,
+  colegios: School,
+  asistencia: CalendarCheck,
+  rubrica: ClipboardList,
+  lectura: BookOpenCheck,
+  vuelo: Plane,
+  sesiones: History,
+  dashboard: LayoutDashboard,
 }
 
-export const navegacionDe = (idRol) => NAV_BY_ROLE[idRol] ?? []
+export const navegacionDe = (idRol) =>
+  seccionesDeMenu(idRol).map((s) => ({ to: s.ruta, label: s.etiqueta, icon: ICONOS[s.clave] ?? Home }))
+
+/** Compatibilidad con las pruebas y pantallas que leían el mapa por rol. */
+export const NAV_BY_ROLE = {
+  1: navegacionDe(1),
+  2: navegacionDe(2),
+  3: navegacionDe(3),
+}
 
 /** Etiqueta de cada segmento de URL para las migas de pan (P2). */
 export const ETIQUETAS_RUTA = {
   inicio: 'Inicio',
   alumnos: 'Alumnos',
-  'reporte-semanal': 'Reporte semanal',
+  usuarios: 'Usuarios',
+  colegios: 'Colegios',
+  asistencia: 'Asistencia',
+  rubrica: 'Rúbrica',
+  'seguimiento-lectura': 'Seguimiento de Lectura',
   'registro-vuelo': 'Registro de Vuelo',
   nuevo: 'Nueva evaluación',
+  sesiones: 'Sesiones',
+  dashboard: 'Dashboard',
   estudiantes: 'Alumnos',
   'nivel-final': 'Nivel final mensual',
   'consulta-colegios': 'Consulta de colegios',
-  dashboard: 'Dashboard',
-  colegios: 'Colegios',
   consolidados: 'Consolidados',
   alertas: 'Alertas',
-  administracion: 'Administración',
-  'panel-ejecutivo': 'Panel ejecutivo',
+  ranking: 'Ranking de colegios',
   reportes: 'Reportes',
   403: 'Sin permisos',
 }

@@ -67,16 +67,19 @@ describe('Sidebar', () => {
     expect(screen.queryByText('jefatura@sicedu.test')).not.toBeInTheDocument()
   })
 
-  it('cada rol ve solo sus enlaces: el Docente no entra en Administración', () => {
+  it('cada rol ve solo sus enlaces: el Docente no entra en Usuarios', () => {
     montar(ROLES.DOCENTE)
     expect(screen.getByRole('link', { name: /Alumnos/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Reporte semanal/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Administración/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Rúbrica/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Seguimiento de Lectura/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Usuarios/ })).not.toBeInTheDocument()
   })
 
-  it('el Directivo llega a Cuentas y no a las pantallas de captura', () => {
+  it('el Directivo solo ve Inicio y Dashboard (D2)', () => {
     montar(ROLES.DIRECTIVO)
-    expect(screen.getByRole('link', { name: /Cuentas/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Reporte semanal/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument()
+    // Ya no gestiona cuentas, ni llega a las grillas del aula.
+    expect(screen.queryByRole('link', { name: /Usuarios/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Rúbrica/ })).not.toBeInTheDocument()
   })
 })

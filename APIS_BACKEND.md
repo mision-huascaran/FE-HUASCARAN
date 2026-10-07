@@ -887,3 +887,385 @@ JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=480
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000
 ```
+
+---
+
+# Lo que el frontend necesita del backend — sprint de cierre (06/10/2026)
+
+> Escrito por el frontend a partir de *SICEDU — Sprint de cierre: Seguridad,
+> Offline y Mantenimientos*. Las pantallas de abajo **ya están construidas** y
+> hoy se alimentan del simulador; en cuanto exista cada endpoint se conectan
+> cambiando una línea en `src/api/resources/`.
+>
+> Orden de prioridad: 1 y 2 desbloquean los mantenimientos; 3 y 4, el offline.
+
+## 1. Secciones (bloqueante)
+
+El concepto de **sección** no existe en el modelo y la matriz lo usa en todas
+partes: un Docente tiene *una o varias secciones por colegio*, y un Alumno
+pertenece a *exactamente un colegio y una sección*.
+
+- `GET /colegios/{id_colegio}/secciones` → `[{ id_seccion, id_colegio, id_grado, nombre }]`
+- `POST` y `PATCH` de secciones, para el mantenimiento de Colegios.
+- `id_seccion` en **`POST /alumnos`**, en **`PATCH /alumnos/{id}`** y en la
+  respuesta de `GET /alumnos`.
+- `GET /alumnos?seccion=` como filtro.
+
+Sin esto, el alta de alumno no puede cumplir "un colegio y una sección".
+
+## 2. Baja lógica de colegios y campos nuevos
+
+D5 retira "Eliminar" de todas las secciones: solo inactivar y activar.
+
+- Columna **`activo`** en `colegio`, y `PATCH /colegios/{id}` aceptándola.
+  Inactivar un colegio **no** debe tocar sus alumnos ni sus registros.
+- Campos **`codigo`** (código modular) y **`ubicacion`** en `colegio`.
+- Filtro **`?activo=`** en `GET /colegios`, `GET /usuarios` y `GET /profesores`.
+  Todas las grillas abren en Estado = Activo, y hoy ese filtro se hace en el
+  navegador sobre la lista completa.
+
+## 3. Sesiones de actividades (D4)
+
+Son **distintas** de la sesión de autenticación. El docente las abre con un
+botón, y son las que habilitan la edición de las grillas del aula. El id es un
+**UUID generado en el navegador**, para poder iniciarlas sin red.
+
+- `POST /sesiones` → acepta el `uuid` del cliente, `id_docente`, `inicio`.
+- `PATCH /sesiones/{uuid}/cerrar` → `fin`.
+- `GET /sesiones` → las propias del Docente; todas para el Supervisor, con
+  `?docente=` para filtrar.
+- `GET /sesiones/{uuid}` → el detalle con sus cambios.
+
+Debe ser **idempotente por uuid**: al reconectar, el navegador reenvía el mismo
+inicio y no puede duplicarse.
+
+## 4. Auditoría por campo (D7)
+
+La pestaña Auditoría de la plantilla de mantenimiento ya está hecha y espera:
+
+- `GET /auditoria?entidad=alumno|usuario|colegio&id={id}` →
+  `[{ id_cambio, fecha_cliente, fecha_servidor, usuario, campo, valor_anterior, valor_nuevo, sesion_actividad_id }]`
+
+Las dos fechas importan: un cambio capturado sin conexión se marca en pantalla
+como *"Sincronizado de forma diferida"* comparándolas.
+
+## 5. Sincronización en lote (T13)
+
+- `POST /sincronizar` → recibe el lote de eventos de la cola:
+  `{ uuid, sesion_actividad_id, entidad, registro_id, campo, valor_anterior, valor_nuevo, fecha_cliente, version_base }`
+- **Idempotente por `uuid`** (ignora los ya procesados) y revalida rol y
+  asignación **por evento**.
+- Si `version_base` no coincide y otro cambio tocó el mismo campo, devolver el
+  registro como **"Con observaciones"**; si fueron campos distintos, aplicar ambos.
+- Campo **`version`** en las tablas que se editan, para poder detectarlo.
+
+## 6. Permisos que cambian respecto a lo acordado antes
+
+| Endpoint | Antes | Ahora (matriz del sprint) |
+| --- | --- | --- |
+| `POST /alumnos`, `PATCH /alumnos/{id}` | solo Docente | **Docente y Supervisor** (D1) |
+| `GET /usuarios`, `POST /usuarios` | Supervisor y Directivo | **solo Supervisor** (D2) |
+| `POST /usuarios` con `id_rol=3` | 403 al Supervisor | **permitido**: el Supervisor crea todos los roles (D2) |
+| `PATCH /usuarios/{id}/activar` y `/desactivar` | Supervisor y Directivo | **solo Supervisor** |
+
+El Directivo queda **sin acceso a Usuarios**: solo Inicio y Dashboard.
+
+## 7. Docente con varias asignaciones
+
+`POST /profesores` y `PATCH /profesores/{id}` deben aceptar **varios colegios y
+varias secciones por colegio** en la misma llamada — hoy la asignación se crea
+aparte, una por una, y el popup de Usuarios las envía juntas.
+
+## 8. Lo que ya está pedido y sigue pendiente
+
+- El núcleo académico (`/rubrica-semanal`, `/reporte-semanal`,
+  `/evaluacion-diagnostica`, `/nivel-final-mensual`): sin él, las tres grillas
+  del aula siguen con datos simulados y la demo offline no toca datos reales.
+- `GET /periodos-academicos`: el selector de periodo de las asignaciones solo
+  puede ofrecer los que ya aparecen en alguna asignación existente.
+
+---
+
+## 9. Añadido tras *Actualización de casos de uso* (07/10/2026)
+
+### 9.1 Asistencia por fecha (CU de Asistencia, T30)
+
+Sección **nueva** del Docente, distinta del Seguimiento de Lectura: la grilla es
+**por fecha**, no por semana.
+
+- `GET /asistencia?colegio=&grado=&seccion=&fecha=` → la grilla, o `404`/`null`
+  si no existe todavía para esa fecha.
+- `POST /asistencia/grilla` → `{ id_colegio, id_grado, id_seccion, fecha }`
+  crea la grilla con **una fila vacía por alumno**. No debe copiar datos de
+  otra fecha.
+- `PUT /asistencia/{id_grilla}` → guardado masivo de las filas
+  `{ id_alumno, presente, observacion }`.
+
+La Rúbrica debe poder **leer de aquí** si el alumno estuvo ausente, para
+deshabilitar Fluidez y Comprensión (T32).
+
+### 9.2 Resumen del Módulo de Inicio (CU010, CU011, CU012)
+
+Una llamada por rol, no cuatro sueltas: con la conectividad de RN-017 cada
+petición extra cuenta.
+
+- `GET /inicio/docente` → colegios, grados, ciclos, subprograma, número de
+  alumnos asignados y el avance para los Resúmenes de Acción
+  (*"Has evaluado a 15 de 30 alumnos"*).
+- `GET /inicio/supervisor` → colegios registrados, docentes activos, docentes
+  **con actividad en curso**, registros pendientes o incompletos y las
+  **Alertas de Inactividad** ya redactadas.
+- `GET /inicio/directivo` → `{ beneficiarios_activos, colegios_operando, salud_sistema }`.
+
+> **Sobre `salud_sistema`:** debe salir de datos reales de sincronización. Si no
+> se puede calcular, devolver `null` — el caso de uso **prohíbe** mostrar un
+> porcentaje estimado, así que la interfaz pinta "No disponible" en ese caso.
+
+> **Sobre las alertas:** los umbrales (4 días sin actividad, una semana sin
+> registros) deben ser **configurables en el servidor**, no codificados en la
+> interfaz. Envíen el texto ya redactado.
+
+### 9.3 Actividad de trabajo del Docente (CU009, CU010)
+
+Ya pedido en el punto 3, con dos precisiones que añaden estos casos de uso:
+
+- El cierre debe guardar el **tipo**: `manual` o `automatico_por_expiracion`.
+- La **duración** se calcula de inicio a fin y queda en el histórico que
+  consulta el Supervisor en Seguimiento.
+
+### 9.4 Detalle de una sesión (CU025, T20)
+
+- `GET /sesiones/{uuid}` → los registros afectados con `entidad`, `registro_id`,
+  `campo`, `valor_anterior`, `valor_nuevo`, `fecha_cliente` y `fecha_servidor`.
+- `GET /sesiones?docente=&colegio=&fecha=` → los tres filtros que pide T20 para
+  el Supervisor.
+
+### 9.5 Permisos de la sección nueva
+
+`Asistencia` sigue la misma regla que Rúbrica: el **Docente** escribe sobre sus
+secciones asignadas y el **Supervisor** solo lee, sobre todos los docentes.
+
+---
+
+## 10. Añadido al cerrar T32, T20 y T19 (07/10/2026)
+
+### 10.1 Grillas semanales: existencia y creación (T32)
+
+Una grilla **no existe hasta que alguien la crea**. El sistema no debe
+generarla sola ni copiar la de la semana anterior: copiar daría por evaluado a
+un alumno que nadie miró.
+
+- `GET /grillas?tipo=rubrica|lectura&semana=&colegio=&grado=&seccion=` →
+  `{ existe: true|false }`.
+- `POST /grillas` → `{ tipo, id_semana, id_colegio, id_grado, id_seccion }`
+  crea la grilla con **una fila vacía por alumno**.
+
+### 10.2 Ausentes para la Rúbrica (T32)
+
+- `GET /asistencia/ausentes?colegio=&grado=&semana=` → `[id_alumno]`.
+
+La Rúbrica deshabilita Fluidez y Comprensión de quien conste ausente, para que
+la falta se marque **una sola vez**, en Asistencia. Si no hay grilla de
+asistencia para esa semana, devolver lista vacía: *nadie consta ausente* no es
+lo mismo que *todos asistieron*.
+
+### 10.3 Filtros de Sesiones (T20)
+
+`GET /sesiones` debe aceptar `?docente=`, `?colegio=` y `?fecha=` combinables.
+
+El **detalle** (`GET /sesiones/{uuid}`) necesita, por cada cambio: `entidad`
+legible (p. ej. *"Rúbrica — Pérez Quispe, Ana"*), `campo`, `valor_anterior`,
+`valor_nuevo`, `fecha_cliente` y `fecha_servidor`. Las dos fechas son las que
+permiten marcar *"Sincronizado de forma diferida"*.
+
+### 10.4 Secciones y ciclo en los mantenimientos (T17)
+
+Ya pedido en el punto 1, con dos precisiones:
+
+- **`id_ciclo_evaluado` en el alumno**, separado de `id_grado`: un alumno de
+  6.º puede evaluarse con la rúbrica del ciclo III (RN-004).
+- **`POST`/`PATCH /profesores` con varias secciones por colegio**, no solo
+  varios colegios. El popup de Usuarios ya las envía juntas.
+- **`secciones` en el colegio** como lista de `{ id_grado, nombre }`, no como
+  texto libre: hoy es lo único que impide asignar un alumno a su sección.
+
+### 10.5 Lo que el frontend ya resuelve solo
+
+No hace falta endpoint para esto, queda anotado para que no se duplique:
+
+- La **precarga** al iniciar actividad guarda alumnos, colegios, grados,
+  catálogos, **semanas y las asignaciones del docente** en IndexedDB, con las
+  llamadas que ya existen.
+- La **limpieza de IndexedDB** al cerrar sesión se hace **solo si la cola está
+  vacía**: CU007 prohíbe borrar cambios sin enviar, y el PDF pide limpiar por
+  tratarse de datos de menores. Las dos reglas conviven así.
+- La **expiración a las 8 horas** se programa en el cliente leyendo el `exp` del
+  JWT. Es solo para avisar a tiempo: quien decide sigue siendo el servidor.
+
+---
+
+## 11. Añadido al cerrar el trabajo sin conexión (07/10/2026)
+
+Nada de este punto es **bloqueante**: el frontend ya funciona con los endpoints
+actuales. Se anota lo que haría falta para que el trabajo sin conexión aguante
+bien en zonas con mala cobertura, que es donde se va a usar.
+
+### 11.1 Permisos de lectura para la precarga (importante)
+
+Al pulsar *Iniciar actividad*, el **Docente** llama por su cuenta a:
+
+- `GET /docentes/{id}/asignaciones?periodo=`
+- `GET /semanas`
+- `GET /colegios`, `GET /grados`, `GET /niveles-rubrica`, `GET /niveles-razkids`
+- `GET /alumnos?estado=activo`
+
+Si alguno de estos está restringido a `Supervisor`, la precarga se queda
+incompleta y el docente se queda sin datos justo cuando pierde la conexión. El
+fallo es **silencioso para el backend**: el frontend no rompe, solo avisa de
+*"Precarga incompleta"*. Conviene confirmar que el rol `Docente` puede leer los
+seis, acotado a lo suyo.
+
+### 11.2 Una sola petición de precarga (deseable)
+
+- `GET /precarga?periodo=` → `{ alumnos, colegios, grados, semanas,
+  asignaciones, niveles_rubrica, niveles_razkids }`
+
+Hoy son **siete peticiones en paralelo** sobre la conexión del colegio. Si tres
+responden y cuatro fallan, el docente arranca con una precarga a medias sin
+saber qué le falta. Una sola respuesta lo vuelve atómico: o está todo o no está.
+
+Mientras no exista, el frontend seguirá con las siete y avisando cuando alguna
+falle.
+
+### 11.3 Lo que el frontend ya resuelve solo (no hacer nada)
+
+- Si una pantalla se abre **sin red**, sus filtros se rellenan desde lo
+  precargado en IndexedDB en vez de quedarse vacíos.
+- El **Supervisor no precarga** nada: no abre actividades. Si se decide que
+  también debe trabajar sin conexión, habría que hablarlo antes, porque implica
+  bajarse los datos de **todos** los docentes a un dispositivo.
+
+---
+
+## 12. Actualización de casos de uso (07/10/2026) — CU001 a CU006
+
+Los casos de uso actualizados **contradicen el contrato vigente** en dos puntos.
+No es una mejora opcional: con el backend actual, el flujo de recuperación
+queda roto a mitad de camino. El frontend ya implementa lo que dicen los CU.
+
+### 12.1 ⚠️ BLOQUEANTE — La política de contraseña es incompatible
+
+| | Contrato actual (§ *Recuperar contraseña*) | CU006 |
+| --- | --- | --- |
+| Longitud | mínimo 8 | mínimo 8 |
+| Símbolos | **prohibidos** | **obligatorio al menos uno** |
+| Mayúscula / minúscula / número | no se exigen | se exigen las tres |
+
+Las dos reglas no pueden cumplirse a la vez: **toda contraseña válida según
+CU006 es rechazada hoy con `422`**, porque lleva un símbolo. El formulario ya
+exige los cinco requisitos de CU006, así que hasta que el backend cambie, nadie
+podrá completar un restablecimiento.
+
+Lo que debe aceptar `POST /password/restablecer` y `POST /me/password`:
+
+- mínimo 8 caracteres;
+- al menos una mayúscula, una minúscula, un número y **un carácter especial**;
+- distinta de la contraseña inmediatamente anterior.
+
+### 12.2 El código pasa a ser un PIN de 6 dígitos
+
+CU005 lo redefine. Lo actual son 6 caracteres alfanuméricos con 10 minutos de
+vigencia; lo que hace falta:
+
+- **6 dígitos numéricos** (0–9), no alfanumérico.
+- Vigencia de **15 minutos**, no 10.
+- Máximo **5 intentos fallidos** de validación; al quinto, el PIN se invalida.
+- Máximo **5 solicitudes por hora** y por correo ingresado, aplicando el límite
+  igual a correos registrados, no registrados y cuentas desactivadas.
+- **Un único PIN vigente por cuenta**: generar uno nuevo invalida el anterior.
+- Un PIN usado, expirado, reemplazado o agotado no se reutiliza.
+
+### 12.3 `motivo` en los errores del PIN
+
+CU006 exige tres mensajes distintos, y hoy los tres llegan como un único `400`
+con `"Código incorrecto o expirado"`, así que el frontend no puede saber cuál
+mostrar. Basta con añadir un campo al cuerpo del error:
+
+```json
+{ "detail": "...", "motivo": "incorrecto" }
+```
+
+| `motivo` | Mensaje que mostrará el frontend |
+| --- | --- |
+| `incorrecto` | El código ingresado es incorrecto. Inténtelo nuevamente. |
+| `expirado` | El código ha expirado. Solicite un nuevo PIN. |
+| `intentos_agotados` | Se alcanzó el número máximo de intentos permitidos. Solicite un nuevo PIN para continuar. |
+| `password_igual` | La nueva contraseña debe ser diferente de la contraseña anterior. |
+
+Mientras no llegue `motivo`, se muestra el texto del servidor tal cual: es
+preferible a adivinar cuál de los tres fue.
+
+### 12.4 `429` al quinto intento de login fallido
+
+CU002 fija el bloqueo temporal, que hoy no existe:
+
+- **5 intentos consecutivos fallidos** sobre el mismo correo ingresado →
+  bloqueo de **15 minutos** para ese correo.
+- Se aplica igual exista la cuenta o no, y esté activa o desactivada: si el
+  bloqueo se comportara distinto, serviría para averiguar qué correos existen.
+- Un intento sobre una **cuenta desactivada cuenta como fallido**.
+- El bloqueo **no cambia** el estado activo/inactivo de ninguna cuenta.
+- Una autenticación satisfactoria reinicia el contador.
+
+El frontend ya distingue `429` y muestra el texto de CU002. Si el backend
+responde `401` también durante el bloqueo, el usuario leerá "Correo o contraseña
+incorrectos" y seguirá intentando sin entender por qué nunca entra.
+
+### 12.5 Textos que el backend ya no decide
+
+Estos mensajes los fija el caso de uso y el frontend los escribe por su cuenta,
+ignorando el `detail` del servidor. Se anota para que nadie intente "arreglar"
+el texto desde el backend:
+
+- `401` → `Correo o contraseña incorrectos.`
+- `403` (cuenta desactivada) → `Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.`
+- `429` → `Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.`
+- Tras pedir PIN, siempre → `Si el correo está registrado y activo, recibirá un PIN.`
+
+### 12.6 Invalidar las sesiones al restablecer
+
+CU006: un restablecimiento satisfactorio debe invalidar **todas las sesiones y
+tokens vigentes** del usuario. Hoy el backend no revoca JWT (lo dice la sección
+de `logout`), así que un token emitido con la contraseña anterior sigue siendo
+válido hasta que expire. Con la contraseña ya cambiada, eso es justo lo que
+CU006 prohíbe. Hace falta una lista de revocación o un `token_version` por
+usuario que invalide lo emitido antes del cambio.
+
+### 12.7 Cuenta de Supervisor original
+
+CU001 y CU016 la describen y el backend tendrá que marcarla:
+
+- No puede eliminarse ni desactivarse **por nadie**, ni editarse su rol.
+- Necesita exponerse como un campo (p. ej. `es_supervisor_original: true`) en
+  `GET /usuarios`, para que la interfaz bloquee el interruptor y el lápiz en vez
+  de dejar intentarlo y fallar con un error.
+- Recuperación por **Recovery Keys** de un solo uso, entregadas en un `.txt`, sin
+  depender del correo. Es un flujo que el frontend todavía **no** implementa: si
+  se quiere en la aplicación, hace falta decidir su pantalla.
+
+### 12.8 CU003 — Qué llama el frontend al entrar a Inicio
+
+Ya implementado en el cliente, se anota para que el backend conozca la carga.
+Cada vez que un usuario entra al Módulo de Inicio **con conexión**, se lanza una
+sincronización silenciosa en segundo plano, acotada por rol:
+
+| Rol | Qué baja a IndexedDB |
+| --- | --- |
+| Docente | alumnos activos, asignaciones, colegios, grados, semanas, niveles |
+| Supervisor | alumnos activos, colegios, grados, semanas |
+| Directivo | **nada** — no trabaja sin conexión (CU012) |
+
+Son peticiones `GET` normales y no bloquean la pantalla. Si alguna falla, se
+conserva la última copia buena y no se avisa al usuario. Si esto resultara
+costoso en el servidor, el endpoint único del punto 11.2 lo resolvería de golpe.
+
