@@ -68,6 +68,22 @@ function esReintentable(error) {
   return estado >= 500
 }
 
+/**
+ * Saca de la cola todo lo que dependía de un envío que se descartó.
+ *
+ * Es recursivo porque una dependencia puede encadenarse, aunque hoy solo haya
+ * un eslabón: el cierre de actividad depende de su inicio.
+ */
+function descartarDependientes(clave, error) {
+  const dependientes = cola.filter((item) => item.dependeDe === clave)
+  dependientes.forEach((item) => {
+    const i = cola.indexOf(item)
+    if (i >= 0) cola.splice(i, 1)
+    rechazarPromesa(item.clave, error)
+    descartarDependientes(item.clave, error)
+  })
+}
+
 function programar(ms) {
   clearTimeout(temporizador)
   temporizador = setTimeout(() => procesar(), ms)
@@ -106,6 +122,9 @@ async function procesar() {
 
         if (!esReintentable(error)) {
           cola.shift()
+          // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
+          // daría otro error y ensuciaría la cola con fallos encadenados.
+          descartarDependientes(item.clave, error)
           await persistir()
           rechazarPromesa(item.clave, error)
           continue
@@ -140,13 +159,20 @@ async function procesar() {
  * servidor lo acepta y se rechaza cuando se agotan los reintentos, para que la
  * fila pueda mostrar su estado sin saber nada de la cola.
  */
-export function encolar({ clave, tipo, payload, descripcion }) {
+/**
+ * @param dependeDe clave de otro envío que TIENE que llegar antes. Si aquel se
+ *   descarta por un error definitivo, este se descarta con él en vez de salir
+ *   solo. Lo necesita el cierre de una actividad: sin su inicio, el servidor
+ *   responde 404 por una actividad que nunca llegó a existir.
+ */
+export function encolar({ clave, tipo, payload, descripcion, dependeDe = null }) {
   const anterior = cola.findIndex((item) => item.clave === clave)
   const item = {
     clave,
     tipo,
     payload,
     descripcion,
+    dependeDe,
     intentos: 0,
     error: null,
     creado: new Date().toISOString(),

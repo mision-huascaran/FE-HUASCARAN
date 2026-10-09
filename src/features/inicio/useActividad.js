@@ -89,6 +89,10 @@ export default function useActividad() {
         toast.error('No se pudo iniciar', 'No puede iniciar una actividad porque no tiene asignaciones activas.')
       } else if (motivo === 'actividad_activa_existente') {
         toast.error('Ya hay una actividad abierta', 'Finalice la actividad actual antes de iniciar otra.')
+      } else if (motivo === 'actividad_superpuesta') {
+        // Puede pasar al sincronizar: el horario choca con otra actividad suya
+        // de la misma sesión. No es culpa de lo que acaba de hacer.
+        toast.error('El horario se cruza con otra actividad', 'Ya tiene registrada otra actividad en ese mismo tramo.')
       } else {
         toast.error('No se pudo iniciar la actividad', mensajeDeError(error))
       }
@@ -124,6 +128,9 @@ export default function useActividad() {
         tipo: TIPOS_ENVIO.ACTIVIDAD_CIERRE,
         payload: { id: cerrada.id, fin: cerrada.fin, id_sesion: idSesion },
         descripcion: 'Cierre de actividad',
+        // Sin su inicio, el servidor responde 404: la actividad no existiría.
+        // Si el inicio se descarta por un error definitivo, este se va con él.
+        dependeDe: `actividad-inicio-${cerrada.id}`,
       })
       toast.info(
         'Actividad finalizada sin conexión',
