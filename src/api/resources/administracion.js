@@ -284,10 +284,21 @@ export const listarUsuariosAdmin = async (filtros = {}) => {
   }
 }
 
-/** Solo los docentes, que es lo que necesitan los filtros de seguimiento. */
+/**
+ * Solo los docentes, para los filtros que preguntan "¿de quién?".
+ *
+ * `GET /usuarios` devuelve USUARIOS (`id`), pero quien consume esta lista
+ * necesita el `id_docente`, que es con lo que filtran las grillas y el
+ * seguimiento. Sin esta traducción todas las opciones salían con el valor
+ * vacío: React avisaba de claves duplicadas y, peor, elegir un docente en el
+ * filtro no hacía nada.
+ */
 export const listarDocentes = async () => {
   const { items } = await listarUsuariosAdmin({ rol: 'Docente', estado: 'activo' })
-  return items
+  return items.map((u) => ({
+    ...u,
+    id_docente: u.id_docente ?? u.id ?? u.id_usuario,
+  }))
 }
 
 /**
