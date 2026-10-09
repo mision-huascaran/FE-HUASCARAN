@@ -6,13 +6,15 @@
 //
 // Al crear un alumno el backend crea su expediente en la misma transacción, así
 // que aquí no hay una segunda llamada que pudiera quedarse a medias.
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import { useToast } from '../../components/ui/Toast'
 import {
   actualizarAlumno,
+  cambiarEstadoAlumno,
   crearAlumno,
+  filtrarAlumnos,
   listarAlumnosAdmin,
   listarAsignaciones,
   listarAuditoria,
@@ -23,6 +25,8 @@ import {
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
+import usePrecarga from '../../hooks/usePrecarga'
 import useSessionStore from '../../store/sessionStore'
 import { alcanceDe } from '../../auth/permisos'
 
@@ -52,19 +56,40 @@ export default function MantenimientoAlumnos() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const soloSusSecciones = alcanceDe('alumnos', idRol) === 'asignado'
 
-  const [filtros, setFiltros] = useState({ estado: 'activo' })
+  // CU014: los filtros se guardan en LocalStorage y se borran al cerrar sesión.
+  const [filtros, setFiltros] = useFiltrosGuardados('alumnos', { estado: 'activo' })
+  // Copia de IndexedDB: sin conexión, la tabla se lee de aquí en solo lectura.
+  const precarga = usePrecarga()
 
-  const { data: colegios = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: async () => (await listarColegiosAdmin()).items, ...SIEMPRE })
-  const { data: grados = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'grados'], queryFn: listarGradosAdmin, ...SIEMPRE })
-  const { data: programas = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'programas'], queryFn: listarProgramasAdmin, ...SIEMPRE })
-  const { data: asignaciones = [] } = useQuery({ queryKey: ['admin', 'asignaciones'], queryFn: listarAsignaciones, enabled: soloSusSecciones })
+  const { data: colegiosEnLinea = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: async () => (await listarColegiosAdmin()).items, ...SIEMPRE, enabled: enLinea })
+  const { data: gradosEnLinea = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'grados'], queryFn: listarGradosAdmin, ...SIEMPRE, enabled: enLinea })
+  const { data: programas = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'programas'], queryFn: listarProgramasAdmin, ...SIEMPRE, enabled: enLinea })
+  const { data: asignacionesEnLinea, isSuccess: asignacionesCargadas } = useQuery({
+    queryKey: ['admin', 'asignaciones'],
+    queryFn: listarAsignaciones,
+    enabled: soloSusSecciones && enLinea,
+  })
+  const colegios = useMemo(
+    () => (colegiosEnLinea.length ? colegiosEnLinea : (precarga?.colegios ?? [])),
+    [colegiosEnLinea, precarga],
+  )
+  const grados = useMemo(
+    () => (gradosEnLinea.length ? gradosEnLinea : (precarga?.grados ?? [])),
+    [gradosEnLinea, precarga],
+  )
+  const asignaciones = useMemo(
+    () => asignacionesEnLinea ?? precarga?.asignaciones ?? [],
+    [asignacionesEnLinea, precarga],
+  )
 
   // El Docente solo puede elegir entre lo que tiene asignado: fuera de ahí el
   // servidor responde "no pertenece a un colegio y grado que tengas asignado".
+  // Las asignaciones llegan por colegio con su LISTA de grados (`grados`), no
+  // un `id_grado` por fila: leerlas así dejaba los dos combos sin opciones.
   const permitidos = useMemo(() => {
     if (!soloSusSecciones) return { colegios, grados }
     const idsColegio = new Set(asignaciones.map((a) => Number(a.id_colegio)))
-    const idsGrado = new Set(asignaciones.map((a) => Number(a.id_grado)))
+    const idsGrado = new Set(asignaciones.flatMap((a) => (a.grados ?? []).map(Number)))
     return {
       colegios: colegios.filter((c) => idsColegio.has(Number(c.id_colegio))),
       grados: grados.filter((g) => idsGrado.has(Number(g.id_grado))),
@@ -74,9 +99,17 @@ export default function MantenimientoAlumnos() {
   const opciones = (lista, clave) => lista.map((x) => ({ value: x[clave], label: x.nombre }))
 
   const consulta = useQuery({
-    queryKey: ['alumnos', 'mantenimiento', filtros],
-    queryFn: async () => (await listarAlumnosAdmin(filtros)).items,
+    queryKey: ['alumnos', 'mantenimiento', filtros, enLinea, Boolean(precarga)],
+    queryFn: async () => {
+      // CU014 sin conexión: la tabla en solo lectura desde IndexedDB. Antes se
+      // pedía igual al servidor, fallaba, y la tabla quedaba en "Sin registros"
+      // aunque los alumnos estuvieran descargados.
+      if (!enLinea) return filtrarAlumnos(precarga?.alumnos ?? [], filtros)
+      return (await listarAlumnosAdmin(filtros)).items
+    },
   })
+
+  const sinAsignaciones = soloSusSecciones && enLinea && asignacionesCargadas && asignaciones.length === 0
 
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: ['alumnos'] })
@@ -97,7 +130,9 @@ export default function MantenimientoAlumnos() {
   })
 
   const estado = useMutation({
-    mutationFn: ({ alumno, activo }) => actualizarAlumno(alumno.id_alumno, { activo }),
+    // La baja lógica tiene ruta propia (`/desactivar`, `/activar`), como en
+    // Colegios: un PATCH con `{activo}` no cambia el estado.
+    mutationFn: ({ alumno, activo }) => cambiarEstadoAlumno(alumno.id_alumno, activo),
     onSuccess: (_d, { activo }) => {
       refrescar()
       toast.success(activo ? 'Alumno activado' : 'Alumno inactivado', 'Su historial académico se conserva.')
@@ -115,6 +150,7 @@ export default function MantenimientoAlumnos() {
       // D8: la LISTA se lee de la caché sin conexión; lo que exige red es crear
       // y editar, para no generar ids en conflicto. Por eso no va `soloOnline`.
       sinConexion={!enLinea}
+      motivoSinNuevo={sinAsignaciones ? 'No tiene asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
       valoresFiltro={filtros}
       onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
       cargarAuditoria={(id) => listarAuditoria('alumno', id)}

@@ -23,17 +23,22 @@ describe('NAV_BY_ROLE', () => {
     expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio', '/dashboard'])
   })
 
-  it('el Supervisor gestiona usuarios y colegios', () => {
+  it('el Supervisor ve exactamente sus secciones de RF-046 (CP-ROL-03, D09)', () => {
+    // CU014 le da Alumnos con entrada propia; las grillas del aula y
+    // Asistencia no van en su menú (llega a ellas en solo lectura desde los
+    // atajos de Seguimiento).
     const rutas = navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)
-    expect(rutas).toContain('/usuarios')
-    expect(rutas).toContain('/colegios')
-    // D1: los alumnos van dentro de Usuarios, no como sección propia.
-    expect(rutas).not.toContain('/alumnos')
+    expect([...rutas].sort()).toEqual(
+      ['/inicio', '/colegios', '/alumnos', '/usuarios', '/seguimiento', '/dashboard'].sort(),
+    )
   })
 
-  it('el Docente tiene las tres grillas del aula y sus alumnos', () => {
+  it('el Docente ve exactamente sus secciones de RF-046 (CP-ROL-01, D08)', () => {
     const rutas = navegacionDe(ROLES.DOCENTE).map((i) => i.to)
-    expect(rutas).toEqual(expect.arrayContaining(['/alumnos', '/rubrica', '/seguimiento-lectura', '/registro-vuelo', '/sesiones']))
+    expect([...rutas].sort()).toEqual(
+      ['/inicio', '/alumnos', '/rubrica', '/seguimiento-lectura', '/registro-vuelo', '/sesiones'].sort(),
+    )
+    expect(rutas).not.toContain('/asistencia')
     expect(rutas).not.toContain('/usuarios')
   })
 

@@ -84,6 +84,8 @@ describe('Rúbrica sin conexión (T19)', () => {
         ],
       },
       guardadoEn: new Date().toISOString(),
+      // La precarga es del usuario que la descargó (D03): la de otro no se lee.
+      propietario: 1,
     })
 
     montar()

@@ -111,13 +111,15 @@ export default function InicioDocente() {
         </Card>
       )}
 
+      {/* Sin datos del servidor no se pintan: mostrar las cifras del
+          simulador junto a las asignaciones reales confundía (D13). */}
       {isLoading ? (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} variant="card" />
           ))}
         </div>
-      ) : (
+      ) : resumen && (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={Users} label="Mis estudiantes" value={resumen?.mis_estudiantes ?? 0} />
           <StatCard

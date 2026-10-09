@@ -25,6 +25,16 @@ describe('Errores del backend (api_sicedu_frontend §1.3)', () => {
     expect(mensajeDeError(e, 'respaldo')).toBe('Correo o contraseña incorrectos.')
   })
 
+  it('en el 422 unificado nombra el campo que falla, no solo "datos no válidos"', () => {
+    // Respuesta real de dev al editar un usuario (PATCH /usuarios/4).
+    const e = error(422, {
+      detail: 'Los datos enviados no son válidos.',
+      motivo: 'validacion',
+      errores: [{ campo: 'asignacion.grados', mensaje: 'Este campo no puede ser nulo.' }],
+    })
+    expect(mensajeDeError(e)).toBe('Los datos enviados no son válidos. asignacion.grados: Este campo no puede ser nulo.')
+  })
+
   it('cae al respaldo cuando el servidor no manda texto', () => {
     expect(mensajeDeError(error(500, {}), 'respaldo')).toBe('respaldo')
   })

@@ -8,7 +8,7 @@
 //
 // Se conserva la firma `(idDocente, periodo)` porque la usan tres pantallas,
 // pero los argumentos ya no viajan: el servidor sabe quién pregunta.
-import { resolver } from '../client'
+import { adminContraApiReal, resolver } from '../client'
 import handlers from '../mock/handlers'
 import { listarMisAsignaciones } from './administracion'
 
@@ -21,14 +21,18 @@ import { listarMisAsignaciones } from './administracion'
 export const obtenerAsignaciones = () => listarMisAsignaciones()
 
 /**
- * Indicadores del panel del docente.
+ * Indicadores del panel del docente (tarjetas "Mis estudiantes", "Reporte de
+ * esta semana"… y el aviso de la evaluación diagnóstica abierta).
  *
- * TODO BACKEND: los Resúmenes de Acción de CU010 ("Has evaluado X de Y",
- * "Tienes N registros sin sincronizar") todavía no vienen en
- * `GET /inicio/docente`. Hasta entonces esto se resuelve con el simulador.
+ * TODO BACKEND: todavía no vienen en `GET /inicio/docente` (§12 del
+ * contrato). Antes se sacaban del simulador TAMBIÉN contra la API real, así
+ * que un Docente con 3 alumnos veía "110 estudiantes" (D13). Ahora, cuando el
+ * Inicio va contra el backend, se devuelve `null` y las tarjetas no se pintan:
+ * el contrato pide no mostrarlas o dejarlas como placeholder, nunca inventar.
  */
 export const obtenerResumenDocente = (idDocente, { periodo, semana }) =>
   resolver({
     mock: () => handlers.docentes.resumen(idDocente, { periodo, semana }),
-    real: () => handlers.docentes.resumen(idDocente, { periodo, semana }),
+    real: async () => ({ data: null }),
+    forzarReal: adminContraApiReal,
   })

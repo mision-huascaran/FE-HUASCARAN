@@ -16,6 +16,7 @@
 // memoria: el objetivo es no perder el trabajo del docente, no la persistencia.
 import { mensajeDeError } from '../api/client'
 import { del, get, set } from 'idb-keyval'
+import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
@@ -95,6 +96,11 @@ async function procesar() {
     useSyncStore.getState().terminarSincronizacion(null)
     return
   }
+  // Sin sesión no se envía nada (CU007, CU008): recuperar la conexión en la
+  // pantalla de login no debe sincronizar. Además, sin token cada envío daría
+  // 401, que no es reintentable, y el pendiente se perdería. Se espera al
+  // siguiente inicio de sesión (ver `iniciarCola`).
+  if (!useSessionStore.getState().token) return
 
   procesando = true
   useSyncStore.getState().iniciarSincronizacion()
@@ -220,6 +226,12 @@ export async function iniciarCola() {
   if (typeof window !== 'undefined') {
     window.addEventListener('online', () => procesar())
   }
+
+  // Al iniciar sesión se envía lo que quedó pendiente de la sesión anterior
+  // (por ejemplo, el cierre de una actividad hecho sin conexión).
+  useSessionStore.subscribe((estado, previo) => {
+    if (estado.token && estado.token !== previo.token) procesar()
+  })
 
   if (cola.length > 0) procesar()
 }

@@ -17,6 +17,7 @@ import {
   actualizarUsuario,
   crearUsuario,
   desactivarUsuario,
+  filtrarUsuariosPorColegio,
   listarAuditoria,
   listarColegiosAdmin,
   listarGradosAdmin,
@@ -52,16 +53,49 @@ export default function MantenimientoUsuarios() {
     staleTime: Infinity,
   })
 
-  const consulta = useQuery({
+  const consultaServidor = useQuery({
     queryKey: ['admin', 'usuarios', filtros],
     queryFn: async () => (await listarUsuariosAdmin(filtros)).items,
   })
+
+  /**
+   * Dos cosas que el listado del backend no trae y la pantalla necesita:
+   *
+   *   · El filtro por COLEGIO: `GET /usuarios` no lo admite, así que se aplica
+   *     aquí. Docentes de ese colegio + Supervisor y Directivo (globales).
+   *   · El `id_colegio` actual de cada Docente, para que "Editar" muestre su
+   *     colegio en vez de un desplegable vacío. Llega solo el NOMBRE en
+   *     `colegios_asignados`; se traduce con el catálogo de colegios.
+   */
+  const filas = useMemo(() => {
+    const idPorNombre = new Map(colegios.map((c) => [c.nombre, c.id_colegio]))
+    const nombreFiltro = colegios.find((c) => String(c.id_colegio) === String(filtros.id_colegio ?? ''))?.nombre
+    const conColegio = (consultaServidor.data ?? []).map((u) => {
+      const propio = (u.colegios_asignados ?? []).find((n) => n !== 'Global')
+      return propio && idPorNombre.has(propio) ? { ...u, id_colegio: String(idPorNombre.get(propio)) } : u
+    })
+    return filtrarUsuariosPorColegio(conColegio, nombreFiltro)
+  }, [consultaServidor.data, colegios, filtros.id_colegio])
+
+  const consulta = { ...consultaServidor, data: consultaServidor.data ? filas : undefined }
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
 
   const guardado = useMutation({
     mutationFn: ({ valores, popup }) => {
-      if (popup.modo === 'editar') return actualizarUsuario(popup.registro.id_usuario, valores)
+      if (popup.modo === 'editar') {
+        // La asignación solo viaja si el Supervisor la CAMBIÓ (otro colegio,
+        // grados o año). Si solo corrige el DNI o el correo, mandar el colegio
+        // precargado reasignaría al docente sin que lo pidiera.
+        const registro = popup.registro
+        const cambioAsignacion =
+          Boolean(valores.id_colegio) &&
+          (String(valores.id_colegio) !== String(registro.id_colegio ?? '') ||
+            (valores.grados ?? []).length > 0 ||
+            String(valores.anio_escolar ?? '').trim() !== '')
+        const datos = cambioAsignacion ? valores : { ...valores, id_colegio: '', grados: [], anio_escolar: '' }
+        return actualizarUsuario(registro.id_usuario, datos)
+      }
       // Un solo POST para los tres roles: con id_rol de Docente, el backend
       // crea usuario, docente y asignaciones en la misma transacción.
       return crearUsuario(valores)
@@ -96,6 +130,14 @@ export default function MantenimientoUsuarios() {
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
       { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
+      // CU016: obligatorio, 8 dígitos y único (409 si se repite). Faltaba en
+      // el formulario y el alta respondía 422.
+      {
+        nombre: 'dni',
+        etiqueta: 'DNI',
+        requerido: true,
+        validar: (v) => (/^\d{8}$/.test(String(v ?? '').trim()) ? null : 'El DNI debe tener 8 dígitos'),
+      },
       {
         nombre: 'correo',
         etiqueta: 'Correo institucional',

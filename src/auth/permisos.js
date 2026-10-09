@@ -51,9 +51,9 @@ export const MATRIZ = {
     // D8: crear y editar alumnos exige conexión, para no generar ids en conflicto.
     conectividad: CONECTIVIDAD.LECTURA_CACHE,
     [DOCENTE]: { acciones: TODO, alcance: 'asignado' },
-    // D1: el Supervisor los gestiona desde la pestaña Alumnos de Usuarios, así
-    // que tiene el permiso pero no una entrada propia en el menú.
-    [SUPERVISOR]: { acciones: TODO, alcance: 'todos', ocultoEnMenu: true },
+    // CU014 y RF-046 le dan al Supervisor la sección Alumnos con entrada propia
+    // en el menú (antes solo se llegaba por Usuarios → pestaña Alumnos, D09).
+    [SUPERVISOR]: { acciones: TODO, alcance: 'todos' },
     [DIRECTIVO]: null,
   },
   usuarios: {
@@ -73,13 +73,15 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: TODO, alcance: 'todos' },
     [DIRECTIVO]: null,
   },
+  // RF-046 no lista Asistencia en el menú de ningún rol (D08, D09): la ruta
+  // sigue existiendo, pero sin enlace en la barra lateral.
   asistencia: {
     ruta: '/asistencia',
     etiqueta: 'Asistencia',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
-    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
+    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true, ocultoEnMenu: true },
     // T22: el Supervisor ve la asistencia de todos los docentes, sin editarla.
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
     [DIRECTIVO]: null,
   },
   rubrica: {
@@ -87,8 +89,10 @@ export const MATRIZ = {
     etiqueta: 'Rúbrica',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
-    // D3: el Supervisor mira, no edita ni crea grillas.
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
+    // D3: el Supervisor mira, no edita ni crea grillas. Llega desde los atajos
+    // de solo lectura de Seguimiento (CU021); RF-046 no le da entrada en el
+    // menú (D09).
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
     [DIRECTIVO]: null,
   },
   lectura: {
@@ -96,7 +100,7 @@ export const MATRIZ = {
     etiqueta: 'Seguimiento de Lectura',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
     [DIRECTIVO]: null,
   },
   vuelo: {
@@ -104,7 +108,7 @@ export const MATRIZ = {
     etiqueta: 'Registro de Vuelo',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
     [DIRECTIVO]: null,
   },
   /**

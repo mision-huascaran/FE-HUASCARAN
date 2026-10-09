@@ -26,7 +26,7 @@ const ETIQUETA_ESTADO = {
  * Alumno · Grado · Abril · Julio · Octubre · Diciembre · Últimos 3 · Tendencia ·
  * Sugerencia · Estado · Acciones.
  */
-export default function columnasHistorico({ catalogos, onEditar, onVer }) {
+export default function columnasHistorico({ catalogos, onEditar, onVer, puedeEditar = true }) {
   const setEditando = onEditar
   const setViendo = onVer
   return [
@@ -92,7 +92,7 @@ export default function columnasHistorico({ catalogos, onEditar, onVer }) {
       render: (f) => (
         <div className="flex items-center justify-center gap-1">
           <RoleGate allow={[ROLES.PROFESOR]}>
-            <BotonIcono etiqueta="Editar evaluación" icon={Pencil} onClick={() => setEditando(f)} />
+            <BotonIcono etiqueta="Editar evaluación" icon={Pencil} onClick={() => setEditando(f)} disabled={!puedeEditar} />
           </RoleGate>
           <BotonIcono
             etiqueta="Ver trazabilidad"

@@ -75,12 +75,38 @@ const useActividadStore = create((set, get) => ({
   },
 
   cerrar: () => {
-    const { sesion } = get()
+    const { sesion, cerradas } = get()
     if (!sesion) return null
     const cerrada = { ...sesion, fin: new Date().toISOString() }
     guardar(null)
-    set({ sesion: null })
+    set({ sesion: null, cerradas: [...cerradas, sesion.id] })
     return cerrada
+  },
+
+  /**
+   * Ids de actividades que ya se cerraron en este navegador, aunque el cierre
+   * todavía no haya llegado al servidor. Evita "resucitarlas" con una
+   * respuesta de `GET /inicio/docente` anterior al cierre.
+   */
+  cerradas: [],
+
+  marcarCerrada: (id) => {
+    if (id && !get().cerradas.includes(id)) set({ cerradas: [...get().cerradas, id] })
+  },
+
+  /**
+   * Adopta la actividad que el SERVIDOR tiene abierta y este navegador no
+   * conoce: por ejemplo, la de una sesión que se cerró sin conexión o con el
+   * navegador cerrado. Sin esto el Docente veía "Iniciar actividad", el
+   * servidor respondía 409 "Ya hay una actividad abierta" y no había ningún
+   * botón para finalizarla (D05).
+   */
+  restaurar: ({ id, inicio, idDocente } = {}) => {
+    if (!id || get().sesion || get().cerradas.includes(id)) return null
+    const sesion = { id, id_docente: idDocente ?? null, inicio, fin: null }
+    guardar(sesion)
+    set({ sesion })
+    return sesion
   },
 
   /** Al cerrar sesión o vencer el JWT: las actividades se cierran con ella. */

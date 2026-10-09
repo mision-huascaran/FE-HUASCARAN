@@ -5,14 +5,17 @@
 // colegios salía vacío, aunque sus colegios estuvieran descargados.
 //
 // Va por TanStack Query para que la lectura de IndexedDB se haga una sola vez y
-// la compartan todas las pantallas.
+// la compartan todas las pantallas. Solo devuelve la precarga del usuario de la
+// sesión: la de otra persona que haya quedado en el navegador no se muestra.
 import { useQuery } from '@tanstack/react-query'
-import { leerPrecarga } from '../lib/precarga'
+import { leerPrecarga, propietarioDe } from '../lib/precarga'
+import useSessionStore from '../store/sessionStore'
 
 export default function usePrecarga() {
+  const propietario = useSessionStore((s) => propietarioDe(s.usuario))
   const { data } = useQuery({
-    queryKey: ['precarga'],
-    queryFn: leerPrecarga,
+    queryKey: ['precarga', propietario],
+    queryFn: () => leerPrecarga(propietario),
     staleTime: Infinity,
     gcTime: Infinity,
   })

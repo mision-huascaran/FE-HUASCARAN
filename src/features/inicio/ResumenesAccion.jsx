@@ -47,6 +47,8 @@ export default function ResumenesAccion() {
   const asignaciones = data.asignaciones ?? []
   const totales = data.totales ?? {}
   const grados = asignaciones.flatMap((a) => (a.grados ?? []).map((g) => g.nombre ?? g))
+  // CU010 pide también los ciclos. Si `totales` no los trae, salen de cada grado.
+  const ciclos = totales.ciclos ?? asignaciones.flatMap((a) => (a.grados ?? []).flatMap((g) => g.ciclos ?? []))
 
   const frases = []
 
@@ -73,9 +75,10 @@ export default function ResumenesAccion() {
 
   return (
     <Card title="Mis asignaciones">
-      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
         <Dato etiqueta="Colegios">{unirUnicos(asignaciones.map((a) => a.colegio?.nombre ?? a.colegio))}</Dato>
         <Dato etiqueta="Grados">{unirUnicos(grados)}</Dato>
+        <Dato etiqueta="Ciclos">{unirUnicos(ciclos)}</Dato>
         <Dato etiqueta="Subprograma">{unirUnicos(totales.subprogramas ?? [])}</Dato>
         <Dato etiqueta="Alumnos">{totales.cantidad_alumnos ?? 0}</Dato>
       </dl>

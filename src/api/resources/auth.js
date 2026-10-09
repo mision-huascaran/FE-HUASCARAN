@@ -50,16 +50,22 @@ export async function obtenerPerfil() {
 }
 
 /**
- * POST /logout. El backend NO revoca el JWT: no hay lista de tokens anulados y
- * un token sigue siendo válido hasta que expire. El cierre de sesión real lo
- * hace el cliente al borrar el token, así que si esta llamada falla no importa.
+ * POST /logout. Cierra la sesión DE VERDAD en el servidor (el token muere al
+ * instante) y, si había una actividad abierta, la finaliza como "Forzado por
+ * cierre de sesión".
+ *
+ * Nunca lanza. Devuelve `{ ok: false, sinRespuesta: true }` cuando la petición
+ * no llegó al servidor (sin conexión): en ese caso NADA se cerró allí, y quien
+ * llama tiene que dejar el cierre de la actividad pendiente de sincronizar.
  */
 export function cerrarSesionEnServidor() {
   return resolver({
     forzarReal: authContraApiReal,
     mock: () => handlers.auth.logout(),
     real: () => api.post(ENDPOINTS.auth.logout),
-  }).catch(() => ({ ok: false }))
+  })
+    .then((respuesta) => ({ ...respuesta, ok: true }))
+    .catch((error) => ({ ok: false, sinRespuesta: !error?.response }))
 }
 
 export function solicitarCodigoRecuperacion() {

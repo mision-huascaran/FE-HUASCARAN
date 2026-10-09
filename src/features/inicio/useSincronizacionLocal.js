@@ -17,7 +17,7 @@ import {
   listarGradosAdmin,
 } from '../../api/resources/administracion'
 import { obtenerNivelesRazkids, obtenerNivelesRubrica, obtenerSemanas } from '../../api/resources/catalogos'
-import { precargarParaOffline } from '../../lib/precarga'
+import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { ROLES } from '../../auth/roles'
@@ -61,6 +61,7 @@ export default function useSincronizacionLocal() {
   const enLinea = useConexion()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const token = useSessionStore((s) => s.token)
+  const propietario = useSessionStore((s) => propietarioDe(s.usuario))
   const queryClient = useQueryClient()
 
   // Una sincronización por visita, no una por render. Sin esto, cualquier
@@ -72,7 +73,7 @@ export default function useSincronizacionLocal() {
     if (!enLinea || !token || !fuentes || enCurso.current) return
 
     enCurso.current = true
-    precargarParaOffline(fuentes)
+    precargarParaOffline(fuentes, { propietario })
       .then(() => queryClient.invalidateQueries({ queryKey: ['precarga'] }))
       .catch(() => {
         // Silencioso por diseño: CU003 dice que un fallo aquí no afecta a la sesión.
@@ -80,5 +81,5 @@ export default function useSincronizacionLocal() {
       .finally(() => {
         enCurso.current = false
       })
-  }, [enLinea, idRol, token, queryClient])
+  }, [enLinea, idRol, token, propietario, queryClient])
 }

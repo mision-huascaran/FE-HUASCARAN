@@ -8,6 +8,13 @@
 // configurables y llegan con la alerta desde el servidor: no se codifican aquí.
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 
+/**
+ * El backend ya redacta el mensaje con su "Atención:" delante. Como aquí el
+ * prefijo va aparte (en negrita), se quita del texto para no pintar
+ * "Atención: Atención: El docente…" (D16).
+ */
+const sinPrefijo = (mensaje) => String(mensaje ?? '').replace(/^\s*atenci[oó]n\s*:\s*/i, '')
+
 export default function AlertasInactividad({ alertas = [], desactualizadas = false }) {
   if (!alertas.length) {
     return (
@@ -27,7 +34,7 @@ export default function AlertasInactividad({ alertas = [], desactualizadas = fal
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
-            <strong className="font-semibold">Atención:</strong> {alerta.mensaje}
+            <strong className="font-semibold">Atención:</strong> {sinPrefijo(alerta.mensaje)}
             {desactualizadas && <span className="ml-1 text-xs text-ink-500">(puede estar desactualizada)</span>}
           </span>
         </li>
