@@ -4,8 +4,8 @@
 // esa cuenta pierde el acceso y además falla el correo. Por eso se comprueba
 // que esté escondida (no en el login), que avise de que la llave se gasta, y
 // que aplique la misma política de contraseña que el resto.
-import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
@@ -25,6 +25,20 @@ function montar() {
 }
 
 const abrir = () => fireEvent.click(screen.getByRole('button', { name: /supervisor original/i }))
+
+function definirConexion(enLinea) {
+  Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+}
+
+/** Rellena el formulario con datos válidos y lo envía. */
+function rellenarYEnviar() {
+  fireEvent.change(screen.getByLabelText(/Llave de recuperación/), { target: { value: 'ABCD-1234-EFGH' } })
+  fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: VALIDA } })
+  fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: VALIDA } })
+  fireEvent.click(screen.getByRole('button', { name: /recuperar acceso/i }))
+}
+
+afterEach(() => definirConexion(true))
 
 describe('Recovery Keys (CU001)', () => {
   it('se llega por un enlace discreto, no por un botón del login', () => {
@@ -67,5 +81,46 @@ describe('Recovery Keys (CU001)', () => {
     fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: VALIDA } })
     fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: VALIDA } })
     expect(await screen.findByRole('button', { name: /recuperar acceso/i }, ESPERA)).toBeDisabled()
+  })
+
+  it('al acertar dice cuántas llaves quedan, porque cada una se gasta', async () => {
+    montar()
+    abrir()
+    rellenarYEnviar()
+
+    // El simulador responde `llaves_restantes: 9`.
+    expect(await screen.findByText(/Le quedan 9 llaves de recuperación/i, {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('avisa durante la espera, que es de varios segundos a propósito', async () => {
+    montar()
+    abrir()
+    rellenarYEnviar()
+
+    expect(await screen.findByRole('status', {}, ESPERA)).toHaveTextContent(/tarda unos segundos a propósito/i)
+  })
+
+  it('una llave inválida se rechaza sin tocar la contraseña', async () => {
+    montar()
+    abrir()
+
+    fireEvent.change(screen.getByLabelText(/Llave de recuperación/), { target: { value: 'llave con espacios' } })
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: VALIDA } })
+    fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: VALIDA } })
+    fireEvent.click(screen.getByRole('button', { name: /recuperar acceso/i }))
+
+    expect(await screen.findByText(/No se pudo recuperar la cuenta/i, {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('sin conexión no se puede enviar', async () => {
+    definirConexion(false)
+    montar()
+    abrir()
+
+    fireEvent.change(screen.getByLabelText(/Llave de recuperación/), { target: { value: 'ABCD-1234-EFGH' } })
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: VALIDA } })
+    fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: VALIDA } })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /recuperar acceso/i })).toBeDisabled())
   })
 })
