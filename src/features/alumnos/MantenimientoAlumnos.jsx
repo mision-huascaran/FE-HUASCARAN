@@ -19,9 +19,9 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
   listarProgramasAdmin,
-  listarSecciones,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { alcanceDe } from '../../auth/permisos'
@@ -29,8 +29,14 @@ import { alcanceDe } from '../../auth/permisos'
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 /**
- * El ciclo EBR es un dato SEPARADO del grado (RN-004): un alumno de 6.º puede
- * evaluarse con la rúbrica del ciclo III. Por eso se pide aparte y no se deduce
+ * El ciclo y la sección YA NO SE PIDEN.
+ *
+ * El backend calcula el ciclo a partir del subprograma y el grado
+ * (Alfabetización siempre III; Comprensión Lectora: 2.º III, 3.º y 4.º IV,
+ * 5.º y 6.º V), y la sección la hereda el alumno de su colegio. Enviarlos
+ * sería inventar datos que el servidor va a ignorar o rechazar.
+ *
+ * Nota histórica: el ciclo EBR se pedía aparte del grado (RN-004) y no se deducía
  * del grado, aunque lo habitual sea que coincidan.
  */
 const CICLOS = [
@@ -48,15 +54,10 @@ export default function MantenimientoAlumnos() {
 
   const [filtros, setFiltros] = useState({ estado: 'activo' })
 
-  const { data: colegios = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: () => listarColegiosAdmin(), ...SIEMPRE })
+  const { data: colegios = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: async () => (await listarColegiosAdmin()).items, ...SIEMPRE })
   const { data: grados = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'grados'], queryFn: listarGradosAdmin, ...SIEMPRE })
   const { data: programas = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'programas'], queryFn: listarProgramasAdmin, ...SIEMPRE })
   const { data: asignaciones = [] } = useQuery({ queryKey: ['admin', 'asignaciones'], queryFn: listarAsignaciones, enabled: soloSusSecciones })
-  const { data: secciones = [] } = useQuery({
-    queryKey: ['admin', 'secciones', filtros.id_colegio],
-    queryFn: () => listarSecciones(filtros.id_colegio),
-    enabled: Boolean(filtros.id_colegio),
-  })
 
   // El Docente solo puede elegir entre lo que tiene asignado: fuera de ahí el
   // servidor responde "no pertenece a un colegio y grado que tengas asignado".
@@ -123,7 +124,6 @@ export default function MantenimientoAlumnos() {
         { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
         { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
         { nombre: 'id_grado', etiqueta: 'Grado', opciones: opciones(permitidos.grados, 'id_grado') },
-        { nombre: 'id_seccion', etiqueta: 'Sección', opciones: opciones(secciones, 'id_seccion') },
         { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
         { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
       ]}
@@ -131,24 +131,30 @@ export default function MantenimientoAlumnos() {
         { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
         { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
         { nombre: 'id_colegio', etiqueta: 'Colegio', tipo: 'select', requerido: true, opciones: opciones(permitidos.colegios, 'id_colegio') },
-        { nombre: 'id_seccion', etiqueta: 'Sección', tipo: 'select', requerido: true, opciones: opciones(secciones, 'id_seccion'), ayuda: 'Un alumno pertenece a una sola sección' },
         { nombre: 'id_grado', etiqueta: 'Grado', tipo: 'select', requerido: true, opciones: opciones(permitidos.grados, 'id_grado') },
         {
-          nombre: 'id_ciclo_evaluado',
-          etiqueta: 'Ciclo evaluado',
-          tipo: 'select',
-          requerido: true,
-          opciones: CICLOS,
-          ayuda: 'Puede no coincidir con el ciclo del grado',
+          nombre: 'seccion',
+          etiqueta: 'Sección',
+          soloLectura: true,
+          ayuda: 'La hereda del colegio: no se elige',
+        },
+        {
+          nombre: 'ciclo',
+          etiqueta: 'Ciclo',
+          soloLectura: true,
+          ayuda: 'Lo calcula el sistema según el subprograma y el grado',
         },
         { nombre: 'id_programa', etiqueta: 'Subprograma', tipo: 'select', requerido: true, opciones: opciones(programas, 'id_programa') },
       ]}
       columnas={[
         { key: 'nombre', header: 'Alumno', sortable: true, className: 'font-medium text-ink-900' },
-        { key: 'colegio', header: 'Colegio', sortable: true, render: (a) => a.colegio ?? '—' },
-        { key: 'grado', header: 'Grado', align: 'center', render: (a) => a.grado ?? '—' },
-        { key: 'seccion', header: 'Sección', align: 'center', render: (a) => a.seccion ?? '—' },
-        { key: 'programa', header: 'Subprograma', render: (a) => a.programa ?? '—' },
+        // `etiquetaDe` porque estos campos llegan como texto desde el
+        // simulador y como objeto {id, nombre} desde el backend: pintar el
+        // objeto tal cual deja la pantalla en blanco.
+        { key: 'colegio', header: 'Colegio', sortable: true, render: (a) => etiquetaDe(a.colegio) },
+        { key: 'grado', header: 'Grado', align: 'center', render: (a) => etiquetaDe(a.grado) },
+        { key: 'seccion', header: 'Sección', align: 'center', render: (a) => etiquetaDe(a.seccion) },
+        { key: 'programa', header: 'Subprograma', render: (a) => etiquetaDe(a.programa ?? a.subprograma) },
       ]}
     />
   )

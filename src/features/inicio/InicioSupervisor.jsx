@@ -23,11 +23,30 @@ const ACCESOS = [
   { to: '/dashboard', label: 'Dashboard' },
 ]
 
+/** Lo que se pinta cuando el servidor no puede calcular un indicador. */
+const SIN_DATOS = 'Sin datos disponibles'
+
 export default function InicioSupervisor() {
   const enLinea = useConexion()
   const consulta = useQuery({
     queryKey: ['inicio', 'supervisor'],
-    queryFn: obtenerResumenSupervisor,
+    /**
+     * `GET /inicio/supervisor`. `pendientes` e `incompletos` llegan hoy en
+     * `null` porque dependen de las grillas, que el backend todavía no tiene.
+     * CU012 y §1.5 del contrato prohíben pintar un 0 en ese caso: un cero dice
+     * "no hay nada que hacer", y lo cierto es que no se sabe.
+     */
+    queryFn: async () => {
+      const d = await obtenerResumenSupervisor()
+      return {
+        colegios: d?.colegios ?? d?.colegios_registrados ?? 0,
+        docentesActivos: d?.docentes_activos ?? d?.docentesActivos ?? 0,
+        docentesConActividad: d?.docentes_con_actividad ?? d?.docentesConActividad ?? 0,
+        registrosPendientes: d?.pendientes ?? null,
+        registrosIncompletos: d?.incompletos ?? null,
+        alertas: d?.alertas ?? [],
+      }
+    },
     enabled: enLinea,
   })
 
@@ -56,7 +75,8 @@ export default function InicioSupervisor() {
         <StatCard icon={School} label="Colegios registrados" value={resumen.colegios} />
         <StatCard icon={Users} label="Docentes activos" value={resumen.docentesActivos} />
         <StatCard icon={ClipboardList} label="Con actividad en curso" value={resumen.docentesConActividad} />
-        <StatCard icon={AlertTriangle} label="Registros pendientes" value={resumen.registrosPendientes} />
+        <StatCard icon={AlertTriangle} label="Registros pendientes" value={resumen.registrosPendientes ?? SIN_DATOS} />
+        <StatCard icon={AlertTriangle} label="Registros incompletos" value={resumen.registrosIncompletos ?? SIN_DATOS} />
       </div>
 
       <AlertasInactividad alertas={resumen.alertas} desactualizadas={desactualizado} />

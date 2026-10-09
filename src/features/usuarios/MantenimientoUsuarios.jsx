@@ -15,15 +15,15 @@ import ModalCredencialDocente from '../administracion/ModalCredencialDocente'
 import {
   activarUsuario,
   actualizarUsuario,
-  crearDocente,
   crearUsuario,
   desactivarUsuario,
   listarAuditoria,
   listarColegiosAdmin,
-  listarSecciones,
+  listarGradosAdmin,
   listarUsuariosAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
 
@@ -42,25 +42,19 @@ export default function MantenimientoUsuarios() {
 
   const { data: colegios = [] } = useQuery({
     queryKey: ['admin', 'catalogo', 'colegios'],
-    queryFn: () => listarColegiosAdmin(),
+    queryFn: async () => (await listarColegiosAdmin()).items,
     staleTime: Infinity,
   })
 
-  // Las secciones de cada colegio, para el desplegable múltiple del Docente.
-  const seccionesConsulta = useQuery({
-    queryKey: ['admin', 'secciones', 'todas', colegios.map((c) => c.id_colegio).join(',')],
-    queryFn: async () => {
-      const pares = await Promise.all(
-        colegios.map(async (c) => [c.id_colegio, await listarSecciones(c.id_colegio)]),
-      )
-      return Object.fromEntries(pares)
-    },
-    enabled: colegios.length > 0,
+  const { data: grados = [] } = useQuery({
+    queryKey: ['admin', 'catalogo', 'grados'],
+    queryFn: listarGradosAdmin,
+    staleTime: Infinity,
   })
 
   const consulta = useQuery({
     queryKey: ['admin', 'usuarios', filtros],
-    queryFn: () => listarUsuariosAdmin(filtros),
+    queryFn: async () => (await listarUsuariosAdmin(filtros)).items,
   })
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
@@ -68,8 +62,9 @@ export default function MantenimientoUsuarios() {
   const guardado = useMutation({
     mutationFn: ({ valores, popup }) => {
       if (popup.modo === 'editar') return actualizarUsuario(popup.registro.id_usuario, valores)
-      // Un Docente necesita además su ficha de docente: va por otro endpoint.
-      return Number(valores.id_rol) === ROLES.DOCENTE ? crearDocente(valores) : crearUsuario(valores)
+      // Un solo POST para los tres roles: con id_rol de Docente, el backend
+      // crea usuario, docente y asignaciones en la misma transacción.
+      return crearUsuario(valores)
     },
     onSuccess: (creado, { popup }) => {
       refrescar()
@@ -97,21 +92,6 @@ export default function MantenimientoUsuarios() {
     onError: (error) => toast.error('No se pudo cambiar el estado', mensajeDeError(error)),
   })
 
-  /**
-   * Secciones de todos los colegios, etiquetadas con su plantel: sin eso, dos
-   * secciones "A" de colegios distintos serían indistinguibles en la lista.
-   */
-  const seccionesPorColegio = useMemo(
-    () =>
-      colegios.flatMap((c) =>
-        ((seccionesConsulta.data ?? {})[c.id_colegio] ?? []).map((s) => ({
-          value: `${c.id_colegio}:${s.id_seccion}`,
-          label: `${c.nombre} — ${s.nombre}`,
-        })),
-      ),
-    [colegios, seccionesConsulta.data],
-  )
-
   const campos = useMemo(
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
@@ -134,26 +114,36 @@ export default function MantenimientoUsuarios() {
         // El rol no se cambia editando: una cuenta no cambia de parcela.
         soloAlCrear: true,
       },
+      /**
+       * Lo propio del Docente. La SECCIÓN ya no se elige: es un atributo del
+       * colegio y el alumno la hereda. Y es UN colegio, no varios: por ahora
+       * cada docente atiende un plantel y todos los grados que ese plantel
+       * ofrece. Rotarlo es editar este campo; renovarlo, cambiar el año.
+       */
       {
-        nombre: 'colegios',
-        etiqueta: 'Colegios asignados',
-        tipo: 'multiple',
+        nombre: 'anio_escolar',
+        etiqueta: 'Año escolar',
+        tipo: 'number',
+        ayuda: 'Solo para Docente. Cambiarlo renueva su asignación',
+      },
+      {
+        nombre: 'id_colegio',
+        etiqueta: 'Colegio asignado',
+        tipo: 'select',
         ancho: 'completo',
         opciones: colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre })),
-        ayuda: 'Solo para cuentas de Docente: definen a qué alumnos accede',
+        ayuda: 'Solo para Docente: define a qué alumnos accede',
       },
       {
-        // Un docente tiene VARIAS secciones por colegio, no una. Las opciones
-        // se agrupan por plantel para que se vea de cuál es cada una.
-        nombre: 'secciones',
-        etiqueta: 'Secciones asignadas',
+        nombre: 'grados',
+        etiqueta: 'Grados',
         tipo: 'multiple',
         ancho: 'completo',
-        opciones: seccionesPorColegio,
-        ayuda: 'Varias por colegio. Junto con los colegios definen su alcance',
+        opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
+        ayuda: 'Un aula (colegio y grado) solo puede tener un docente',
       },
     ],
-    [colegios, seccionesPorColegio],
+    [colegios, grados],
   )
 
   return (
@@ -177,9 +167,18 @@ export default function MantenimientoUsuarios() {
           { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
         ]}
         columnas={[
-          { key: 'nombre', header: 'Usuario', sortable: true, className: 'font-medium text-ink-900' },
+          // Las columnas que pide CU016, en su orden.
+          { key: 'nombre', header: 'Nombre completo', sortable: true, className: 'font-medium text-ink-900' },
+          { key: 'dni', header: 'DNI', align: 'center', render: (u) => etiquetaDe(u.dni) },
           { key: 'correo', header: 'Correo', sortable: true },
-          { key: 'rol', header: 'Rol', render: (u) => <Badge tone="info">{u.rol}</Badge> },
+          { key: 'rol', header: 'Rol', render: (u) => <Badge tone="info">{etiquetaDe(u.rol)}</Badge> },
+          {
+            // Llega como LISTA: nombres de colegios para los docentes y
+            // ["Global"] para Supervisor y Directivo.
+            key: 'colegios_asignados',
+            header: 'Colegios asignados',
+            render: (u) => (u.colegios_asignados ?? []).map((c) => etiquetaDe(c)).join(', ') || '—',
+          },
         ]}
       />
 

@@ -13,7 +13,7 @@ export default function AlertasInactividad({ alertas = [], desactualizadas = fal
     return (
       <div className="flex items-center gap-2 rounded-xl border border-success-600/20 bg-success-100 px-4 py-3 text-sm text-success-600">
         <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>No hay alertas pendientes de atención.</span>
+        <span>No existen alertas de inactividad pendientes de atención.</span>
       </div>
     )
   }
@@ -22,7 +22,7 @@ export default function AlertasInactividad({ alertas = [], desactualizadas = fal
     <ul className="flex flex-col gap-2" aria-label="Alertas de inactividad">
       {alertas.map((alerta) => (
         <li
-          key={alerta.id}
+          key={alerta.id ?? `${alerta.tipo}-${alerta.mensaje}`}
           className="flex items-start gap-2 rounded-xl border border-danger-600/20 bg-danger-100 px-4 py-3 text-sm text-danger-600"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

@@ -5,7 +5,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
-import CampoSecciones from './CampoSecciones'
 import { useToast } from '../../components/ui/Toast'
 import {
   actualizarColegio,
@@ -16,6 +15,7 @@ import {
   listarGradosAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
 
@@ -34,14 +34,28 @@ export default function MantenimientoColegios() {
 
   const campos = useMemo(
     () => [
+      /**
+       * Los campos salen de CU013, no de lo que teníamos antes:
+       *
+       *   · `codigo` modular se quitó: el backend lo rechazó porque no está en
+       *     el caso de uso.
+       *   · `zona` pasó a `provincia`, y `departamento` y `distrito` son
+       *     obligatorios (422 si faltan).
+       *   · Las SECCIONES dejaron de ser una lista editable: la sección es un
+       *     atributo del colegio, "Única" por defecto, y el alumno la hereda.
+       */
       { nombre: 'nombre', etiqueta: 'Nombre del colegio', requerido: true, ancho: 'completo' },
-      { nombre: 'codigo', etiqueta: 'Código modular', ayuda: 'Código oficial del plantel' },
-      { nombre: 'zona', etiqueta: 'Ubicación', requerido: true },
+      { nombre: 'departamento', etiqueta: 'Departamento', requerido: true },
+      { nombre: 'provincia', etiqueta: 'Provincia' },
+      { nombre: 'distrito', etiqueta: 'Distrito', requerido: true },
+      { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', ayuda: 'Por defecto, Primaria' },
+      { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
       {
-        nombre: 'secciones',
-        etiqueta: 'Grados y secciones',
-        componente: CampoSecciones,
-        grados: grados.map((g) => ({ value: g.id_grado, label: g.nombre })),
+        nombre: 'grados',
+        etiqueta: 'Grados que ofrece',
+        tipo: 'multiple',
+        ancho: 'completo',
+        opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
       },
     ],
     [grados],
@@ -49,7 +63,7 @@ export default function MantenimientoColegios() {
 
   const consulta = useQuery({
     queryKey: ['colegios', 'mantenimiento', filtros],
-    queryFn: () => listarColegiosAdmin(filtros),
+    queryFn: async () => (await listarColegiosAdmin(filtros)).items,
   })
 
   const refrescar = () => {
@@ -96,8 +110,9 @@ export default function MantenimientoColegios() {
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       columnas={[
         { key: 'nombre', header: 'Colegio', sortable: true, className: 'font-medium text-ink-900' },
-        { key: 'codigo', header: 'Código', align: 'center', render: (c) => c.codigo ?? '—' },
-        { key: 'zona', header: 'Ubicación', sortable: true },
+        { key: 'nivel_educativo', header: 'Nivel', align: 'center', render: (c) => etiquetaDe(c.nivel_educativo) },
+        { key: 'departamento', header: 'Departamento', sortable: true, render: (c) => etiquetaDe(c.departamento) },
+        { key: 'distrito', header: 'Distrito', sortable: true, render: (c) => etiquetaDe(c.distrito) },
       ]}
     />
   )

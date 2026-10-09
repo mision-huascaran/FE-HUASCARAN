@@ -59,13 +59,15 @@ describe('Filtros de Asistencia (T30)', () => {
     )
   })
 
-  it('carga las secciones del colegio elegido', async () => {
+  it('ya no ofrece filtro de Sección: dejó de ser una entidad', async () => {
+    // El backend lo decidió así: la sección es un atributo del colegio
+    // (`colegio.seccion`, "Única" por defecto) y el alumno la hereda. Antes
+    // este filtro pedía `/secciones`, que ya no existe.
     montar()
     await abrirFiltros()
 
-    const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
-    // "Todas" es opción válida, pero detrás tienen que estar las del plantel.
-    await waitFor(() => expect(within(seccion).getAllByRole('option').length).toBeGreaterThan(1), ESPERA)
+    await screen.findByLabelText('Colegio', {}, ESPERA)
+    expect(screen.queryByLabelText('Sección')).not.toBeInTheDocument()
   })
 
   it('unos filtros guardados por una versión anterior no dejan campos sin definir', async () => {

@@ -3,7 +3,6 @@ import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
-import TarjetaAsignaciones from './TarjetaAsignaciones'
 import useResumenDocente from './useResumenDocente'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
@@ -16,7 +15,7 @@ import StatCard from '../../components/ui/StatCard'
 import { usePeriodos } from '../../hooks/useCatalogos'
 import useFiltrosStore from '../../store/filtrosStore'
 import useSessionStore from '../../store/sessionStore'
-import { formatearRangoSemana } from '../../lib/format'
+import { formatearHora, formatearRangoSemana } from '../../lib/format'
 
 const saludo = () => {
   const hora = dayjs().hour()
@@ -73,8 +72,8 @@ export default function InicioDocente() {
             inicio y la de fin, sin cronómetro regresivo. */}
         {sesion && (
           <p className="text-sm text-ink-500">
-            Actividad iniciada a las {dayjs(sesion.inicio).format('HH:mm')}. La sesión finaliza a las{' '}
-            {finDeSesion.format('HH:mm')}.
+            Actividad iniciada a las {formatearHora(sesion.inicio)}. La sesión finaliza a las{' '}
+            {formatearHora(finDeSesion)}.
           </p>
         )}
 
@@ -142,7 +141,10 @@ export default function InicioDocente() {
         </div>
       )}
 
-      <TarjetaAsignaciones asignaciones={resumen?.asignaciones ?? []} idSemana={semanaActual?.id_semana} />
+      {/* Las asignaciones las pinta `ResumenesAccion`, que lee el endpoint
+          real `GET /inicio/docente`. Antes había aquí una segunda tarjeta con
+          el mismo título alimentada por el simulador: dos "Mis asignaciones"
+          que podían contradecirse. */}
 
       <section>
         <h2 className="text-xl font-semibold text-ink-900">Accesos rápidos</h2>

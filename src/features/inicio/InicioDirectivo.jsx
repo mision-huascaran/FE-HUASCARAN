@@ -10,7 +10,7 @@ import { Activity, School, Users } from 'lucide-react'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import AvisoDatosLocales from './AvisoDatosLocales'
-import { listarAlumnosAdmin, listarColegiosAdmin } from '../../api/resources/administracion'
+import { obtenerInicioDirectivo } from '../../api/resources/inicio'
 import useConexion from '../../hooks/useConexion'
 import useResumenLocal from './useResumenLocal'
 
@@ -19,18 +19,21 @@ export default function InicioDirectivo() {
 
   const consulta = useQuery({
     queryKey: ['inicio', 'directivo'],
+    /**
+     * Una sola llamada: `GET /inicio/directivo`. Antes esto se componía con dos
+     * peticiones y un conteo en el cliente, que con la conectividad de los
+     * colegios era justo lo que no convenía.
+     *
+     * `salud_sistema` llega hoy en `null` porque depende de la sincronización
+     * offline, que el backend todavía no tiene. CU012 prohíbe inventar un
+     * porcentaje: se muestra "Sin datos disponibles".
+     */
     queryFn: async () => {
-      const [alumnos, colegios] = await Promise.all([
-        listarAlumnosAdmin({ estado: 'activo', limit: 1 }),
-        listarColegiosAdmin({ estado: 'activo' }),
-      ])
+      const datos = await obtenerInicioDirectivo()
       return {
-        beneficiarios: alumnos.total ?? 0,
-        colegios: colegios.length,
-        // "Salud del Sistema" sale de datos reales de sincronización. Si no se
-        // puede calcular, el caso de uso prohíbe mostrar un porcentaje
-        // inventado: se informa que no está disponible.
-        salud: null,
+        beneficiarios: datos?.beneficiarios_activos ?? 0,
+        colegios: datos?.colegios_operando ?? 0,
+        salud: datos?.salud_sistema ?? null,
       }
     },
     enabled: enLinea,

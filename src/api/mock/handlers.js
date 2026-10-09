@@ -19,6 +19,17 @@ function responder(datos, ms = RETARDO_MS) {
 
 // Grillas de asistencia creadas durante la sesión. Viven aquí y no en `db`,
 // que se importa de solo lectura.
+/**
+ * Error con la MISMA forma que el de axios, para que las pantallas puedan
+ * ramificar por `motivo` igual que contra el backend real.
+ */
+function errorMock(status, detail, motivo) {
+  const error = new Error(detail)
+  error.response = { status, data: { detail, motivo } }
+  return error
+}
+
+const ACTIVIDADES_MOCK = {}
 const GRILLAS_ASISTENCIA = {}
 const GRILLAS_SEMANALES = {}
 
@@ -379,6 +390,14 @@ export const handlers = {
 
   /** Resúmenes del Módulo de Inicio (CU010, CU011, CU012). */
   inicio: {
+    /** CU012: exactamente tres tarjetas. `salud_sistema` en null a proposito. */
+    directivo: () =>
+      responder({
+        beneficiarios_activos: db.ALUMNOS.filter((a) => a.activo !== false).length,
+        colegios_operando: db.COLEGIOS.length,
+        salud_sistema: null,
+      }),
+
     supervisor: async () =>
       responder({
         colegios: db.COLEGIOS.length,
@@ -393,18 +412,39 @@ export const handlers = {
         ],
       }),
 
-    docente: async (idDocente) => {
+    /**
+     * Misma forma que `GET /inicio/docente` del backend real.
+     *
+     * Divergir aquí sale caro: la pantalla funcionaba con el simulador y
+     * reventaba contra el servidor, que es el peor orden posible para
+     * enterarse. Los Resúmenes de Acción NO se devuelven, igual que el
+     * backend, porque dependen de las grillas y todavía no existen.
+     */
+    docente: async (idDocente = 1) => {
       const asignaciones = db.ASIGNACIONES.filter((a) => a.id_docente === Number(idDocente))
       const idsColegio = [...new Set(asignaciones.map((a) => a.id_colegio))]
       const alumnos = idsColegio.flatMap((id) => db.alumnosDe({ colegio: id }))
+
       return responder({
-        colegios: idsColegio.map((id) => db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre).filter(Boolean),
-        // RN-003: la asignación es por colegio completo, con sus seis grados.
-        grados: asignaciones.length ? db.GRADOS.map((g) => g.nombre) : [],
-        ciclos: ['III', 'IV'],
-        subprograma: 'Alfabetización',
-        alumnos: alumnos.length,
-        evaluados: Math.round(alumnos.length * 0.5),
+        actividad_activa: null,
+        puede_iniciar_actividad: asignaciones.length > 0,
+        sesion_expira: null,
+        asignaciones: idsColegio.map((id) => ({
+          colegio: { id, nombre: db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre },
+          // RN-003: la asignación es por colegio completo, con sus seis grados.
+          grados: db.GRADOS.map((g) => ({
+            id: g.id_grado,
+            nombre: g.nombre,
+            cantidad_alumnos: db.alumnosDe({ colegio: id, grado: g.id_grado }).length,
+            ciclos: ['III'],
+            subprogramas: ['Alfabetización'],
+          })),
+        })),
+        totales: {
+          ciclos: ['III', 'IV'],
+          subprogramas: ['Alfabetización'],
+          cantidad_alumnos: alumnos.length,
+        },
       })
     },
   },
@@ -442,6 +482,71 @@ export const handlers = {
 
   /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
   sesiones: {
+    /**
+     * Inicio y fin de una actividad. El id lo trae el cliente, asi que repetir
+     * la llamada con el mismo id devuelve lo mismo en vez de duplicar.
+     */
+    iniciar: ({ id, inicio }) => {
+      const abierta = {
+        id,
+        inicio: inicio ?? new Date().toISOString(),
+        fin: null,
+        estado: 'en_curso',
+        tipo_cierre: null,
+        sesion_expira: null,
+      }
+      ACTIVIDADES_MOCK[id] = abierta
+      return responder(abierta)
+    },
+
+    finalizar: (id, { fin } = {}) => {
+      const previa = ACTIVIDADES_MOCK[id] ?? { id, inicio: new Date().toISOString() }
+      const cerrada = {
+        ...previa,
+        fin: fin ?? new Date().toISOString(),
+        estado: 'finalizada',
+        tipo_cierre: 'Manual por finalizacion de actividad',
+      }
+      ACTIVIDADES_MOCK[id] = cerrada
+      return responder(cerrada)
+    },
+
+    /** CU020: primero los pendientes, luego alfabetico. Hoy todos al dia. */
+    seguimiento: () =>
+      responder({
+        items: db.DOCENTES.map((d) => ({
+          id_docente: d.id_docente,
+          nombres: d.nombre?.split(' ')[0] ?? d.nombre,
+          apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+          activo: d.activo !== false,
+          colegios: [],
+          ultima_conexion: null,
+          sincronizacion: 'al_dia',
+          registros_pendientes: 0,
+        })),
+        total: db.DOCENTES.length,
+        pagina: 1,
+        paginas: 1,
+        por_pagina: 10,
+      }),
+
+    seguimientoDocente: (idDocente) => {
+      const d = db.DOCENTES.find((x) => Number(x.id_docente) === Number(idDocente))
+      if (!d) return Promise.reject(errorMock(404, 'El detalle solicitado no se encuentra disponible.', 'docente_no_encontrado'))
+      return responder({
+        id_docente: d.id_docente,
+        nombres: d.nombre?.split(' ')[0] ?? d.nombre,
+        apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+        activo: d.activo !== false,
+        colegios: [],
+        ultima_conexion: null,
+        sincronizacion: 'al_dia',
+        registros_pendientes: 0,
+      })
+    },
+
+    actividadesDe: () => responder({ items: [], total: 0, pagina: 1, paginas: 1, por_pagina: 10 }),
+
     listar: async ({ todas = false, idDocente, idColegio, fecha } = {}) => {
       const base = [
         { id: 'a3f1b2c4', id_docente: 1, docente: 'Rosa Elena Cárdenas Villanueva', id_colegio: 1, colegio: 'I.E. 86021 Ranrahirca', inicio: '2026-10-05T08:05:00', fin: '2026-10-05T11:40:00', estado: 'cerrada', cambios: 23 },
@@ -489,7 +594,7 @@ export const handlers = {
     async login({ correo, password }) {
       const usuario = db.USUARIOS.find((u) => u.correo.toLowerCase() === String(correo ?? '').trim().toLowerCase())
       // P1: un 401 nunca revela cuál de los dos campos falló.
-      if (!usuario || password !== db.CLAVE_DEMO) throw errorHttp(401, 'Credenciales inválidas')
+      if (!usuario || password !== db.CLAVE_DEMO) throw errorHttp(401, 'Correo o contraseña incorrectos.')
       return responder({ access_token: armarToken(usuario.id_usuario), token_type: 'bearer' })
     },
 
@@ -708,6 +813,13 @@ export const handlers = {
   // ── Fase 7 ──────────────────────────────────────────────────────────────────
 
   administracion: {
+    /** Valores existentes para los desplegables de filtro de colegios. */
+    ubicaciones: () =>
+      responder({
+        departamentos: [...new Set(db.COLEGIOS.map((c) => c.departamento).filter(Boolean))],
+        distritos: [...new Set(db.COLEGIOS.map((c) => c.distrito).filter(Boolean))],
+      }),
+
     docentes: () =>
       responder(
         db.DOCENTES.map((d) => {
@@ -922,7 +1034,9 @@ export const handlers = {
       const rol = Number(idRol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
-      if (rol === 1) throw errorHttp(400, 'Para crear un docente usa el alta de docentes')
+      // Ya NO se rechaza el rol Docente: `/profesores` desapareció y este es
+      // el único alta de los tres roles. Con id_rol de Docente, el backend crea
+      // además su ficha y sus asignaciones en la misma transacción.
       if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1

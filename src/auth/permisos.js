@@ -107,11 +107,35 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
+  /**
+   * CU017 a CU019 — SOLO del Docente, y solo sus propias actividades.
+   *
+   * El Supervisor ya no entra aquí: para vigilar a su equipo tiene Seguimiento
+   * (CU020, CU021), que es otra pantalla con otros datos. Antes compartían
+   * módulo y el Supervisor veía el listado con un filtro por docente.
+   *
+   * Es estrictamente EN LÍNEA: los CU prohíben responder desde la memoria
+   * local, para que nadie confunda un histórico viejo con el estado real.
+   */
   sesiones: {
     ruta: '/sesiones',
     etiqueta: 'Sesiones',
-    conectividad: CONECTIVIDAD.LECTURA_CACHE,
+    conectividad: CONECTIVIDAD.SOLO_ONLINE,
     [DOCENTE]: { acciones: [VER], alcance: 'propio' },
+    [SUPERVISOR]: null,
+    [DIRECTIVO]: null,
+  },
+  /**
+   * CU020 y CU021 — Seguimiento del equipo, exclusivo del Supervisor.
+   *
+   * Solo lectura y solo en línea: el historial de auditoría no se descarga al
+   * dispositivo, para no llenar la memoria del navegador con datos masivos.
+   */
+  seguimiento: {
+    ruta: '/seguimiento',
+    etiqueta: 'Seguimiento',
+    conectividad: CONECTIVIDAD.SOLO_ONLINE,
+    [DOCENTE]: null,
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
     [DIRECTIVO]: null,
   },

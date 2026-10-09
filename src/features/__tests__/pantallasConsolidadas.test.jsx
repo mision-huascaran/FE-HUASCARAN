@@ -97,7 +97,6 @@ describe('Administración (P16)', () => {
     // Alumnos ya no está aquí: es su propio módulo y lo gestiona el Docente.
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Docentes',
-      'Asignaciones',
       'Colegios',
       'Cuentas',
       'Periodos de evaluación',

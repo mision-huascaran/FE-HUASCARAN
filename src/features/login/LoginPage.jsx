@@ -62,22 +62,28 @@ export default function LoginPage() {
       navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
-      // Nunca se dice cuál de los dos campos falló: decirlo permitiría ir
-      // probando correos para averiguar quién tiene cuenta (CU002).
+
+      /**
+       * El backend puede responder 401 TAMBIÉN para una cuenta desactivada
+       * (api_sicedu_frontend §3.1: "401/403, ver /docs"), y en ese caso el
+       * texto correcto es el de la cuenta deshabilitada, no el de credenciales.
+       * Por eso se prefiere su `detail`, que ya viene redactado palabra por
+       * palabra como pide CU002; los textos locales son solo el respaldo.
+       */
       if (estado === 401) {
-        setErrorGeneral(MENSAJE.credenciales)
+        setErrorGeneral(mensajeDeError(error, MENSAJE.credenciales))
         return
       }
       // 429: cinco intentos seguidos fallidos bloquean ese correo 15 minutos,
       // exista la cuenta o no. El bloqueo no desactiva nada.
       if (estado === 429) {
-        setErrorGeneral(MENSAJE.bloqueo)
+        setErrorGeneral(mensajeDeError(error, MENSAJE.bloqueo))
         return
       }
       // Credenciales correctas pero cuenta dada de baja. El texto lo fija
       // CU002: se ignora el del servidor para no decir de más.
       if (estado === 403) {
-        setErrorGeneral(MENSAJE.desactivada)
+        setErrorGeneral(mensajeDeError(error, MENSAJE.desactivada))
         return
       }
       if (estado) {

@@ -1,104 +1,72 @@
-// Administración (P16): colegios, alumnos, docentes, cuentas y asignaciones.
+// Administración: colegios (CU013), alumnos (CU014) y usuarios (CU016).
 //
-// Estado del backend (APIS_BACKEND.md), respetado endpoint por endpoint:
+// Contrato: `api_sicedu_frontend.md` (backend, 08/10/2026). Lo que cambió
+// respecto de la versión anterior de este archivo, y por qué importa:
 //
-//   REAL   colegios, alumnos (alta, listado paginado y edición), profesores
-//          (alta, listado, edición, activar y desactivar) y las cuentas de
-//          Supervisor y Directivo (alta, listado, activar y desactivar).
-//   MOCK   las asignaciones docente-colegio-periodo, y la EDICIÓN de una cuenta
-//          de Supervisor o Directivo: el backend no publica un PATCH para ellas
-//          (solo `PATCH /profesores/{id}`, que es para docentes).
-//
-// Los catálogos de rúbrica se leen con `useCatalogos` y NO tienen escritura: la
-// rúbrica es un instrumento oficial de Misión Huascarán (RF-025, RN-016).
+//   · `/profesores` DESAPARECIÓ. Un docente se crea con `POST /usuarios`
+//     pasando `id_rol`, y en el mismo cuerpo van año escolar, colegio y grados:
+//     el backend crea usuario, docente y asignaciones en una transacción.
+//   · `zona` pasó a `provincia`, y `departamento` y `distrito` son obligatorios.
+//   · Las SECCIONES no son una entidad: la sección es un atributo del colegio
+//     (`colegio.seccion`, "Única" por defecto) y el alumno la hereda. Por eso
+//     ya no hay `listarSecciones`.
+//   · El CICLO del alumno lo calcula el backend a partir de subprograma y
+//     grado. No se envía.
+//   · Todo lista de 10 en 10 con `page` y responde con el esquema `Paginado`.
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 
-const { administracion } = ENDPOINTS
+const { alumnos, colegios, usuarios, auth } = ENDPOINTS
 
-/** El backend real solo devuelve `nombres`/`apellidos`; la tabla muestra un nombre. */
-function normalizarDocente(d) {
-  const nombre = d.nombre ?? [d.nombres, d.apellidos].filter(Boolean).join(' ').trim()
+/** Nombre a mostrar a partir de `nombres` + `apellidos`, que es como viajan. */
+const conNombre = (persona) => ({
+  ...persona,
+  nombre: persona.nombre ?? [persona.nombres, persona.apellidos].filter(Boolean).join(' ').trim(),
+})
+
+/**
+ * Envoltura `Paginado` del backend, tolerante con el mock.
+ *
+ * El mock todavía responde arrays sueltos. Sin esto, cada pantalla tendría que
+ * preguntarse de dónde vino la respuesta antes de pintar una tabla.
+ */
+export function normalizarPaginado(datos, porPagina = 10) {
+  if (Array.isArray(datos)) {
+    return { items: datos, total: datos.length, pagina: 1, paginas: 1, por_pagina: datos.length || porPagina }
+  }
+  const items = datos?.items ?? []
+  const total = datos?.total ?? items.length
   return {
-    ...d,
-    nombre,
-    // `GET /profesores` no trae las asignaciones del periodo: sin ellas, la
-    // columna queda vacía en vez de romperse.
-    colegios_vigentes: d.colegios_vigentes ?? [],
+    items,
+    total,
+    pagina: datos?.pagina ?? datos?.page ?? 1,
+    paginas: datos?.paginas ?? Math.max(1, Math.ceil(total / (datos?.por_pagina ?? porPagina))),
+    por_pagina: datos?.por_pagina ?? porPagina,
   }
 }
 
-// ── Docentes ────────────────────────────────────────────────────────────────
-
-export const listarDocentes = async () => {
-  const filas = await resolver({
-    mock: () => handlers.administracion.docentes(),
-    real: () => api.get(administracion.profesores),
-    forzarReal: adminContraApiReal,
-  })
-  return (filas ?? []).map(normalizarDocente)
+/**
+ * Filtra por estado en el cliente SOLO para el mock.
+ *
+ * El backend ya acepta `?activo=`, así que contra la API real esto no se usa.
+ * La regla transversal es que toda grilla abre mostrando los activos.
+ */
+const porEstado = (filas, estado = 'activo') => {
+  if (estado === 'todos') return filas
+  const quiero = estado !== 'inactivo'
+  return filas.filter((f) => (f.activo ?? true) === quiero)
 }
 
-/**
- * Alta de un docente.
- *
- * El backend NO recibe contraseña: genera una temporal, la manda por correo y la
- * devuelve en `contraseña_temporal` solo si el envío falló, para que el
- * Supervisor se la entregue a mano. Por eso la pantalla no pide contraseña y sí
- * muestra la que llegue de vuelta.
- */
-export const crearDocente = async ({ nombres, apellidos, correo }) => {
-  const creado = await resolver({
-    mock: () => handlers.administracion.crearDocente({ nombres, apellidos, correo }),
-    real: () => api.post(administracion.profesores, { nombres, apellidos, correo, activo: true }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarDocente(creado)
-}
+/** `?activo=` tal y como lo espera el backend, u `undefined` para "todos". */
+const activoDe = (estado) => (estado === 'todos' ? undefined : estado !== 'inactivo')
 
-/**
- * Baja lógica: el backend desactiva la cuenta y su ficha de docente, no borra
- * nada. El docente deja de poder iniciar sesión y se puede reactivar.
- */
-export const desactivarDocente = (idUsuario) =>
-  resolver({
-    mock: () => handlers.administracion.desactivarUsuario(idUsuario),
-    real: () => api.patch(administracion.desactivarProfesor(idUsuario)),
-    forzarReal: adminContraApiReal,
-  })
+// ── Catálogos para los formularios de administración ────────────────────────
+//
+// Van aparte de `resources/catalogos.js` por una razón concreta: al dar de alta
+// hay que enviar ids del backend REAL. Si el desplegable ofreciera los del mock,
+// el alta llegaría con un id inexistente y el servidor respondería 404.
 
-/**
- * `PATCH /profesores/{id_usuario}` — parcial.
- * El backend escribe los nombres en `usuario` y en `docente`, así que el
- * listado no se queda con el nombre viejo.
- */
-export const actualizarDocente = (idUsuario, cambios) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarUsuario(idUsuario, cambios),
-    real: () => api.patch(administracion.profesor(idUsuario), cambios),
-    forzarReal: adminContraApiReal,
-  })
-
-export const activarDocente = (idUsuario) =>
-  resolver({
-    mock: () => handlers.administracion.activarUsuario(idUsuario),
-    real: () => api.patch(administracion.activarProfesor(idUsuario)),
-    forzarReal: adminContraApiReal,
-  })
-
-// ── Colegios y alumnos ──────────────────────────────────────────────────────
-
-/**
- * Grados y programas PARA LOS FORMULARIOS DE ADMINISTRACIÓN.
- *
- * Existen aparte de `resources/catalogos.js` por una razón concreta: al dar de
- * alta un alumno hay que enviar `id_colegio`, `id_grado` e `id_programa_actual`
- * del backend REAL. Si el desplegable ofreciera los del mock, el alta llegaría
- * con un id que allí no existe y el servidor respondería
- * `404 No existe un grado con id_grado=…`. El catálogo compartido, en cambio,
- * sigue en mock porque de él viven el dashboard y las pantallas de captura.
- */
 export const listarGradosAdmin = () =>
   resolver({
     mock: () => handlers.catalogos.grados(),
@@ -113,71 +81,95 @@ export const listarProgramasAdmin = () =>
     forzarReal: adminContraApiReal,
   })
 
+// ── Colegios (CU013) ────────────────────────────────────────────────────────
 
 export const listarColegiosAdmin = async (filtros = {}) => {
-  const filas = await resolver({
-    mock: () => handlers.administracion.colegios(),
-    real: () => api.get(administracion.colegios),
-    forzarReal: adminContraApiReal,
-  })
-  return porEstado(filas ?? [], filtros.estado)
-}
-
-/**
- * `POST /colegios`. El backend guarda `{ nombre, zona }` y nada más, así que el
- * formulario tampoco pide nada más: la abreviatura que usan las etiquetas de
- * los gráficos la deduce el mock del propio nombre.
- */
-export const crearColegio = ({ nombre, zona }) =>
-  resolver({
-    mock: () => handlers.administracion.crearColegio({ nombre, zona }),
-    real: () => api.post(administracion.colegios, { nombre, zona }),
-    forzarReal: adminContraApiReal,
-  })
-
-/**
- * `GET /alumnos` — paginado y con filtros. La respuesta viene envuelta
- * (`{ total, limit, offset, items }`), no como array suelto, porque sin `total`
- * no se puede saber cuántas páginas hay.
- *
- * El backend devuelve `nombres` y `apellidos` por separado y no resuelve el
- * nombre del colegio: eso se arma aquí una sola vez.
- */
-/** `PATCH /colegios/{id}` — parcial. El backend solo admite nombre y zona. */
-export const actualizarColegio = (idColegio, { nombre, zona }) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarColegio(idColegio, { nombre, zona }),
-    real: () => api.patch(administracion.colegio(idColegio), { nombre, zona }),
-    forzarReal: adminContraApiReal,
-  })
-
-export const listarAlumnosAdmin = async (filtros = {}) => {
   const datos = await resolver({
-    mock: () => handlers.administracion.alumnos(),
+    mock: () => handlers.administracion.colegios(),
     real: () =>
-      api.get(administracion.alumnos, {
+      api.get(colegios.listar, {
         params: {
-          colegio: filtros.colegio || undefined,
-          grado: filtros.grado || undefined,
-          programa: filtros.programa || undefined,
-          q: filtros.q || undefined,
-          limit: filtros.limit ?? 50,
-          offset: filtros.offset ?? 0,
+          departamento: filtros.departamento || undefined,
+          distrito: filtros.distrito || undefined,
+          activo: activoDe(filtros.estado),
+          page: filtros.pagina || undefined,
         },
       }),
     forzarReal: adminContraApiReal,
   })
 
-  // El mock responde un array; la API real, la envoltura con `total`.
-  const items = Array.isArray(datos) ? datos : (datos?.items ?? [])
+  const pagina = normalizarPaginado(datos)
+  // El mock no filtra por estado; la API real sí lo hizo ya en el servidor.
+  return Array.isArray(datos) ? { ...pagina, items: porEstado(pagina.items, filtros.estado) } : pagina
+}
+
+/** Valores existentes de departamento y distrito, para los desplegables de filtro. */
+export const listarUbicaciones = () =>
+  resolver({
+    mock: () => handlers.administracion.ubicaciones(),
+    real: () => api.get(colegios.ubicaciones),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * `POST /colegios`.
+ *
+ * `nombre`, `departamento` y `distrito` son obligatorios (422 si faltan). El
+ * nombre es único ignorando mayúsculas, espacios y tildes: "Shilla" y "SHILLA "
+ * chocan con 409.
+ */
+export const crearColegio = (colegio) =>
+  resolver({
+    mock: () => handlers.administracion.crearColegio(colegio),
+    real: () => api.post(colegios.crear, colegio),
+    forzarReal: adminContraApiReal,
+  })
+
+/** `PATCH /colegios/{id}` — parcial. Mandar `null` en un obligatorio da 422. */
+export const actualizarColegio = (idColegio, cambios) =>
+  resolver({
+    mock: () => handlers.administracion.actualizarColegio(idColegio, cambios),
+    real: () => api.patch(colegios.actualizar(idColegio), cambios),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Baja lógica del colegio. No toca alumnos ni registros: deja de contar como
+ * operando y sale del alcance de sus docentes.
+ */
+export const cambiarEstadoColegio = (idColegio, activo) =>
+  resolver({
+    mock: () => handlers.administracion.cambiarEstadoColegio(idColegio, activo),
+    real: () => api.patch(colegios.actualizar(idColegio), { activo }),
+    forzarReal: adminContraApiReal,
+  })
+
+// ── Alumnos (CU014) ─────────────────────────────────────────────────────────
+
+export const listarAlumnosAdmin = async (filtros = {}) => {
+  const datos = await resolver({
+    mock: () => handlers.administracion.alumnos(),
+    real: () =>
+      api.get(alumnos.listar, {
+        params: {
+          colegio: filtros.colegio || undefined,
+          subprograma: filtros.subprograma ?? filtros.programa ?? undefined,
+          ciclo: filtros.ciclo || undefined,
+          grado: filtros.grado || undefined,
+          activo: activoDe(filtros.estado),
+          page: filtros.pagina || undefined,
+        },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+  const pagina = normalizarPaginado(datos)
   return {
-    total: Array.isArray(datos) ? datos.length : (datos?.total ?? items.length),
-    limit: Array.isArray(datos) ? items.length : (datos?.limit ?? 50),
-    offset: Array.isArray(datos) ? 0 : (datos?.offset ?? 0),
-    items: items.map((a) => {
-      // Al Directivo el backend le manda `nombres` y `apellidos` en null: no
-      // puede ver datos identificables. Sin este respaldo la fila saldría en
-      // blanco y parecería un fallo de carga, no una regla de privacidad.
+    ...pagina,
+    items: pagina.items.map((a) => {
+      // Al Directivo el backend le responde 403 en Alumnos, pero si alguna
+      // respuesta llegara sin nombre, la fila diría quién es por su id en vez
+      // de salir en blanco y parecer un fallo de carga.
       const nombre = a.nombre || [a.apellidos, a.nombres].filter(Boolean).join(', ')
       return {
         ...a,
@@ -189,197 +181,192 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
   }
 }
 
-/** `PATCH /alumnos/{id}` — parcial: solo viajan los campos que cambian. */
-export const actualizarAlumno = (idAlumno, cambios) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarAlumno(idAlumno, cambios),
-    real: () => api.patch(administracion.alumno(idAlumno), cambios),
-    forzarReal: adminContraApiReal,
-  })
-  resolver({ mock: () => handlers.administracion.alumnos(), real: () => handlers.administracion.alumnos() })
-
 /**
- * `POST /alumnos` → { nombres, apellidos, id_colegio, id_grado, id_programa_actual }.
- * Un alumno no existe suelto: sin colegio, grado y programa el backend responde 404.
+ * `POST /alumnos`.
+ *
+ * NO se manda el ciclo: lo calcula el backend (Alfabetización → III;
+ * Comprensión Lectora → 2.º III, 3.º y 4.º IV, 5.º y 6.º V). Tampoco la
+ * sección, que el alumno hereda del colegio. 1.º grado solo admite
+ * Alfabetización, y el colegio debe ofrecer ese grado y ese subprograma.
  */
-export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula }) =>
+export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }) =>
   resolver({
-    mock: () => handlers.administracion.crearAlumno({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula }),
-    // El backend llama `id_programa_actual` a lo que la interfaz llama programa,
-    // y no maneja aula todavía.
+    mock: () => handlers.administracion.crearAlumno({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }),
     real: () =>
-      api.post(administracion.alumnos, {
+      api.post(alumnos.crear, {
         nombres,
         apellidos,
         id_colegio: Number(idColegio),
         id_grado: Number(idGrado),
         id_programa_actual: Number(idPrograma),
-        activo: true,
       }),
     forzarReal: adminContraApiReal,
   })
 
-// ── Cuentas de Supervisor y Directivo ───────────────────────────────────────
-
-/** `GET /usuarios` — trae el nombre del rol ya resuelto (`rol`). */
-export const listarUsuariosAdmin = async (rol) => {
-  const filas = await resolver({
-    mock: () => handlers.administracion.usuarios(),
-    real: () => api.get(administracion.usuarios, { params: { rol: rol || undefined } }),
+export const actualizarAlumno = (idAlumno, cambios) =>
+  resolver({
+    mock: () => handlers.administracion.actualizarAlumno(idAlumno, cambios),
+    real: () => api.patch(alumnos.actualizar(idAlumno), cambios),
     forzarReal: adminContraApiReal,
   })
-  return (filas ?? []).map((u) => ({
-    ...u,
-    nombre: u.nombre ?? [u.nombres, u.apellidos].filter(Boolean).join(' ').trim(),
-  }))
+
+export const cambiarEstadoAlumno = (idAlumno, activo) =>
+  resolver({
+    mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo }),
+    real: () => api.patch(alumnos.actualizar(idAlumno), { activo }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Historial del alumno (CU015), construido a partir de la auditoría.
+ *
+ * Exige conexión: sin ella, la pestaña muestra su estado vacío. El backend
+ * agrupa por evento, así que varias filas con la misma fecha y autor llegan
+ * como una sola edición con el detalle de los campos cambiados.
+ */
+export const listarHistorialAlumno = (idAlumno) =>
+  resolver({
+    mock: () => handlers.administracion.auditoria('alumno', idAlumno),
+    real: () => api.get(alumnos.historial(idAlumno)),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Auditoría de un registro, para la pestaña de la plantilla de mantenimiento.
+ *
+ * El backend publica auditoría SOLO del alumno: es lo único que piden los CU.
+ * Para colegios y usuarios devuelve lista vacía a propósito, y la pestaña
+ * muestra su estado vacío en vez de inventarse un historial.
+ */
+export const listarAuditoria = (entidad, id) => {
+  if (entidad === 'alumno') return listarHistorialAlumno(id)
+  return resolver({
+    mock: () => handlers.administracion.auditoria(entidad, id),
+    real: () => Promise.resolve([]),
+    forzarReal: adminContraApiReal,
+  })
+}
+
+// ── Usuarios de los tres roles (CU016) ──────────────────────────────────────
+
+/**
+ * `GET /usuarios` — ordenado por rol (Docentes, Supervisores, Directivos) y
+ * luego alfabéticamente.
+ *
+ * `colegios_asignados` llega como LISTA: nombres de colegios para los docentes
+ * y `["Global"]` para Supervisor y Directivo.
+ */
+export const listarUsuariosAdmin = async (filtros = {}) => {
+  const datos = await resolver({
+    mock: () => handlers.administracion.usuarios(),
+    real: () =>
+      api.get(usuarios.listar, {
+        params: {
+          rol: filtros.rol || undefined,
+          activo: activoDe(filtros.estado),
+          q: filtros.q || undefined,
+          page: filtros.pagina || undefined,
+        },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+  const pagina = normalizarPaginado(datos)
+  return {
+    ...pagina,
+    items: pagina.items.map((u) => ({
+      ...conNombre(u),
+      colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
+      es_supervisor_original: Boolean(u.es_supervisor_original),
+    })),
+  }
+}
+
+/** Solo los docentes, que es lo que necesitan los filtros de seguimiento. */
+export const listarDocentes = async () => {
+  const { items } = await listarUsuariosAdmin({ rol: 'Docente', estado: 'activo' })
+  return items
 }
 
 /**
- * `POST /usuarios` — crea una cuenta de Supervisor o Directivo.
+ * `POST /usuarios` — el ÚNICO alta, para los tres roles.
  *
- * Rechaza con 400 si el rol es Docente: esos se crean con `crearDocente`,
- * porque además necesitan su ficha en la tabla `docente`.
+ * Con `id_rol` de Docente hay que mandar además `anio_escolar`, `id_colegio` y
+ * `grados`: por ahora un solo colegio por docente, atendiendo todos los grados
+ * que ese colegio ofrece. Un aula (colegio + grado + periodo) solo admite un
+ * docente, así que un choque responde 409.
  *
- * `correo_enviado` dice si la credencial salió por correo. Cuando es `false`,
- * `contraseña_temporal` trae la ÚNICA copia y hay que mostrarla en pantalla.
+ * El backend genera la contraseña temporal y la envía por correo. Si el envío
+ * falla, la respuesta trae `correo_enviado: false` y la `contraseña_temporal`
+ * para mostrarla UNA sola vez.
  */
-export const crearUsuario = ({ nombres, apellidos, correo, id_rol: idRol }) =>
+export const crearUsuario = (datos) =>
   resolver({
-    mock: () => handlers.administracion.crearUsuario({ nombres, apellidos, correo, id_rol: idRol }),
-    real: () => api.post(administracion.usuarios, { nombres, apellidos, correo, id_rol: Number(idRol), activo: true }),
+    mock: () => handlers.administracion.crearUsuario(datos),
+    real: () => api.post(usuarios.crear, { ...datos, id_rol: Number(datos.id_rol) }),
     forzarReal: adminContraApiReal,
   })
 
 /**
- * `PATCH /usuarios/{id}/desactivar`.
+ * `PATCH /usuarios/{id}`.
  *
- * El servidor rechaza con 409 la última cuenta activa de Supervisor o Directivo,
- * y también desactivarse a uno mismo. Su `detail` ya viene redactado para el
- * usuario final, así que se muestra tal cual.
+ * Aquí se renueva (cambiando el año escolar) y se rota (cambiando el colegio e
+ * indicando desde qué periodo aplica). En la cuenta del Supervisor original el
+ * rol no se toca, pero correo, nombres y DNI sí se editan.
+ */
+export const actualizarUsuario = (id, cambios) =>
+  resolver({
+    mock: () => handlers.administracion.actualizarUsuario(id, cambios),
+    real: () => api.patch(usuarios.actualizar(id), cambios),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Desactivar cierra las sesiones de esa persona y, si es docente, LIBERA SUS
+ * AULAS desde el periodo vigente. Reactivar no las devuelve: hay que asignarle
+ * colegio otra vez. Conviene decirlo en el modal de confirmación.
  */
 export const desactivarUsuario = (idUsuario) =>
   resolver({
     mock: () => handlers.administracion.desactivarUsuario(idUsuario),
-    real: () => api.patch(administracion.desactivarUsuario(idUsuario)),
+    real: () => api.patch(usuarios.desactivar(idUsuario)),
     forzarReal: adminContraApiReal,
   })
 
 export const activarUsuario = (idUsuario) =>
   resolver({
     mock: () => handlers.administracion.activarUsuario(idUsuario),
-    real: () => api.patch(administracion.activarUsuario(idUsuario)),
+    real: () => api.patch(usuarios.activar(idUsuario)),
     forzarReal: adminContraApiReal,
   })
 
-/**
- * `PATCH /usuarios/{id}` — corrige nombre y correo de una cuenta.
- *
- * El backend solo admite esos tres campos: el rol no se cambia editando (una
- * cuenta no cambia de parcela) y la contraseña se gestiona aparte. Además
- * aplica la parcela del rol: un Supervisor no puede tocar a un Directivo.
- */
-export const actualizarUsuario = (id, { nombres, apellidos, correo }) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarUsuario(id, { nombres, apellidos, correo }),
-    real: () => api.patch(administracion.usuario(id), { nombres, apellidos, correo }),
-    forzarReal: adminContraApiReal,
-  })
+// Alias por compatibilidad con las pantallas de docentes, que son usuarios.
+export const desactivarDocente = desactivarUsuario
+export const activarDocente = activarUsuario
+export const actualizarDocente = actualizarUsuario
+export const crearDocente = crearUsuario
 
-export const edicionDeCuentasEnMock = false
-export { usarMock as negocioEnMock } from '../client'
-
-// ── Sprint de cierre: estado, auditoría y secciones ─────────────────────────
+// ── Asignaciones del usuario actual ─────────────────────────────────────────
 
 /**
- * Filtra por estado en el cliente mientras el backend no acepte `?activo=`.
- * La regla transversal es que toda grilla abre en Activo.
- */
-const porEstado = (filas, estado = 'activo') => {
-  if (estado === 'todos') return filas
-  const quiero = estado !== 'inactivo'
-  return filas.filter((f) => (f.activo ?? true) === quiero)
-}
-
-/**
- * `PATCH /colegios/{id}` con `{ activo }` — baja lógica (D5).
+ * `GET /me/asignaciones` — las del usuario del TOKEN, nunca por id de docente.
  *
- * TODO BACKEND: hoy el modelo de `colegio` no tiene columna `activo`, así que
- * esto solo funciona contra el mock. Ver "Pendiente" en APIS_BACKEND.md.
+ * De esto depende todo lo que ve un Docente: sin asignación vigente no tiene
+ * alumnos ni colegios, y eso es correcto, no un fallo de carga. Cada colegio
+ * trae sus `grados`, y cada grado su `cantidad_alumnos`, `ciclos` y
+ * `subprogramas`.
  */
-export const cambiarEstadoColegio = (idColegio, activo) =>
-  resolver({
-    mock: () => handlers.administracion.cambiarEstadoColegio(idColegio, activo),
-    real: () => api.patch(administracion.colegio(idColegio), { activo }),
-    forzarReal: false,
-  })
-
-/**
- * Auditoría de un registro: quién, cuándo, campo, antes, después y sesión.
- *
- * TODO BACKEND: no existe el endpoint. Se resuelve con el mock para que la
- * pestaña de la plantilla se pueda construir y probar.
- */
-export const listarAuditoria = (entidad, id) =>
-  resolver({
-    mock: () => handlers.administracion.auditoria(entidad, id),
-    real: () => handlers.administracion.auditoria(entidad, id),
-  })
-
-/** Secciones de un colegio (A, B, C…). TODO BACKEND: tampoco existe. */
-export const listarSecciones = (idColegio) =>
-  resolver({
-    mock: () => handlers.administracion.secciones(idColegio),
-    real: () => handlers.administracion.secciones(idColegio),
-  })
-
-// ── Asignaciones ────────────────────────────────────────────────────────────
-
-/**
- * `GET /asignaciones` — de ellas depende todo lo que ve un Docente.
- *
- * El backend acota por asignación vigente: un docente sin ninguna recibe cero
- * alumnos y cero colegios, y eso es correcto, no un fallo de carga. El
- * Supervisor las ve todas; al Directivo le responde 403, porque no gestiona
- * docentes.
- *
- * La respuesta ya trae resueltos los nombres (`docente`, `colegio`, `grado`,
- * `periodo`) junto a sus ids, así que la tabla no tiene que cruzarlos.
- */
-export const listarAsignaciones = async () => {
-  const filas = await resolver({
+export const listarMisAsignaciones = async () => {
+  const datos = await resolver({
     mock: () => handlers.administracion.asignaciones(),
-    real: () => api.get(administracion.asignaciones),
+    real: () => api.get(auth.misAsignaciones),
     forzarReal: adminContraApiReal,
   })
-  // La API nombra la clave `id` y el periodo `id_periodo_academico`; el mock y
-  // la tabla usan `id_asignacion` e `id_periodo`. Se unifica aquí para que la
-  // pantalla no tenga que saber de dónde vino la fila.
-  return (filas ?? []).map((a) => ({
-    ...a,
-    id_asignacion: a.id_asignacion ?? a.id,
-    id_periodo: a.id_periodo ?? a.id_periodo_academico,
-    // El backend solo dice si la asignación está vigente; la tabla pinta el
-    // estado del periodo, y solo deja retirar las que aún no empezaron.
-    estado_periodo: a.estado_periodo ?? (a.vigente ? 'abierto' : 'cerrado'),
-  }))
+  return Array.isArray(datos) ? datos : (datos?.asignaciones ?? [])
 }
 
-export const crearAsignacion = ({ id_docente: idDocente, id_colegio: idColegio, id_grado: idGrado, id_periodo_academico: idPeriodo }) =>
-  resolver({
-    mock: () => handlers.administracion.crearAsignacion({ id_docente: idDocente, id_colegio: idColegio, id_grado: idGrado, id_periodo_academico: idPeriodo }),
-    real: () =>
-      api.post(administracion.asignaciones, {
-        id_docente: Number(idDocente),
-        id_colegio: Number(idColegio),
-        id_grado: Number(idGrado),
-        id_periodo_academico: Number(idPeriodo),
-      }),
-    forzarReal: adminContraApiReal,
-  })
+// El nombre antiguo sigue funcionando: lo usan la precarga y el control de
+// actividad para saber si el docente tiene asignaciones.
+export const listarAsignaciones = listarMisAsignaciones
 
-export const eliminarAsignacion = (id) =>
-  resolver({
-    mock: () => handlers.administracion.eliminarAsignacion(id),
-    real: () => api.delete(administracion.asignacion(id)),
-    forzarReal: adminContraApiReal,
-  })
+export { usarMock as negocioEnMock } from '../client'
