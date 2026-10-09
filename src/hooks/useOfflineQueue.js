@@ -34,10 +34,21 @@ registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
  *
  * Es el `jti` de la sesión en la que ocurrió la actividad. Se captura al
  * encolar porque después es irrecuperable: si el docente vuelve a entrar, el
- * token ya es otro. El backend aún no acepta el campo —entra con la
- * sincronización offline, que no es de esta entrega—, así que se omite al
- * mandar. Cuando Paris avise, basta con incluirlo en estas dos llamadas: los
- * pendientes que ya estén en IndexedDB lo llevarán consigo.
+ * token ya es otro.
+ *
+ * CÓMO ACTIVARLO cuando el backend lo soporte (contrato acordado con Paris):
+ *
+ *   · Va SOLO en `POST /actividades`. En `/finalizar` no hace falta: el
+ *     servidor usa la sesión que ya tiene la actividad.
+ *   · Con un `id_sesion` de otra sesión, `inicio` pasa a ser OBLIGATORIO.
+ *     Ya se manda siempre, así que no hay nada que cambiar ahí.
+ *
+ * Es decir, una sola línea:
+ *   ACTIVIDAD_INICIO, ({ id, inicio, id_sesion }) => iniciarActividad({ id, inicio, id_sesion })
+ *
+ * Ojo: el campo se ignora en silencio si el backend aún no lo acepta —lo
+ * comprobamos—, así que activarlo antes de tiempo no daría ningún error y
+ * parecería funcionar sin hacerlo.
  */
 registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_INICIO, ({ id, inicio }) => iniciarActividad({ id, inicio }))
 registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, ({ id, fin }) => finalizarActividad(id, { fin }))
