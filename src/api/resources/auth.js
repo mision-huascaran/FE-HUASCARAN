@@ -124,3 +124,36 @@ export const restablecerPassword = ({ correo, codigo, passwordNueva, confirmacio
       }),
     forzarReal: authContraApiReal,
   })
+
+/**
+ * CU001 — Recuperar la cuenta del Supervisor original con una Recovery Key.
+ *
+ * Existe porque esa cuenta es un caso aparte: no se puede eliminar ni
+ * desactivar, es la única que crea los usuarios iniciales, y si pierde el
+ * acceso y además falla el correo, nadie puede rescatarla. Las 10 llaves de un
+ * solo uso se entregan aparte, en un `.txt`, y no dependen de ningún servicio
+ * externo.
+ *
+ * Público: no lleva token, igual que el resto de la recuperación.
+ *
+ * TARDA UNOS 7 SEGUNDOS, y los mismos acierte o falle. No es lentitud: un
+ * tiempo uniforme impide deducir por la demora si la llave era válida, y
+ * encarece probarlas a lo bruto. La pantalla tiene que avisarlo, o el usuario
+ * creerá que se colgó.
+ *
+ * Responde `{ mensaje, llaves_restantes }`: conviene mostrar cuántas quedan,
+ * porque cada una se gasta para siempre.
+ */
+export const recuperarConLlave = ({ correo, llave, passwordNueva, confirmacion }) =>
+  resolver({
+    mock: () => handlers.auth.recuperarConLlave({ correo, llave }),
+    real: () =>
+      api.post(ENDPOINTS.auth.passwordRecuperarConLlave, {
+        correo,
+        llave,
+        'contraseña_nueva': passwordNueva,
+        'confirmar_contraseña_nueva': confirmacion,
+      }),
+    forzarReal: authContraApiReal,
+  })
+

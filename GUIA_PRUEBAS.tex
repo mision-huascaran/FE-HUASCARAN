@@ -187,9 +187,6 @@ intentos. Queda esto:
   \item \textbf{El trabajo sin conexión de verdad.} El envío en lote no existe
         todavía en el backend, así que \emph{Sincronización} siempre dirá
         «Sincronizada» o «Al día» y los pendientes siempre serán 0.
-  \item \textbf{Recovery Keys del Supervisor original} (\cu{001}). El endpoint
-        ya existe, pero no hay pantalla: está por decidir si entra en la
-        aplicación.
 \end{itemize}
 \end{bloqueo}
 
@@ -354,6 +351,39 @@ Igual que la anterior & «La nueva contraseña debe ser diferente de la contrase
 \paragraph{Después del cambio.} \cu{006} exige que se invaliden \emph{todas} las
 sesiones. Si tiene la aplicación abierta en otra pestaña con ese usuario, al
 hacer cualquier acción debería mandarle al login.
+
+\subsection{CU001 --- Recovery Keys del Supervisor original}
+
+Es la salida de emergencia del sistema. Esa cuenta no se puede eliminar ni
+desactivar, es la única que crea los usuarios iniciales, y si pierde el acceso
+y además falla el correo, nadie puede rescatarla. Para eso existen diez llaves
+de un solo uso, entregadas aparte en un archivo.
+
+\paragraph{Dónde está.} Abra \textbf{¿Olvidó su contraseña?} y busque abajo un
+enlace pequeño: \emph{«¿Es la cuenta de Supervisor original y no recibe el
+correo?»}
+
+\textbf{Esperado:} que esté \textbf{discreto}. No debe haber ningún botón de
+llaves en la pantalla de inicio de sesión: quien no sepa qué es, no debe
+tropezarse con ello.
+
+\paragraph{La prueba.} Use una llave del archivo, con una contraseña que cumpla
+los cinco requisitos.
+
+\textbf{Esperado:} tarda \textbf{unos siete segundos} y durante la espera avisa
+de que es a propósito. Al terminar dice cuántas llaves quedan.
+
+\begin{aviso}{La lentitud es la funcionalidad, no un fallo}
+El servidor se demora el mismo tiempo acierte o falle la llave. Es deliberado:
+si respondiera rápido al fallar, se podría deducir por la demora cuáles son
+válidas y probarlas una a una. \textbf{No reporte la espera como incidencia};
+repórtela solo si la pantalla no avisa de ella o parece colgada.
+\end{aviso}
+
+\paragraph{Y lo que no hay que olvidar.} Una llave usada \textbf{no vuelve}.
+Para probar sin gastarlas todas, haga un solo intento correcto y compruebe que
+el contador de llaves restantes baja. Con una llave inventada debe rechazarla,
+tardando lo mismo.
 
 % ---------------------------------------------------------------------------
 \newpage
@@ -785,6 +815,9 @@ abajo sin saltar.
 \ok & CU006 & PIN equivocado, expirado y agotado tienen \textbf{tres} textos distintos & \\[0.5cm] \hline
 \ok & CU006 & Contraseñas distintas \flecha{} «Las contraseñas no coinciden.» & \\[0.5cm] \hline
 \ok & CU006 & Tras cambiarla, la otra pestaña abierta con ese usuario va al login & \\[0.5cm] \hline
+\ok & CU001 & Las Recovery Keys están tras un enlace discreto, no en el login & \\[0.5cm] \hline
+\ok & CU001 & Avisa de que la llave se gasta para siempre y de cuántas quedan & \\[0.5cm] \hline
+\ok & CU001 & Tarda unos 7 s y lo advierte; no parece colgada & \\[0.5cm] \hline
 
 \multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Finalizar sesión}} \\ \hline
 \ok & CU007 & «Cerrar sesión» está en la barra lateral y desde cualquier módulo & \\[0.5cm] \hline
