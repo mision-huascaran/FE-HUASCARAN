@@ -37,12 +37,14 @@ export function normalizarPaginado(datos, porPagina = 10) {
   }
   const items = datos?.items ?? []
   const total = datos?.total ?? items.length
+  // El backend responde `{items, total, page, page_size, total_pages}`.
+  const porPaginaReal = datos?.por_pagina ?? datos?.page_size ?? porPagina
   return {
     items,
     total,
     pagina: datos?.pagina ?? datos?.page ?? 1,
-    paginas: datos?.paginas ?? Math.max(1, Math.ceil(total / (datos?.por_pagina ?? porPagina))),
-    por_pagina: datos?.por_pagina ?? porPagina,
+    paginas: datos?.paginas ?? datos?.total_pages ?? Math.max(1, Math.ceil(total / porPaginaReal)),
+    por_pagina: porPaginaReal,
   }
 }
 
@@ -245,15 +247,16 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
         mock: () => handlers.administracion.alumnos(),
         real: () =>
           api.get(alumnos.listar, {
-            // La pantalla nombra sus filtros como los campos (`id_colegio`…);
-            // el backend los espera sin prefijo. Antes no se traducían y
-            // ningún filtro llegaba al servidor.
+            // Nombres y tipos exactos de `GET /alumnos` (openapi.json):
+            // `id_colegio`, `id_programa` e `id_grado` son enteros y `ciclo`
+            // es TEXTO ("III" | "IV" | "V"). Mandar `ciclo=2` daba 422.
             params: {
-              colegio: filtros.colegio || filtros.id_colegio || undefined,
-              subprograma: filtros.subprograma || filtros.programa || filtros.id_programa || undefined,
-              ciclo: filtros.ciclo || filtros.id_ciclo || undefined,
-              grado: filtros.grado || filtros.id_grado || undefined,
+              id_colegio: filtros.id_colegio || filtros.colegio || undefined,
+              id_programa: filtros.id_programa || filtros.subprograma || filtros.programa || undefined,
+              ciclo: cicloComoTexto(filtros.id_ciclo || filtros.ciclo),
+              id_grado: filtros.id_grado || filtros.grado || undefined,
               activo: activoDe(filtros.estado),
+              q: String(filtros.q ?? '').trim() || undefined,
               page: page || undefined,
             },
           }),
@@ -264,8 +267,14 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
 
   const pagina = normalizarPaginado(datos)
   const items = pagina.items.map(normalizarAlumno)
-  // Con la API real el servidor ya filtró todo menos la búsqueda por nombre.
-  return { ...pagina, items: filtrarAlumnos(items, Array.isArray(datos) ? filtros : { q: filtros.q }) }
+  // Con la API real el servidor ya filtró todo, búsqueda incluida.
+  return { ...pagina, items: Array.isArray(datos) ? filtrarAlumnos(items, filtros) : items }
+}
+
+/** El filtro de ciclo usa ids (1, 2, 3) en la pantalla; el backend, "III", "IV", "V". */
+function cicloComoTexto(valor) {
+  if (valor == null || valor === '') return undefined
+  return CICLO_POR_ID[valor] ?? String(valor)
 }
 
 /**
@@ -285,7 +294,9 @@ export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grad
         apellidos,
         id_colegio: Number(idColegio),
         id_grado: Number(idGrado),
-        id_programa_actual: Number(idPrograma),
+        // `AlumnoCrear` pide `id_programa` (no `id_programa_actual`): con el
+        // nombre viejo el alta respondía 422 por falta de un campo obligatorio.
+        id_programa: Number(idPrograma),
       }),
     forzarReal: adminContraApiReal,
   })
@@ -309,7 +320,7 @@ function cuerpoDeAlumno(cambios) {
   if (cambios.id_colegio) cuerpo.id_colegio = Number(cambios.id_colegio)
   if (cambios.id_grado) cuerpo.id_grado = Number(cambios.id_grado)
   const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
-  if (idPrograma) cuerpo.id_programa_actual = Number(idPrograma)
+  if (idPrograma) cuerpo.id_programa = Number(idPrograma)
   return cuerpo
 }
 
@@ -383,11 +394,44 @@ export const listarUsuariosAdmin = async (filtros = {}) => {
     ...pagina,
     items: pagina.items.map((u) => ({
       ...conNombre(u),
+      // `UsuarioItem` trae `id` y el rol como texto. Sin esto, activar o
+      // desactivar enviaba `PATCH /usuarios/undefined/desactivar` (422).
+      id_usuario: u.id_usuario ?? u.id,
+      id_rol: u.id_rol ?? ID_ROL_POR_NOMBRE[u.rol] ?? null,
       colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
       es_supervisor_original: Boolean(u.es_supervisor_original),
     })),
   }
 }
+
+const ID_ROL_POR_NOMBRE = { Docente: 1, Supervisor: 2, Directivo: 3 }
+
+/**
+ * `id_anio_escolar` a partir del año que escribe el Supervisor (p. ej. 2026).
+ * Sin año, el vigente. El catálogo es `GET /anios-escolares` →
+ * `[{id, nombre, vigente}]`.
+ */
+async function idAnioEscolar(anio) {
+  const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
+  const texto = String(anio ?? '').trim()
+  const elegido = texto ? anios.find((a) => String(a.nombre).includes(texto)) : anios.find((a) => a.vigente)
+  return elegido?.id ?? anios.find((a) => a.vigente)?.id ?? null
+}
+
+/** `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde. */
+async function asignacionDe(datos, { obligatoria }) {
+  if (Number(datos.id_rol) !== 1 && obligatoria) return null
+  if (!datos.id_colegio) return null
+  const grados = (Array.isArray(datos.grados) ? datos.grados : []).map(Number).filter(Boolean)
+  return {
+    id_colegio: Number(datos.id_colegio),
+    id_anio_escolar: await idAnioEscolar(datos.anio_escolar),
+    // Sin grados elegidos, el backend asigna todos los que ofrece el colegio.
+    grados: grados.length ? grados : null,
+  }
+}
+
+const textoONulo = (v) => (v == null || String(v).trim() === '' ? undefined : String(v).trim())
 
 /**
  * Solo los docentes, para los filtros que preguntan "¿de quién?".
@@ -418,12 +462,26 @@ export const listarDocentes = async () => {
  * falla, la respuesta trae `correo_enviado: false` y la `contraseña_temporal`
  * para mostrarla UNA sola vez.
  */
-export const crearUsuario = (datos) =>
-  resolver({
+export const crearUsuario = async (datos) => {
+  const respuesta = await resolver({
     mock: () => handlers.administracion.crearUsuario(datos),
-    real: () => api.post(usuarios.crear, { ...datos, id_rol: Number(datos.id_rol) }),
+    // Cuerpo exacto de `UsuarioCrear`: nombres, apellidos, dni, correo,
+    // id_rol y, para un Docente, `asignacion: {id_colegio, id_anio_escolar,
+    // grados}`. Antes se mandaban sueltos y sin DNI: 422.
+    real: async () =>
+      api.post(usuarios.crear, {
+        nombres: textoONulo(datos.nombres),
+        apellidos: textoONulo(datos.apellidos),
+        dni: textoONulo(datos.dni),
+        correo: textoONulo(datos.correo),
+        id_rol: Number(datos.id_rol),
+        asignacion: await asignacionDe(datos, { obligatoria: true }),
+      }),
     forzarReal: adminContraApiReal,
   })
+  // `UsuarioCreado` envuelve al usuario: `{usuario, correo_enviado, contraseña_temporal}`.
+  return respuesta?.usuario ? { ...respuesta, correo: respuesta.usuario.correo } : respuesta
+}
 
 /**
  * `PATCH /usuarios/{id}`.
@@ -435,7 +493,20 @@ export const crearUsuario = (datos) =>
 export const actualizarUsuario = (id, cambios) =>
   resolver({
     mock: () => handlers.administracion.actualizarUsuario(id, cambios),
-    real: () => api.patch(usuarios.actualizar(id), cambios),
+    // Solo campos de `UsuarioEditar`. El formulario lleva además `id_rol`
+    // vacío (no se edita) y los campos del Docente; mandarlos tal cual daba
+    // 422. La asignación solo viaja si se eligió un colegio (rotar/renovar).
+    real: async () => {
+      const cuerpo = {
+        nombres: textoONulo(cambios.nombres),
+        apellidos: textoONulo(cambios.apellidos),
+        dni: textoONulo(cambios.dni),
+        correo: textoONulo(cambios.correo),
+      }
+      const asignacion = await asignacionDe(cambios, { obligatoria: false })
+      if (asignacion) cuerpo.asignacion = asignacion
+      return api.patch(usuarios.actualizar(id), cuerpo)
+    },
     forzarReal: adminContraApiReal,
   })
 

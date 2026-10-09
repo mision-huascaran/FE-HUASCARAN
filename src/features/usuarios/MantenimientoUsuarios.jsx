@@ -96,6 +96,14 @@ export default function MantenimientoUsuarios() {
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
       { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
+      // CU016: obligatorio, 8 dígitos y único (409 si se repite). Faltaba en
+      // el formulario y el alta respondía 422.
+      {
+        nombre: 'dni',
+        etiqueta: 'DNI',
+        requerido: true,
+        validar: (v) => (/^\d{8}$/.test(String(v ?? '').trim()) ? null : 'El DNI debe tener 8 dígitos'),
+      },
       {
         nombre: 'correo',
         etiqueta: 'Correo institucional',

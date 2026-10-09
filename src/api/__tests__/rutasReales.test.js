@@ -25,6 +25,10 @@ vi.mock('../client', async (importOriginal) => ({
 
 const {
   actualizarAlumno,
+  actualizarUsuario,
+  crearAlumno,
+  crearUsuario,
+  desactivarUsuario,
   cambiarEstadoColegio,
   cambiarEstadoAlumno,
   listarAlumnosAdmin,
@@ -188,9 +192,19 @@ describe('Contrato real de Alumnos y asignaciones (hallazgos del 09/10/2026)', (
     expect(patch).toHaveBeenCalledWith('/alumnos/42/desactivar')
   })
 
-  it('los filtros de la pantalla llegan al servidor con sus nombres', async () => {
-    await listarAlumnosAdmin({ id_colegio: '7', id_grado: '1', id_ciclo: '1', id_programa: '2', estado: 'activo' })
-    expect(get.mock.calls.at(-1)[1].params).toMatchObject({ colegio: '7', grado: '1', ciclo: '1', subprograma: '2', activo: true })
+  it('los filtros llegan con los nombres y tipos de GET /alumnos (openapi.json)', async () => {
+    // `ciclo` es TEXTO ("III" | "IV" | "V"): mandar `ciclo=2` respondía 422.
+    await listarAlumnosAdmin({ id_colegio: '7', id_grado: '1', id_ciclo: '2', id_programa: '2', estado: 'activo', q: 'ana' })
+    const { params } = get.mock.calls.at(-1)[1]
+    expect(params).toMatchObject({ id_colegio: '7', id_grado: '1', ciclo: 'IV', id_programa: '2', activo: true, q: 'ana' })
+    expect(params).not.toHaveProperty('colegio')
+    expect(params).not.toHaveProperty('grado')
+    expect(params).not.toHaveProperty('subprograma')
+  })
+
+  it('crear un alumno manda `id_programa`, como pide AlumnoCrear', async () => {
+    await crearAlumno({ nombres: 'Ana', apellidos: 'Quispe', id_colegio: '7', id_grado: '1', id_programa: '1' })
+    expect(post).toHaveBeenCalledWith('/alumnos', { nombres: 'Ana', apellidos: 'Quispe', id_colegio: 7, id_grado: 1, id_programa: 1 })
   })
 
   it('editar no envía los campos de solo lectura (sección, ciclo)', async () => {
@@ -200,18 +214,19 @@ describe('Contrato real de Alumnos y asignaciones (hallazgos del 09/10/2026)', (
       apellidos: 'Quispe',
       id_colegio: 7,
       id_grado: 1,
-      id_programa_actual: 1,
+      id_programa: 1,
     })
   })
 
   it('Usuarios (y los demás listados) traen todas las páginas, no solo las 10 primeras', async () => {
     const pagina = (n) => ({
       data: {
-        items: Array.from({ length: n === 3 ? 2 : 10 }, (_, i) => ({ id_usuario: (n - 1) * 10 + i + 1, nombres: 'U' })),
+        // Forma exacta de `Paginado_UsuarioItem_` en openapi.json.
+        items: Array.from({ length: n === 3 ? 2 : 10 }, (_, i) => ({ id: (n - 1) * 10 + i + 1, nombres: 'U', rol: 'Docente' })),
         total: 22,
-        pagina: n,
-        paginas: 3,
-        por_pagina: 10,
+        page: n,
+        page_size: 10,
+        total_pages: 3,
       },
     })
     get.mockImplementation((_ruta, config) => Promise.resolve(pagina(config?.params?.page ?? 1)))
@@ -221,6 +236,57 @@ describe('Contrato real de Alumnos y asignaciones (hallazgos del 09/10/2026)', (
     expect(get.mock.calls.map(([, config]) => config.params.page ?? 1).sort()).toEqual([1, 2, 3])
 
     get.mockImplementation(() => Promise.resolve({ data: {} }))
+  })
+})
+
+describe('Contrato real de Usuarios (CU016)', () => {
+  it('la fila trae `id_usuario` e `id_rol` aunque el backend mande `id` y `rol`', async () => {
+    get.mockResolvedValueOnce({
+      data: { items: [{ id: 15, nombres: 'Rosa', apellidos: 'Camones', rol: 'Docente', activo: true }], total: 1, page: 1, page_size: 10, total_pages: 1 },
+    })
+    const { items } = await listarUsuariosAdmin({ estado: 'activo' })
+    expect(items[0]).toMatchObject({ id_usuario: 15, id_rol: 1 })
+
+    // Antes: PATCH /usuarios/undefined/desactivar → 422.
+    await desactivarUsuario(items[0].id_usuario)
+    expect(patch).toHaveBeenCalledWith('/usuarios/15/desactivar')
+  })
+
+  it('crear un Docente manda el cuerpo de UsuarioCrear, con DNI y `asignacion`', async () => {
+    get.mockResolvedValueOnce({ data: [{ id: 3, nombre: '2026', vigente: true }] })
+    post.mockResolvedValueOnce({ data: { usuario: { id: 20, correo: 'rosa@sicedu.test' }, correo_enviado: true } })
+
+    await crearUsuario({
+      nombres: 'Rosa',
+      apellidos: 'Camones',
+      dni: '12345678',
+      correo: 'rosa@sicedu.test',
+      id_rol: '1',
+      anio_escolar: '2026',
+      id_colegio: '7',
+      grados: ['1', '2'],
+    })
+
+    expect(get).toHaveBeenCalledWith('/anios-escolares')
+    expect(post).toHaveBeenCalledWith('/usuarios', {
+      nombres: 'Rosa',
+      apellidos: 'Camones',
+      dni: '12345678',
+      correo: 'rosa@sicedu.test',
+      id_rol: 1,
+      asignacion: { id_colegio: 7, id_anio_escolar: 3, grados: [1, 2] },
+    })
+  })
+
+  it('crear un Supervisor no manda asignación', async () => {
+    post.mockResolvedValueOnce({ data: { usuario: { id: 21 }, correo_enviado: true } })
+    await crearUsuario({ nombres: 'Ana', apellidos: 'Ruiz', dni: '87654321', correo: 'ana@sicedu.test', id_rol: '2' })
+    expect(post.mock.calls.at(-1)[1]).toMatchObject({ id_rol: 2, asignacion: null })
+  })
+
+  it('editar no manda `id_rol` vacío ni campos sueltos del Docente', async () => {
+    await actualizarUsuario(15, { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test', id_rol: '', anio_escolar: '', id_colegio: '', grados: [] })
+    expect(patch).toHaveBeenCalledWith('/usuarios/15', { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test' })
   })
 })
 
