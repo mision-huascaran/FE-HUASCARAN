@@ -9,12 +9,15 @@ import EmptyState from '../../components/ui/EmptyState'
 import FilterBar from '../../components/ui/FilterBar'
 import RoleGate from '../../components/ui/RoleGate'
 import Select from '../../components/ui/Select'
+import AvisoActividades from '../../components/layout/AvisoActividades'
 import DrawerEvaluacion from './DrawerEvaluacion'
 import ModalTrazabilidad from './ModalTrazabilidad'
 import useHistoricoVuelo from './useHistoricoVuelo'
 import columnasHistorico, { LeyendaEstado } from './columnasHistorico'
 import { ROLES } from '../../auth/roles'
 import { aniosDe } from './constantes'
+import useActividadStore from '../../store/actividadStore'
+import useSessionStore from '../../store/sessionStore'
 
 export default function RegistroVueloPage() {
   const navegar = useNavigate()
@@ -24,7 +27,14 @@ export default function RegistroVueloPage() {
   const [viendo, setViendo] = useState(null)
   const anios = aniosDe(catalogos.periodos)
 
-  const columnas = columnasHistorico({ catalogos, onEditar: setEditando, onVer: setViendo })
+  // Igual que Rúbrica y Seguimiento de Lectura (CU010): sin actividad iniciada
+  // el Docente consulta pero no registra ni edita. Antes esta pantalla no lo
+  // aplicaba ni avisaba (D14).
+  const esDocente = Number(useSessionStore((s) => s.usuario?.id_rol)) === ROLES.PROFESOR
+  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  const puedeRegistrar = esDocente && conActividad
+
+  const columnas = columnasHistorico({ catalogos, onEditar: setEditando, onVer: setViendo, puedeEditar: puedeRegistrar })
 
   return (
     <div className="flex flex-col gap-5">
@@ -36,11 +46,13 @@ export default function RegistroVueloPage() {
           </p>
         </div>
         <RoleGate allow={[ROLES.PROFESOR]}>
-          <Button iconLeft={Plus} onClick={() => navegar('/registro-vuelo/nuevo')}>
+          <Button iconLeft={Plus} disabled={!conActividad} onClick={() => navegar('/registro-vuelo/nuevo')}>
             Registrar evaluación
           </Button>
         </RoleGate>
       </header>
+
+      {esDocente && !conActividad && <AvisoActividades destino="el registro de vuelo se muestra" />}
 
       <FilterBar
         search={borrador.q}

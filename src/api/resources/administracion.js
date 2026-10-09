@@ -61,46 +61,80 @@ const porEstado = (filas, estado = 'activo') => {
 /** `?activo=` tal y como lo espera el backend, u `undefined` para "todos". */
 const activoDe = (estado) => (estado === 'todos' ? undefined : estado !== 'inactivo')
 
+/** Id de un campo que llega como número suelto o como objeto `{id, nombre}`. */
+const idDe = (valor) => (valor != null && typeof valor === 'object' ? (valor.id ?? null) : (valor ?? null))
+
+/**
+ * Todas las páginas de un listado, no solo la primera.
+ *
+ * El backend pagina de 10 en 10 y las pantallas pintan la lista entera (la
+ * tabla pagina en el cliente). Pedir solo `page=1` dejaba Usuarios, Alumnos y
+ * Colegios cortados en 10 filas sin ningún aviso, y la precarga offline con
+ * solo los 10 primeros alumnos.
+ *
+ * Si quien llama pide una página concreta (`filtros.pagina`), se respeta.
+ */
+async function todasLasPaginas(pedir, pagina) {
+  const primera = await pedir(pagina)
+  if (Array.isArray(primera) || pagina) return primera
+
+  const { paginas } = normalizarPaginado(primera)
+  if (paginas <= 1) return primera
+
+  const resto = await Promise.all(Array.from({ length: paginas - 1 }, (_, i) => pedir(i + 2)))
+  const items = [primera, ...resto].flatMap((datos) => normalizarPaginado(datos).items)
+  return { ...primera, items, total: primera?.total ?? items.length, pagina: 1, paginas: 1, por_pagina: items.length }
+}
+
 // ── Catálogos para los formularios de administración ────────────────────────
 //
 // Van aparte de `resources/catalogos.js` por una razón concreta: al dar de alta
 // hay que enviar ids del backend REAL. Si el desplegable ofreciera los del mock,
 // el alta llegaría con un id inexistente y el servidor respondería 404.
 
-export const listarGradosAdmin = () =>
-  resolver({
+export const listarGradosAdmin = async () => {
+  const grados = await resolver({
     mock: () => handlers.catalogos.grados(),
     real: () => api.get(ENDPOINTS.catalogos.grados),
     forzarReal: adminContraApiReal,
   })
+  return (grados ?? []).map((g) => ({ ...g, id_grado: g.id_grado ?? g.id }))
+}
 
-export const listarProgramasAdmin = () =>
-  resolver({
+export const listarProgramasAdmin = async () => {
+  const programas = await resolver({
     mock: () => handlers.catalogos.programas(),
     real: () => api.get(ENDPOINTS.catalogos.programas),
     forzarReal: adminContraApiReal,
   })
+  return (programas ?? []).map((p) => ({ ...p, id_programa: p.id_programa ?? p.id }))
+}
 
 // ── Colegios (CU013) ────────────────────────────────────────────────────────
 
 export const listarColegiosAdmin = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.administracion.colegios(),
-    real: () =>
-      api.get(colegios.listar, {
-        params: {
-          departamento: filtros.departamento || undefined,
-          distrito: filtros.distrito || undefined,
-          activo: activoDe(filtros.estado),
-          page: filtros.pagina || undefined,
-        },
+  const datos = await todasLasPaginas(
+    (page) =>
+      resolver({
+        mock: () => handlers.administracion.colegios(),
+        real: () =>
+          api.get(colegios.listar, {
+            params: {
+              departamento: filtros.departamento || undefined,
+              distrito: filtros.distrito || undefined,
+              activo: activoDe(filtros.estado),
+              page: page || undefined,
+            },
+          }),
+        forzarReal: adminContraApiReal,
       }),
-    forzarReal: adminContraApiReal,
-  })
+    filtros.pagina,
+  )
 
   const pagina = normalizarPaginado(datos)
+  const items = pagina.items.map((c) => ({ ...c, id_colegio: c.id_colegio ?? c.id }))
   // El mock no filtra por estado; la API real sí lo hizo ya en el servidor.
-  return Array.isArray(datos) ? { ...pagina, items: porEstado(pagina.items, filtros.estado) } : pagina
+  return { ...pagina, items: Array.isArray(datos) ? porEstado(items, filtros.estado) : items }
 }
 
 /** Valores existentes de departamento y distrito, para los desplegables de filtro. */
@@ -148,39 +182,90 @@ export const cambiarEstadoColegio = (idColegio, activo) =>
 
 // ── Alumnos (CU014) ─────────────────────────────────────────────────────────
 
+const CICLO_POR_ID = { 1: 'III', 2: 'IV', 3: 'V' }
+
+const etiquetaDeCampo = (valor) => (valor != null && typeof valor === 'object' ? (valor.nombre ?? '') : valor)
+
+/**
+ * Fila de alumno con los ids que usan los formularios y las acciones.
+ *
+ * El backend identifica al alumno con `id` y manda colegio, grado y
+ * subprograma como objetos `{id, nombre}`; el simulador usa `id_alumno` y ids
+ * sueltos. Sin esta traducción "Inactivar" enviaba `PATCH /alumnos/undefined`
+ * (422) y "Editar" abría el formulario sin colegio, grado ni subprograma.
+ */
+export function normalizarAlumno(a) {
+  // Al Directivo el backend le responde 403 en Alumnos, pero si alguna
+  // respuesta llegara sin nombre, la fila diría quién es por su id en vez
+  // de salir en blanco y parecer un fallo de carga.
+  const idAlumno = a.id_alumno ?? a.id
+  const nombre = a.nombre || [a.apellidos, a.nombres].filter(Boolean).join(', ')
+  return {
+    ...a,
+    id_alumno: idAlumno,
+    id_colegio: a.id_colegio ?? idDe(a.colegio),
+    id_grado: a.id_grado ?? idDe(a.grado),
+    id_programa: a.id_programa ?? a.id_programa_actual ?? idDe(a.programa ?? a.subprograma),
+    // Solo lectura en el formulario: se muestran como texto, no como objeto.
+    seccion: etiquetaDeCampo(a.seccion),
+    ciclo: etiquetaDeCampo(a.ciclo),
+    anonimo: !nombre,
+    nombre: nombre || `Estudiante n.º ${idAlumno}`,
+  }
+}
+
+/**
+ * Filtros de Alumnos aplicados en el cliente.
+ *
+ * Se usan con el simulador (que devuelve la lista entera), con la copia de
+ * IndexedDB cuando no hay conexión, y para la búsqueda por nombre, que el
+ * backend no ofrece como parámetro.
+ */
+export function filtrarAlumnos(filas, filtros = {}) {
+  const texto = String(filtros.q ?? '').trim().toLowerCase()
+  const igual = (a, b) => b == null || b === '' || String(a) === String(b)
+  const cicloDe = (a) => {
+    const etiqueta = typeof a.ciclo === 'object' ? a.ciclo?.nombre : a.ciclo
+    return a.id_ciclo ?? a.id_ciclo_nominal ?? Object.keys(CICLO_POR_ID).find((k) => CICLO_POR_ID[k] === etiqueta)
+  }
+  return porEstado(filas, filtros.estado ?? 'todos').filter(
+    (a) =>
+      igual(a.id_colegio, filtros.id_colegio ?? filtros.colegio) &&
+      igual(a.id_grado, filtros.id_grado ?? filtros.grado) &&
+      igual(a.id_programa, filtros.id_programa ?? filtros.subprograma) &&
+      igual(cicloDe(a), filtros.id_ciclo ?? filtros.ciclo) &&
+      (!texto || `${a.nombre ?? ''} ${a.codigo ?? ''}`.toLowerCase().includes(texto)),
+  )
+}
+
 export const listarAlumnosAdmin = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.administracion.alumnos(),
-    real: () =>
-      api.get(alumnos.listar, {
-        params: {
-          colegio: filtros.colegio || undefined,
-          subprograma: filtros.subprograma ?? filtros.programa ?? undefined,
-          ciclo: filtros.ciclo || undefined,
-          grado: filtros.grado || undefined,
-          activo: activoDe(filtros.estado),
-          page: filtros.pagina || undefined,
-        },
+  const datos = await todasLasPaginas(
+    (page) =>
+      resolver({
+        mock: () => handlers.administracion.alumnos(),
+        real: () =>
+          api.get(alumnos.listar, {
+            // La pantalla nombra sus filtros como los campos (`id_colegio`…);
+            // el backend los espera sin prefijo. Antes no se traducían y
+            // ningún filtro llegaba al servidor.
+            params: {
+              colegio: filtros.colegio || filtros.id_colegio || undefined,
+              subprograma: filtros.subprograma || filtros.programa || filtros.id_programa || undefined,
+              ciclo: filtros.ciclo || filtros.id_ciclo || undefined,
+              grado: filtros.grado || filtros.id_grado || undefined,
+              activo: activoDe(filtros.estado),
+              page: page || undefined,
+            },
+          }),
+        forzarReal: adminContraApiReal,
       }),
-    forzarReal: adminContraApiReal,
-  })
+    filtros.pagina,
+  )
 
   const pagina = normalizarPaginado(datos)
-  return {
-    ...pagina,
-    items: pagina.items.map((a) => {
-      // Al Directivo el backend le responde 403 en Alumnos, pero si alguna
-      // respuesta llegara sin nombre, la fila diría quién es por su id en vez
-      // de salir en blanco y parecer un fallo de carga.
-      const nombre = a.nombre || [a.apellidos, a.nombres].filter(Boolean).join(', ')
-      return {
-        ...a,
-        anonimo: !nombre,
-        nombre: nombre || `Estudiante n.º ${a.id_alumno}`,
-        id_programa: a.id_programa ?? a.id_programa_actual,
-      }
-    }),
-  }
+  const items = pagina.items.map(normalizarAlumno)
+  // Con la API real el servidor ya filtró todo menos la búsqueda por nombre.
+  return { ...pagina, items: filtrarAlumnos(items, Array.isArray(datos) ? filtros : { q: filtros.q }) }
 }
 
 /**
@@ -205,12 +290,28 @@ export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grad
     forzarReal: adminContraApiReal,
   })
 
+/**
+ * `PATCH /alumnos/{id}` — solo los campos editables, con los nombres del
+ * backend. El formulario también lleva sección y ciclo, que son de solo
+ * lectura (los calcula el servidor) y no deben viajar.
+ */
 export const actualizarAlumno = (idAlumno, cambios) =>
   resolver({
     mock: () => handlers.administracion.actualizarAlumno(idAlumno, cambios),
-    real: () => api.patch(alumnos.actualizar(idAlumno), cambios),
+    real: () => api.patch(alumnos.actualizar(idAlumno), cuerpoDeAlumno(cambios)),
     forzarReal: adminContraApiReal,
   })
+
+function cuerpoDeAlumno(cambios) {
+  const cuerpo = {}
+  if (cambios.nombres !== undefined) cuerpo.nombres = cambios.nombres
+  if (cambios.apellidos !== undefined) cuerpo.apellidos = cambios.apellidos
+  if (cambios.id_colegio) cuerpo.id_colegio = Number(cambios.id_colegio)
+  if (cambios.id_grado) cuerpo.id_grado = Number(cambios.id_grado)
+  const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
+  if (idPrograma) cuerpo.id_programa_actual = Number(idPrograma)
+  return cuerpo
+}
 
 export const cambiarEstadoAlumno = (idAlumno, activo) =>
   resolver({
@@ -259,19 +360,23 @@ export const listarAuditoria = (entidad, id) => {
  * y `["Global"]` para Supervisor y Directivo.
  */
 export const listarUsuariosAdmin = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.administracion.usuarios(),
-    real: () =>
-      api.get(usuarios.listar, {
-        params: {
-          rol: filtros.rol || undefined,
-          activo: activoDe(filtros.estado),
-          q: filtros.q || undefined,
-          page: filtros.pagina || undefined,
-        },
+  const datos = await todasLasPaginas(
+    (page) =>
+      resolver({
+        mock: () => handlers.administracion.usuarios(),
+        real: () =>
+          api.get(usuarios.listar, {
+            params: {
+              rol: filtros.rol || undefined,
+              activo: activoDe(filtros.estado),
+              q: filtros.q || undefined,
+              page: page || undefined,
+            },
+          }),
+        forzarReal: adminContraApiReal,
       }),
-    forzarReal: adminContraApiReal,
-  })
+    filtros.pagina,
+  )
 
   const pagina = normalizarPaginado(datos)
   return {
@@ -375,7 +480,32 @@ export const listarMisAsignaciones = async () => {
     real: () => api.get(auth.misAsignaciones),
     forzarReal: adminContraApiReal,
   })
-  return Array.isArray(datos) ? datos : (datos?.asignaciones ?? [])
+  return (Array.isArray(datos) ? datos : (datos?.asignaciones ?? [])).map(normalizarAsignacion)
+}
+
+/**
+ * Una asignación con la forma plana que usan las pantallas:
+ * `{ id_colegio, colegio, grados: [id_grado…], detalle_grados: [...] }`.
+ *
+ * El backend la manda anidada —`{ colegio: {id, nombre}, grados: [{id,
+ * nombre, cantidad_alumnos, ciclos, subprogramas}] }`— y las pantallas la
+ * leían como plana: el formulario de Alumnos se quedaba sin colegios ni grados
+ * que ofrecer al Docente, y el filtro de Rúbrica pintaba
+ * "[object Object].° grado". Se traduce aquí, una sola vez.
+ */
+export function normalizarAsignacion(a) {
+  const grados = (a.grados ?? []).map((g) =>
+    g != null && typeof g === 'object'
+      ? { ...g, id_grado: g.id_grado ?? g.id ?? idDe(g.grado), nombre: g.nombre ?? g.grado?.nombre }
+      : { id_grado: g },
+  )
+  return {
+    ...a,
+    id_colegio: a.id_colegio ?? idDe(a.colegio),
+    colegio: typeof a.colegio === 'object' && a.colegio !== null ? a.colegio.nombre : a.colegio,
+    grados: grados.map((g) => g.id_grado),
+    detalle_grados: grados,
+  }
 }
 
 // El nombre antiguo sigue funcionando: lo usan la precarga y el control de

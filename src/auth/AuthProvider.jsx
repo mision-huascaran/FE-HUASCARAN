@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
-import { limpiarSiTodoSincronizado } from '../lib/colaOffline'
+import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
+import { limpiarDatosLocalesDeSesion } from '../lib/datosLocales'
+import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
-import { tokenCaducado } from './jwt'
+import { idSesionDe, tokenCaducado } from './jwt'
 import useExpiracionSesion from './useExpiracionSesion'
 
 /**
@@ -87,20 +89,41 @@ export function AuthProvider({ children }) {
      *
      * `POST /logout` cierra de verdad la sesión y, si había una actividad
      * abierta, la finaliza como "Forzado por cierre de sesión" (o "Automático
-     * por expiración" cuando vencen las 8 horas). Antes el cliente la encolaba
-     * por su cuenta; ahora eso duplicaría el cierre, así que solo se olvida la
-     * copia local.
+     * por expiración" cuando vencen las 8 horas).
+     *
+     * Pero SIN CONEXIÓN el `/logout` no llega y en el servidor no se cierra
+     * nada: la actividad quedaba abierta para siempre y la siguiente sesión no
+     * podía iniciar otra (409). Por eso, si el servidor no respondió, el cierre
+     * se deja en la cola de IndexedDB con la hora REAL en que el docente salió,
+     * y se envía tras el siguiente inicio de sesión (nunca antes: sin sesión
+     * válida no hay con qué enviarlo).
      */
-    useActividadStore.getState().limpiar()
+    const abierta = useActividadStore.getState().cerrar()
+    const idSesion = idSesionDe(useSessionStore.getState().token)
 
-    await cerrarSesionEnServidor()
+    const { sinRespuesta } = await cerrarSesionEnServidor()
+
+    if (abierta && sinRespuesta && motivo !== 'expiracion') {
+      encolar({
+        clave: `actividad-cierre-${abierta.id}`,
+        tipo: TIPOS_ENVIO.ACTIVIDAD_CIERRE,
+        payload: { id: abierta.id, fin: abierta.fin, id_sesion: idSesion },
+        descripcion: 'Cierre de actividad (cierre de sesión sin conexión)',
+        dependeDe: `actividad-inicio-${abierta.id}`,
+      }).catch(() => {
+        // El resultado se ve en el panel de sincronización, no aquí.
+      })
+    }
 
     /**
      * IndexedDB guarda datos de menores y hay que borrarlo al salir, pero
-     * CU007 prohíbe que el cierre elimine cambios sin enviar. Se limpia solo
-     * si la cola está vacía; si no, se conserva para el próximo inicio.
+     * CU007 prohíbe que el cierre elimine cambios sin enviar. La COLA se
+     * limpia solo si está vacía; la PRECARGA y los filtros/resúmenes de
+     * localStorage se borran siempre: son copias, no trabajo pendiente, y si
+     * se quedan los ve la siguiente persona que use el navegador (RN-007).
      */
     await limpiarSiTodoSincronizado()
+    await limpiarDatosLocalesDeSesion()
 
     limpiarSesion(motivo)
     perfilPedidoPara.current = null

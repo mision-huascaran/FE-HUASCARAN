@@ -4,6 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import Card from '../../components/ui/Card'
 import Stepper from '../../components/ui/Stepper'
+import AvisoActividades from '../../components/layout/AvisoActividades'
+import useActividadStore from '../../store/actividadStore'
 import { useToast } from '../../components/ui/Toast'
 import PanelResultados from './PanelResultados'
 import PasoEstudiante from './PasoEstudiante'
@@ -34,6 +36,9 @@ export default function NuevaEvaluacionPage() {
   const navegar = useNavigate()
   const toast = useToast()
 
+  // Se entra también escribiendo la URL: sin actividad iniciada no se puede
+  // guardar (CU010, D14). El backend lo rechazaría igual con 409.
+  const conActividad = Boolean(useActividadStore((s) => s.sesion))
   const [paso, setPaso] = useState(0)
   const [alumno, setAlumno] = useState(null)
   const [valores, setValores] = useState(VACIO)
@@ -117,6 +122,8 @@ export default function NuevaEvaluacionPage() {
         </p>
       </header>
 
+      {!conActividad && <AvisoActividades destino="la evaluación no se puede guardar; el formulario queda" />}
+
       <Card>
         <Stepper steps={PASOS_EVALUACION} current={paso} onStepClick={setPaso} />
       </Card>
@@ -157,6 +164,7 @@ export default function NuevaEvaluacionPage() {
               nivelInicial={nivelInicial}
               calculo={calculo}
               guardando={mutacion.isPending}
+              bloqueado={!conActividad}
               onCancelar={() => navegar('/registro-vuelo')}
               onGuardar={guardar}
             />

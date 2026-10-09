@@ -23,8 +23,15 @@ vi.mock('../client', async (importOriginal) => ({
   authContraApiReal: true,
 }))
 
-const { cambiarEstadoColegio, cambiarEstadoAlumno, listarColegiosAdmin, listarUsuariosAdmin, listarMisAsignaciones } =
-  await import('../resources/administracion')
+const {
+  actualizarAlumno,
+  cambiarEstadoColegio,
+  cambiarEstadoAlumno,
+  listarAlumnosAdmin,
+  listarColegiosAdmin,
+  listarUsuariosAdmin,
+  listarMisAsignaciones,
+} = await import('../resources/administracion')
 const { iniciarActividad, finalizarActividad, listarActividades, obtenerActividad } =
   await import('../resources/actividades')
 const { listarSeguimiento, obtenerDocenteSeguimiento, listarActividadesDe } =
@@ -32,6 +39,7 @@ const { listarSeguimiento, obtenerDocenteSeguimiento, listarActividadesDe } =
 const { obtenerInicioDocente, obtenerInicioSupervisor, obtenerInicioDirectivo } =
   await import('../resources/inicio')
 const { recuperarConLlave } = await import('../resources/auth')
+const { obtenerResumenDocente } = await import('../resources/docentes')
 
 beforeEach(() => {
   get.mockClear()
@@ -137,3 +145,88 @@ describe('Recovery Key (CU001)', () => {
     })
   })
 })
+
+describe('Contrato real de Alumnos y asignaciones (hallazgos del 09/10/2026)', () => {
+  it('D10 / "[object Object].° grado": las asignaciones anidadas se aplanan', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        asignaciones: [
+          {
+            colegio: { id: 7, nombre: 'Colegio de Prueba' },
+            grados: [{ id: 1, nombre: '1.º', cantidad_alumnos: 3, ciclos: ['III'], subprogramas: ['Alfabetización'] }],
+          },
+        ],
+      },
+    })
+    const [asignacion] = await listarMisAsignaciones()
+    expect(asignacion).toMatchObject({ id_colegio: 7, colegio: 'Colegio de Prueba', grados: [1] })
+    expect(asignacion.detalle_grados[0]).toMatchObject({ id_grado: 1, nombre: '1.º', cantidad_alumnos: 3 })
+  })
+
+  it('D11: la fila del alumno trae `id_alumno` aunque el backend mande `id`', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: 42,
+            nombres: 'Ana',
+            apellidos: 'Quispe',
+            colegio: { id: 7, nombre: 'Colegio de Prueba' },
+            grado: { id: 1, nombre: '1.º' },
+            subprograma: { id: 1, nombre: 'Alfabetización' },
+            ciclo: { id: 1, nombre: 'III' },
+            activo: true,
+          },
+        ],
+        total: 1,
+      },
+    })
+    const { items } = await listarAlumnosAdmin({ estado: 'activo' })
+    expect(items[0]).toMatchObject({ id_alumno: 42, id_colegio: 7, id_grado: 1, id_programa: 1, ciclo: 'III' })
+
+    await cambiarEstadoAlumno(items[0].id_alumno, false)
+    expect(patch).toHaveBeenCalledWith('/alumnos/42/desactivar')
+  })
+
+  it('los filtros de la pantalla llegan al servidor con sus nombres', async () => {
+    await listarAlumnosAdmin({ id_colegio: '7', id_grado: '1', id_ciclo: '1', id_programa: '2', estado: 'activo' })
+    expect(get.mock.calls.at(-1)[1].params).toMatchObject({ colegio: '7', grado: '1', ciclo: '1', subprograma: '2', activo: true })
+  })
+
+  it('editar no envía los campos de solo lectura (sección, ciclo)', async () => {
+    await actualizarAlumno(42, { nombres: 'Ana', apellidos: 'Quispe', id_colegio: '7', id_grado: '1', id_programa: '1', seccion: 'Única', ciclo: 'III' })
+    expect(patch).toHaveBeenCalledWith('/alumnos/42', {
+      nombres: 'Ana',
+      apellidos: 'Quispe',
+      id_colegio: 7,
+      id_grado: 1,
+      id_programa_actual: 1,
+    })
+  })
+
+  it('Usuarios (y los demás listados) traen todas las páginas, no solo las 10 primeras', async () => {
+    const pagina = (n) => ({
+      data: {
+        items: Array.from({ length: n === 3 ? 2 : 10 }, (_, i) => ({ id_usuario: (n - 1) * 10 + i + 1, nombres: 'U' })),
+        total: 22,
+        pagina: n,
+        paginas: 3,
+        por_pagina: 10,
+      },
+    })
+    get.mockImplementation((_ruta, config) => Promise.resolve(pagina(config?.params?.page ?? 1)))
+
+    const { items } = await listarUsuariosAdmin({ estado: 'activo' })
+    expect(items).toHaveLength(22)
+    expect(get.mock.calls.map(([, config]) => config.params.page ?? 1).sort()).toEqual([1, 2, 3])
+
+    get.mockImplementation(() => Promise.resolve({ data: {} }))
+  })
+})
+
+describe('Resúmenes del Inicio del Docente (D13)', () => {
+  it('contra la API real no se inventan cifras del simulador', async () => {
+    expect(await obtenerResumenDocente(1, { periodo: 3, semana: 30 })).toBeNull()
+  })
+})
+

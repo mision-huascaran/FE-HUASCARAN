@@ -9,6 +9,7 @@
 // inicio y después el finalizar de la misma actividad".
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { _reiniciarCola, encolar, registrarEnviador } from '../colaOffline'
+import useSessionStore from '../../store/sessionStore'
 
 vi.mock('idb-keyval', () => {
   let almacen = {}
@@ -34,6 +35,8 @@ const esperar = () => new Promise((listo) => setTimeout(listo, 50))
 
 beforeEach(async () => {
   await _reiniciarCola()
+  // Precondición: hay una sesión iniciada. Sin ella la cola no envía (CP09).
+  useSessionStore.setState({ token: 'mock.1.2026' })
 })
 
 describe('Envíos encadenados en la cola', () => {

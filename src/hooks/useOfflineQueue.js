@@ -6,6 +6,7 @@ import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib
 import { guardarReporteSemanal } from '../api/resources/semanal'
 import { guardarRubricaSemanal } from '../api/resources/rubrica'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
+import useActividadStore from '../store/actividadStore'
 import useSyncStore from '../store/syncStore'
 
 export const TIPOS_ENVIO = {
@@ -51,7 +52,13 @@ registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
  * parecería funcionar sin hacerlo.
  */
 registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_INICIO, ({ id, inicio }) => iniciarActividad({ id, inicio }))
-registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, ({ id, fin }) => finalizarActividad(id, { fin }))
+registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, async ({ id, fin }) => {
+  const respuesta = await finalizarActividad(id, { fin })
+  // Ya cerrada en el servidor: que una respuesta anterior de Inicio no la
+  // vuelva a dar por abierta en este navegador.
+  useActividadStore.getState().marcarCerrada(id)
+  return respuesta
+})
 
 /** Clave de idempotencia de una fila de captura: `alumno-semana` (RNF-001). */
 export const claveDeFila = (tipo, idAlumno, idSemana) => `${tipo}:${idAlumno}-${idSemana}`

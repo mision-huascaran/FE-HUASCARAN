@@ -21,6 +21,11 @@ import { ACCION, puede } from '../../auth/permisos'
 import { mensajeDeError } from '../../api/client'
 import useSessionStore from '../../store/sessionStore'
 
+/** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
+const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'usuarios' }
+
+export const avisoSinConexion = (seccion) =>
+  `Acción no disponible sin conexión. Conéctate a internet para gestionar ${GESTIONADO[seccion] ?? seccion}.`
 
 export default function Mantenimiento({
   seccion,
@@ -38,6 +43,9 @@ export default function Mantenimiento({
   guardando = false,
   soloOnline = false,
   sinConexion = false,
+  // Motivo por el que no se puede dar de alta aunque la matriz lo permita
+  // (p. ej. un Docente sin asignaciones). El botón se ve, deshabilitado.
+  motivoSinNuevo = null,
 }) {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const [popup, setPopup] = useState(null)
@@ -52,9 +60,13 @@ export default function Mantenimiento({
 
   // E4 de la plantilla. Hay dos comportamientos distintos sin conexión:
   //   · `soloOnline` (Usuarios, Colegios) → pantalla "Requiere conexión".
-  //   · lectura en caché (Alumnos) → se ve la lista, sin botones de escritura.
+  //   · lectura en caché (Alumnos) → se ve la lista; los botones de escritura
+  //     siguen a la vista pero DESHABILITADOS (gris) con el aviso del contrato
+  //     (§11). Antes desaparecían y el docente no sabía por qué.
   const bloqueado = sinConexion
   const sinPantalla = soloOnline && sinConexion
+  const aviso = bloqueado ? avisoSinConexion(seccion) : undefined
+  const motivoNuevo = aviso ?? motivoSinNuevo ?? undefined
 
   const columnasConAcciones = useMemo(() => {
     const acciones = {
@@ -72,24 +84,28 @@ export default function Mantenimiento({
           >
             Ver
           </Button>
-          {puedeEditar && !bloqueado && (
+          {puedeEditar && (
             <Button
               size="sm"
               variant="ghost"
               iconLeft={Pencil}
               aria-label={`Editar ${fila.nombre ?? entidad}`}
+              disabled={bloqueado}
+              title={aviso}
               onClick={() => setPopup({ modo: 'editar', registro: fila })}
             >
               Editar
             </Button>
           )}
-          {puedeInactivar && !bloqueado && (
+          {puedeInactivar && (
             <Button
               size="sm"
               variant="ghost"
               iconLeft={fila.activo === false ? RotateCcw : Ban}
               className={fila.activo === false ? undefined : 'text-danger-600'}
               aria-label={`${fila.activo === false ? 'Activar' : 'Inactivar'} ${fila.nombre ?? entidad}`}
+              disabled={bloqueado}
+              title={aviso}
               onClick={() => setConfirmando({ fila, activo: fila.activo === false })}
             >
               {fila.activo === false ? 'Activar' : 'Inactivar'}
@@ -111,7 +127,7 @@ export default function Mantenimiento({
     }
 
     return [...columnas, estado, acciones]
-  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado])
+  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso])
 
   if (sinPantalla) {
     return (
@@ -130,12 +146,23 @@ export default function Mantenimiento({
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        {puedeCrear && !bloqueado && (
-          <Button iconLeft={Plus} onClick={() => setPopup({ modo: 'nuevo', registro: null })}>
+        {puedeCrear && (
+          <Button
+            iconLeft={Plus}
+            disabled={Boolean(motivoNuevo)}
+            title={motivoNuevo}
+            onClick={() => setPopup({ modo: 'nuevo', registro: null })}
+          >
             Nuevo
           </Button>
         )}
       </header>
+
+      {motivoNuevo && puedeCrear && (
+        <p role="note" className="-mt-2 text-sm text-ink-500">
+          {motivoNuevo}
+        </p>
+      )}
 
       <Card padded={false}>
         <FiltrosMantenimiento filtros={filtros} valores={valoresFiltro} onCambio={onFiltro} />

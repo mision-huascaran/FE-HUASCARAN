@@ -112,7 +112,9 @@ describe('Rúbrica semanal (P5)', () => {
     montar('/captura', 'semanal', { conActividades: false })
     await screen.findByRole('table', {}, ESPERA)
 
-    expect(screen.getByText(/Iniciar actividades/i)).toBeInTheDocument()
+    // El aviso nombra el botón tal como se llama: "Iniciar actividad" (D14).
+    expect(screen.getByText('Iniciar actividad')).toBeInTheDocument()
+    expect(screen.queryByText(/Iniciar actividades/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Marcar toda la asistencia/i })).not.toBeInTheDocument()
   })
 })

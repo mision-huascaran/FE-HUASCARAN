@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 
 /** Paso 3 (P7) — resumen de todo lo ingresado antes de guardar. */
-export default function PasoRevision({ alumno, nombrePeriodo, valores, nivelInicial, calculo, guardando, onCancelar, onGuardar }) {
+export default function PasoRevision({ alumno, nombrePeriodo, valores, nivelInicial, calculo, guardando, bloqueado = false, onCancelar, onGuardar }) {
   return (
     <Card title="Revisar y guardar" subtitle={`${alumno?.nombre} · ${nombrePeriodo}`}>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -33,10 +33,10 @@ export default function PasoRevision({ alumno, nombrePeriodo, valores, nivelInic
         <Button variant="ghost" onClick={onCancelar}>
           Cancelar
         </Button>
-        <Button variant="secondary" onClick={() => onGuardar('pendiente')} loading={guardando}>
+        <Button variant="secondary" onClick={() => onGuardar('pendiente')} loading={guardando} disabled={bloqueado}>
           Guardar borrador
         </Button>
-        <Button onClick={() => onGuardar('revisado')} loading={guardando}>
+        <Button onClick={() => onGuardar('revisado')} loading={guardando} disabled={bloqueado}>
           Guardar evaluación
         </Button>
       </div>

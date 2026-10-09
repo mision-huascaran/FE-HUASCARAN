@@ -17,9 +17,12 @@ import { obtenerResumenSupervisor } from '../../api/resources/inicio'
 import useConexion from '../../hooks/useConexion'
 
 const ACCESOS = [
-  { to: '/usuarios', label: 'Usuarios y alumnos' },
+  { to: '/usuarios', label: 'Usuarios' },
+  { to: '/alumnos', label: 'Alumnos' },
   { to: '/colegios', label: 'Colegios' },
-  { to: '/sesiones', label: 'Sesiones de los docentes' },
+  // El Supervisor sigue a sus docentes en Seguimiento (CU020): Sesiones es
+  // solo del Docente y lo mandaba a /403.
+  { to: '/seguimiento', label: 'Seguimiento de los docentes' },
   { to: '/dashboard', label: 'Dashboard' },
 ]
 
@@ -41,7 +44,11 @@ export default function InicioSupervisor() {
       return {
         colegios: d?.colegios ?? d?.colegios_registrados ?? 0,
         docentesActivos: d?.docentes_activos ?? d?.docentesActivos ?? 0,
-        docentesConActividad: d?.docentes_con_actividad ?? d?.docentesConActividad ?? 0,
+        // El backend lo llama `docentes_con_actividad_activa`. Se leía solo
+        // `docentes_con_actividad`, que no existe, y el indicador salía
+        // siempre en 0 (D15).
+        docentesConActividad:
+          d?.docentes_con_actividad_activa ?? d?.docentes_con_actividad ?? d?.docentesConActividad ?? 0,
         registrosPendientes: d?.pendientes ?? null,
         registrosIncompletos: d?.incompletos ?? null,
         alertas: d?.alertas ?? [],

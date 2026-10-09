@@ -66,8 +66,10 @@ export default function InicioDirectivo() {
         <StatCard
           icon={Activity}
           label="Salud del sistema"
-          value={resumen.salud === null ? 'No disponible' : `${resumen.salud}%`}
-          hint={resumen.salud === null ? 'Sin información de sincronización' : 'Sincronización global'}
+          // CU012 y §1.5 del contrato: un indicador en `null` se pinta
+          // exactamente como "Sin datos disponibles".
+          value={resumen.salud === null ? 'Sin datos disponibles' : `${resumen.salud}%`}
+          hint={resumen.salud === null ? undefined : 'Sincronización global'}
         />
       </div>
     </div>
