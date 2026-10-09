@@ -1,8 +1,10 @@
 // Todas las rutas del backend en un solo lugar. Ningún componente escribe una
 // URL a mano: si Swagger cambia una ruta, se corrige aquí y nada más.
 //
-// ESTADO DEL CONTRATO — contrastado con `api_sicedu_frontend.md` (Paris,
-// backend, 08/10/2026, commit 1c81d85, Tandas 1 a 7 = CU001 a CU021).
+// ESTADO DEL CONTRATO — VERIFICADO contra el `openapi.json` del servidor en
+// ejecución (48 rutas), no solo contra la guía. Varias rutas que la guía daba
+// por pendientes sí existen, y los cambios de estado tienen ruta propia en vez
+// de ir por PATCH con `{activo}`.
 //
 //   PUBLICADO   auth, inicio por rol, actividades, colegios, alumnos, usuarios
 //               y seguimiento. Los esquemas exactos están en {API}/docs.
@@ -38,7 +40,22 @@ export const ENDPOINTS = {
 
     // Recuperación SIN sesión, desde el login. Públicos: no llevan token.
     passwordRecuperar: '/password/recuperar', // { correo }
+    passwordVerificarCodigoPublico: '/password/verificar-codigo', // { correo, codigo }
     passwordRestablecer: '/password/restablecer', // { correo, codigo, contraseña_nueva, confirmar_contraseña_nueva }
+    /**
+     * CU001 — Recuperación del Supervisor original con una Recovery Key.
+     *
+     * Son 10 llaves de un solo uso, entregadas aparte en un `.txt`. Existe
+     * porque esa cuenta no se puede eliminar ni desactivar y es la única que
+     * crea usuarios: si pierde el acceso y el correo falla, no hay otra vía.
+     *
+     * Cuerpo: { correo, llave, contraseña_nueva, confirmar_contraseña_nueva }
+     * Respuesta: { mensaje, llaves_restantes }
+     *
+     * TARDA ~7 SEGUNDOS A PROPÓSITO, y el mismo tiempo acierte o falle: así
+     * nadie deduce por la demora si una llave era válida.
+     */
+    passwordRecuperarConLlave: '/password/recuperar-con-llave',
   },
 
   // PUBLICADO — un endpoint por rol (CU010, CU011, CU012) ────────────────────
@@ -76,6 +93,9 @@ export const ENDPOINTS = {
     actualizar: (id) => `/colegios/${id}`, // PATCH; null en obligatorio → 422
     // Valores existentes para llenar los desplegables de filtro.
     ubicaciones: '/colegios/ubicaciones',
+    // La baja lógica tiene ruta propia: NO es un PATCH con `{activo}`.
+    activar: (id) => `/colegios/${id}/activar`,
+    desactivar: (id) => `/colegios/${id}/desactivar`,
   },
 
   // PUBLICADO — Alumnos y su detalle (CU014, CU015) ──────────────────────────
@@ -90,6 +110,8 @@ export const ENDPOINTS = {
     rubrica: (id) => `/alumnos/${id}/rubrica`,
     lectura: (id) => `/alumnos/${id}/lectura`,
     historial: (id) => `/alumnos/${id}/historial`, // exige conexión (CU015)
+    activar: (id) => `/alumnos/${id}/activar`,
+    desactivar: (id) => `/alumnos/${id}/desactivar`,
   },
 
   // PUBLICADO — Usuarios de los tres roles (CU016) ───────────────────────────
@@ -105,13 +127,20 @@ export const ENDPOINTS = {
   },
 
   // PUBLICADO — Catálogos. Se piden una vez al entrar y se guardan en IndexedDB.
+  //
+  // Los nombres están verificados contra el servidor: no hay `/ciclos` ni
+  // `/roles`, el de periodos es `/periodos-academicos`, y los niveles van con
+  // guion (`/niveles-rubrica`), no con barra.
   catalogos: {
     grados: '/grados',
     programas: '/programas',
-    ciclos: '/ciclos',
-    roles: '/roles',
-    periodos: '/periodos-evaluacion',
+    periodos: '/periodos-academicos',
     anios: '/anios-escolares',
+    semanas: '/semanas',
+    asignaciones: '/asignaciones',
+    nivelesRazkids: '/niveles-razkids',
+    nivelesRubrica: '/niveles-rubrica', // ?programa=
+    nivelesGenerales: '/niveles-generales',
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -119,14 +148,8 @@ export const ENDPOINTS = {
   // esto siguen en mock; sus rutas son provisionales y habrá que contrastarlas
   // con /docs cuando el backend publique las grillas.
   // ─────────────────────────────────────────────────────────────────────────
-  semanas: '/semanas',
-
-  nivelesCatalogo: {
-    razkids: '/niveles/razkids',
-    rubrica: '/niveles/rubrica', // ?programa=
-    general: '/niveles/general',
-    esperadoPorGrado: '/niveles/esperado-por-grado',
-  },
+  // De los niveles, solo este sigue sin existir.
+  esperadoPorGrado: '/niveles/esperado-por-grado',
 
   reporteSemanal: {
     listar: '/reporte-semanal',

@@ -10,6 +10,7 @@ import { recuperarPassword, restablecerPassword } from '../../api/resources/auth
 import { mensajeDeError } from '../../api/client'
 import { REQUISITOS_PASSWORD, esCorreoValido, esPinValido, requisitosIncumplidos } from '../../lib/validacion'
 import useConexion from '../../hooks/useConexion'
+import ModalRecoveryKey from './ModalRecoveryKey'
 
 /**
  * "Olvidé mi contraseña", desde el login y SIN sesión iniciada.
@@ -60,6 +61,9 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
   const [password, setPassword] = useState('')
   const [confirmacion, setConfirmacion] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  // CU001: la vía de emergencia del Supervisor original. Va escondida aquí
+  // dentro, no en el login: quien no sepa qué es no debe tropezarse con ella.
+  const [conLlave, setConLlave] = useState(false)
 
   function cerrar() {
     setPaso(0)
@@ -200,7 +204,26 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
             />
           </>
         )}
+
+        {paso === 0 && (
+          <button
+            type="button"
+            onClick={() => setConLlave(true)}
+            className="self-start text-xs text-ink-400 underline underline-offset-2 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            ¿Es la cuenta de Supervisor original y no recibe el correo?
+          </button>
+        )}
       </div>
+
+      <ModalRecoveryKey
+        abierto={conLlave}
+        correoInicial={correo}
+        onCerrar={() => {
+          setConLlave(false)
+          cerrar()
+        }}
+      />
     </Modal>
   )
 }

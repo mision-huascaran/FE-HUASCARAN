@@ -140,7 +140,9 @@ export const actualizarColegio = (idColegio, cambios) =>
 export const cambiarEstadoColegio = (idColegio, activo) =>
   resolver({
     mock: () => handlers.administracion.cambiarEstadoColegio(idColegio, activo),
-    real: () => api.patch(colegios.actualizar(idColegio), { activo }),
+    // Ruta propia, verificada contra el servidor. NO es un PATCH con
+    // `{activo}`: eso devolvía 200 sin cambiar nada.
+    real: () => api.patch(activo ? colegios.activar(idColegio) : colegios.desactivar(idColegio)),
     forzarReal: adminContraApiReal,
   })
 
@@ -213,7 +215,7 @@ export const actualizarAlumno = (idAlumno, cambios) =>
 export const cambiarEstadoAlumno = (idAlumno, activo) =>
   resolver({
     mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo }),
-    real: () => api.patch(alumnos.actualizar(idAlumno), { activo }),
+    real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno)),
     forzarReal: adminContraApiReal,
   })
 

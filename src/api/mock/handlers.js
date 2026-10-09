@@ -573,6 +573,19 @@ export const handlers = {
 
   auth: {
     /**
+     * Recuperación con Recovery Key (CU001). El simulador imita el retardo
+     * uniforme de unos segundos: sin él, la pantalla parecería instantánea
+     * aquí y "colgada" contra el servidor.
+     */
+    recuperarConLlave: async ({ llave }) => {
+      await new Promise((listo) => setTimeout(listo, 1200))
+      if (!/^[A-Za-z0-9-]{8,}$/.test(String(llave ?? '').trim())) {
+        throw errorMock(422, 'La llave no es válida o ya fue utilizada.', 'llave_invalida')
+      }
+      return responder({ mensaje: 'Contraseña actualizada correctamente', llaves_restantes: 9 })
+    },
+
+    /**
      * `POST /password/recuperar`. Responde 200 SIEMPRE, exista el correo o no:
      * si distinguiera, cualquiera podría probar direcciones para averiguar
      * quién tiene cuenta. El mock replica ese silencio a propósito.
