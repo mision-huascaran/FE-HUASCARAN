@@ -284,9 +284,43 @@ describe('Contrato real de Usuarios (CU016)', () => {
     expect(post.mock.calls.at(-1)[1]).toMatchObject({ id_rol: 2, asignacion: null })
   })
 
+  it('sin grados elegidos OMITE `grados` (null y [] dan 422 en dev)', async () => {
+    get.mockResolvedValueOnce({ data: [{ id: 1, nombre: '2026', vigente: true }] })
+    await actualizarUsuario(4, { nombres: 'Docente', apellidos: 'Desactivado', dni: '76355221', correo: 'd@sicedu.test', id_colegio: '1', grados: [], anio_escolar: '' })
+    const [, cuerpo] = patch.mock.calls.at(-1)
+    expect(cuerpo.asignacion).toEqual({ id_colegio: 1, id_anio_escolar: 1 })
+    expect(cuerpo.asignacion).not.toHaveProperty('grados')
+  })
+
+  it('el año escolar escrito se traduce a su id del catálogo', async () => {
+    get.mockResolvedValueOnce({ data: [{ id: 1, nombre: '2026', vigente: true }, { id: 2, nombre: '2027', vigente: false }] })
+    await actualizarUsuario(2, { nombres: 'Docente', apellidos: 'de Prueba', dni: '00000002', correo: 'p@sicedu.test', id_colegio: '1', grados: ['1'], anio_escolar: '2027' })
+    expect(patch.mock.calls.at(-1)[1].asignacion).toEqual({ id_colegio: 1, id_anio_escolar: 2, grados: [1] })
+  })
+
   it('editar no manda `id_rol` vacío ni campos sueltos del Docente', async () => {
     await actualizarUsuario(15, { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test', id_rol: '', anio_escolar: '', id_colegio: '', grados: [] })
     expect(patch).toHaveBeenCalledWith('/usuarios/15', { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test' })
+  })
+})
+
+describe('Filtro de Usuarios por colegio (en el cliente)', () => {
+  const FILAS = [
+    { id_usuario: 2, id_rol: 1, nombre: 'Docente de Prueba', colegios_asignados: ['Colegio de Prueba'] },
+    { id_usuario: 4, id_rol: 1, nombre: 'Docente Desactivado', colegios_asignados: [] },
+    { id_usuario: 6, id_rol: 1, nombre: 'Docente Yungay', colegios_asignados: ['Colegio Yungay'] },
+    { id_usuario: 1, id_rol: 2, nombre: 'Jefa de Prueba', colegios_asignados: ['Global'] },
+    { id_usuario: 3, id_rol: 3, nombre: 'Directivo de Prueba', colegios_asignados: ['Global'] },
+  ]
+
+  it('deja los docentes de ese colegio y a Supervisor y Directivo, que son globales', async () => {
+    const { filtrarUsuariosPorColegio } = await import('../resources/administracion')
+    expect(filtrarUsuariosPorColegio(FILAS, 'Colegio de Prueba').map((u) => u.id_usuario)).toEqual([2, 1, 3])
+  })
+
+  it('sin colegio elegido no filtra', async () => {
+    const { filtrarUsuariosPorColegio } = await import('../resources/administracion')
+    expect(filtrarUsuariosPorColegio(FILAS, undefined)).toHaveLength(5)
   })
 })
 

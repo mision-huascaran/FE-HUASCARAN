@@ -423,12 +423,31 @@ async function asignacionDe(datos, { obligatoria }) {
   if (Number(datos.id_rol) !== 1 && obligatoria) return null
   if (!datos.id_colegio) return null
   const grados = (Array.isArray(datos.grados) ? datos.grados : []).map(Number).filter(Boolean)
-  return {
+  const asignacion = {
     id_colegio: Number(datos.id_colegio),
     id_anio_escolar: await idAnioEscolar(datos.anio_escolar),
-    // Sin grados elegidos, el backend asigna todos los que ofrece el colegio.
-    grados: grados.length ? grados : null,
   }
+  // Sin grados elegidos se OMITE el campo y el backend asigna todos los que
+  // ofrece el colegio. `grados: null` responde 422 ("no puede ser nulo") y
+  // `grados: []` también ("al menos un elemento"), aunque openapi diga otra cosa.
+  if (grados.length) asignacion.grados = grados
+  return asignacion
+}
+
+/**
+ * Filtro por colegio de Usuarios, en el cliente: `GET /usuarios` no lo admite.
+ *
+ * Los Docentes se quedan si ese colegio está entre sus `colegios_asignados`.
+ * Supervisor y Directivo son GLOBALES (`["Global"]`): siempre se quedan, y el
+ * filtro de Rol ya decide si deben verse.
+ */
+export function filtrarUsuariosPorColegio(filas, nombreColegio) {
+  if (!nombreColegio) return filas
+  return filas.filter((u) => {
+    const colegios = u.colegios_asignados ?? []
+    if (Number(u.id_rol) !== 1 || colegios.includes('Global')) return true
+    return colegios.includes(nombreColegio)
+  })
 }
 
 const textoONulo = (v) => (v == null || String(v).trim() === '' ? undefined : String(v).trim())

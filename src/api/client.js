@@ -193,6 +193,17 @@ export function mensajeDeError(error, porDefecto = 'Intente nuevamente.') {
     return mensajes.length ? mensajes.join(' · ') : porDefecto
   }
 
+  // 422 unificado del backend: `detail` es genérico ("Los datos enviados no
+  // son válidos.") y lo útil viene en `errores`. Sin esto el usuario no sabía
+  // qué campo corregir.
+  const errores = error?.response?.data?.errores
+  if (typeof detalle === 'string' && detalle.trim() && Array.isArray(errores) && errores.length) {
+    const porCampo = errores
+      .map((item) => (item?.campo ? `${item.campo}: ${item?.mensaje ?? 'dato inválido'}` : item?.mensaje))
+      .filter(Boolean)
+    return porCampo.length ? `${detalle} ${porCampo.join(' · ')}` : detalle
+  }
+
   if (typeof detalle === 'string' && detalle.trim()) return detalle
 
   // 403 sin detalle: el texto por defecto no puede ser "intente de nuevo",
