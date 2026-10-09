@@ -32,7 +32,7 @@ import { ROLES } from '../../auth/roles'
  */
 function fuentesDe(idRol) {
   const catalogos = {
-    colegios: () => listarColegiosAdmin(),
+    colegios: async () => (await listarColegiosAdmin()).items,
     grados: () => listarGradosAdmin(),
     semanas: () => obtenerSemanas(),
   }

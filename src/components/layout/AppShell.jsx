@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import LimiteDeError from './LimiteDeError'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import useOfflineQueue from '../../hooks/useOfflineQueue'
@@ -25,7 +26,12 @@ export default function AppShell() {
         <Topbar onAbrirMenu={() => setMenuAbierto(true)} />
         {/* `key` fuerza el reinicio del scroll y del estado al cambiar de pantalla. */}
         <main key={pathname} className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
-          <Outlet />
+          {/* El límite va DENTRO del armazón: si una pantalla revienta, la
+              barra lateral y el menú siguen en pie y el usuario puede irse a
+              otra sección en vez de quedarse ante una página en blanco. */}
+          <LimiteDeError claveReinicio={pathname}>
+            <Outlet />
+          </LimiteDeError>
         </main>
       </div>
     </div>

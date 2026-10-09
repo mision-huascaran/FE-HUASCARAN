@@ -16,6 +16,7 @@ import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
 import UsuariosPage from './features/usuarios/UsuariosPage'
 import SesionesPage from './features/sesiones/SesionesPage'
+import SeguimientoPage from './features/seguimiento/SeguimientoPage'
 import AsistenciaPage from './features/asistencia/AsistenciaPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
@@ -52,7 +53,10 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <ReporteSemanalPage pestanaFija="semanal" /> },
   { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloPage /> },
   { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
-  { path: '/sesiones', allow: [PROFESOR, JEFA], titulo: 'Sesiones', elemento: <SesionesPage /> },
+  // CU017 a CU019: solo el Docente, y solo sus propias sesiones.
+  { path: '/sesiones', allow: [PROFESOR], titulo: 'Sesiones', elemento: <SesionesPage /> },
+  // CU020 y CU021: lo que el Supervisor usa en su lugar.
+  { path: '/seguimiento', allow: [JEFA], titulo: 'Seguimiento', elemento: <SeguimientoPage /> },
   { path: '/dashboard', allow: [JEFA, DIRECTIVOS], titulo: 'Dashboard', elemento: <DashboardPage /> },
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──

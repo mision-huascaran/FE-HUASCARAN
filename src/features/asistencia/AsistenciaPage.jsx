@@ -1,4 +1,12 @@
-// Cubre: RF-012, RN-006, RNF-001 · Sección "Asistencia" (T30).
+// Cubre: RF-012, RN-006, RNF-001 · Sección "Asistencia".
+//
+// OJO CON EL CONTRATO: el backend decidió asistencia SEMANAL, no por fecha
+// (api_sicedu_frontend §13), y las grillas todavía no existen (§12). Esta
+// pantalla sigue resolviéndose contra el simulador y habrá que rehacerla con
+// la semana como eje cuando el backend la publique.
+//
+// La SECCIÓN se quitó del filtro: dejó de ser una entidad y pasó a ser un
+// atributo del colegio que el alumno hereda.
 //
 // Grilla por FECHA, no por semana: es lo que la diferencia del reporte de
 // lectura. Si no existe grilla para esa fecha no se inventa ninguna ni se copia
@@ -17,7 +25,7 @@ import FilaAsistencia from './FilaAsistencia'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import { useToast } from '../../components/ui/Toast'
 import { crearGrillaAsistencia, guardarAsistencia, obtenerGrillaAsistencia } from '../../api/resources/asistencia'
-import { listarDocentes, listarSecciones } from '../../api/resources/administracion'
+import { listarDocentes } from '../../api/resources/administracion'
 import { useColegios, useGrados } from '../../hooks/useCatalogos'
 import { mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
@@ -55,12 +63,6 @@ export default function AsistenciaPage() {
     enabled: !puedeEditar,
     ...SIEMPRE,
   })
-  const { data: secciones = [] } = useQuery({
-    queryKey: ['admin', 'secciones', filtros.idColegio],
-    queryFn: () => listarSecciones(filtros.idColegio),
-    enabled: Boolean(filtros.idColegio),
-  })
-
   /**
    * Un `<select>` sin marcador de posición PINTA la primera opción aunque el
    * estado esté vacío: la pantalla decía "I.E. 86021 Ranrahirca" mientras el
@@ -132,13 +134,6 @@ export default function AsistenciaPage() {
         <Select label="Colegio" value={filtros.idColegio} onChange={(e) => cambiar('colegio', e.target.value)} options={opciones(colegios, 'id_colegio')} />
         <Select label="Ciclo" value={filtros.idCiclo} placeholder="Todos" onChange={(e) => cambiar('ciclo', e.target.value)} options={CICLOS} />
         <Select label="Grado" value={filtros.idGrado} onChange={(e) => cambiar('grado', e.target.value)} options={opciones(grados, 'id_grado')} />
-        <Select
-          label="Sección"
-          value={filtros.idSeccion}
-          placeholder="Todas"
-          onChange={(e) => cambiar('seccion', e.target.value)}
-          options={opciones(secciones, 'id_seccion')}
-        />
         <Input label="Fecha" type="date" value={filtros.fecha} onChange={(e) => cambiar('fecha', e.target.value)} />
       </FilterBar>
 

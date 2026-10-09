@@ -85,7 +85,7 @@
 \vspace{2cm}
 {\large Misión Huascarán \textperiodcentered\ Frontend\par}
 \vspace{0.3cm}
-{\large 7 de octubre de 2026\par}
+{\large 8 de octubre de 2026\par}
 \vfill
 {\normalsize Dirigido a quienes ejecutan las pruebas.\par}
 {\normalsize No hace falta saber programar para seguirla.\par}
@@ -128,8 +128,33 @@ Directivo  & \texttt{direccion@sicedu.test}  \\
 \end{center}
 
 \paragraph{Opción B --- con backend.} Necesaria para \cu{002} (bloqueo por
-intentos), \cu{003} (vigencia real de 8 horas) y \cu{004}--\cu{006} (PIN por
-correo). Deje los dos flags en \texttt{true} y levante el backend.
+intentos), \cu{003} (vigencia real de 8 horas), \cu{004}--\cu{006} (PIN por
+correo) y todo lo de Sesiones y Seguimiento. Deje los dos flags en
+\texttt{true} y levante el backend.
+
+El despliegue de \texttt{development} en Jenkins falla porque el servidor del
+curso no acepta conexiones a su base de datos. No es un error de código y ya
+está reportado: mientras tanto, levante el backend en local con
+\texttt{python run.py} (API en \texttt{http://127.0.0.1:8000}, Swagger en
+\texttt{/docs}). Cuentas del seed:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Rol} & \textbf{Correo} & \textbf{Contraseña} \\
+\midrule
+Supervisor & \texttt{jefa.prueba@sicedu.test}      & \texttt{JefaTest123}      \\
+Docente    & \texttt{profesor.prueba@sicedu.test}  & \texttt{ProfesorTest123}  \\
+Directivo  & \texttt{directivo.prueba@sicedu.test} & \texttt{DirectivoTest123} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{aviso}{Estas contraseñas no cumplen la política nueva}
+Sirven para entrar, pero si prueba a cambiarlas tendrá que poner una que sí la
+cumpla (ocho caracteres con mayúscula, minúscula, número y símbolo). No es un
+fallo: son cuentas sembradas antes del cambio de política.
+\end{aviso}
 
 \subsection{Cómo simular que no hay conexión}
 
@@ -150,16 +175,21 @@ saldrán vacías: \textbf{es el comportamiento correcto}, no un fallo.
 \end{aviso}
 
 \begin{bloqueo}{Lo que hoy NO se puede probar de extremo a extremo}
+Lo que antes bloqueaba \cu{002} y \cu{006} ya está resuelto: el backend
+implementó la política de contraseña nueva, el PIN numérico y el bloqueo por
+intentos. Queda esto:
+
 \begin{itemize}
-  \item \textbf{\cu{006} con backend real.} El caso de uso exige que la
-        contraseña lleve un carácter especial; el backend actual rechaza
-        cualquier contraseña con símbolos. Las dos reglas se contradicen, así
-        que el restablecimiento falla al guardar. El formulario ya aplica
-        \cu{006}; falta que el backend lo acepte.
-  \item \textbf{Recovery Keys del Supervisor original} (\cu{001}). No existe
-        pantalla todavía: está por decidir si entra en la aplicación.
-  \item \textbf{\cu{002}, bloqueo de 15 minutos.} El backend aún no responde
-        \texttt{429}. La interfaz ya lo trata; no hay forma de provocarlo.
+  \item \textbf{Las grillas} de Rúbrica, Seguimiento de Lectura, Registro de
+        Vuelo y Asistencia. Sus casos de uso no son de esta entrega, así que no
+        hay captura: las pestañas del detalle del alumno salen vacías y los
+        atajos de \cu{021} no tienen a dónde llevar.
+  \item \textbf{El trabajo sin conexión de verdad.} El envío en lote no existe
+        todavía en el backend, así que \emph{Sincronización} siempre dirá
+        «Sincronizada» o «Al día» y los pendientes siempre serán 0.
+  \item \textbf{Recovery Keys del Supervisor original} (\cu{001}). El endpoint
+        ya existe, pero no hay pantalla: está por decidir si entra en la
+        aplicación.
 \end{itemize}
 \end{bloqueo}
 
@@ -177,15 +207,22 @@ página al entrar: es una SPA.
 \toprule
 \textbf{Rol} & \textbf{Debe ver} \\
 \midrule
-Docente    & Inicio, Alumnos, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones \\
-Supervisor & Inicio, Usuarios, Colegios, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, Sesiones, Dashboard \\
+Docente    & Inicio, Alumnos, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, \textbf{Sesiones} \\
+Supervisor & Inicio, Usuarios, Colegios, Asistencia, Rúbrica, Seguimiento de Lectura, Registro de Vuelo, \textbf{Seguimiento}, Dashboard \\
 Directivo  & Solo Inicio y Dashboard \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 \paragraph{Ojo con Alumnos.} El Supervisor no tiene «Alumnos» como entrada
-propia: la ve dentro de \ruta{Usuarios}. Es intencionado.
+propia: la ve dentro de \ruta{Usuarios}. Es intencionado. El \textbf{Directivo
+ya no accede a Alumnos en absoluto}: si fuerza la URL, el servidor responde 403.
+
+\paragraph{Sesiones y Seguimiento son pantallas distintas.} Antes compartían
+módulo y el Supervisor veía el listado con un filtro por docente. Ahora
+\ruta{Sesiones} es solo del Docente y solo con las suyas (\cu{017} a
+\cu{019}), y el Supervisor tiene \ruta{Seguimiento}, que es otra cosa
+(\cu{020}, \cu{021}). Compruebe que a cada rol le sale la suya y no la otra.
 
 \subsection{CU001 --- Sin conexión}
 
@@ -292,11 +329,10 @@ que se van marcando conforme se cumplen. Pruebe estas contraseñas:
 \end{tabularx}
 \end{center}
 
-\begin{aviso}{Aquí es donde choca con el backend}
-\texttt{Sicedu2026!} es válida según \cu{006} y el formulario la acepta, pero el
-backend actual la rechaza por llevar \texttt{!}. Hasta que el backend cambie su
-validación, el guardado fallará. Repórtelo una vez y siga: no es un fallo nuevo
-cada vez que lo intente.
+\begin{aviso}{Esto ya funciona de extremo a extremo}
+El backend implementó la política nueva, así que \texttt{Sicedu2026!} se guarda
+de verdad. Si le responde un error de validación, \textbf{eso sí es una
+incidencia}: antes era un choque conocido entre las dos reglas y ya no lo es.
 \end{aviso}
 
 \paragraph{Mensajes del PIN.} Cada uno tiene su texto propio:
@@ -421,6 +457,31 @@ Inicie actividad, finalícela, y vuelva a iniciar otra.
 \textbf{Esperado:} se permite, la sesión sigue viva, y la hora de fin mostrada
 \textbf{es la misma que antes}. Una actividad nueva no regala ocho horas más.
 
+\subsection{CU009 --- Iniciar y finalizar la actividad SIN conexión}
+
+Esto es lo que más fácil se da por imposible, y el caso de uso lo permite
+expresamente: si no hay red, la actividad se abre igual y el registro se manda
+después.
+
+\begin{enumerate}
+  \item Póngase 	extbf{Offline} sin actividad abierta.
+  \item Pulse \emph{Iniciar actividad}.
+\end{enumerate}
+
+	extbf{Esperado:} la actividad 	extbf{se abre} —si no, el docente no podría
+registrar nada, que es justo lo que el caso de uso quiere permitir— y avisa de
+que el inicio se enviará al recuperar la conexión. En 	extbf{IndexedDB},
+	exttt{sicedu.cola-envios} debe tener una entrada de inicio de actividad.
+
+\paragraph{La parte que de verdad importa.} Trabaje un rato sin red, finalice
+la actividad y 	extbf{recién entonces} vuelva a conectar. Después vaya a
+uta{Sesiones} y abra esa sesión.
+
+	extbf{Esperado:} las horas de inicio y fin deben ser 	extbf{las reales, las
+de cuando estuvo trabajando}, no la hora en que recuperó la conexión. Si
+aparecen las de la sincronización, es una incidencia seria: falsearía cuándo se
+hizo el trabajo en el aula.
+
 \subsection{CU009 --- Sin conexión durante la actividad}
 
 Con actividad abierta, póngase Offline:
@@ -499,11 +560,11 @@ y repita en \ruta{Colegios} (\cu{013}), \ruta{Alumnos} (\cu{014}) y
 \toprule
 \textbf{Pantalla} & \textbf{Qué comprobar} \\
 \midrule
-Colegios (\cu{013}) & \emph{Grados y secciones} es una lista con \emph{Añadir sección}, no un cuadro de texto libre. \\
+Colegios (\cu{013}) & \emph{Departamento} y \emph{Distrito} son obligatorios; el campo que antes se llamaba \emph{Zona} ahora es \emph{Provincia}. Pruebe a crear «SHILLA~» si ya existe «Shilla»: debe rechazarlo, porque el nombre es único ignorando mayúsculas, espacios y tildes. \\
 \addlinespace
-Alumnos (\cu{014}) & Existe \emph{Ciclo evaluado} aparte de \emph{Grado}: un alumno de 6.\textordmasculine{} puede evaluarse con la rúbrica del ciclo~III. Como Docente, el desplegable de Colegio solo muestra \textbf{sus} colegios; como Supervisor, los nueve. \\
+Alumnos (\cu{014}) & \emph{Sección} y \emph{Ciclo} se ven pero \textbf{no se eligen}: la sección la hereda del colegio y el ciclo lo calcula el sistema. Como Docente, el desplegable de Colegio solo muestra \textbf{sus} colegios; como Supervisor, los nueve. Pruebe 1.\textordmasculine{} grado con Comprensión Lectora: debe rechazarlo. \\
 \addlinespace
-Usuarios (\cu{016}) & Al elegir rol \emph{Docente} aparecen \emph{Colegios asignados} y \emph{Secciones asignadas}; con Supervisor o Directivo, no. \\
+Usuarios (\cu{016}) & Al elegir rol \emph{Docente} aparecen \emph{Año escolar}, \emph{Colegio asignado} (uno solo) y \emph{Grados}; con Supervisor o Directivo, no. El DNI es obligatorio, de 8 dígitos y único. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -542,14 +603,23 @@ la interfaz no puede bloquear el interruptor. Compruébelo cuando esté.
 \section{CU017, CU018 y CU019 --- Sesiones del Docente}
 
 Entre como \textbf{Docente} en \ruta{Sesiones}. Solo debe ver \textbf{las
-suyas}.
+suyas}. Con Supervisor o Directivo esta sección \textbf{no debe aparecer} en el
+menú, y forzar \ruta{/sesiones} tampoco debe entrar.
 
 \subsection{CU017 --- El listado}
 
-\textbf{Esperado por fila:} identificador, fecha, hora de inicio y de fin,
-duración, cantidad de cambios, estado (\emph{En curso} / \emph{Finalizada}),
-estado de sincronización (\emph{Sincronizada} / \emph{Pendiente} /
-\emph{Error}) y tipo de cierre.
+\textbf{Esperado por fila:} fecha, hora de inicio y de fin, duración, cantidad
+de cambios, estado (\emph{En curso} / \emph{Finalizada}), estado de
+sincronización (\emph{Sincronizada} / \emph{Pendiente} / \emph{Error}) y tipo
+de cierre.
+
+En una sesión \textbf{en curso}, la hora de fin y el tipo de cierre deben
+decir «No aplica», no quedarse en blanco.
+
+\begin{aviso}{Lo que verá hoy en Sincronización}
+Siempre «Sincronizada» y 0 pendientes. No es un fallo: el envío en lote todavía
+no existe en el backend, así que no hay forma de que algo quede pendiente.
+\end{aviso}
 
 \paragraph{Son dos cosas distintas.} Una sesión puede estar \emph{Finalizada} y
 a la vez \emph{Pendiente} de sincronización. Si la pantalla las mezcla o una
@@ -568,13 +638,19 @@ Filtre por fecha desde / hasta, estado, sincronización y tipo de cierre.
 
 \subsection{CU019 --- El detalle}
 
-Pulse \emph{Ver detalle}. Debe mostrar el resumen de cambios agrupados por
-módulo (Rúbrica, Seguimiento de Lectura, Registro de Vuelo).
+Pulse \emph{Ver detalle}.
 
-\paragraph{Lo más interesante.} Busque la etiqueta naranja \emph{«Sincronizado
-de forma diferida»}. Sale solo en los cambios cuya hora de captura es distinta
-de la de recepción, es decir, los hechos sin conexión. Es la prueba de que el
-trabajo offline queda trazado con su hora real y no con la de llegada.
+\textbf{Esperado:} los datos generales de la sesión y, debajo, el resumen de
+cambios \textbf{agrupados por módulo} con sus totales de creados, editados,
+activados e inactivados. Si la sesión tocó alguna asignación, debe listar
+colegio y grado.
+
+\paragraph{Qué cuenta como «cambio».} Son registros distintos afectados, no
+campos: crear un alumno rellenando seis campos cuenta \textbf{uno}. Si ve seis,
+es una incidencia.
+
+\paragraph{Hoy solo verá el módulo \emph{alumnos}.} Es lo único que el Docente
+puede editar mientras no existan las grillas.
 
 \paragraph{Sin conexión.} Este módulo es estrictamente en línea. Estando Offline
 debe mostrar un estado vacío diciendo que el detalle no está disponible sin
@@ -583,15 +659,26 @@ conexión, y \textbf{no} sacar nada de la memoria local.
 % ---------------------------------------------------------------------------
 \section{CU020 y CU021 --- Seguimiento de docentes (Supervisor)}
 
+Entre como \textbf{Supervisor} en \ruta{Seguimiento}. Es una sección
+\textbf{nueva}: antes esto se veía desde Sesiones con un filtro por docente.
+Con Docente o Directivo no debe aparecer.
+
 \subsection{CU020 --- La grilla}
 
-\textbf{Esperado por fila:} docente, colegios asignados, última conexión, estado
-de sincronización y cantidad de registros pendientes, con un botón de ver
-detalle.
+\textbf{Esperado por fila:} docente, colegios asignados (separados por comas),
+última conexión, estado de sincronización y cantidad de registros pendientes,
+con un botón de ver detalle.
+
+Quien nunca entró debe decir «Nunca», no una celda vacía.
+
+\paragraph{Los filtros.} Colegio, rango de fechas de última conexión y estado
+de sincronización. Ojo con el rango: \textbf{quien nunca se conectó desaparece
+de la lista} en cuanto lo usa. Es correcto, pero despista si no se sabe.
 
 El orden por defecto pone \textbf{primero a los que tienen pendientes}, y
 después el resto alfabéticamente. Es lo que hace útil la pantalla: los problemas
-arriba.
+arriba. Hoy todos saldrán «Al día», porque la sincronización offline todavía no
+existe.
 
 \subsection{CU021 --- Historial de un docente}
 
@@ -599,10 +686,12 @@ Pulse el ojo de una fila. Debe abrirse una vista con la cabecera del docente y
 su bitácora de sesiones, de la más reciente a la más antigua, paginada de 10 en
 10.
 
-\paragraph{Los atajos.} Desde una sesión, los botones llevan al módulo operativo
-con los filtros ya puestos para ese docente y esa fecha. \textbf{Compruebe que
-llega en solo lectura}: el Supervisor no puede modificar notas académicas por
-mucho que haya llegado desde aquí.
+\paragraph{Los atajos.} Hay un botón por cada módulo con registros en esa
+sesión. \textbf{Hoy salen deshabilitados a propósito}: las grillas de destino
+todavía no existen, y llevar a una pantalla vacía parecería un error. Cuando
+existan, deberán abrir el módulo con los filtros del docente y la fecha ya
+puestos y \textbf{en solo lectura}: el Supervisor no puede modificar notas
+académicas por mucho que haya llegado desde aquí.
 
 \paragraph{Sin conexión.} Los dos módulos son estrictamente en línea: deben
 mostrar un estado vacío y no tirar de memoria local.
@@ -611,20 +700,41 @@ mostrar un estado vacío y no tirar de memoria local.
 \newpage
 \section{Lo que verán simulado}
 
-Estas pantallas funcionan y se ven completas, pero sus datos \textbf{no vienen
-del backend} porque esos endpoints aún no están publicados. No tiene sentido
-reportar que «los datos no son reales»:
+El backend publicó casi todo: login, Inicio por rol, actividades, colegios,
+alumnos, usuarios, sesiones y seguimiento salen de datos reales. Lo que sigue
+simulado o en blanco, y por qué:
 
-\begin{itemize}
-  \item Auditoría
-  \item Sesiones y seguimiento de docentes
-  \item Secciones
-  \item Asistencia
-  \item Los resúmenes del Módulo de Inicio
-\end{itemize}
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Dónde} & \textbf{Qué verá} \\
+\midrule
+Rúbrica, Lectura, Vuelo, Asistencia & Siguen contra el simulador: sus casos de uso no son de esta entrega. \\
+\addlinespace
+Pestañas del detalle del alumno & Vacías, salvo Historial: dependen de esas mismas grillas. \\
+\addlinespace
+Sincronización y pendientes & Siempre «Sincronizada» / «Al día» y 0. \\
+\addlinespace
+Salud del Sistema (\cu{012}) & «Sin datos disponibles». \\
+\addlinespace
+Pendientes e incompletos (\cu{011}) & «Sin datos disponibles». \\
+\addlinespace
+Resúmenes de acción del Docente (\cu{010}) & No aparecen todavía. \\
+\addlinespace
+Nivel actual del alumno & «Sin datos disponibles»: depende de una fórmula aún sin definir. \\
+\bottomrule
+\end{tabularx}
+\end{center}
 
-Lo que sí tiene sentido probar en ellas es el \emph{comportamiento}: filtros,
-estados vacíos, permisos, avisos y qué pasa sin conexión.
+\textbf{Nada de esto es una incidencia.} Lo que sí hay que reportar es ver un
+\textbf{0} donde debería decir «Sin datos disponibles»: son cosas distintas y
+confundirlas haría creer que no hay trabajo pendiente cuando en realidad no se
+sabe.
+
+\paragraph{Una advertencia sobre el calendario.} Las fechas de 2026 son
+ficticias hasta tener el calendario oficial: el periodo 3 va del 10/08 al 16/10
+y el periodo 4 del 19/10 al 18/12. Además el 08/10 es feriado, así que los
+conteos de días hábiles de esa semana salen un día menores.
 
 % ---------------------------------------------------------------------------
 \section{Lista de verificación e incidencias}
@@ -645,8 +755,9 @@ abajo sin saltar.
 \hline
 \endhead
 \multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Ingresar al sistema}} \\ \hline
-\ok & CU001 & Docente ve: Inicio, Alumnos, Asistencia, Rúbrica, Lectura, Vuelo, Sesiones & \\[0.5cm] \hline
-\ok & CU001 & Supervisor ve además Usuarios, Colegios y Dashboard; Alumnos vive dentro de Usuarios & \\[0.5cm] \hline
+\ok & CU001 & Docente ve Sesiones; \textbf{no} ve Seguimiento, Usuarios ni Colegios & \\[0.5cm] \hline
+\ok & CU001 & Supervisor ve Usuarios, Colegios, Dashboard y \textbf{Seguimiento}; \textbf{no} ve Sesiones & \\[0.5cm] \hline
+\ok & CU001 & Directivo: forzar \ruta{/alumnos} responde 403 & \\[0.5cm] \hline
 \ok & CU001 & Directivo ve solo Inicio y Dashboard & \\[0.5cm] \hline
 \ok & CU001 & Al entrar no se recarga la página (es una SPA) & \\[0.5cm] \hline
 \ok & CU001 & Sin conexión: el botón \emph{Ingresar} queda deshabilitado y gris & \\[0.5cm] \hline
@@ -661,6 +772,7 @@ abajo sin saltar.
 \ok & CU003 & Directivo: \textbf{no} se crea \texttt{sicedu.precarga} & \\[0.5cm] \hline
 \ok & CU003 & La descarga es silenciosa: ni aviso, ni spinner, ni bloqueo & \\[0.5cm] \hline
 \ok & CU003 & La hora de fin no cambia al recargar, cambiar de módulo, perder ni recuperar conexión & \\[0.5cm] \hline
+\ok & CU003 & Las horas se ven en hora de Lima, aunque el equipo tenga otra zona horaria & \\[0.5cm] \hline
 
 \multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Recuperar contraseña}} \\ \hline
 \ok & CU004 & Sin conexión: aviso «No es posible recuperar o cambiar la contraseña\ldots» y botones deshabilitados & \\[0.5cm] \hline
@@ -669,7 +781,7 @@ abajo sin saltar.
 \ok & CU005 & Pedir un PIN nuevo invalida el anterior & \\[0.5cm] \hline
 \ok & CU006 & \texttt{corta}: faltan requisitos y el botón sigue deshabilitado & \\[0.5cm] \hline
 \ok & CU006 & \texttt{Sicedu2026}: falta \emph{Un carácter especial} & \\[0.5cm] \hline
-\ok & CU006 & \texttt{Sicedu2026!}: los cinco marcados y el botón se habilita & \\[0.5cm] \hline
+\ok & CU006 & \texttt{Sicedu2026!}: los cinco marcados, el botón se habilita \textbf{y guarda} & \\[0.5cm] \hline
 \ok & CU006 & PIN equivocado, expirado y agotado tienen \textbf{tres} textos distintos & \\[0.5cm] \hline
 \ok & CU006 & Contraseñas distintas \flecha{} «Las contraseñas no coinciden.» & \\[0.5cm] \hline
 \ok & CU006 & Tras cambiarla, la otra pestaña abierta con ese usuario va al login & \\[0.5cm] \hline
@@ -691,6 +803,8 @@ abajo sin saltar.
 \ok & CU010 & Sin asignaciones: botón deshabilitado \textbf{y no oculto}, con el texto que lo explica & \\[0.5cm] \hline
 \ok & CU009 & Segunda actividad en la misma sesión: la hora de fin \textbf{no} cambia & \\[0.5cm] \hline
 \ok & CU009 & Offline: Rúbrica, Lectura y Vuelo se siguen pudiendo editar & \\[0.5cm] \hline
+\ok & CU009 & Sin red, \emph{Iniciar actividad} \textbf{sí} abre la actividad y la encola & \\[0.5cm] \hline
+\ok & CU009 & Al reconectar, las horas guardadas son las REALES, no las de la sincronización & \\[0.5cm] \hline
 \ok & CU009 & Offline: Alumnos queda en solo lectura & \\[0.5cm] \hline
 \ok & CU009 & Los filtros se conservan al cambiar de módulo & \\[0.5cm] \hline
 
@@ -710,10 +824,16 @@ abajo sin saltar.
 \ok & CU013/14/16 & Inactivar pide confirmación y la fila reaparece en \emph{Inactivos} & \\[0.5cm] \hline
 \ok & CU013/14/16 & Auditoría: quién, cuándo, campo, valor antes y después & \\[0.5cm] \hline
 \ok & CU013/14/16 & Offline: Agregar, lápices e interruptores grises; la tabla se sigue leyendo & \\[0.5cm] \hline
-\ok & CU013 & \emph{Grados y secciones} es una lista, no un cuadro de texto libre & \\[0.5cm] \hline
-\ok & CU014 & Existe \emph{Ciclo evaluado} aparte de \emph{Grado} & \\[0.5cm] \hline
+\ok & CU013 & \emph{Departamento} y \emph{Distrito} son obligatorios; \emph{Zona} ahora es \emph{Provincia} & \\[0.5cm] \hline
+\ok & CU013 & Crear «SHILLA~» existiendo «Shilla» se rechaza por nombre duplicado & \\[0.5cm] \hline
+\ok & CU014 & \emph{Sección} y \emph{Ciclo} se ven pero NO se eligen & \\[0.5cm] \hline
+\ok & CU014 & 1.\textordmasculine{} grado con Comprensión Lectora se rechaza & \\[0.5cm] \hline
 \ok & CU014 & Como Docente, el desplegable de Colegio solo muestra los suyos & \\[0.5cm] \hline
-\ok & CU016 & Al elegir rol Docente aparecen Colegios y Secciones asignados & \\[0.5cm] \hline
+\ok & CU016 & Al elegir rol Docente aparecen Año escolar, \textbf{un} Colegio y Grados & \\[0.5cm] \hline
+\ok & CU016 & DNI obligatorio de 8 dígitos; repetirlo o repetir el correo se rechaza & \\[0.5cm] \hline
+\ok & CU016 & En la cuenta del Supervisor original, el interruptor de estado está bloqueado & \\[0.5cm] \hline
+\ok & CU016 & Nadie puede desactivarse a sí mismo & \\[0.5cm] \hline
+\ok & CU016 & El modal avisa de que reactivar \textbf{no} devuelve las asignaciones & \\[0.5cm] \hline
 \ok & CU015 & El nombre del alumno es un enlace; el resto de la fila no abre nada & \\[0.5cm] \hline
 \ok & CU015 & Cabecera con avatar, nombre y cinco etiquetas; debajo, cinco pestañas & \\[0.5cm] \hline
 \ok & CU015 & Offline: Historial muestra estado vacío; las demás pestañas funcionan & \\[0.5cm] \hline
@@ -721,19 +841,23 @@ abajo sin saltar.
 \multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Sesiones del Docente}} \\ \hline
 \ok & CU017 & El Docente solo ve sus propias sesiones & \\[0.5cm] \hline
 \ok & CU017 & Están todas las columnas, incluida duración y tipo de cierre & \\[0.5cm] \hline
+\ok & CU017 & Una sesión en curso dice «No aplica» en fin y tipo de cierre & \\[0.5cm] \hline
+\ok & CU017 & Crear un alumno con seis campos cuenta \textbf{1} cambio, no seis & \\[0.5cm] \hline
 \ok & CU017 & Una sesión puede estar \emph{Finalizada} y \emph{Pendiente} a la vez & \\[0.5cm] \hline
 \ok & CU018 & Fecha inicial posterior a la final: no busca y avisa & \\[0.5cm] \hline
 \ok & CU018 & Los filtros se conservan al salir y volver al módulo & \\[0.5cm] \hline
 \ok & CU018 & \emph{Limpiar filtros} los devuelve a sus valores por defecto & \\[0.5cm] \hline
-\ok & CU019 & El detalle agrupa los cambios por módulo & \\[0.5cm] \hline
-\ok & CU019 & Aparece la etiqueta «Sincronizado de forma diferida» donde corresponde & \\[0.5cm] \hline
+\ok & CU019 & El detalle agrupa los cambios por módulo, con creados/editados/activados/inactivados & \\[0.5cm] \hline
+\ok & CU019 & Si la sesión tocó asignaciones, lista colegio y grado & \\[0.5cm] \hline
 \ok & CU019 & Offline: estado vacío, sin sacar nada de la memoria local & \\[0.5cm] \hline
 
 \multicolumn{4}{|l|}{\cellcolor{grisclaro}\textbf{Seguimiento de docentes (Supervisor)}} \\ \hline
 \ok & CU020 & Están todas las columnas y el botón de ver detalle & \\[0.5cm] \hline
+\ok & CU020 & Quien nunca entró dice «Nunca», no una celda vacía & \\[0.5cm] \hline
+\ok & CU020 & Al filtrar por fechas, quien nunca se conectó desaparece de la lista & \\[0.5cm] \hline
 \ok & CU020 & Los docentes con pendientes salen \textbf{primero} & \\[0.5cm] \hline
 \ok & CU021 & Bitácora de la más reciente a la más antigua, 10 por página & \\[0.5cm] \hline
-\ok & CU021 & Los atajos llevan al módulo con filtros puestos y \textbf{en solo lectura} & \\[0.5cm] \hline
+\ok & CU021 & Los atajos salen \textbf{deshabilitados}: las grillas de destino no existen aún & \\[0.5cm] \hline
 \ok & CU020/21 & Offline: estado vacío en los dos, sin memoria local & \\[0.5cm] \hline
 \end{longtable}
 

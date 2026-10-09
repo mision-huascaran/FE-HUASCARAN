@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { obtenerAsignaciones } from '../../api/resources/docentes'
-import { listarSecciones } from '../../api/resources/administracion'
 import { useColegios, useSemanas } from '../../hooks/useCatalogos'
 import usePrecarga from '../../hooks/usePrecarga'
 import useFiltrosStore from '../../store/filtrosStore'
@@ -68,11 +67,13 @@ export default function useFiltrosSemanales() {
   // T22: solo lo usa el Supervisor, para mirar las grillas de un docente.
   const idDocenteFiltro = Number(params.get('docente')) || null
 
-  const { data: secciones = [] } = useQuery({
-    queryKey: ['admin', 'secciones', idColegio],
-    queryFn: () => listarSecciones(idColegio),
-    enabled: Boolean(idColegio),
-  })
+  /**
+   * La SECCIÓN dejó de ser una entidad: es un atributo del colegio
+   * (`colegio.seccion`, "Única" por defecto) y el alumno la hereda. Se deja la
+   * lista vacía para no romper el filtro mientras las grillas siguen en el
+   * simulador; cuando el backend las publique, la sección saldrá del colegio.
+   */
+  const secciones = []
   const pestana = params.get('vista') === 'rubrica' ? 'rubrica' : 'semanal'
 
   const cambiar = (clave, valor) => {

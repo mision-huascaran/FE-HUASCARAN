@@ -40,10 +40,17 @@ export const useSessionStore = create((set, get) => ({
     set({ token })
   },
 
+  motivoCierre: null,
+
   setUsuario: (usuario) => set({ usuario }),
   setCargando: (cargando) => set({ cargando }),
 
-  cerrarSesion: () => {
+  /**
+   * @param motivo 'expiracion' cuando se cumplieron las 8 horas (CU007), para
+   *   poder decirlo en el login. Vive aquí y no en `AuthProvider` porque quien
+   *   lo detecta es el interceptor de axios, que está fuera de React.
+   */
+  cerrarSesion: (motivo = null) => {
     try {
       sessionStorage.removeItem(CLAVE_TOKEN)
       // D4: la sesión de ACTIVIDADES muere con la de autenticación, tanto al
@@ -54,8 +61,10 @@ export const useSessionStore = create((set, get) => ({
     } catch {
       // nada que limpiar
     }
-    set({ token: null, usuario: null, cargando: false })
+    set({ token: null, usuario: null, cargando: false, motivoCierre: motivo })
   },
+
+  limpiarMotivoCierre: () => set({ motivoCierre: null }),
 
   /** id_rol del usuario autenticado, o null. */
   rol: () => get().usuario?.id_rol ?? null,

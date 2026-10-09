@@ -21,7 +21,7 @@ import { mensajeDeError } from '../../api/client'
 export default function TabColegios() {
   const toast = useToast()
   const queryClient = useQueryClient()
-  const { data = [], isLoading } = useQuery({ queryKey: ['admin', 'colegios'], queryFn: listarColegiosAdmin })
+  const { data = [], isLoading } = useQuery({ queryKey: ['admin', 'colegios'], queryFn: async () => (await listarColegiosAdmin()).items })
   const [abierto, setAbierto] = useState(false)
   // Cuando hay colegio en edición, el mismo formulario sirve para corregirlo.
   const [editando, setEditando] = useState(null)

@@ -55,7 +55,7 @@ export default function TabUsuarios() {
   const [form, setForm] = useState(() => formBase(esDirectivo ? ROLES.DIRECTIVO : ROLES.SUPERVISOR))
   const [credencial, setCredencial] = useState(null)
 
-  const consulta = useQuery({ queryKey: ['admin', 'usuarios'], queryFn: () => listarUsuariosAdmin() })
+  const consulta = useQuery({ queryKey: ['admin', 'usuarios'], queryFn: async () => (await listarUsuariosAdmin()).items })
   const { data = [], isLoading } = consulta
   // El backend reserva `GET /usuarios` al Supervisor, así que al Directivo le
   // responde 403 aunque el Plan de Prueba le atribuya la gestión de otros

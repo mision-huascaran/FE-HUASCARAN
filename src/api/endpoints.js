@@ -1,67 +1,135 @@
-// Todas las rutas del backend en un solo lugar (§3). Ningún componente escribe
-// una URL a mano: si Swagger cambia una ruta, se corrige aquí y nada más.
+// Todas las rutas del backend en un solo lugar. Ningún componente escribe una
+// URL a mano: si Swagger cambia una ruta, se corrige aquí y nada más.
 //
-// ESTADO DEL CONTRATO — contrastado con APIS_BACKEND.md y verificado contra el
-// servidor en ejecución con `npm run verificar:backend`.
+// ESTADO DEL CONTRATO — contrastado con `api_sicedu_frontend.md` (Paris,
+// backend, 08/10/2026, commit 1c81d85, Tandas 1 a 7 = CU001 a CU021).
 //
-//   IMPLEMENTADO   `GET /`, `POST /login`, `GET /me`, `POST /logout`.
-//                  La autenticación es JWT Bearer y el token dura 8 horas.
-//   NO EXISTE AÚN  todos los endpoints de negocio. Las tablas ya están en la
-//                  base de datos, pero ningún endpoint las expone.
+//   PUBLICADO   auth, inicio por rol, actividades, colegios, alumnos, usuarios
+//               y seguimiento. Los esquemas exactos están en {API}/docs.
+//   NO EXISTE   las grillas (Rúbrica, Lectura, Registro de Vuelo, Asistencia) y
+//               la sincronización offline. Siguen resolviéndose contra el mock
+//               hasta que el backend las publique.
 //
-// Por eso el negocio sigue resolviéndose contra el mock. Las rutas marcadas
-// como pendientes son el contrato provisional de §3 del prompt y hay que
-// verificarlas contra {API_BASE_URL}/docs conforme el backend las publique.
+// Lo que desapareció del contrato anterior y NO debe volver:
+//   · `/profesores`  → todo pasa por `/usuarios` con `id_rol`.
+//   · `/secciones`   → la sección es un atributo del colegio, no una entidad.
+//   · `/sesiones`    → se llaman `/actividades`; "Sesiones" es solo el nombre
+//                      de la pantalla, para no confundirlo con la sesión
+//                      autenticada.
 export const ENDPOINTS = {
-  // IMPLEMENTADO ─────────────────────────────────────────────────────────────
   servicio: {
     raiz: '/', // → { status: "ok" }
   },
 
-  // IMPLEMENTADO — JWT Bearer, token válido 8 horas ──────────────────────────
+  // PUBLICADO — JWT Bearer, 8 horas, sin renovación ──────────────────────────
   auth: {
-    login: '/login', // body { correo, password } → { access_token, token_type }
-    logout: '/logout', // simbólico: el JWT no se revoca en el servidor
-    me: '/me', // requiere Authorization: Bearer <token>
+    login: '/login', // { correo, password } → { access_token, token_type }
+    // Cierra la sesión DE VERDAD en el servidor y, si había actividad abierta,
+    // la finaliza como "Forzado por cierre de sesión". El token muere al instante.
+    logout: '/logout',
+    me: '/me',
+    // Las asignaciones del usuario actual salen del token, nunca por id.
+    misAsignaciones: '/me/asignaciones',
+
     // Cambio de contraseña CON sesión: los tres exigen Authorization.
     passwordCodigo: '/me/password/codigo',
     passwordVerificarCodigo: '/me/password/verificar-codigo',
     passwordCambiar: '/me/password',
+
     // Recuperación SIN sesión, desde el login. Públicos: no llevan token.
     passwordRecuperar: '/password/recuperar', // { correo }
     passwordRestablecer: '/password/restablecer', // { correo, codigo, contraseña_nueva, confirmar_contraseña_nueva }
   },
 
-  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
+  // PUBLICADO — un endpoint por rol (CU010, CU011, CU012) ────────────────────
+  inicio: {
+    docente: '/inicio/docente',
+    supervisor: '/inicio/supervisor',
+    directivo: '/inicio/directivo',
+  },
+
+  /**
+   * PUBLICADO — Actividades de trabajo del Docente (CU009, CU010, CU017–CU019).
+   *
+   * El id lo genera el CLIENTE (UUID) para poder reintentar sin duplicar: 201
+   * si la crea, 200 si ese UUID ya era suyo.
+   */
+  actividades: {
+    crear: '/actividades',
+    finalizar: (id) => `/actividades/${id}/finalizar`,
+    listar: '/actividades', // ?desde=&hasta=&estado=&sincronizacion=&tipo_cierre=&page=
+    detalle: (id) => `/actividades/${id}`,
+  },
+
+  // PUBLICADO — Seguimiento del Supervisor (CU020, CU021) ────────────────────
+  seguimiento: {
+    docentes: '/seguimiento/docentes', // ?id_colegio=&desde=&hasta=&sincronizacion=&activo=&page=
+    docente: (id) => `/seguimiento/docentes/${id}`,
+    actividadesDe: (id) => `/seguimiento/docentes/${id}/actividades`,
+  },
+
+  // PUBLICADO — Colegios (CU013) ─────────────────────────────────────────────
+  colegios: {
+    listar: '/colegios', // ?departamento=&distrito=&activo=&page=
+    crear: '/colegios',
+    detalle: (id) => `/colegios/${id}`,
+    actualizar: (id) => `/colegios/${id}`, // PATCH; null en obligatorio → 422
+    // Valores existentes para llenar los desplegables de filtro.
+    ubicaciones: '/colegios/ubicaciones',
+  },
+
+  // PUBLICADO — Alumnos y su detalle (CU014, CU015) ──────────────────────────
+  alumnos: {
+    listar: '/alumnos', // ?colegio=&subprograma=&ciclo=&grado=&activo=&page=
+    crear: '/alumnos',
+    detalle: (id) => `/alumnos/${id}`,
+    actualizar: (id) => `/alumnos/${id}`,
+    // Una pestaña del detalle por endpoint (CU015).
+    resumen: (id) => `/alumnos/${id}/resumen`,
+    registroVuelo: (id) => `/alumnos/${id}/registro-vuelo`,
+    rubrica: (id) => `/alumnos/${id}/rubrica`,
+    lectura: (id) => `/alumnos/${id}/lectura`,
+    historial: (id) => `/alumnos/${id}/historial`, // exige conexión (CU015)
+  },
+
+  // PUBLICADO — Usuarios de los tres roles (CU016) ───────────────────────────
+  usuarios: {
+    listar: '/usuarios', // ?rol=&activo=&q=&page=
+    // Un solo POST para los tres roles. Con id_rol de Docente, el mismo cuerpo
+    // lleva año escolar, colegio y grados: el backend crea usuario, docente y
+    // asignaciones en una transacción.
+    crear: '/usuarios',
+    actualizar: (id) => `/usuarios/${id}`,
+    activar: (id) => `/usuarios/${id}/activar`,
+    desactivar: (id) => `/usuarios/${id}/desactivar`,
+  },
+
+  // PUBLICADO — Catálogos. Se piden una vez al entrar y se guardan en IndexedDB.
   catalogos: {
-    colegios: '/colegios',
     grados: '/grados',
     programas: '/programas',
-    nivelesRazkids: '/niveles/razkids',
-    nivelesRubrica: '/niveles/rubrica', // ?programa=
-    nivelGeneral: '/niveles/general',
-    esperadoPorGrado: '/niveles/esperado-por-grado',
+    ciclos: '/ciclos',
+    roles: '/roles',
     periodos: '/periodos-evaluacion',
-    semanas: '/semanas',
+    anios: '/anios-escolares',
   },
 
-  // NO EXISTE AÚN ────────────────────────────────────────────────────────────
-  alumnos: {
-    listar: '/alumnos', // ?colegio=&grado=&programa=&q=
-    detalle: (id) => `/alumnos/${id}`,
-    historial: (id) => `/alumnos/${id}/historial`,
-  },
+  // ─────────────────────────────────────────────────────────────────────────
+  // NO EXISTE AÚN (api_sicedu_frontend §12). Las pantallas que dependen de
+  // esto siguen en mock; sus rutas son provisionales y habrá que contrastarlas
+  // con /docs cuando el backend publique las grillas.
+  // ─────────────────────────────────────────────────────────────────────────
+  semanas: '/semanas',
 
-  // El panel del docente (P3) necesita sus asignaciones del periodo vigente y el
-  // avance de la semana. §3 no lista ninguna ruta para eso; estas dos son la
-  // propuesta del frontend y hay que contrastarlas con el equipo de backend.
-  docentes: {
-    asignaciones: (id) => `/docentes/${id}/asignaciones`, // ?periodo=
-    resumen: (id) => `/docentes/${id}/resumen`, // ?periodo=&semana=
+  nivelesCatalogo: {
+    razkids: '/niveles/razkids',
+    rubrica: '/niveles/rubrica', // ?programa=
+    general: '/niveles/general',
+    esperadoPorGrado: '/niveles/esperado-por-grado',
   },
 
   reporteSemanal: {
-    listar: '/reporte-semanal', // ?semana=&colegio=&grado=
+    listar: '/reporte-semanal',
     crear: '/reporte-semanal',
     actualizar: (id) => `/reporte-semanal/${id}`,
     agregarLibro: (id) => `/reporte-semanal/${id}/libros`,
@@ -69,76 +137,35 @@ export const ENDPOINTS = {
   },
 
   rubricaSemanal: {
-    listar: '/rubrica-semanal', // ?semana=&colegio=&grado=
+    listar: '/rubrica-semanal',
     crear: '/rubrica-semanal',
   },
 
   evaluacionDiagnostica: {
-    listar: '/evaluacion-diagnostica', // ?periodo=&colegio=&grado=
+    listar: '/evaluacion-diagnostica',
     crear: '/evaluacion-diagnostica',
     actualizar: (id) => `/evaluacion-diagnostica/${id}`,
   },
 
   nivelFinalMensual: {
-    listar: '/nivel-final-mensual', // ?mes=&colegio=&grado=
+    listar: '/nivel-final-mensual',
     ajustar: (id) => `/nivel-final-mensual/${id}/ajuste`,
   },
 
   dashboard: {
-    indicadores: '/dashboard/indicadores',
-    distribucion: '/dashboard/distribucion',
-    rankingColegios: '/dashboard/ranking-colegios', // ?programa=&periodo=
-    rankingAulas: '/dashboard/ranking-aulas', // ?colegio=&periodo=
-    // PROPUESTA DEL FRONTEND: todo el dashboard (P12) en una sola respuesta.
-    // RF-006 pide una sola vista con siete bloques que reaccionan a los mismos
-    // filtros; con la conexión del 70 % de RN-017, una petición es mejor que siete.
     resumen: '/dashboard/resumen',
-    // PROPUESTA DEL FRONTEND: indicadores del panel ejecutivo (P17).
     ejecutivo: '/dashboard/ejecutivo',
-  },
-
-  // PROPUESTA DEL FRONTEND: §3 no define el detalle de un colegio (P13).
-  colegios: {
-    detalle: (id) => `/colegios/${id}/resumen`, // ?periodo=&programa=
+    rankingAulas: '/dashboard/ranking-aulas',
   },
 
   consolidados: {
-    nivel: '/consolidados/nivel', // ?colegio=&periodo=
-    libros: '/consolidados/libros', // ?colegio=&mes=&anio=
+    nivel: '/consolidados/nivel',
+    libros: '/consolidados/libros',
   },
 
   alertas: {
     inconsistencias: '/alertas/inconsistencias',
-    // PROPUESTA DEL FRONTEND: marcar una alerta como revisada (P15).
     revisar: (id) => `/alertas/inconsistencias/${id}`,
-  },
-
-  // PROPUESTA DEL FRONTEND: §3 no lista la administración (P16).
-  administracion: {
-    // IMPLEMENTADO en el backend ─────────────────────────────────────────────
-    colegios: '/colegios', // POST requiere Supervisor · GET cualquier autenticado
-    alumnos: '/alumnos', // POST requiere Supervisor
-    profesores: '/profesores', // POST y GET requieren Supervisor
-    activarProfesor: (idUsuario) => `/profesores/${idUsuario}/activar`,
-    desactivarProfesor: (idUsuario) => `/profesores/${idUsuario}/desactivar`,
-
-    // Edición parcial: solo viajan los campos que cambian (PATCH, no PUT).
-    alumno: (id) => `/alumnos/${id}`,
-    colegio: (id) => `/colegios/${id}`,
-    profesor: (idUsuario) => `/profesores/${idUsuario}`,
-
-    // Cuentas de Supervisor y Directivo. `POST /usuarios` NO crea docentes:
-    // para eso está `POST /profesores`, que además crea su ficha.
-    usuarios: '/usuarios', // GET admite ?rol=Supervisor|Directivo|Docente
-    usuario: (idUsuario) => `/usuarios/${idUsuario}`, // PATCH: nombres, apellidos, correo
-    activarUsuario: (idUsuario) => `/usuarios/${idUsuario}/activar`,
-    desactivarUsuario: (idUsuario) => `/usuarios/${idUsuario}/desactivar`,
-
-    // Asignaciones docente-colegio-grado-periodo. De ellas depende lo que ve un
-    // Docente: sin asignación vigente no tiene alumnos ni colegios.
-    docentes: '/docentes', // NO EXISTE: el listado de docentes es GET /profesores
-    asignaciones: '/asignaciones',
-    asignacion: (id) => `/asignaciones/${id}`,
   },
 }
 

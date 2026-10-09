@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
-import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
+import { limpiarSiTodoSincronizado } from '../lib/colaOffline'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
 import { tokenCaducado } from './jwt'
@@ -30,11 +30,14 @@ export function AuthProvider({ children }) {
   const setUsuario = useSessionStore((s) => s.setUsuario)
   const setCargando = useSessionStore((s) => s.setCargando)
   const limpiarSesion = useSessionStore((s) => s.cerrarSesion)
+  // El motivo del cierre vive en el store: lo escribe el interceptor de axios
+  // al recibir un 401 `sesion_expirada`, que ocurre fuera de React.
+  const motivoCierre = useSessionStore((s) => s.motivoCierre)
+  const limpiarMotivoCierre = useSessionStore((s) => s.limpiarMotivoCierre)
 
   // Evita pedir /me dos veces con el StrictMode de desarrollo.
   const perfilPedidoPara = useRef(null)
   // Por qué se cerró la sesión, para poder explicarlo en el login.
-  const [motivoCierre, setMotivoCierre] = useState(null)
 
   // Al recargar la página el token sobrevive en sessionStorage pero el perfil
   // no: se vuelve a pedir a /me antes de dejar entrar a ninguna ruta.
@@ -78,23 +81,17 @@ export function AuthProvider({ children }) {
     [setToken, setUsuario, setCargando],
   )
 
-  const salir = useCallback(async () => {
+  const salir = useCallback(async (motivo = null) => {
     /**
-     * CU010 — Logout con actividad activa.
+     * CU008 — La actividad en curso la cierra el SERVIDOR.
      *
-     * No se cierra la sesión de golpe: primero se procesa la actividad de
-     * trabajo con las mismas reglas que "Finalizar actividad", para que quede
-     * registrada y no se pierda nada de lo que el docente hizo en el aula.
+     * `POST /logout` cierra de verdad la sesión y, si había una actividad
+     * abierta, la finaliza como "Forzado por cierre de sesión" (o "Automático
+     * por expiración" cuando vencen las 8 horas). Antes el cliente la encolaba
+     * por su cuenta; ahora eso duplicaría el cierre, así que solo se olvida la
+     * copia local.
      */
-    const actividad = useActividadStore.getState().cerrar()
-    if (actividad) {
-      encolar({
-        clave: `actividad-cierre-${actividad.id}`,
-        tipo: 'actividad',
-        payload: { ...actividad, accion: 'cerrar', motivo: 'logout' },
-        descripcion: 'Cierre de actividad al salir',
-      })
-    }
+    useActividadStore.getState().limpiar()
 
     await cerrarSesionEnServidor()
 
@@ -105,7 +102,7 @@ export function AuthProvider({ children }) {
      */
     await limpiarSiTodoSincronizado()
 
-    limpiarSesion()
+    limpiarSesion(motivo)
     perfilPedidoPara.current = null
     /**
      * Se vacía la caché de consultas para que ningún dato de alumnos quede
@@ -124,8 +121,7 @@ export function AuthProvider({ children }) {
    * perdió el trabajo del día.
    */
   const expirar = useCallback(() => {
-    salir()
-    setMotivoCierre('expiracion')
+    salir('expiracion')
   }, [salir])
 
   useExpiracionSesion({ token, onExpirar: expirar })
@@ -139,9 +135,9 @@ export function AuthProvider({ children }) {
       entrar,
       salir,
       motivoCierre,
-      limpiarMotivoCierre: () => setMotivoCierre(null),
+      limpiarMotivoCierre,
     }),
-    [token, usuario, cargando, entrar, salir, motivoCierre],
+    [token, usuario, cargando, entrar, salir, motivoCierre, limpiarMotivoCierre],
   )
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>
