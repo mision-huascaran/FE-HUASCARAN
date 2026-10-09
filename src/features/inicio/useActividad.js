@@ -32,12 +32,17 @@ import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import useConexion from '../../hooks/useConexion'
+import { idSesionDe } from '../../auth/jwt'
 
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
   const idDocente = useSessionStore((s) => s.usuario?.id_docente)
+  // El `jti` del token viaja con cada pendiente: identifica la sesión EN LA
+  // QUE ocurrió la actividad. Sin él, un envío que se sincroniza tras un nuevo
+  // login quedaría colgado de la sesión equivocada.
+  const idSesion = useSessionStore((s) => idSesionDe(s.token))
   const sesion = useActividadStore((s) => s.sesion)
   const iniciarLocal = useActividadStore((s) => s.iniciar)
   const cerrarLocal = useActividadStore((s) => s.cerrar)
@@ -59,7 +64,7 @@ export default function useActividad() {
       encolar({
         clave: `actividad-inicio-${abierta.id}`,
         tipo: TIPOS_ENVIO.ACTIVIDAD_INICIO,
-        payload: { id: abierta.id, inicio: abierta.inicio },
+        payload: { id: abierta.id, inicio: abierta.inicio, id_sesion: idSesion },
         descripcion: 'Inicio de actividad',
       })
       toast.success(
@@ -117,7 +122,7 @@ export default function useActividad() {
       encolar({
         clave: `actividad-cierre-${cerrada.id}`,
         tipo: TIPOS_ENVIO.ACTIVIDAD_CIERRE,
-        payload: { id: cerrada.id, fin: cerrada.fin },
+        payload: { id: cerrada.id, fin: cerrada.fin, id_sesion: idSesion },
         descripcion: 'Cierre de actividad',
       })
       toast.info(

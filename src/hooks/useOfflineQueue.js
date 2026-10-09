@@ -29,6 +29,16 @@ registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
  *     hora REAL en que ocurrió, no la de la sincronización. Es justo lo que
  *     CU008 y CU009 exigen: las dos fechas se registran por separado.
  */
+/**
+ * `id_sesion` SE GUARDA pero TODAVÍA NO SE ENVÍA.
+ *
+ * Es el `jti` de la sesión en la que ocurrió la actividad. Se captura al
+ * encolar porque después es irrecuperable: si el docente vuelve a entrar, el
+ * token ya es otro. El backend aún no acepta el campo —entra con la
+ * sincronización offline, que no es de esta entrega—, así que se omite al
+ * mandar. Cuando Paris avise, basta con incluirlo en estas dos llamadas: los
+ * pendientes que ya estén en IndexedDB lo llevarán consigo.
+ */
 registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_INICIO, ({ id, inicio }) => iniciarActividad({ id, inicio }))
 registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, ({ id, fin }) => finalizarActividad(id, { fin }))
 

@@ -56,3 +56,20 @@ export function caducaEn(token) {
   const exp = leerPayload(token)?.exp
   return Number.isFinite(exp) ? new Date(exp * 1000) : null
 }
+
+/**
+ * `jti`: el identificador de la sesión en el servidor.
+ *
+ * Hace falta para la sincronización de actividades hechas sin conexión. El
+ * problema que resuelve: si el docente abre una actividad, pierde la red y la
+ * sesión caduca antes de recuperarla, al reconectar y volver a entrar ese
+ * envío llegaría con la hora de una sesión que ya no es la actual. El backend
+ * lo rechazaría, y aunque no lo hiciera, la actividad quedaría colgada de la
+ * sesión equivocada y se perdería la trazabilidad que pide CU008.
+ *
+ * Por eso se guarda junto a cada pendiente: el backend validará contra ESA
+ * sesión aunque ya esté cerrada.
+ */
+export function idSesionDe(token) {
+  return leerPayload(token)?.jti ?? null
+}

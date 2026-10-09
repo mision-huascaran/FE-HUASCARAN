@@ -18,6 +18,10 @@ import useActividadStore from '../../../store/actividadStore'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
 
+/** JWT de mentira pero bien formado: lo que importa es que trae `jti`. */
+const base64url = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const TOKEN = `x.${base64url({ sub: 1, jti: 'sesion-abc', exp: Math.floor(Date.now() / 1000) + 3600 })}.y`
+
 const encolados = []
 
 vi.mock('../../../lib/colaOffline', () => ({
@@ -54,7 +58,7 @@ beforeEach(() => {
   iniciarEnServidor.mockClear()
   useActividadStore.getState().limpiar()
   useSessionStore.setState({
-    token: 'mock.1.2026',
+    token: TOKEN,
     usuario: { id_usuario: 1, id_rol: ROLES.DOCENTE, id_docente: 1, nombres: 'Prueba' },
     cargando: false,
   })
@@ -106,5 +110,20 @@ describe('Actividad sin conexión (CU009)', () => {
 
     await waitFor(() => expect(iniciarEnServidor).toHaveBeenCalled())
     expect(encolados.find((e) => e.tipo === 'actividad-inicio')).toBeUndefined()
+  })
+
+  it('guarda el `jti` de la sesión con cada pendiente', async () => {
+    // Si el docente vuelve a entrar antes de que se sincronice, el token ya es
+    // otro y este dato sería irrecuperable: sin él, la actividad quedaría
+    // colgada de la sesión equivocada y se perdería la trazabilidad (CU008).
+    definirConexion(false)
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    await result.current.iniciar()
+    await waitFor(() => expect(useActividadStore.getState().sesion).toBeTruthy())
+    await result.current.finalizar()
+
+    expect(encolados.find((e) => e.tipo === 'actividad-inicio').payload.id_sesion).toBe('sesion-abc')
+    expect(encolados.find((e) => e.tipo === 'actividad-cierre').payload.id_sesion).toBe('sesion-abc')
   })
 })
