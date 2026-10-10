@@ -60,8 +60,23 @@ const porEstado = (filas, estado = 'activo') => {
   return filas.filter((f) => (f.activo ?? true) === quiero)
 }
 
-/** `?activo=` tal y como lo espera el backend, u `undefined` para "todos". */
-const activoDe = (estado) => (estado === 'todos' ? undefined : estado !== 'inactivo')
+/**
+ * `?activo=` tal y como lo espera el backend.
+ *
+ * CUIDADO CON "TODOS". En el contrato el parámetro es `boolean` con
+ * `default: true`, y NO admite null: omitirlo no significa "todos", significa
+ * "solo los activos". Por eso aquí no hay un `undefined` para ese caso —
+ * devolvía la lista de activos haciéndola pasar por la lista completa—. "Todos"
+ * se resuelve pidiendo las dos mitades; lo hace `todasLasPaginas`.
+ */
+const activoDe = (estado) => estado !== 'inactivo'
+
+/** Filtra una lista por un texto libre contra uno de sus campos. */
+const buscarEn = (filas, texto, campo) => {
+  const busca = String(texto ?? '').trim().toLowerCase()
+  if (!busca) return filas
+  return filas.filter((f) => String(f[campo] ?? '').toLowerCase().includes(busca))
+}
 
 /** Id de un campo que llega como número suelto o como objeto `{id, nombre}`. */
 const idDe = (valor) => (valor != null && typeof valor === 'object' ? (valor.id ?? null) : (valor ?? null))
@@ -75,17 +90,36 @@ const idDe = (valor) => (valor != null && typeof valor === 'object' ? (valor.id 
  * solo los 10 primeros alumnos.
  *
  * Si quien llama pide una página concreta (`filtros.pagina`), se respeta.
+ *
+ * Y, cuando el filtro de Estado está en "Todos", las DOS MITADES. El backend
+ * no tiene forma de decir "da igual el estado" (ver `activoDe`), así que se
+ * pide `activo=true`, luego `activo=false`, y se juntan. Sin esto "Todos"
+ * enseñaba exactamente lo mismo que "Activos".
  */
-async function todasLasPaginas(pedir, pagina) {
-  const primera = await pedir(pagina)
-  if (Array.isArray(primera) || pagina) return primera
+async function todasLasPaginas(pedir, { pagina, estado } = {}) {
+  const barrido = async (activo) => {
+    const primera = await pedir(pagina, activo)
+    if (Array.isArray(primera) || pagina) return primera
 
-  const { paginas } = normalizarPaginado(primera)
-  if (paginas <= 1) return primera
+    const { paginas } = normalizarPaginado(primera)
+    if (paginas <= 1) return primera
 
-  const resto = await Promise.all(Array.from({ length: paginas - 1 }, (_, i) => pedir(i + 2)))
-  const items = [primera, ...resto].flatMap((datos) => normalizarPaginado(datos).items)
-  return { ...primera, items, total: primera?.total ?? items.length, pagina: 1, paginas: 1, por_pagina: items.length }
+    const resto = await Promise.all(Array.from({ length: paginas - 1 }, (_, i) => pedir(i + 2, activo)))
+    return unirPaginas(primera, [primera, ...resto])
+  }
+
+  const primeraMitad = await barrido(activoDe(estado))
+  // El simulador devuelve un array y ya filtra por estado en el cliente:
+  // pedirle la segunda mitad duplicaría cada fila.
+  if (estado !== 'todos' || pagina || Array.isArray(primeraMitad)) return primeraMitad
+
+  return unirPaginas(primeraMitad, [primeraMitad, await barrido(false)])
+}
+
+/** Varias respuestas paginadas convertidas en una sola, ya completa. */
+function unirPaginas(base, partes) {
+  const items = partes.flatMap((datos) => normalizarPaginado(datos).items)
+  return { ...base, items, total: items.length, pagina: 1, paginas: 1, por_pagina: items.length }
 }
 
 // ── Catálogos para los formularios de administración ────────────────────────
@@ -116,7 +150,7 @@ export const listarProgramasAdmin = async () => {
 
 export const listarColegiosAdmin = async (filtros = {}) => {
   const datos = await todasLasPaginas(
-    (page) =>
+    (page, activo) =>
       resolver({
         mock: () => handlers.administracion.colegios(),
         real: () =>
@@ -124,19 +158,23 @@ export const listarColegiosAdmin = async (filtros = {}) => {
             params: {
               departamento: filtros.departamento || undefined,
               distrito: filtros.distrito || undefined,
-              activo: activoDe(filtros.estado),
+              activo,
               page: page || undefined,
             },
           }),
         forzarReal: adminContraApiReal,
       }),
-    filtros.pagina,
+    { pagina: filtros.pagina, estado: filtros.estado },
   )
 
   const pagina = normalizarPaginado(datos)
   const items = pagina.items.map((c) => ({ ...c, id_colegio: c.id_colegio ?? c.id }))
-  // El mock no filtra por estado; la API real sí lo hizo ya en el servidor.
-  return { ...pagina, items: Array.isArray(datos) ? porEstado(items, filtros.estado) : items }
+  // El estado ya lo resolvió el servidor contra la API real; en el simulador,
+  // aquí. La BÚSQUEDA POR NOMBRE es siempre local: `GET /colegios` solo acepta
+  // `departamento`, `distrito` y `activo`, no hay `q` como en alumnos y
+  // usuarios. Filtrar aquí es exacto porque se traen todas las páginas.
+  const porNombre = buscarEn(Array.isArray(datos) ? porEstado(items, filtros.estado) : items, filtros.q, 'nombre')
+  return { ...pagina, items: porNombre }
 }
 
 /** Valores existentes de departamento y distrito, para los desplegables de filtro. */
@@ -242,7 +280,7 @@ export function filtrarAlumnos(filas, filtros = {}) {
 
 export const listarAlumnosAdmin = async (filtros = {}) => {
   const datos = await todasLasPaginas(
-    (page) =>
+    (page, activo) =>
       resolver({
         mock: () => handlers.administracion.alumnos(),
         real: () =>
@@ -255,14 +293,14 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
               id_programa: filtros.id_programa || filtros.subprograma || filtros.programa || undefined,
               ciclo: cicloComoTexto(filtros.id_ciclo || filtros.ciclo),
               id_grado: filtros.id_grado || filtros.grado || undefined,
-              activo: activoDe(filtros.estado),
+              activo,
               q: String(filtros.q ?? '').trim() || undefined,
               page: page || undefined,
             },
           }),
         forzarReal: adminContraApiReal,
       }),
-    filtros.pagina,
+    { pagina: filtros.pagina, estado: filtros.estado },
   )
 
   const pagina = normalizarPaginado(datos)
@@ -372,36 +410,48 @@ export const listarAuditoria = (entidad, id) => {
  */
 export const listarUsuariosAdmin = async (filtros = {}) => {
   const datos = await todasLasPaginas(
-    (page) =>
+    (page, activo) =>
       resolver({
         mock: () => handlers.administracion.usuarios(),
         real: () =>
           api.get(usuarios.listar, {
             params: {
               rol: filtros.rol || undefined,
-              activo: activoDe(filtros.estado),
+              activo,
               q: filtros.q || undefined,
               page: page || undefined,
             },
           }),
         forzarReal: adminContraApiReal,
       }),
-    filtros.pagina,
+    { pagina: filtros.pagina, estado: filtros.estado },
   )
 
   const pagina = normalizarPaginado(datos)
-  return {
-    ...pagina,
-    items: pagina.items.map((u) => ({
-      ...conNombre(u),
-      // `UsuarioItem` trae `id` y el rol como texto. Sin esto, activar o
-      // desactivar enviaba `PATCH /usuarios/undefined/desactivar` (422).
-      id_usuario: u.id_usuario ?? u.id,
-      id_rol: u.id_rol ?? ID_ROL_POR_NOMBRE[u.rol] ?? null,
-      colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
-      es_supervisor_original: Boolean(u.es_supervisor_original),
-    })),
-  }
+  const items = pagina.items.map((u) => ({
+    ...conNombre(u),
+    // `UsuarioItem` trae `id` y el rol como texto. Sin esto, activar o
+    // desactivar enviaba `PATCH /usuarios/undefined/desactivar` (422).
+    id_usuario: u.id_usuario ?? u.id,
+    id_rol: u.id_rol ?? ID_ROL_POR_NOMBRE[u.rol] ?? null,
+    colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
+    es_supervisor_original: Boolean(u.es_supervisor_original),
+  }))
+
+  // Con la API real el servidor ya filtró. El simulador devuelve la lista
+  // entera, así que rol, búsqueda y estado se aplican aquí: sin esto, el
+  // desplegable de docentes ofrecía también supervisores y directivos.
+  return { ...pagina, items: Array.isArray(datos) ? filtrarUsuarios(items, filtros) : items }
+}
+
+/** Rol, estado y búsqueda por nombre o correo sobre una lista ya traída. */
+function filtrarUsuarios(filas, filtros = {}) {
+  const texto = String(filtros.q ?? '').trim().toLowerCase()
+  return porEstado(filas, filtros.estado).filter(
+    (u) =>
+      (!filtros.rol || u.rol === filtros.rol) &&
+      (!texto || `${u.nombre ?? ''} ${u.correo ?? ''}`.toLowerCase().includes(texto)),
+  )
 }
 
 const ID_ROL_POR_NOMBRE = { Docente: 1, Supervisor: 2, Directivo: 3 }

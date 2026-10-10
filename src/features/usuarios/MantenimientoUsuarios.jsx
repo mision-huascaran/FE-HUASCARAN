@@ -28,6 +28,13 @@ import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
 
+/**
+ * El rol se guarda como texto en el `<select>`, así que se compara en texto.
+ * Al editar, el registro puede traer `rol: 'Docente'` en vez del id.
+ */
+const esDocente = (valores) =>
+  String(valores.id_rol ?? '') === String(ROLES.DOCENTE) || valores.rol === 'Docente'
+
 const ROLES_CREABLES = [
   { value: String(ROLES.DOCENTE), label: 'Docente' },
   { value: String(ROLES.SUPERVISOR), label: 'Supervisor' },
@@ -161,12 +168,18 @@ export default function MantenimientoUsuarios() {
        * colegio y el alumno la hereda. Y es UN colegio, no varios: por ahora
        * cada docente atiende un plantel y todos los grados que ese plantel
        * ofrece. Rotarlo es editar este campo; renovarlo, cambiar el año.
+       *
+       * Los tres solo aparecen con el rol Docente. Supervisor y Directivo son
+       * globales: no tienen colegio ni grados que asignar, y mostrárselos en
+       * gris con un "Solo para Docente" debajo hacía dudar de si tocaba
+       * rellenarlos. Al cambiar de rol se ocultan y su valor se descarta.
        */
       {
         nombre: 'anio_escolar',
         etiqueta: 'Año escolar',
         tipo: 'number',
-        ayuda: 'Solo para Docente. Cambiarlo renueva su asignación',
+        ayuda: 'Cambiarlo renueva su asignación',
+        visible: esDocente,
       },
       {
         nombre: 'id_colegio',
@@ -174,7 +187,8 @@ export default function MantenimientoUsuarios() {
         tipo: 'select',
         ancho: 'completo',
         opciones: colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre })),
-        ayuda: 'Solo para Docente: define a qué alumnos accede',
+        ayuda: 'Define a qué alumnos accede',
+        visible: esDocente,
       },
       {
         nombre: 'grados',
@@ -183,6 +197,7 @@ export default function MantenimientoUsuarios() {
         ancho: 'completo',
         opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
         ayuda: 'Un aula (colegio y grado) solo puede tener un docente',
+        visible: esDocente,
       },
     ],
     [colegios, grados],
@@ -205,6 +220,7 @@ export default function MantenimientoUsuarios() {
         onGuardar={(valores, popup) => guardado.mutate({ valores, popup })}
         onCambiarEstado={(usuario, activo) => estado.mutate({ usuario, activo })}
         filtros={[
+          { nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre o correo' },
           { nombre: 'rol', etiqueta: 'Rol', opciones: ROLES_CREABLES.map((r) => ({ value: r.label, label: r.label })) },
           { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
         ]}

@@ -136,6 +136,66 @@ describe('Listados paginados', () => {
     await listarUsuariosAdmin({ rol: 'Docente', estado: 'activo' })
     expect(get.mock.calls.at(-1)[1].params).toMatchObject({ rol: 'Docente', activo: true })
   })
+
+  /**
+   * El fallo que motivó estas dos pruebas: en el contrato `activo` es un
+   * boolean con `default: true` y NO admite null, así que NO mandarlo no
+   * significa "todos" sino "solo los activos". "Todos" enseñaba lo mismo que
+   * "Activos" y nadie lo notaba, porque casi todo está activo.
+   */
+  it('"Todos" nunca omite `activo`: pide las dos mitades', async () => {
+    get.mockImplementation((_ruta, config) => {
+      const activo = config?.params?.activo
+      return Promise.resolve({
+        data: {
+          items: activo
+            ? [{ id: 1, nombre: 'Colegio Vivo', activo: true }]
+            : [{ id: 2, nombre: 'Colegio Cerrado', activo: false }],
+          total: 1,
+          page: 1,
+          page_size: 10,
+          total_pages: 1,
+        },
+      })
+    })
+
+    const { items } = await listarColegiosAdmin({ estado: 'todos' })
+
+    const pedidos = get.mock.calls.map((c) => c[1].params.activo)
+    expect(pedidos).toEqual([true, false])
+    expect(items.map((c) => c.nombre)).toEqual(['Colegio Vivo', 'Colegio Cerrado'])
+  })
+
+  it('"Activos" e "Inactivos" siguen pidiendo una sola mitad', async () => {
+    get.mockResolvedValue({ data: { items: [], total: 0, page: 1, page_size: 10, total_pages: 1 } })
+
+    await listarColegiosAdmin({ estado: 'activo' })
+    expect(get.mock.calls.map((c) => c[1].params.activo)).toEqual([true])
+
+    get.mockClear()
+    await listarColegiosAdmin({ estado: 'inactivo' })
+    expect(get.mock.calls.map((c) => c[1].params.activo)).toEqual([false])
+  })
+
+  it('la búsqueda de colegios se aplica en el cliente: GET /colegios no tiene `q`', async () => {
+    get.mockResolvedValue({
+      data: {
+        items: [
+          { id: 1, nombre: 'IE San Martín', activo: true },
+          { id: 2, nombre: 'IE Túpac Amaru', activo: true },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 10,
+        total_pages: 1,
+      },
+    })
+
+    const { items } = await listarColegiosAdmin({ estado: 'activo', q: 'túpac' })
+
+    expect(get.mock.calls.at(-1)[1].params).not.toHaveProperty('q')
+    expect(items.map((c) => c.nombre)).toEqual(['IE Túpac Amaru'])
+  })
 })
 
 describe('Recovery Key (CU001)', () => {

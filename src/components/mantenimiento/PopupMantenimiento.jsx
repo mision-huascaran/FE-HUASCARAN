@@ -13,6 +13,33 @@ import PestanaAuditoria from './PestanaAuditoria'
 
 const TITULO = { nuevo: 'Nuevo', editar: 'Editar', ver: 'Visualizar' }
 
+/**
+ * Los campos que tocan AHORA MISMO, según lo que lleva escrito el formulario.
+ *
+ * Un campo con `visible(valores)` aparece y desaparece mientras se rellena:
+ * "Año escolar", "Colegio asignado" y "Grados" solo tienen sentido para un
+ * Docente, y pedírselos a un Supervisor confundía (se mostraban con la ayuda
+ * "Solo para Docente" y aun así se podían rellenar).
+ */
+const visiblesEn = (campos, valores) => campos.filter((c) => !c.visible || c.visible(valores))
+
+/**
+ * Lo escrito en un campo que luego se ocultó no se envía.
+ *
+ * Si alguien elige Docente, marca unos grados y después cambia el rol a
+ * Supervisor, esos grados siguen en el estado aunque ya no se vean: hay que
+ * devolverlos a vacío o se mandarían al servidor.
+ */
+function sinLosOcultos(campos, valores) {
+  const limpio = { ...valores }
+  for (const campo of campos) {
+    if (campo.visible && !campo.visible(valores)) {
+      limpio[campo.nombre] = campo.tipo === 'multiple' ? [] : ''
+    }
+  }
+  return limpio
+}
+
 /** E1: obligatorios y formato, antes de molestar al servidor. */
 function validar(campos, valores, modo) {
   if (modo === 'ver') return {}
@@ -72,11 +99,15 @@ export default function PopupMantenimiento({
     setErrores((e) => (e[nombre] ? { ...e, [nombre]: undefined } : e))
   }
 
+  // Lo que se ve y, por tanto, lo que se valida: exigir un campo escondido
+  // dejaría el popup sin guardar y sin decir por qué.
+  const camposVisibles = visiblesEn(campos, valores)
+
   const enviar = () => {
-    const problemas = validar(campos, valores, modo)
+    const problemas = validar(camposVisibles, valores, modo)
     setErrores(problemas)
     if (Object.keys(problemas).some((k) => problemas[k])) return
-    onGuardar(valores)
+    onGuardar(sinLosOcultos(campos, valores))
   }
 
   // La auditoría solo tiene sentido sobre un registro que ya existe.
@@ -117,7 +148,7 @@ export default function PopupMantenimiento({
         </div>
       ) : (
         <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${conAuditoria ? 'mt-4' : ''}`}>
-          {campos.map((campo) => (
+          {camposVisibles.map((campo) => (
             <CampoMantenimiento
               key={campo.nombre}
               campo={campo}

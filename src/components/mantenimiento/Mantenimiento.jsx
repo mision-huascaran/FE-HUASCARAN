@@ -20,6 +20,8 @@ import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
 import { mensajeDeError } from '../../api/client'
 import useSessionStore from '../../store/sessionStore'
+import useActividadStore from '../../store/actividadStore'
+import { ROLES } from '../../auth/roles'
 
 /** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
 const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'usuarios' }
@@ -48,6 +50,18 @@ export default function Mantenimiento({
   motivoSinNuevo = null,
 }) {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
+  /**
+   * CU010 — Las escrituras del Docente exigen una ACTIVIDAD ABIERTA.
+   *
+   * No es solo cosmético: sin actividad el servidor responde 409
+   * `actividad_requerida`, así que dejar los botones vivos lleva al docente a
+   * rellenar un formulario entero para que se lo rechacen al guardar.
+   *
+   * Solo aplica al Docente: el Supervisor ni siquiera tiene ese botón.
+   */
+  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  const exigeActividad = idRol === ROLES.DOCENTE && !conActividad
+
   const [popup, setPopup] = useState(null)
   // S4 — Inactivar/Activar pide confirmación: cambia el estado de un registro
   // que otros pueden estar usando, y conviene que sea deliberado.
@@ -63,9 +77,14 @@ export default function Mantenimiento({
   //   · lectura en caché (Alumnos) → se ve la lista; los botones de escritura
   //     siguen a la vista pero DESHABILITADOS (gris) con el aviso del contrato
   //     (§11). Antes desaparecían y el docente no sabía por qué.
-  const bloqueado = sinConexion
   const sinPantalla = soloOnline && sinConexion
-  const aviso = bloqueado ? avisoSinConexion(seccion) : undefined
+  // Se escribe si hay conexión Y, para el Docente, una actividad abierta.
+  const bloqueado = sinConexion || exigeActividad
+  const aviso = sinConexion
+    ? avisoSinConexion(seccion)
+    : exigeActividad
+      ? 'Pulse "Iniciar actividad" para poder registrar.'
+      : undefined
   const motivoNuevo = aviso ?? motivoSinNuevo ?? undefined
 
   const columnasConAcciones = useMemo(() => {
@@ -165,7 +184,14 @@ export default function Mantenimiento({
       )}
 
       <Card padded={false}>
-        <FiltrosMantenimiento filtros={filtros} valores={valoresFiltro} onCambio={onFiltro} />
+        <FiltrosMantenimiento
+          filtros={filtros}
+          valores={valoresFiltro}
+          onCambio={onFiltro}
+          // Se aplican todos de golpe al pulsar "Filtrar": así la lista se
+          // consulta una vez y no una por cada campo que se toca.
+          onAplicar={(nuevos) => Object.entries(nuevos).forEach(([n, v]) => onFiltro?.(n, v))}
+        />
 
         {consulta.isError ? (
           <EmptyState title={`No se pudieron cargar los ${entidad.toLowerCase()}s`} description={mensajeDeError(consulta.error)} />

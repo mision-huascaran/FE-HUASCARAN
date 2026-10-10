@@ -27,8 +27,11 @@ export const listarSeguimiento = async (filtros = {}) => {
           desde: filtros.desde || undefined,
           hasta: filtros.hasta || undefined,
           sincronizacion: filtros.sincronizacion || undefined,
-          // Por defecto solo los activos; `false` para ver los desactivados.
-          activo: filtros.estado === 'inactivo' ? false : undefined,
+          // Explícito a propósito: `activo` es un boolean con `default: true`
+          // en el contrato, así que omitirlo NO trae a todos, trae solo a los
+          // activos. Esta pantalla no ofrece un "Todos", y mandarlo escrito
+          // evita que parezca que sí por no enviar nada.
+          activo: filtros.estado !== 'inactivo',
           page: filtros.pagina || undefined,
         },
       }),
