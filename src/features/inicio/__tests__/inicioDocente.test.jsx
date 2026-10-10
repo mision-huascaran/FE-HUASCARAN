@@ -1,7 +1,7 @@
 // Inicio del Docente (CU010): cada estado condicional de la cabecera y de las
 // tarjetas. Los datos se controlan sustituyendo sus dos hooks.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import InicioDocente from '../InicioDocente'
 import useFiltrosStore from '../../../store/filtrosStore'
 import useSessionStore from '../../../store/sessionStore'
@@ -66,7 +66,7 @@ describe('Periodo y actividad', () => {
   it('sin periodo elegido muestra un guion, no un texto vacío', async () => {
     useFiltrosStore.setState({ idPeriodo: null })
     montar()
-    await waitFor(() => expect(screen.getByText('—')).toBeInTheDocument())
+    expect(await screen.findByText('—')).toBeInTheDocument()
   })
 
   it('con actividad iniciada dice la hora de fin de la SESIÓN, la del token (CU010)', async () => {

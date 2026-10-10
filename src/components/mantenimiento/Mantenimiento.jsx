@@ -29,6 +29,13 @@ const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'us
 export const avisoSinConexion = (seccion) =>
   `Acción no disponible sin conexión. Conéctate a internet para gestionar ${GESTIONADO[seccion] ?? seccion}.`
 
+/** Por qué no se puede escribir ahora, o `undefined` si se puede. La conexión manda sobre la actividad. */
+function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
+  if (sinConexion) return avisoSinConexion(seccion)
+  if (exigeActividad) return 'Pulse "Iniciar actividad" para poder registrar.'
+  return undefined
+}
+
 export default function Mantenimiento({
   seccion,
   entidad,
@@ -80,11 +87,7 @@ export default function Mantenimiento({
   const sinPantalla = soloOnline && sinConexion
   // Se escribe si hay conexión Y, para el Docente, una actividad abierta.
   const bloqueado = sinConexion || exigeActividad
-  const aviso = sinConexion
-    ? avisoSinConexion(seccion)
-    : exigeActividad
-      ? 'Pulse "Iniciar actividad" para poder registrar.'
-      : undefined
+  const aviso = avisoDeBloqueo(seccion, { sinConexion, exigeActividad })
   const motivoNuevo = aviso ?? motivoSinNuevo ?? undefined
 
   const columnasConAcciones = useMemo(() => {
