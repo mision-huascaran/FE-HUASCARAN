@@ -66,7 +66,9 @@ export default defineConfig(({ mode }) => {
         provider: 'v8',
         reporter: ['text-summary', 'lcov'],
         include: ['src/**/*.{js,jsx}'],
-        exclude: ['src/**/__tests__/**', 'src/test/**'],
+        // Igual que `sonar.coverage.exclusions`: el arranque (main.jsx) y el
+        // simulador de la API (api/mock) no son lógica de la aplicación.
+        exclude: ['src/**/__tests__/**', 'src/test/**', 'src/main.jsx', 'src/api/mock/**'],
       },
       /**
        * Las pruebas resuelven SIEMPRE contra el mock, pase lo que pase en `.env`.
