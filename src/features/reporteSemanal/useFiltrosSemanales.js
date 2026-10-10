@@ -55,7 +55,18 @@ export default function useFiltrosSemanales() {
     return [...vistos.values()]
   }, [idDocente, asignaciones, todosLosColegios, precarga])
 
-  const grados = asignaciones[0]?.grados ?? [1, 2, 3, 4, 5, 6]
+  /**
+   * Los grados del docente, SIEMPRE como números.
+   *
+   * `GET /me/asignaciones` los devuelve como objetos `{id, nombre, …}`, pero
+   * el simulador los daba como números sueltos. Al pintarlos sin normalizar
+   * salía "[object Object].° grado" en el desplegable.
+   */
+  const grados = useMemo(() => {
+    const crudos = asignaciones.flatMap((a) => a.grados ?? [])
+    const numeros = crudos.map((g) => Number(g?.id ?? g?.id_grado ?? g)).filter(Number.isFinite)
+    return numeros.length ? [...new Set(numeros)].sort((a, b) => a - b) : [1, 2, 3, 4, 5, 6]
+  }, [asignaciones])
 
   const idSemana = Number(params.get('semana')) || semanas.at(-1)?.id_semana || null
   const idColegio = Number(params.get('colegio')) || colegios[0]?.id_colegio || null

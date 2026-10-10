@@ -49,6 +49,16 @@ const CICLOS = [
   { value: 3, label: 'V' },
 ]
 
+/**
+ * El identificador del alumno, venga como venga.
+ *
+ * El simulador lo llama `id_alumno` y el backend `id`. Leer solo el primero
+ * mandaba `PATCH /alumnos/undefined`, que el servidor rechazaba con un 422 y
+ * el mensaje "Los datos enviados no son válidos": imposible de relacionar con
+ * la causa desde la pantalla.
+ */
+const idDeAlumno = (alumno) => alumno?.id_alumno ?? alumno?.id
+
 export default function MantenimientoAlumnos() {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -82,14 +92,21 @@ export default function MantenimientoAlumnos() {
     [asignacionesEnLinea, precarga],
   )
 
-  // El Docente solo puede elegir entre lo que tiene asignado: fuera de ahí el
-  // servidor responde "no pertenece a un colegio y grado que tengas asignado".
-  // Las asignaciones llegan por colegio con su LISTA de grados (`grados`), no
-  // un `id_grado` por fila: leerlas así dejaba los dos combos sin opciones.
+  /**
+   * El Docente solo puede elegir entre lo que tiene asignado: fuera de ahí el
+   * servidor responde "no pertenece a un colegio y grado que tengas asignado".
+   *
+   * `GET /me/asignaciones` las agrupa por colegio y con los grados como
+   * objetos, pero `normalizarAsignacion` ya deja la forma plana que se usa
+   * aquí: `id_colegio` numérico y `grados` como lista de ids. Hay que leerla
+   * así y no del objeto original — `colegio` ya es el NOMBRE, no el id.
+   */
   const permitidos = useMemo(() => {
     if (!soloSusSecciones) return { colegios, grados }
+
     const idsColegio = new Set(asignaciones.map((a) => Number(a.id_colegio)))
     const idsGrado = new Set(asignaciones.flatMap((a) => (a.grados ?? []).map(Number)))
+
     return {
       colegios: colegios.filter((c) => idsColegio.has(Number(c.id_colegio))),
       grados: grados.filter((g) => idsGrado.has(Number(g.id_grado))),
@@ -118,7 +135,7 @@ export default function MantenimientoAlumnos() {
 
   const guardado = useMutation({
     mutationFn: ({ valores, popup }) =>
-      popup.modo === 'nuevo' ? crearAlumno(valores) : actualizarAlumno(popup.registro.id_alumno, valores),
+      popup.modo === 'nuevo' ? crearAlumno(valores) : actualizarAlumno(idDeAlumno(popup.registro), valores),
     onSuccess: (_d, { popup }) => {
       refrescar()
       toast.success(
@@ -132,7 +149,7 @@ export default function MantenimientoAlumnos() {
   const estado = useMutation({
     // La baja lógica tiene ruta propia (`/desactivar`, `/activar`), como en
     // Colegios: un PATCH con `{activo}` no cambia el estado.
-    mutationFn: ({ alumno, activo }) => cambiarEstadoAlumno(alumno.id_alumno, activo),
+    mutationFn: ({ alumno, activo }) => cambiarEstadoAlumno(idDeAlumno(alumno), activo),
     onSuccess: (_d, { activo }) => {
       refrescar()
       toast.success(activo ? 'Alumno activado' : 'Alumno inactivado', 'Su historial académico se conserva.')

@@ -108,6 +108,7 @@ export default function MantenimientoColegios() {
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
       onGuardar={(valores, popup) => guardado.mutate({ valores, popup }, { onSuccess: () => {} })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
+      filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}
       columnas={[
         { key: 'nombre', header: 'Colegio', sortable: true, className: 'font-medium text-ink-900' },
         { key: 'nivel_educativo', header: 'Nivel', align: 'center', render: (c) => etiquetaDe(c.nivel_educativo) },

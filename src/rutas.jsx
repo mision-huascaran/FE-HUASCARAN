@@ -14,7 +14,7 @@ import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
 import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
-import UsuariosPage from './features/usuarios/UsuariosPage'
+import MantenimientoUsuarios from './features/usuarios/MantenimientoUsuarios'
 import SesionesPage from './features/sesiones/SesionesPage'
 import SeguimientoPage from './features/seguimiento/SeguimientoPage'
 import AsistenciaPage from './features/asistencia/AsistenciaPage'
@@ -44,7 +44,7 @@ export const RUTAS_PROTEGIDAS = [
   // ── Las 9 secciones de la matriz de permisos del sprint de cierre ──────────
   { path: '/inicio', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Inicio', elemento: <InicioPage /> },
   { path: '/alumnos', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <AlumnosPage /> },
-  { path: '/usuarios', allow: [JEFA], titulo: 'Usuarios', elemento: <UsuariosPage /> },
+  { path: '/usuarios', allow: [JEFA], titulo: 'Usuarios', elemento: <MantenimientoUsuarios /> },
   { path: '/colegios', allow: [JEFA], titulo: 'Colegios', elemento: <MantenimientoColegios /> },
   // Rúbrica y Seguimiento de Lectura son DOS secciones con permisos propios: el
   // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
