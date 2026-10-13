@@ -4,6 +4,7 @@
 // solo los archivos de `resources/` usan `resolver()`.
 import axios from 'axios'
 import useSessionStore, { obtenerToken } from '../store/sessionStore'
+import { sincronizarReloj } from '../lib/relojServidor'
 
 export const usarMock = String(import.meta.env.VITE_USE_MOCK ?? 'true') === 'true'
 
@@ -89,7 +90,12 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (respuesta) => respuesta,
+  (respuesta) => {
+    // CU022: cada respuesta recalibra el reloj de referencia. El dispositivo
+    // puede tener la hora cambiada; la cabecera `Date` del servidor no.
+    sincronizarReloj(respuesta.headers?.date)
+    return respuesta
+  },
   (error) => {
     // Token vencido o inválido: se cierra la sesión y el guardado de ruta hace
     // el resto. No se reintenta: reintentar con un token muerto es inútil.

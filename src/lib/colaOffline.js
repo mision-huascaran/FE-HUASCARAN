@@ -46,9 +46,20 @@ async function persistir() {
   publicarEstado()
   try {
     await set(CLAVE_IDB, cola)
+    return true
   } catch {
-    // Sin IndexedDB (navegación privada, jsdom) la cola sigue en memoria.
+    // Sin IndexedDB (navegación privada, jsdom) la cola sigue en memoria. Para
+    // el reporte semanal y la rúbrica eso basta: su pantalla ya avisa de los
+    // pendientes y el docente tiene un botón de guardar al que volver.
+    return false
   }
+}
+
+/** Error de un envío que exigía quedar guardado en local y no pudo. */
+const errorDePersistencia = () => {
+  const error = new Error('No se pudo guardar en el almacenamiento local')
+  error.response = { status: 0, data: { motivo: 'persistencia_local' } }
+  return error
 }
 
 function resolverPromesa(clave, valor) {
@@ -170,8 +181,12 @@ async function procesar() {
  *   descarta por un error definitivo, este se descarta con él en vez de salir
  *   solo. Lo necesita el cierre de una actividad: sin su inicio, el servidor
  *   responde 404 por una actividad que nunca llegó a existir.
+ * @param exigePersistencia el envío no vale si no queda guardado en
+ *   IndexedDB. Lo pide CU022: la asistencia se marca sin botón de guardar, así
+ *   que si el apunte local falla hay que decirlo y deshacer el clic, o el
+ *   docente creería registrada una asistencia que solo existe en la pantalla.
  */
-export function encolar({ clave, tipo, payload, descripcion, dependeDe = null }) {
+export function encolar({ clave, tipo, payload, descripcion, dependeDe = null, exigePersistencia = false }) {
   const anterior = cola.findIndex((item) => item.clave === clave)
   const item = {
     clave,
@@ -194,7 +209,17 @@ export function encolar({ clave, tipo, payload, descripcion, dependeDe = null })
   }
 
   const promesa = new Promise((resolve, reject) => promesas.set(clave, { resolve, reject }))
-  persistir().then(() => procesar())
+  persistir().then((guardado) => {
+    if (!guardado && exigePersistencia) {
+      // Fuera de la cola: dejarlo ahí prometería un reintento que no
+      // sobrevivirá a cerrar la pestaña.
+      cola = cola.filter((item) => item.clave !== clave)
+      publicarEstado()
+      rechazarPromesa(clave, errorDePersistencia())
+      return
+    }
+    procesar()
+  })
   return promesa
 }
 

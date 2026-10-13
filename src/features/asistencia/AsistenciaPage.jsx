@@ -1,73 +1,71 @@
-// Cubre: RF-012, RN-006, RNF-001 · Sección "Asistencia".
+// Cubre: CU022 · Registrar asistencias de alumnos.
 //
-// OJO CON EL CONTRATO: el backend decidió asistencia SEMANAL, no por fecha
-// (api_sicedu_frontend §13), y las grillas todavía no existen (§12). Esta
-// pantalla sigue resolviéndose contra el simulador y habrá que rehacerla con
-// la semana como eje cuando el backend la publique.
+// DEMO: el backend todavía no tiene estos endpoints y el caso de uso no está
+// cerrado. Toda la pantalla se resuelve contra el simulador (ver
+// `api/resources/asistencia.js`), pero las reglas son las definitivas.
 //
-// La SECCIÓN se quitó del filtro: dejó de ser una entidad y pasó a ser un
-// atributo del colegio que el alumno hereda.
+// Lo que la separa de las demás grillas:
 //
-// Grilla por FECHA, no por semana: es lo que la diferencia del reporte de
-// lectura. Si no existe grilla para esa fecha no se inventa ninguna ni se copia
-// de otro día: se ofrece crearla, y nace con las filas vacías.
-import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarPlus } from 'lucide-react'
+//   · NO HAY BOTÓN DE GUARDAR. Cada clic manda su propio micro-paquete
+//     (Auto-save) y, si falla, el control vuelve solo a donde estaba.
+//   · Tres estados por alumno: presente, ausente y SIN MARCAR. Una clase nueva
+//     nace entera sin marcar, que no es lo mismo que todos ausentes.
+//   · La lista va con Virtual Scrolling: está pensada para un móvil en el aula
+//     y un colegio grande pasa de los sesenta alumnos.
+//   · El Supervisor entra en solo lectura estricta (CU021): sin botón de lote,
+//     sin controles y con el Auto-save apagado del todo.
+import { useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CheckCheck, CalendarX2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
-import FilterBar from '../../components/ui/FilterBar'
-import Input from '../../components/ui/Input'
-import Select from '../../components/ui/Select'
 import AvisoActividades from '../../components/layout/AvisoActividades'
-import FilaAsistencia from './FilaAsistencia'
+import FiltrosAsistencia from './FiltrosAsistencia'
+import ListaAsistencia from './ListaAsistencia'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
+import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
-import { crearGrillaAsistencia, guardarAsistencia, obtenerGrillaAsistencia } from '../../api/resources/asistencia'
+import { listarSeccionesDe, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes } from '../../api/resources/administracion'
-import { useColegios, useGrados } from '../../hooks/useCatalogos'
-import { mensajeDeError } from '../../api/client'
+import { useColegios, useGrados, useProgramas } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
-const CICLOS = [
-  { value: 1, label: 'Ciclo III' },
-  { value: 2, label: 'Ciclo IV' },
-  { value: 3, label: 'Ciclo V' },
-]
+
+// Literales de CU022, tal cual los da el caso de uso.
+const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
+const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
 
 export default function AsistenciaPage() {
   const toast = useToast()
-  const queryClient = useQueryClient()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
-  const conActividades = Boolean(useActividadStore((s) => s.sesion))
+  const conActividad = Boolean(useActividadStore((s) => s.sesion))
   const puedeEditar = puede('asistencia', idRol, ACCION.EDITAR)
-  const soloLectura = !puedeEditar || !conActividades
+  // El Supervisor nunca escribe; el Docente, solo con una actividad abierta.
+  const autoguardado = puedeEditar && conActividad
+  const soloLectura = !autoguardado
 
   const { filtros, cambiar } = useFiltrosAsistencia()
-  const [borrador, setBorrador] = useState(null)
 
-  // Los colegios y grados salen del catálogo compartido, el mismo del que sale
-  // la grilla. Si vinieran de administración podrían no coincidir y el docente
-  // elegiría un colegio sin alumnos que mostrar.
   const { data: colegios = [] } = useColegios()
   const { data: grados = [] } = useGrados()
+  const { data: programas = [] } = useProgramas()
 
-  // T22: el Supervisor ve la asistencia de todos, así que elige de quién.
   const { data: docentes = [] } = useQuery({
     queryKey: ['admin', 'docentes'],
     queryFn: listarDocentes,
     enabled: !puedeEditar,
     ...SIEMPRE,
   })
+
   /**
-   * Un `<select>` sin marcador de posición PINTA la primera opción aunque el
-   * estado esté vacío: la pantalla decía "I.E. 86021 Ranrahirca" mientras el
-   * filtro seguía sin colegio, y la grilla no cargaba nunca. Se elige el
-   * primero de verdad, igual que hacen las demás grillas.
+   * Un `<select>` sin marcador de posición PINTA su primera opción aunque el
+   * estado esté vacío. Por eso se eligen de verdad, en vez de dejar que la
+   * pantalla aparente un colegio que el filtro no tiene.
    */
   useEffect(() => {
     if (!filtros.idColegio && colegios.length) cambiar('colegio', String(colegios[0].id_colegio))
@@ -77,117 +75,117 @@ export default function AsistenciaPage() {
     if (!filtros.idGrado && grados.length) cambiar('grado', String(grados[0].id_grado))
   }, [grados, filtros.idGrado, cambiar])
 
-  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.fecha)
+  useEffect(() => {
+    if (!filtros.idPrograma && programas.length) cambiar('subprograma', String(programas[0].id_programa))
+  }, [programas, filtros.idPrograma, cambiar])
 
-  const grilla = useQuery({
-    queryKey: ['asistencia', filtros],
-    queryFn: () => obtenerGrillaAsistencia(filtros),
+  const { data: secciones = [] } = useQuery({
+    queryKey: ['asistencia', 'secciones', filtros.idColegio, filtros.idGrado],
+    queryFn: () => listarSeccionesDe({ idColegio: filtros.idColegio, idGrado: filtros.idGrado }),
+    enabled: Boolean(filtros.idColegio && filtros.idGrado),
+  })
+
+  // CU022, paso 3: con una sola aula se rellena sola; con varias se deja vacía
+  // a propósito, porque elegir por el docente sería registrar otra clase.
+  useEffect(() => {
+    if (!filtros.seccion && secciones.length === 1) cambiar('seccion', secciones[0])
+  }, [secciones, filtros.seccion, cambiar])
+
+  const listos = Boolean(
+    filtros.idColegio && filtros.idGrado && filtros.seccion && filtros.idPrograma && filtros.fecha,
+  )
+
+  const clase = useQuery({
+    queryKey: ['asistencia', 'clase', filtros],
+    queryFn: () => obtenerClase(filtros),
     enabled: listos,
   })
 
-  const filas = useMemo(() => borrador ?? grilla.data?.filas ?? [], [borrador, grilla.data])
+  const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
+  // El día lectivo lo decide el SERVIDOR (CU022, Restricciones). Mientras no
+  // haya contestado no se afirma que la fecha sea mala.
+  const diaNoLectivo = clase.data?.dia_lectivo === false
 
-  const crear = useMutation({
-    mutationFn: () => crearGrillaAsistencia(filtros),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asistencia'] })
-      toast.success('Grilla creada', 'Las filas nacen vacías: no se copian de otra fecha.')
-    },
-    onError: (error) => toast.error('No se pudo crear la grilla', mensajeDeError(error)),
+  const { presenteDe, marcar, marcarTodosPresentes, sinMarcar } = useAutoguardado({
+    alumnos,
+    fecha: filtros.fecha,
+    idPrograma: filtros.idPrograma,
+    activo: autoguardado,
   })
 
-  const guardar = useMutation({
-    mutationFn: () => guardarAsistencia({ clave: grilla.data.clave, filas }),
-    onSuccess: () => {
-      setBorrador(null)
-      queryClient.invalidateQueries({ queryKey: ['asistencia'] })
-      toast.success('Asistencia guardada')
-    },
-    onError: (error) => toast.error('No se pudo guardar', mensajeDeError(error)),
-  })
+  const marcarTodos = () => {
+    const cuantos = marcarTodosPresentes()
+    toast.success(
+      `${cuantos} alumno${cuantos === 1 ? '' : 's'} marcado${cuantos === 1 ? '' : 's'} como presente`,
+      'No se tocaron los que ya tenían una marca puesta a mano.',
+    )
+  }
 
-  const editarFila = (idAlumno, cambios) =>
-    setBorrador(filas.map((f) => (f.id_alumno === idAlumno ? { ...f, ...cambios } : f)))
-
-  const opciones = (lista, clave) => lista.map((x) => ({ value: x[clave], label: x.nombre }))
+  const hayLista = listos && !diaNoLectivo && alumnos.length > 0
 
   return (
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencia</h1>
+        <p className="mt-1 text-sm text-ink-500">
+          Se guarda sola: cada marca se registra al momento, sin botón de guardar.
+        </p>
       </header>
 
-      {puedeEditar && !conActividades && <AvisoActividades />}
+      {puedeEditar && !conActividad && <AvisoActividades mensaje={SIN_ACTIVIDAD} />}
 
-      {/* El orden de los filtros es el que pide T30 y no es casual: cada uno
-          acota al siguiente, así el docente no ve opciones que no le tocan. */}
-      <FilterBar>
-        {!puedeEditar && (
-          <Select
-            label="Docente"
-            value={filtros.idDocente ?? ''}
-            placeholder="Todos"
-            onChange={(e) => cambiar('docente', e.target.value)}
-            options={docentes.map((d) => ({ value: d.id_docente, label: d.nombre }))}
-          />
-        )}
-        <Select label="Colegio" value={filtros.idColegio} onChange={(e) => cambiar('colegio', e.target.value)} options={opciones(colegios, 'id_colegio')} />
-        <Select label="Ciclo" value={filtros.idCiclo} placeholder="Todos" onChange={(e) => cambiar('ciclo', e.target.value)} options={CICLOS} />
-        <Select label="Grado" value={filtros.idGrado} onChange={(e) => cambiar('grado', e.target.value)} options={opciones(grados, 'id_grado')} />
-        <Input label="Fecha" type="date" value={filtros.fecha} onChange={(e) => cambiar('fecha', e.target.value)} />
-      </FilterBar>
+      <FiltrosAsistencia
+        filtros={filtros}
+        cambiar={cambiar}
+        colegios={colegios}
+        grados={grados}
+        secciones={secciones}
+        programas={programas}
+        docentes={docentes}
+        eligeDocente={!puedeEditar}
+      />
 
       {!listos && (
         <Card>
-          <EmptyState title="Elija colegio, grado y fecha" description="La grilla se arma con esos tres datos." />
-        </Card>
-      )}
-
-      {listos && !grilla.isLoading && !grilla.data && (
-        <Card>
           <EmptyState
-            icon={CalendarPlus}
-            title="No existe una grilla registrada para esta fecha"
-            description="Se creará con una fila por alumno, sin datos de otros días."
-            action={
-              puedeEditar && conActividades ? (
-                <Button loading={crear.isPending} onClick={() => crear.mutate()}>
-                  Crear grilla para esta fecha
-                </Button>
-              ) : null
-            }
+            title="Complete los filtros"
+            description="La clase se arma con colegio, grado, sección, subprograma y fecha."
           />
         </Card>
       )}
 
-      {listos && grilla.data && (
+      {listos && diaNoLectivo && (
+        <Card>
+          <EmptyState icon={CalendarX2} title="Día no lectivo" description={NO_LECTIVO} />
+        </Card>
+      )}
+
+      {listos && !diaNoLectivo && !clase.isLoading && alumnos.length === 0 && (
+        <Card>
+          <EmptyState title="Sin alumnos en esta clase" description={SIN_ALUMNOS} />
+        </Card>
+      )}
+
+      {hayLista && (
         <Card
-          title="Asistencia del día"
+          title={`${alumnos.length} alumno${alumnos.length === 1 ? '' : 's'}`}
           padded={false}
           actions={
-            soloLectura ? null : (
-              <Button loading={guardar.isPending} disabled={!borrador} onClick={() => guardar.mutate()}>
-                Guardar asistencia
+            // CU022: el botón de lote se OCULTA para el Supervisor, no se
+            // deshabilita. Y no tiene nada que hacer si no queda nadie sin marcar.
+            autoguardado && sinMarcar > 0 ? (
+              <Button iconLeft={CheckCheck} onClick={marcarTodos}>
+                Marcar todos como presentes
               </Button>
-            )
+            ) : null
           }
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-100 text-xs font-semibold uppercase tracking-wide text-ink-400">
-                <tr>
-                  <th className="px-4 py-3 text-left">Estudiante</th>
-                  <th className="px-4 py-3 text-center">Asistencia</th>
-                  <th className="px-4 py-3 text-left">Observación</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((fila) => (
-                  <FilaAsistencia key={fila.id_alumno} fila={fila} soloLectura={soloLectura} onCambio={editarFila} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ListaAsistencia
+            alumnos={alumnos}
+            presenteDe={presenteDe}
+            soloLectura={soloLectura}
+            onMarcar={marcar}
+          />
         </Card>
       )}
     </div>

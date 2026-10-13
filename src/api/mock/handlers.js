@@ -17,8 +17,9 @@ function responder(datos, ms = RETARDO_MS) {
   return new Promise((resolver) => setTimeout(() => resolver(copiar(datos)), ms))
 }
 
-// Grillas de asistencia creadas durante la sesión. Viven aquí y no en `db`,
-// que se importa de solo lectura.
+// Marcas de asistencia tomadas durante la sesión (CU022). Viven aquí y no en
+// `db`, que se importa de solo lectura. La clave reproduce la unicidad que el
+// caso de uso exige en la base: UN registro por alumno, fecha y subprograma.
 /**
  * Error con la MISMA forma que el de axios, para que las pantallas puedan
  * ramificar por `motivo` igual que contra el backend real.
@@ -30,7 +31,22 @@ function errorMock(status, detail, motivo) {
 }
 
 const ACTIVIDADES_MOCK = {}
-const GRILLAS_ASISTENCIA = {}
+const ASISTENCIAS = {}
+const claveMarca = (idAlumno, fecha, idPrograma) => `${idAlumno}|${fecha}|${idPrograma}`
+
+/** Hoy en Lima, que es la zona en la que se cuentan los días lectivos. */
+const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
+
+/**
+ * Un día es lectivo si cae dentro de alguna semana del año escolar (CU022).
+ *
+ * Las semanas del simulador van de lunes a viernes, así que esto descarta
+ * fines de semana, vacaciones y cualquier fecha fuera del periodo vigente sin
+ * necesidad de una tabla de recesos aparte. Contra el backend real la decisión
+ * la toma el servidor y el cliente solo lee `dia_lectivo`.
+ */
+const esDiaLectivo = (fecha) =>
+  Boolean(fecha) && db.SEMANAS.some((s) => fecha >= s.inicio && fecha <= s.fin)
 const GRILLAS_SEMANALES = {}
 
 function errorHttp(status, detail) {
@@ -380,10 +396,9 @@ export const handlers = {
      * que no es lo mismo que que todos asistieran.
      */
     ausentes: async () => {
-      const ids = Object.values(GRILLAS_ASISTENCIA)
-        .flatMap((g) => g.filas ?? [])
-        .filter((f) => f.presente === false)
-        .map((f) => f.id_alumno)
+      const ids = Object.values(ASISTENCIAS)
+        .filter((m) => m.presente === false)
+        .map((m) => m.id_alumno)
       return responder([...new Set(ids)])
     },
   },
@@ -449,34 +464,87 @@ export const handlers = {
     },
   },
 
-  /** Asistencia por FECHA (T30). Distinta de la asistencia semanal de lectura. */
+  /**
+   * Asistencia por FECHA (CU022). Distinta de la asistencia semanal de lectura.
+   *
+   * TODO BACKEND: los endpoints no existen todavía (§12 del contrato). Este
+   * simulador reproduce las reglas que CU022 declara del lado del servidor para
+   * poder construir y probar la pantalla:
+   *
+   *   · El día lectivo lo decide el SERVIDOR, nunca el cliente.
+   *   · Unicidad por alumno, fecha y subprograma.
+   *   · Ante dos escrituras simultáneas gana la marca de tiempo más reciente.
+   */
   asistencia: {
-    /** Devuelve null si todavía no existe grilla para esa fecha. */
-    grilla: async ({ idColegio, idGrado, fecha }) => {
-      const clave = `${idColegio}-${idGrado}-${fecha}`
-      return responder(GRILLAS_ASISTENCIA[clave] ?? null)
+    /** Las secciones (aulas) que ese colegio y grado tienen de verdad. */
+    secciones: async ({ idColegio, idGrado }) => {
+      const aulas = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .map((a) => a.aula)
+      return responder([...new Set(aulas)].sort())
     },
 
-    crearGrilla: async ({ idColegio, idGrado, idSeccion, fecha }) => {
-      const clave = `${idColegio}-${idGrado}-${fecha}`
-      // Las filas nacen vacías: no se copian de otra fecha a propósito.
-      const filas = db
-        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+    /**
+     * La clase de una fecha: alumnos, marcas ya guardadas y la hora del
+     * servidor, que es la que recalibra el reloj del cliente.
+     */
+    clase: async ({ idColegio, idGrado, seccion, idPrograma, fecha }) => {
+      const lectivo = esDiaLectivo(fecha)
+      const servidorAhora = new Date().toISOString()
+      if (!lectivo) return responder({ dia_lectivo: false, alumnos: [], servidor_ahora: servidorAhora })
+
+      const marcas = Object.values(ASISTENCIAS).filter(
+        (m) => m.fecha === fecha && String(m.id_programa) === String(idPrograma),
+      )
+      const conRegistro = new Set(marcas.map((m) => m.id_alumno))
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado), programa: Number(idPrograma) })
+        .filter((a) => (!seccion || a.aula === seccion))
+        // Los activos siempre. Los inactivos SOLO si ya constan en esa fecha:
+        // CU022 pide no perderlos de vista al consultar un día pasado.
+        .filter((a) => a.activo || conRegistro.has(a.id_alumno))
         .map((a) => ({
           id_alumno: a.id_alumno,
-          nombre: a.nombre,
+          nombres: a.nombres,
+          apellidos: a.apellidos,
           codigo: a.codigo,
-          presente: null,
-          observacion: '',
+          seccion: a.aula,
+          activo: a.activo,
+          // `null` es "sin marcar", que no es lo mismo que ausente.
+          presente: ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]?.presente ?? null,
         }))
-      GRILLAS_ASISTENCIA[clave] = { clave, fecha, id_seccion: idSeccion ?? null, filas }
-      return responder(GRILLAS_ASISTENCIA[clave], RETARDO_ESCRITURA_MS)
+
+      return responder({ dia_lectivo: true, alumnos, servidor_ahora: servidorAhora })
     },
 
-    guardar: async ({ clave, filas }) => {
-      if (!GRILLAS_ASISTENCIA[clave]) throw errorHttp(404, 'No existe la grilla de asistencia')
-      GRILLAS_ASISTENCIA[clave].filas = filas
-      return responder(GRILLAS_ASISTENCIA[clave], RETARDO_ESCRITURA_MS)
+    /**
+     * Un micro-paquete del Auto-save: el estado de UN alumno.
+     *
+     * Reproduce a propósito dos rechazos que la pantalla tiene que saber
+     * manejar, porque son los que CU022 describe en sus flujos de error.
+     */
+    marcar: async ({ id_alumno, fecha, id_programa, presente }) => {
+      if (!esDiaLectivo(fecha)) {
+        throw errorMock(422, 'La fecha no corresponde a un día lectivo válido', 'dia_no_lectivo')
+      }
+      if (fecha > hoyLima()) {
+        throw errorMock(422, 'No se puede registrar asistencia en fechas futuras', 'fecha_futura')
+      }
+
+      const clave = claveMarca(id_alumno, fecha, id_programa)
+      const anterior = ASISTENCIAS[clave]
+      const marca = {
+        id_alumno,
+        fecha,
+        id_programa,
+        presente,
+        actualizado: new Date().toISOString(),
+      }
+      // "Prevalecerá la modificación con la marca de tiempo más reciente": si
+      // otro dispositivo escribió después, la suya se conserva.
+      if (!anterior || anterior.actualizado <= marca.actualizado) ASISTENCIAS[clave] = marca
+      return responder(ASISTENCIAS[clave], RETARDO_ESCRITURA_MS)
     },
   },
 
