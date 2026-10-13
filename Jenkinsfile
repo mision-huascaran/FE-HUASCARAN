@@ -13,7 +13,7 @@ pipeline {
     agent any
 
     options {
-        buildDiscarder(logRotator(numToKeepStr: '5'))
+        buildDiscarder(logRotator(numToKeepStr: '1', artifactNumToKeepStr: '1'))
         disableConcurrentBuilds()
     }
 
@@ -160,6 +160,49 @@ pipeline {
                         echo "AVISO: /api no responde. Revisar API_UPSTREAM en el .env o el despliegue del backend."
                     fi
                 '''
+            }
+        }
+
+        stage('E2E Tests') {
+            when {
+                beforeAgent true
+                branch 'qa'
+            }
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/playwright:v1.63.0-noble'
+                    args '--ipc=host'
+                    reuseNode true
+                }
+            }
+            environment {
+                CI       = 'true'
+                BASE_URL = 'https://qa-huascaran.ingsoftware.lat'
+                // Username with password: generan *_USR y *_PSW (enmascarados en el log).
+                E2E_DOCENTE    = credentials('e2e-docente')
+                E2E_SUPERVISOR = credentials('e2e-supervisor')
+                E2E_DIRECTIVO  = credentials('e2e-directivo')
+                E2E_INACTIVO   = credentials('e2e-inactivo')
+            }
+            steps {
+                // Como en 'Pruebas': sin HOME escribible, la caché va al workspace.
+                // npm ci de nuevo: node_modules de 'Pruebas' se instaló en Alpine (musl).
+                sh '''
+                    export HOME="${WORKSPACE}/.e2e-home"
+                    export npm_config_cache="${WORKSPACE}/.npm"
+                    export E2E_DOCENTE_USER="$E2E_DOCENTE_USR"       E2E_DOCENTE_PASS="$E2E_DOCENTE_PSW"
+                    export E2E_SUPERVISOR_USER="$E2E_SUPERVISOR_USR" E2E_SUPERVISOR_PASS="$E2E_SUPERVISOR_PSW"
+                    export E2E_DIRECTIVO_USER="$E2E_DIRECTIVO_USR"   E2E_DIRECTIVO_PASS="$E2E_DIRECTIVO_PSW"
+                    export E2E_INACTIVO_USER="$E2E_INACTIVO_USR"     E2E_INACTIVO_PASS="$E2E_INACTIVO_PSW"
+                    npm ci --no-audit --no-fund
+                    npx playwright test
+                '''
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'test-results/junit.xml'
+                    archiveArtifacts artifacts: 'playwright-report/**, test-results/**', allowEmptyArchive: true
+                }
             }
         }
     }
