@@ -25,8 +25,10 @@ export default function ListaAsistencia({ alumnos, presenteDe, soloLectura, onMa
           </tr>
         </thead>
         <tbody>
+          {/* Espaciadores: solo reservan alto. `role="presentation"` los saca del
+              árbol de accesibilidad (no son filas de datos) y no son enfocables. */}
           {huecoArriba > 0 && (
-            <tr aria-hidden="true">
+            <tr role="presentation">
               <td colSpan={3} style={{ height: huecoArriba }} />
             </tr>
           )}
@@ -43,7 +45,7 @@ export default function ListaAsistencia({ alumnos, presenteDe, soloLectura, onMa
           ))}
 
           {huecoAbajo > 0 && (
-            <tr aria-hidden="true">
+            <tr role="presentation">
               <td colSpan={3} style={{ height: huecoAbajo }} />
             </tr>
           )}

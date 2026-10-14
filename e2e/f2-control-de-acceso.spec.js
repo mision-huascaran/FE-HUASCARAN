@@ -5,7 +5,15 @@
 // API, y esas secciones no deben aparecer en su menú.
 import { expect, test } from '@playwright/test'
 import { evidencia } from './support/evidencia.js'
-import { iniciarSesion, menu } from './support/sesion.js'
+import { esApi, iniciarSesion, menu } from './support/sesion.js'
+
+const PROHIBIDO = 'No tiene permisos para acceder a esta sección'
+
+/** Espera la respuesta de cada llamada /api que la página ya hizo. */
+async function respuestasPendientes(page) {
+  const pedidas = (await page.requests()).filter((r) => new URL(r.url()).pathname.startsWith('/api/'))
+  await Promise.all(pedidas.map((r) => r.response().catch(() => null)))
+}
 
 const PROHIBIDAS = {
   docente: [
@@ -36,8 +44,11 @@ for (const [rol, secciones] of Object.entries(PROHIBIDAS)) {
     await evidencia(page, `menu-${rol}`)
 
     // Lo que Inicio haya pedido al entrar (la precarga offline del Docente pide
-    // colegios y alumnos) no cuenta: se escucha desde que se escribe la URL.
-    await page.waitForLoadState('networkidle')
+    // colegios y alumnos) no cuenta. Se pasa primero por /403, que está fuera
+    // del armazón y no pide datos: al recargar, el documento de Inicio y sus
+    // peticiones desaparecen, y recién entonces se empieza a escuchar.
+    await page.goto('/403')
+    await expect(page.getByRole('heading', { name: PROHIBIDO })).toBeVisible()
     const pedidas = []
     page.on('request', (peticion) => {
       const { pathname } = new URL(peticion.url())
@@ -47,11 +58,15 @@ for (const [rol, secciones] of Object.entries(PROHIBIDAS)) {
     for (const { ruta, api } of secciones) {
       await test.step(`${ruta} → /403`, async () => {
         pedidas.length = 0
+        // Al recargar, la app pide /me antes de que RoleRoute decida: su
+        // respuesta marca que la guarda ya resolvió con el rol real.
+        const perfil = page.waitForResponse((r) => esApi(r, '/me'))
         await page.goto(ruta)
 
         await expect(page).toHaveURL(/\/403$/)
-        await expect(page.getByRole('heading', { name: 'No tiene permisos para acceder a esta sección' })).toBeVisible()
-        await page.waitForLoadState('networkidle')
+        await expect(page.getByRole('heading', { name: PROHIBIDO })).toBeVisible()
+        await perfil
+        await respuestasPendientes(page)
         const prohibidas = pedidas.filter((p) => p === `/api/${api}` || p.startsWith(`/api/${api}/`))
         expect(prohibidas, `peticiones a /api/${api} al abrir ${ruta}`).toEqual([])
         await evidencia(page, `${rol}${ruta.replace('/', '-')}-403`)

@@ -25,6 +25,7 @@ export function guardarEstado(cambios) {
 export function exigirEstadoDeF3(...claves) {
   const estado = leerEstado()
   const faltan = claves.filter((clave) => !estado[clave])
+  // Se salta a propósito: esta prueba verifica datos que crea F3; si F3 se saltó (fuera de periodo) o falló, no hay qué verificar.
   test.skip(faltan.length > 0, `F3 no dejó ${faltan.join(', ')} en test-results/e2e-state.json (¿se saltó o falló?)`)
   return estado
 }
