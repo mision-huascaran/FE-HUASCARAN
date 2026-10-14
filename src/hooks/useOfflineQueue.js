@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
 import { guardarReporteSemanal } from '../api/resources/semanal'
 import { guardarRubricaSemanal } from '../api/resources/rubrica'
+import { marcarAsistencia } from '../api/resources/asistencia'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
 import useSyncStore from '../store/syncStore'
@@ -14,10 +15,15 @@ export const TIPOS_ENVIO = {
   RUBRICA_SEMANAL: 'rubrica-semanal',
   ACTIVIDAD_INICIO: 'actividad-inicio',
   ACTIVIDAD_CIERRE: 'actividad-cierre',
+  ASISTENCIA: 'asistencia',
 }
 
 registrarEnviador(TIPOS_ENVIO.REPORTE_SEMANAL, guardarReporteSemanal)
 registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
+// CU022: cada micro-paquete del Auto-save. La clave es alumno-fecha-programa,
+// la misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
+// alumno dos veces deja UN solo envío en la cola y no dos contradictorios.
+registrarEnviador(TIPOS_ENVIO.ASISTENCIA, marcarAsistencia)
 
 /**
  * Inicio y cierre de actividad encolados (CU009).
@@ -62,6 +68,10 @@ registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, async ({ id, fin }) => {
 
 /** Clave de idempotencia de una fila de captura: `alumno-semana` (RNF-001). */
 export const claveDeFila = (tipo, idAlumno, idSemana) => `${tipo}:${idAlumno}-${idSemana}`
+
+/** Clave de una marca de asistencia: alumno, fecha y subprograma (CU022). */
+export const claveDeMarca = (idAlumno, fecha, idPrograma) =>
+  `${TIPOS_ENVIO.ASISTENCIA}:${idAlumno}-${fecha}-${idPrograma}`
 
 export default function useOfflineQueue() {
   const pendientes = useSyncStore((s) => s.pendientes)

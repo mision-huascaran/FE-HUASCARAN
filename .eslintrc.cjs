@@ -31,7 +31,9 @@ module.exports = {
   ],
   parserOptions: { ecmaVersion: 2022, sourceType: 'module', ecmaFeatures: { jsx: true } },
   settings: { react: { version: 'detect' } },
-  ignorePatterns: ['dist', 'node_modules', 'coverage'],
+  // playwright-report/ y test-results/ son evidencias de las pruebas E2E: traen
+  // el visor de traces ya compilado.
+  ignorePatterns: ['dist', 'node_modules', 'coverage', 'playwright-report', 'test-results'],
   plugins: ['sonarjs', 'security'],
   rules: {
     ...reglasSonar,
@@ -49,7 +51,7 @@ module.exports = {
     {
       // Herramientas de terminal: imprimir es su trabajo y no corren en el
       // navegador, así que no pueden filtrar datos de alumnos a la consola.
-      files: ['scripts/**'],
+      files: ['scripts/**', 'e2e/**'],
       rules: { 'no-console': 'off' },
     },
     {

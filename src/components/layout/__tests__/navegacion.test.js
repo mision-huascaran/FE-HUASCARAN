@@ -25,20 +25,21 @@ describe('NAV_BY_ROLE', () => {
 
   it('el Supervisor ve exactamente sus secciones de RF-046 (CP-ROL-03, D09)', () => {
     // CU014 le da Alumnos con entrada propia; las grillas del aula y
-    // Asistencia no van en su menú (llega a ellas en solo lectura desde los
-    // atajos de Seguimiento).
+    // Asistencia no van en su menú. CU022 lo confirma: su acceso es
+    // "derivado desde el CU021", en solo lectura y desde Seguimiento.
     const rutas = navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)
     expect([...rutas].sort()).toEqual(
       ['/inicio', '/colegios', '/alumnos', '/usuarios', '/seguimiento', '/dashboard'].sort(),
     )
   })
 
-  it('el Docente ve exactamente sus secciones de RF-046 (CP-ROL-01, D08)', () => {
+  it('el Docente ve sus secciones, con Asistencia (CU022 paso 1)', () => {
+    // Asistencia estaba fuera porque RF-046 no la listaba (D08). CU022 dice
+    // literalmente que el Docente entra "desde el sidebar", y es posterior.
     const rutas = navegacionDe(ROLES.DOCENTE).map((i) => i.to)
     expect([...rutas].sort()).toEqual(
-      ['/inicio', '/alumnos', '/rubrica', '/seguimiento-lectura', '/registro-vuelo', '/sesiones'].sort(),
+      ['/inicio', '/alumnos', '/asistencia', '/rubrica', '/seguimiento-lectura', '/registro-vuelo', '/sesiones'].sort(),
     )
-    expect(rutas).not.toContain('/asistencia')
     expect(rutas).not.toContain('/usuarios')
   })
 

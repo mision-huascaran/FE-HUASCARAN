@@ -43,7 +43,7 @@ function montar(idRol = ROLES.SUPERVISOR) {
 
 beforeEach(() => localStorage.clear())
 
-describe('Filtros de Asistencia (T30)', () => {
+describe('Filtros de Asistencia (CU022)', () => {
   it('arranca con colegio y grado elegidos de verdad, no solo pintados', async () => {
     montar()
     await abrirFiltros()
@@ -52,22 +52,22 @@ describe('Filtros de Asistencia (T30)', () => {
     await waitFor(() => expect(colegio.value).not.toBe(''), ESPERA)
     expect((await screen.findByLabelText('Grado', {}, ESPERA)).value).not.toBe('')
 
-    // Con los tres datos puestos, la grilla deja de pedirlos.
-    await waitFor(
-      () => expect(screen.queryByText('Elija colegio, grado y fecha')).not.toBeInTheDocument(),
-      ESPERA,
-    )
+    // CU022 añade Sección y Subprograma, así que con colegio y grado todavía
+    // faltan datos: lo que se comprueba aquí es que estén ELEGIDOS de verdad.
+    expect((await screen.findByLabelText('Subprograma', {}, ESPERA)).value).not.toBe('')
   })
 
-  it('ya no ofrece filtro de Sección: dejó de ser una entidad', async () => {
-    // El backend lo decidió así: la sección es un atributo del colegio
-    // (`colegio.seccion`, "Única" por defecto) y el alumno la hereda. Antes
-    // este filtro pedía `/secciones`, que ya no existe.
+  it('la Sección vuelve a ser filtro, y es el aula del colegio y grado', async () => {
+    // Se había quitado cuando el backend dejó de tratarla como entidad propia
+    // (ya no existe `/secciones`). CU022 la pide otra vez como filtro
+    // obligatorio, pero ahora se deduce de las aulas que ese colegio y ese
+    // grado tienen de verdad, sin tabla aparte.
     montar()
     await abrirFiltros()
 
     await screen.findByLabelText('Colegio', {}, ESPERA)
-    expect(screen.queryByLabelText('Sección')).not.toBeInTheDocument()
+    const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
+    await waitFor(() => expect(seccion.querySelectorAll('option').length).toBeGreaterThan(0), ESPERA)
   })
 
   it('unos filtros guardados por una versión anterior no dejan campos sin definir', async () => {

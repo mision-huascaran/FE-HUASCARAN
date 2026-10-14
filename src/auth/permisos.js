@@ -73,13 +73,21 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: TODO, alcance: 'todos' },
     [DIRECTIVO]: null,
   },
-  // RF-046 no lista Asistencia en el menú de ningún rol (D08, D09): la ruta
-  // sigue existiendo, pero sin enlace en la barra lateral.
+  /**
+   * Asistencia estaba oculta en el menú de los DOS roles porque RF-046 no la
+   * listaba (D08, D09). CU022 lo contradice y gana por ser posterior y
+   * explícito: su paso 1 dice "El Docente accede a la sección de Asistencias
+   * DESDE EL SIDEBAR".
+   *
+   * Para el Supervisor no cambia nada: CU022 describe su acceso como
+   * "derivado desde el CU021", es decir desde los atajos de solo lectura de
+   * Seguimiento, no desde la barra lateral.
+   */
   asistencia: {
     ruta: '/asistencia',
     etiqueta: 'Asistencia',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
-    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true, ocultoEnMenu: true },
+    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
     // T22: el Supervisor ve la asistencia de todos los docentes, sin editarla.
     [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
     [DIRECTIVO]: null,

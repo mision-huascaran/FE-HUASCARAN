@@ -1,47 +1,34 @@
-// Una fila de la grilla de asistencia (T30).
-import { Check, X } from 'lucide-react'
-import Button from '../../components/ui/Button'
-import Textarea from '../../components/ui/Textarea'
+// Una fila de la lista de asistencia (CU022, paso 6).
+//
+// Las columnas son las que pide el caso de uso: Nombres, Apellidos y el
+// Segmented Control. La observación que había antes se quitó: CU022 no la
+// contempla y, sin botón de guardar, un campo de texto libre con Auto-save
+// mandaría un micro-paquete por cada tecla.
+import ControlSegmentado from './ControlSegmentado'
 
-export default function FilaAsistencia({ fila, soloLectura, onCambio }) {
+export default function FilaAsistencia({ alumno, presente, soloLectura, alto, onMarcar }) {
+  const nombre = `${alumno.nombres} ${alumno.apellidos}`
   return (
-    <tr className="border-t border-line">
-      <td className="px-4 py-3">
-        <span className="font-medium text-ink-900">{fila.nombre}</span>
-        <span className="ml-2 text-xs text-ink-400">{fila.codigo}</span>
+    <tr className="border-t border-line" style={{ height: alto }}>
+      <td className="px-4 py-2">
+        <span className="font-medium text-ink-900">{alumno.nombres}</span>
       </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-center gap-1">
-          <Button
-            size="sm"
-            variant={fila.presente === true ? 'primary' : 'ghost'}
-            iconLeft={Check}
-            disabled={soloLectura}
-            aria-label={`Marcar presente a ${fila.nombre}`}
-            onClick={() => onCambio(fila.id_alumno, { presente: true })}
-          >
-            Presente
-          </Button>
-          <Button
-            size="sm"
-            variant={fila.presente === false ? 'danger' : 'ghost'}
-            iconLeft={X}
-            disabled={soloLectura}
-            aria-label={`Marcar ausente a ${fila.nombre}`}
-            onClick={() => onCambio(fila.id_alumno, { presente: false })}
-          >
-            Ausente
-          </Button>
-        </div>
+      <td className="px-4 py-2">
+        <span className="text-ink-700">{alumno.apellidos}</span>
+        {/* CU022, paso 5: en una fecha pasada pueden salir alumnos dados de
+            baja que ese día sí constaban. Se marcan para no confundir. */}
+        {alumno.activo === false && (
+          <span className="ml-2 rounded-full bg-surface-100 px-2 py-0.5 text-xs font-semibold text-ink-500">
+            Inactivo
+          </span>
+        )}
       </td>
-      <td className="px-4 py-3">
-        <Textarea
-          rows={1}
-          maxLength={200}
-          disabled={soloLectura}
-          aria-label={`Observación de ${fila.nombre}`}
-          value={fila.observacion ?? ''}
-          onChange={(e) => onCambio(fila.id_alumno, { observacion: e.target.value })}
+      <td className="px-4 py-2 text-center">
+        <ControlSegmentado
+          valor={presente}
+          nombre={nombre}
+          deshabilitado={soloLectura}
+          onElegir={(valor) => onMarcar(alumno, valor)}
         />
       </td>
     </tr>
