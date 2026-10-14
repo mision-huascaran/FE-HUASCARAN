@@ -13,3 +13,9 @@ npm-debug.log*
 vite.config.js.timestamp-*
 .npm
 .sonar
+
+# Pruebas E2E (Playwright): evidencias de cada corrida y credenciales locales.
+playwright-report/
+test-results/
+.env.e2e
+!.env.e2e.example
