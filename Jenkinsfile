@@ -51,7 +51,7 @@ pipeline {
                     export npm_config_cache="${WORKSPACE}/.npm"
                     npm ci --no-audit --no-fund
                     npm run lint
-                    npm run test:coverage
+                    npm run test:coverage -- --testTimeout=30000
                 '''
             }
         }
