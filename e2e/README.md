@@ -60,6 +60,12 @@ Cada prueba deja video, trace y capturas en `test-results/`, y el reporte HTML e
 - **Bloqueo por intentos fallidos (CU002):** 5 fallos de login en 15 minutos bloquean el correo. F1
   corre sin reintentos para no sumar intentos. El seed limpia el bloqueo en cada despliegue de qa;
   entre despliegues, si una cuenta queda bloqueada hay que esperar 15 minutos.
+- **No correr la suite en local justo antes de un build de qa:** local y Jenkins usan las mismas
+  cuentas de qa. La cuenta inactiva nunca inicia sesión con éxito, así que cada corrida (local o
+  de CI) le suma un intento fallido y ningún login correcto le reinicia el contador: al quinto queda
+  bloqueada 15 minutos. Si el build de qa llega en ese lapso, el test «Cuenta inactiva» de F1
+  recibe 429 y se salta con la anotación `[limpieza]`. Corra en local con margen antes de un build,
+  o espere 15 minutos.
 - **Días sin periodo académico vigente:** sin periodo el Docente no tiene asignaciones y no puede
   iniciar actividad (CU010). F3 y F6 verifican el mensaje y se saltan con la anotación
   «fuera de periodo académico (CU010)»; F7 y el test de D29 se saltan porque F3 no dejó datos.
