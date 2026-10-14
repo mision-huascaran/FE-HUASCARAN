@@ -19,11 +19,11 @@ const LADOS = [
 
 export default function ControlSegmentado({ valor, nombre, deshabilitado, onElegir }) {
   return (
-    <div
-      role="group"
-      aria-label={`Asistencia de ${nombre}`}
-      className="inline-flex overflow-hidden rounded-lg border border-line"
-    >
+    // <fieldset> en vez de role="group": agrupa los dos botones con su nombre
+    // accesible en la <legend>. m-0, p-0 y min-w-0 anulan lo que el navegador
+    // le pone a un fieldset y lo dejan igual que el <div> de antes.
+    <fieldset className="m-0 inline-flex min-w-0 overflow-hidden rounded-lg border border-line p-0">
+      <legend className="sr-only">{`Asistencia de ${nombre}`}</legend>
       {LADOS.map((lado) => {
         const elegido = valor === lado.valor
         const Icono = lado.icono
@@ -49,6 +49,6 @@ export default function ControlSegmentado({ valor, nombre, deshabilitado, onEleg
           </button>
         )
       })}
-    </div>
+    </fieldset>
   )
 }

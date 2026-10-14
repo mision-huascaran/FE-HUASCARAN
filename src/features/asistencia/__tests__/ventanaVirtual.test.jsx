@@ -30,7 +30,7 @@ const montar = (props = {}) =>
   )
 
 const filasPintadas = () =>
-  [...screen.getByRole('table').querySelectorAll('tbody tr')].filter((f) => !f.getAttribute('aria-hidden'))
+  [...screen.getByRole('table').querySelectorAll('tbody tr')].filter((f) => f.getAttribute('role') !== 'presentation')
 
 describe('Virtual Scrolling de la lista', () => {
   it('con 400 alumnos monta solo un puñado de filas', () => {
@@ -42,7 +42,7 @@ describe('Virtual Scrolling de la lista', () => {
 
   it('el alto total se conserva: la barra mide la lista entera', () => {
     const { container } = montar()
-    const espaciadores = [...container.querySelectorAll('tbody tr[aria-hidden] td')]
+    const espaciadores = [...container.querySelectorAll('tbody tr[role="presentation"] td')]
     const reservado = espaciadores.reduce((suma, td) => suma + parseInt(td.style.height || '0', 10), 0)
     const montadas = filasPintadas().length
 

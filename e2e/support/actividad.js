@@ -19,7 +19,8 @@ export async function exigirPeriodoVigente(page, inicio) {
   await expect(botonIniciar(page)).toBeDisabled()
   await evidencia(page, 'fuera-de-periodo-cu010')
   test.info().annotations.push({ type: 'skip', description: FUERA_DE_PERIODO })
-  test.skip(true, FUERA_DE_PERIODO)
+  // Se salta a propósito: sin periodo académico vigente CU010 impide iniciar actividad, así que el flujo no se puede ejecutar; ya se verificó el mensaje de CU010.
+  test.skip(true, `Sin periodo académico vigente no se puede iniciar actividad: ${FUERA_DE_PERIODO}`)
 }
 
 /** Si una corrida anterior dejó una actividad abierta, se finaliza antes de empezar. */

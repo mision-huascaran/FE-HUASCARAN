@@ -481,7 +481,8 @@ export const handlers = {
       const aulas = db
         .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
         .map((a) => a.aula)
-      return responder([...new Set(aulas)].sort())
+      // Las aulas son letras ('A', 'B'): orden alfabético explícito.
+      return responder([...new Set(aulas)].sort((a, b) => a.localeCompare(b)))
     },
 
     /**
