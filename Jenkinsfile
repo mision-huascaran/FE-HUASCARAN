@@ -178,25 +178,53 @@ pipeline {
             environment {
                 CI       = 'true'
                 BASE_URL = 'https://qa-huascaran.ingsoftware.lat'
-                // Username with password: generan *_USR y *_PSW (enmascarados en el log).
-                E2E_DOCENTE    = credentials('e2e-docente')
-                E2E_SUPERVISOR = credentials('e2e-supervisor')
-                E2E_DIRECTIVO  = credentials('e2e-directivo')
-                E2E_INACTIVO   = credentials('e2e-inactivo')
+                // Cuentas que crea el seed del backend. Las contraseñas NO van aquí:
+                // salen de la credencial del .env de qa (ver steps).
+                E2E_DOCENTE_USER    = 'soloparaunuso123+e2e.docente@gmail.com'
+                E2E_SUPERVISOR_USER = 'soloparaunuso123+e2e.supervisor@gmail.com'
+                E2E_DIRECTIVO_USER  = 'soloparaunuso123+e2e.directivo@gmail.com'
+                E2E_INACTIVO_USER   = 'soloparaunuso123+e2e.inactivo@gmail.com'
             }
             steps {
-                // Como en 'Pruebas': sin HOME escribible, la caché va al workspace.
-                // npm ci de nuevo: node_modules de 'Pruebas' se instaló en Alpine (musl).
-                sh '''
-                    export HOME="${WORKSPACE}/.e2e-home"
-                    export npm_config_cache="${WORKSPACE}/.npm"
-                    export E2E_DOCENTE_USER="$E2E_DOCENTE_USR"       E2E_DOCENTE_PASS="$E2E_DOCENTE_PSW"
-                    export E2E_SUPERVISOR_USER="$E2E_SUPERVISOR_USR" E2E_SUPERVISOR_PASS="$E2E_SUPERVISOR_PSW"
-                    export E2E_DIRECTIVO_USER="$E2E_DIRECTIVO_USR"   E2E_DIRECTIVO_PASS="$E2E_DIRECTIVO_PSW"
-                    export E2E_INACTIVO_USER="$E2E_INACTIVO_USR"     E2E_INACTIVO_PASS="$E2E_INACTIVO_PSW"
-                    npm ci --no-audit --no-fund
-                    npx playwright test
-                '''
+                // Las contraseñas E2E viven en el mismo "Secret file" del .env de qa
+                // que usa el stage Deploy. Del archivo se toman SOLO las líneas
+                // E2E_*_PASS, una por una: nada de `source` del .env entero y ningún
+                // valor en el log (`set +x` antes de leerlo).
+                withCredentials([file(credentialsId: 'HUASCARAN_FRONTEND_QA', variable: 'ENV_FILE')]) {
+                    sh '''
+                        set +x
+                        while IFS='=' read -r clave valor || [ -n "$clave" ]; do
+                            case "$clave" in
+                                *[!A-Z0-9_]*|'') continue ;;
+                                E2E_*_PASS) ;;
+                                *) continue ;;
+                            esac
+                            # Fin de línea de Windows y comillas alrededor, como las acepta docker compose.
+                            case "$valor" in *[[:cntrl:]]) valor=${valor%?} ;; esac
+                            case "$valor" in
+                                "'"*"'") valor=${valor#"'"}; valor=${valor%"'"} ;;
+                                '"'*'"') valor=${valor#'"'}; valor=${valor%'"'} ;;
+                            esac
+                            export "$clave=$valor"
+                        done < "$ENV_FILE"
+
+                        faltan=''
+                        for variable in E2E_DOCENTE_PASS E2E_SUPERVISOR_PASS E2E_DIRECTIVO_PASS E2E_INACTIVO_PASS; do
+                            [ -n "$(printenv "$variable")" ] || faltan="$faltan $variable"
+                        done
+                        if [ -n "$faltan" ]; then
+                            echo "ERROR: faltan en la credencial HUASCARAN_FRONTEND_QA:$faltan"
+                            exit 1
+                        fi
+
+                        # Como en 'Pruebas': sin HOME escribible, la caché va al workspace.
+                        # npm ci de nuevo: node_modules de 'Pruebas' se instaló en Alpine (musl).
+                        export HOME="${WORKSPACE}/.e2e-home"
+                        export npm_config_cache="${WORKSPACE}/.npm"
+                        npm ci --no-audit --no-fund
+                        npx playwright test
+                    '''
+                }
             }
             post {
                 always {
