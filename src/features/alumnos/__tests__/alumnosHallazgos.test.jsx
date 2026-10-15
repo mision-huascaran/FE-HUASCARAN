@@ -122,7 +122,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     expect(screen.getByText('Luis Huamán')).toBeInTheDocument()
 
     const aviso = 'Acción no disponible sin conexión. Conéctate a internet para gestionar estudiantes.'
-    const nuevo = screen.getByRole('button', { name: /^nuevo$/i })
+    const nuevo = screen.getByRole('button', { name: /^agregar$/i })
     expect(nuevo).toBeDisabled()
     expect(nuevo).toHaveAttribute('title', aviso)
     screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
@@ -148,7 +148,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
   it('D10: el Docente puede elegir su colegio y grado asignados en "Nuevo"', async () => {
     abrirActividad()
     montar()
-    fireEvent.click(await screen.findByRole('button', { name: /^nuevo$/i }, ESPERA))
+    fireEvent.click(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA))
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
 
     const colegio = within(dialogo).getByLabelText(/^Colegio/)
@@ -180,8 +180,8 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
-    const motivo = 'Pulse "Iniciar actividad" para poder registrar.'
-    const nuevo = screen.getByRole('button', { name: /^nuevo$/i })
+    const motivo = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+    const nuevo = screen.getByRole('button', { name: /^agregar$/i })
     expect(nuevo).toBeDisabled()
     expect(nuevo).toHaveAttribute('title', motivo)
 
@@ -196,7 +196,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
-    expect(screen.getByRole('button', { name: /^nuevo$/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeEnabled()
     screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
       expect(boton).toBeEnabled()
     })

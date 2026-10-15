@@ -1,7 +1,8 @@
 // D14 — Registro de Vuelo sin actividad iniciada (CP-INI-04).
 //
 // Igual que Rúbrica y Seguimiento de Lectura: el Docente consulta, pero no
-// registra hasta pulsar "Iniciar actividad", y la pantalla se lo dice.
+// registra hasta pulsar "Iniciar actividad", y la pantalla se lo dice con el
+// texto literal de CU010.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -36,7 +37,7 @@ beforeEach(() => {
 describe('Registro de Vuelo sin actividad (D14)', () => {
   it('avisa y no deja registrar', () => {
     montar(<RegistroVueloPage />)
-    expect(screen.getByRole('note')).toHaveTextContent('Pulse Iniciar actividad en la barra superior para registrar.')
+    expect(screen.getByRole('note')).toHaveTextContent('Inicia una actividad de trabajo para habilitar el registro de datos.')
     expect(screen.getByRole('button', { name: /registrar evaluación/i })).toBeDisabled()
   })
 
@@ -49,6 +50,6 @@ describe('Registro de Vuelo sin actividad (D14)', () => {
 
   it('entrando por URL a /registro-vuelo/nuevo también avisa', () => {
     montar(<NuevaEvaluacionPage />)
-    expect(screen.getByRole('note')).toHaveTextContent('Iniciar actividad')
+    expect(screen.getByRole('note')).toHaveTextContent('Inicia una actividad de trabajo para habilitar el registro de datos.')
   })
 })

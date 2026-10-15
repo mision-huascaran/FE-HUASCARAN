@@ -413,17 +413,30 @@ export const handlers = {
         salud_sistema: null,
       }),
 
+    // Los nombres son EXACTAMENTE los del contrato: divergir aquí hacía que la
+    // pantalla funcionara con el simulador y mostrara "Sin datos disponibles"
+    // contra el servidor, que es el peor orden posible para enterarse.
     supervisor: async () =>
       responder({
-        colegios: db.COLEGIOS.length,
-        docentesActivos: db.USUARIOS.filter((u) => u.id_rol === 1 && u.activo !== false).length,
-        docentesConActividad: 1,
-        registrosPendientes: 3,
-        // Los umbrales (4 días, una semana) los decide el servidor: aquí llegan
-        // ya redactados para no codificar reglas de negocio en la interfaz.
+        colegios_registrados: db.COLEGIOS.filter((c) => c.activo !== false).length,
+        docentes_activos: db.USUARIOS.filter((u) => u.id_rol === 1 && u.activo !== false).length,
+        docentes_con_actividad_activa: 1,
+        registros_vencidos: 3,
+        registros_incompletos: 1,
+        // Los umbrales (3 días, 4 días hábiles) los decide el servidor: las
+        // alertas llegan ya redactadas para no codificar reglas de negocio en
+        // la interfaz.
         alertas: [
-          { id: 'a1', mensaje: 'El docente Carlos lleva 4 días sin iniciar actividad.' },
-          { id: 'a2', mensaje: 'La escuela Shilla no tiene registros esta semana.' },
+          {
+            tipo: 'inactividad_operativa',
+            mensaje: 'Inactividad Operativa - Carlos Minaya: Sin actividad registrada en los últimos 4 días hábiles.',
+            critica: false,
+          },
+          {
+            tipo: 'incumplimiento_sede',
+            mensaje: 'Incumplimiento de Sede - Colegio Shilla: Sin registros obligatorios en el periodo académico actual.',
+            critica: true,
+          },
         ],
       }),
 
@@ -970,31 +983,32 @@ export const handlers = {
      * Auditoría de un registro. El mock devuelve un rastro de ejemplo para
      * poder construir y probar la pestaña; el backend aún no la publica.
      */
-    auditoria: async (entidad, id) =>
-      responder([
-        {
-          id_cambio: `${entidad}-${id}-2`,
-          fecha: '2026-10-05T14:32:00',
-          fecha_cliente: '2026-10-05T11:05:00',
-          fecha_servidor: '2026-10-05T14:32:00',
-          usuario: 'Docente de Prueba',
-          campo: 'nombres',
-          valor_anterior: 'Ana',
-          valor_nuevo: 'Ana María',
-          sesion_actividad_id: 'a3f1b2c4',
-          diferido: true,
-        },
-        {
-          id_cambio: `${entidad}-${id}-1`,
-          fecha: '2026-10-04T09:10:00',
-          usuario: 'Jefa de Prueba',
-          campo: 'creación',
-          valor_anterior: null,
-          valor_nuevo: 'Registro creado',
-          sesion_actividad_id: '9d2e7f10',
-          diferido: false,
-        },
-      ]),
+    auditoria: async () =>
+      responder({
+        items: [
+          {
+            fecha: '2026-10-05T14:32:00-05:00',
+            usuario: 'Docente de Prueba',
+            rol: 'Docente',
+            accion: 'editó',
+            cambios: [
+              { campo: 'Nombres', anterior: 'Ana', nuevo: 'Ana María' },
+              { campo: 'Grado', anterior: '1.º', nuevo: '2.º' },
+            ],
+          },
+          {
+            fecha: '2026-10-04T09:10:00-05:00',
+            usuario: 'Jefa de Prueba',
+            rol: 'Supervisor',
+            accion: 'creó',
+            cambios: [],
+          },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 10,
+        total_pages: 1,
+      }),
 
     /** Secciones de un colegio. Mientras el backend no las modele, van fijas. */
     secciones: async (idColegio) =>

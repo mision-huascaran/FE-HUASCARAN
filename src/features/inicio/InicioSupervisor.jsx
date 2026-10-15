@@ -1,7 +1,8 @@
 // CU011 — Módulo de Inicio del Supervisor.
 //
 // Resumen operativo: colegios registrados, docentes activos, docentes con
-// actividad en curso, registros pendientes y las Alertas de Inactividad.
+// actividad en curso, registros vencidos e incompletos, y las Alertas
+// Operativas.
 //
 // El Supervisor NO tiene "Iniciar actividad": esos botones son del Docente.
 import { useQuery } from '@tanstack/react-query'
@@ -34,10 +35,15 @@ export default function InicioSupervisor() {
   const consulta = useQuery({
     queryKey: ['inicio', 'supervisor'],
     /**
-     * `GET /inicio/supervisor`. `pendientes` e `incompletos` llegan hoy en
-     * `null` porque dependen de las grillas, que el backend todavía no tiene.
-     * CU012 y §1.5 del contrato prohíben pintar un 0 en ese caso: un cero dice
-     * "no hay nada que hacer", y lo cierto es que no se sabe.
+     * `GET /inicio/supervisor`.
+     *
+     * LOS NOMBRES SON LOS DEL CONTRATO. Se leían `pendientes` e `incompletos`,
+     * que no existen: el backend manda `registros_vencidos` y
+     * `registros_incompletos`. Las dos tarjetas decían "Sin datos disponibles"
+     * aunque el servidor los estuviera calculando.
+     *
+     * Y ahora son ENTEROS, no `null`: el contrato los declara obligatorios, así
+     * que un 0 significa de verdad "no hay ninguno" y se puede pintar.
      */
     queryFn: async () => {
       const d = await obtenerResumenSupervisor()
@@ -49,8 +55,8 @@ export default function InicioSupervisor() {
         // siempre en 0 (D15).
         docentesConActividad:
           d?.docentes_con_actividad_activa ?? d?.docentes_con_actividad ?? d?.docentesConActividad ?? 0,
-        registrosPendientes: d?.pendientes ?? null,
-        registrosIncompletos: d?.incompletos ?? null,
+        registrosVencidos: d?.registros_vencidos ?? null,
+        registrosIncompletos: d?.registros_incompletos ?? null,
         alertas: d?.alertas ?? [],
       }
     },
@@ -82,7 +88,11 @@ export default function InicioSupervisor() {
         <StatCard icon={School} label="Colegios registrados" value={resumen.colegios} />
         <StatCard icon={Users} label="Docentes activos" value={resumen.docentesActivos} />
         <StatCard icon={ClipboardList} label="Con actividad en curso" value={resumen.docentesConActividad} />
-        <StatCard icon={AlertTriangle} label="Registros pendientes" value={resumen.registrosPendientes ?? SIN_DATOS} />
+        {/* CU011 los llama VENCIDOS, no "pendientes": un registro vencido es
+            uno obligatorio cuya fecha límite pasó sin registrarse, y es muy
+            distinto de uno "pendiente de sincronizar" (generado sin conexión,
+            que todavía no se ha perdido). */}
+        <StatCard icon={AlertTriangle} label="Registros vencidos" value={resumen.registrosVencidos ?? SIN_DATOS} />
         <StatCard icon={AlertTriangle} label="Registros incompletos" value={resumen.registrosIncompletos ?? SIN_DATOS} />
       </div>
 

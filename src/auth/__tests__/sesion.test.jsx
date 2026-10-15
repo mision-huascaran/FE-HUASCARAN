@@ -242,7 +242,10 @@ describe('Vencimiento a las 8 horas (CU007)', () => {
       cargando: false,
       motivoCierre: null,
     })
-    renderConProveedores(null, { ruta: '/dashboard' })
+    // En /inicio, que es la única sección del Directivo desde CU012: el
+    // Dashboard dejó de ser suyo y entrar por URL ahora lo manda a /403, que
+    // no es lo que este caso quiere medir.
+    renderConProveedores(null, { ruta: '/inicio' })
 
     await act(() => vi.advanceTimersByTimeAsync(OCHO_HORAS_MS - 60_000))
     expect(useSessionStore.getState().token).not.toBeNull()

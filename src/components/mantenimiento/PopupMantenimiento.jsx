@@ -4,7 +4,7 @@
 // Es el MISMO popup en los tres modos, como pide la plantilla: cambia el título
 // y qué campos se bloquean, no el formulario. Así "Editar" y "Visualizar"
 // muestran exactamente lo mismo y no hay dos sitios donde se desincronice.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import Tabs from '../ui/Tabs'
@@ -12,6 +12,10 @@ import CampoMantenimiento from './CampoMantenimiento'
 import PestanaAuditoria from './PestanaAuditoria'
 
 const TITULO = { nuevo: 'Nuevo', editar: 'Editar', ver: 'Visualizar' }
+
+/** "Nuevo alumno", pero "Nueva cuenta": el título concuerda con la entidad. */
+const tituloDe = (modo, entidad, genero) =>
+  `${modo === 'nuevo' && genero === 'f' ? 'Nueva' : TITULO[modo]} ${entidad}`
 
 /**
  * Los campos que tocan AHORA MISMO, según lo que lleva escrito el formulario.
@@ -68,31 +72,43 @@ export default function PopupMantenimiento({
   campos = [],
   registro = null,
   guardando = false,
+  genero = 'm',
   puedeVerAuditoria = false,
   cargarAuditoria,
   onGuardar,
   onCerrar,
 }) {
-  const inicial = useMemo(() => {
-    const base = {}
-    for (const campo of campos) {
-      base[campo.nombre] = registro?.[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
-    }
-    return base
-  }, [campos, registro])
+  /**
+   * Los valores con los que ARRANCA el formulario.
+   *
+   * `camposRef` existe por un fallo molesto: el formulario se vaciaba solo
+   * mientras se escribía. `campos` llega como un array nuevo en cada render de
+   * la pantalla (en Usuarios cambia además cuando vuelven los catálogos de
+   * colegios y grados, y en Alumnos al terminar la precarga de una actividad),
+   * así que el efecto que repoblaba el formulario se disparaba a mitad del
+   * trabajo y borraba lo escrito.
+   *
+   * Se lee por referencia para calcular el estado inicial SIN depender de la
+   * identidad del array: el formulario se rellena al ABRIR y nunca más.
+   */
+  const camposRef = useRef(campos)
+  camposRef.current = campos
 
-  const [valores, setValores] = useState(inicial)
+  const [valores, setValores] = useState({})
   const [errores, setErrores] = useState({})
   const [pestana, setPestana] = useState('datos')
 
-  // Al abrir con otro registro hay que repoblar: el popup se reutiliza.
+  // Solo al abrir, y solo cuando cambia el registro que se está editando.
   useEffect(() => {
-    if (abierto) {
-      setValores(inicial)
-      setErrores({})
-      setPestana('datos')
+    if (!abierto) return
+    const base = {}
+    for (const campo of camposRef.current) {
+      base[campo.nombre] = registro?.[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
     }
-  }, [abierto, inicial])
+    setValores(base)
+    setErrores({})
+    setPestana('datos')
+  }, [abierto, registro])
 
   const cambiar = (nombre, valor) => {
     setValores((v) => ({ ...v, [nombre]: valor }))
@@ -117,7 +133,7 @@ export default function PopupMantenimiento({
     <Modal
       open={abierto}
       onClose={onCerrar}
-      title={`${TITULO[modo]} ${entidad}`}
+      title={tituloDe(modo, entidad, genero)}
       footer={
         <>
           <Button variant="ghost" onClick={onCerrar}>

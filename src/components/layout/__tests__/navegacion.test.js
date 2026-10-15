@@ -18,9 +18,11 @@ describe('NAV_BY_ROLE', () => {
     ROLES_REALES.forEach((idRol) => expect(navegacionDe(idRol).length).toBeGreaterThan(0))
   })
 
-  it('el Directivo solo tiene Inicio y Dashboard (D2)', () => {
-    // Deja de gestionar cuentas: la matriz no le da ninguna otra sección.
-    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio', '/dashboard'])
+  it('el Directivo solo tiene Inicio (CU012)', () => {
+    // Deja de gestionar cuentas, y tampoco entra al Dashboard: ese módulo
+    // llevaba un buscador de alumnos por nombre, y RN-033/RN-034 le prohíben
+    // ver datos de estudiantes. Su Inicio son tres tarjetas y nada más.
+    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio'])
   })
 
   it('el Supervisor ve exactamente sus secciones de RF-046 (CP-ROL-03, D09)', () => {

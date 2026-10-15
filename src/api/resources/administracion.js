@@ -376,12 +376,20 @@ export const cambiarEstadoAlumno = (idAlumno, activo) =>
  * agrupa por evento, así que varias filas con la misma fecha y autor llegan
  * como una sola edición con el detalle de los campos cambiados.
  */
-export const listarHistorialAlumno = (idAlumno) =>
-  resolver({
+export const listarHistorialAlumno = async (idAlumno) => {
+  const datos = await resolver({
     mock: () => handlers.administracion.auditoria('alumno', idAlumno),
     real: () => api.get(alumnos.historial(idAlumno)),
     forzarReal: adminContraApiReal,
   })
+  // D29: la respuesta es un PAGINADO, no una lista. Devolverla tal cual hacía
+  // que la tabla llamara a `.slice()` sobre un objeto y tumbara la pantalla
+  // entera con "No se pudo mostrar esta pantalla".
+  return normalizarPaginado(datos).items.map((evento) => ({
+    ...evento,
+    cambios: Array.isArray(evento.cambios) ? evento.cambios : [],
+  }))
+}
 
 /**
  * Auditoría de un registro, para la pestaña de la plantilla de mantenimiento.
@@ -390,13 +398,16 @@ export const listarHistorialAlumno = (idAlumno) =>
  * Para colegios y usuarios devuelve lista vacía a propósito, y la pestaña
  * muestra su estado vacío en vez de inventarse un historial.
  */
-export const listarAuditoria = (entidad, id) => {
+export const listarAuditoria = async (entidad, id) => {
   if (entidad === 'alumno') return listarHistorialAlumno(id)
-  return resolver({
+  const datos = await resolver({
     mock: () => handlers.administracion.auditoria(entidad, id),
-    real: () => Promise.resolve([]),
+    real: () => Promise.resolve({ items: [] }),
     forzarReal: adminContraApiReal,
   })
+  // Siempre una LISTA, venga de donde venga: la pestaña no tiene por qué saber
+  // si el origen pagina o no (D29).
+  return normalizarPaginado(datos).items
 }
 
 // ── Usuarios de los tres roles (CU016) ──────────────────────────────────────

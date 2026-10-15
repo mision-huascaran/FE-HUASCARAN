@@ -81,19 +81,21 @@ describe('Contrato de listados', () => {
 })
 
 /**
- * BUG (REPORTE_CALIDAD.md): para colegios y usuarios, `listarAuditoria` define
- * `real: () => Promise.resolve([])`, pero `resolver` devuelve `respuesta?.data`
- * y un array no tiene `.data`: el resultado es `undefined`, no `[]`. TanStack
- * Query v5 trata un `undefined` como error, así que contra la API real la
- * pestaña Auditoría de Colegios y Usuarios muestra "No se pudo cargar la
- * auditoría" en vez de su estado vacío.
+ * El backend solo publica historial del ALUMNO. Para colegios y usuarios,
+ * `listarAuditoria` devolvía `Promise.resolve([])` por la rama real, pero
+ * `resolver` lee `respuesta?.data` y un array no tiene `.data`: salía
+ * `undefined`, que TanStack Query v5 trata como error, y la pestaña mostraba
+ * "No se pudo cargar" en vez de su estado vacío.
+ *
+ * Al normalizar la respuesta con `normalizarPaginado` (D29) quedó arreglado de
+ * paso: ahora siempre sale una lista, venga `{items: []}` o un array.
  */
 describe('Auditoría de entidades sin historial en el backend', () => {
-  it.fails('el servicio devuelve una lista vacía', async () => {
+  it('el servicio devuelve una lista vacía', async () => {
     await expect(listarAuditoria('usuario', 4)).resolves.toEqual([])
   })
 
-  it.fails('la pestaña muestra "Sin cambios registrados", no un error', async () => {
+  it('la pestaña muestra "Sin cambios registrados", no un error', async () => {
     render(
       <QueryClientProvider client={clienteDePrueba()}>
         <PestanaAuditoria seccion="colegio" registro={{ id_colegio: 4 }} cargarAuditoria={(id) => listarAuditoria('colegio', id)} />

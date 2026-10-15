@@ -32,7 +32,9 @@ export const avisoSinConexion = (seccion) =>
 /** Por qué no se puede escribir ahora, o `undefined` si se puede. La conexión manda sobre la actividad. */
 function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
   if (sinConexion) return avisoSinConexion(seccion)
-  if (exigeActividad) return 'Pulse "Iniciar actividad" para poder registrar.'
+  // CU010 da este mensaje PALABRA POR PALABRA. No es una sugerencia de
+  // redacción: el probador lo compara carácter a carácter.
+  if (exigeActividad) return 'Inicia una actividad de trabajo para habilitar el registro de datos.'
   return undefined
 }
 
@@ -55,6 +57,8 @@ export default function Mantenimiento({
   // Motivo por el que no se puede dar de alta aunque la matriz lo permita
   // (p. ej. un Docente sin asignaciones). El botón se ve, deshabilitado.
   motivoSinNuevo = null,
+  // Género de la entidad, para el título del popup: era "Nuevo cuenta".
+  genero = 'm',
 }) {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   /**
@@ -70,6 +74,26 @@ export default function Mantenimiento({
   const exigeActividad = idRol === ROLES.DOCENTE && !conActividad
 
   const [popup, setPopup] = useState(null)
+
+  /**
+   * Guardar y CERRAR.
+   *
+   * El popup se quedaba abierto con los mismos datos después de un 201: el
+   * aviso de éxito aparecía, pero la única forma de cerrarlo era "Cancelar", y
+   * un segundo "Guardar" creaba un duplicado.
+   *
+   * Cierra solo si el guardado SALIÓ BIEN, de ahí que `onGuardar` tenga que
+   * devolver su promesa: con un error, el formulario sigue abierto con lo que
+   * el usuario escribió, que es lo que permite corregir y reintentar.
+   */
+  const guardar = async (valores) => {
+    try {
+      await onGuardar(valores, popup)
+      setPopup(null)
+    } catch {
+      // El toast de la pantalla ya explica qué pasó.
+    }
+  }
   // S4 — Inactivar/Activar pide confirmación: cambia el estado de un registro
   // que otros pueden estar usando, y conviene que sea deliberado.
   const [confirmando, setConfirmando] = useState(null)
@@ -175,7 +199,7 @@ export default function Mantenimiento({
             title={motivoNuevo}
             onClick={() => setPopup({ modo: 'nuevo', registro: null })}
           >
-            Nuevo
+            Agregar
           </Button>
         )}
       </header>
@@ -229,7 +253,8 @@ export default function Mantenimiento({
         guardando={guardando}
         puedeVerAuditoria={puedeAuditar}
         cargarAuditoria={cargarAuditoria}
-        onGuardar={(valores) => onGuardar(valores, popup)}
+        genero={genero}
+        onGuardar={guardar}
         onCerrar={() => setPopup(null)}
       />
     </div>

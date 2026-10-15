@@ -53,22 +53,27 @@ describe('Inicio — hallazgos del 09/10/2026', () => {
     expect(screen.queryByText(/Sin información de sincronización/)).not.toBeInTheDocument()
   })
 
-  it('D15 y D16: cuenta los docentes con actividad y no repite "Atención:"', async () => {
+  it('D15: cuenta los docentes con actividad y pinta la alerta tal como llega', async () => {
+    // El contrato manda `{tipo, mensaje, critica}` con el mensaje YA redactado
+    // ("Inactividad Operativa - …"). La pantalla no le añade un encabezado
+    // propio: antes anteponía "Atención:" al que ya traía (D16).
+    const MENSAJE = 'Inactividad Operativa - QA Pin A: Sin actividad registrada en los últimos 4 días hábiles.'
     supervisor.mockResolvedValue({
-      colegios: 12,
+      colegios_registrados: 12,
       docentes_activos: 11,
       docentes_con_actividad_activa: 1,
-      pendientes: null,
-      incompletos: null,
-      alertas: [{ tipo: 'docente_inactivo', mensaje: 'Atención: El docente QA Pin A lleva 4 días hábiles sin iniciar actividad.' }],
+      registros_vencidos: 0,
+      registros_incompletos: 0,
+      alertas: [{ tipo: 'inactividad_operativa', mensaje: MENSAJE, critica: false }],
     })
     montar(<InicioSupervisor />, ROLES.SUPERVISOR)
 
     const tarjeta = (await screen.findByText('Con actividad en curso', {}, ESPERA)).closest('div').parentElement
     expect(tarjeta).toHaveTextContent('1')
 
-    const alerta = screen.getByText(/El docente QA Pin A/).closest('li')
-    expect(alerta.textContent).toBe('Atención: El docente QA Pin A lleva 4 días hábiles sin iniciar actividad.')
+    const alerta = screen.getByText(MENSAJE).closest('li')
+    // La etiqueta la pone la gravedad, no el texto del servidor.
+    expect(alerta.textContent).toBe(`Aviso: ${MENSAJE}`)
     // El acceso del Supervisor a sus docentes va a Seguimiento, no a /sesiones (403).
     expect(screen.getByRole('link', { name: /seguimiento/i })).toHaveAttribute('href', '/seguimiento')
     expect(screen.queryByRole('link', { name: /sesiones/i })).not.toBeInTheDocument()

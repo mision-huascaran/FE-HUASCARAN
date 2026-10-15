@@ -115,6 +115,57 @@ export default function MantenimientoAlumnos() {
 
   const opciones = (lista, clave) => lista.map((x) => ({ value: x[clave], label: x.nombre }))
 
+  /**
+   * Los campos del popup, memorizados.
+   *
+   * Iban en línea, así que eran un array NUEVO en cada render, y el popup se
+   * repoblaba a mitad de escritura: al terminar la precarga de una actividad o
+   * tras inactivar a alguien, lo tecleado desaparecía. El popup ya no depende
+   * de la identidad de este array, pero memorizarlo evita además rehacer el
+   * formulario entero cada vez que la tabla se refresca.
+   */
+  const campos = useMemo(
+    () => [
+      { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
+      { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
+      {
+        nombre: 'id_colegio',
+        etiqueta: 'Colegio',
+        tipo: 'select',
+        requerido: true,
+        opciones: opciones(permitidos.colegios, 'id_colegio'),
+      },
+      {
+        nombre: 'id_grado',
+        etiqueta: 'Grado',
+        tipo: 'select',
+        requerido: true,
+        opciones: opciones(permitidos.grados, 'id_grado'),
+      },
+      {
+        nombre: 'seccion',
+        etiqueta: 'Sección',
+        soloLectura: true,
+        ayuda: 'La hereda del colegio: no se elige',
+      },
+      {
+        nombre: 'ciclo',
+        etiqueta: 'Ciclo',
+        soloLectura: true,
+        ayuda: 'Lo calcula el sistema según el subprograma y el grado',
+      },
+      {
+        nombre: 'id_programa',
+        etiqueta: 'Subprograma',
+        tipo: 'select',
+        requerido: true,
+        opciones: opciones(programas, 'id_programa'),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [permitidos.colegios, permitidos.grados, programas],
+  )
+
   const consulta = useQuery({
     queryKey: ['alumnos', 'mantenimiento', filtros, enLinea, Boolean(precarga)],
     queryFn: async () => {
@@ -171,7 +222,9 @@ export default function MantenimientoAlumnos() {
       valoresFiltro={filtros}
       onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
       cargarAuditoria={(id) => listarAuditoria('alumno', id)}
-      onGuardar={(valores, popup) => guardado.mutate({ valores, popup })}
+      // `mutateAsync` y no `mutate`: la plantilla cierra el popup solo si la
+      // promesa se resuelve, y lo deja abierto con los datos si falla.
+      onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(alumno, activo) => estado.mutate({ alumno, activo })}
       filtros={[
         { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
@@ -180,34 +233,48 @@ export default function MantenimientoAlumnos() {
         { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
         { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
       ]}
-      campos={[
-        { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
-        { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
-        { nombre: 'id_colegio', etiqueta: 'Colegio', tipo: 'select', requerido: true, opciones: opciones(permitidos.colegios, 'id_colegio') },
-        { nombre: 'id_grado', etiqueta: 'Grado', tipo: 'select', requerido: true, opciones: opciones(permitidos.grados, 'id_grado') },
-        {
-          nombre: 'seccion',
-          etiqueta: 'Sección',
-          soloLectura: true,
-          ayuda: 'La hereda del colegio: no se elige',
-        },
-        {
-          nombre: 'ciclo',
-          etiqueta: 'Ciclo',
-          soloLectura: true,
-          ayuda: 'Lo calcula el sistema según el subprograma y el grado',
-        },
-        { nombre: 'id_programa', etiqueta: 'Subprograma', tipo: 'select', requerido: true, opciones: opciones(programas, 'id_programa') },
-      ]}
+      campos={campos}
       columnas={[
         { key: 'nombre', header: 'Alumno', sortable: true, className: 'font-medium text-ink-900' },
-        // `etiquetaDe` porque estos campos llegan como texto desde el
-        // simulador y como objeto {id, nombre} desde el backend: pintar el
-        // objeto tal cual deja la pantalla en blanco.
-        { key: 'colegio', header: 'Colegio', sortable: true, render: (a) => etiquetaDe(a.colegio) },
-        { key: 'grado', header: 'Grado', align: 'center', render: (a) => etiquetaDe(a.grado) },
-        { key: 'seccion', header: 'Sección', align: 'center', render: (a) => etiquetaDe(a.seccion) },
-        { key: 'programa', header: 'Subprograma', render: (a) => etiquetaDe(a.programa ?? a.subprograma) },
+        /**
+         * `sortValue` en TODAS las que se ordenan, y no es opcional: estos
+         * campos llegan como texto desde el simulador y como objeto
+         * `{id, nombre}` desde el backend. La tabla ordena por `row[key]`, así
+         * que sin esto comparaba objetos entre sí y el clic en la cabecera no
+         * hacía nada. `etiquetaDe` resuelve las dos formas.
+         */
+        {
+          key: 'colegio',
+          header: 'Colegio',
+          sortable: true,
+          sortValue: (a) => etiquetaDe(a.colegio),
+          render: (a) => etiquetaDe(a.colegio),
+        },
+        {
+          key: 'grado',
+          header: 'Grado',
+          align: 'center',
+          sortable: true,
+          // Por número, no por texto: por orden alfabético "10.º" iría antes
+          // que "2.º". Hoy solo hay seis grados, pero el criterio es el mismo.
+          sortValue: (a) => Number(String(etiquetaDe(a.grado)).replace(/\D/g, '')) || 0,
+          render: (a) => etiquetaDe(a.grado),
+        },
+        {
+          key: 'seccion',
+          header: 'Sección',
+          align: 'center',
+          sortable: true,
+          sortValue: (a) => etiquetaDe(a.seccion),
+          render: (a) => etiquetaDe(a.seccion),
+        },
+        {
+          key: 'programa',
+          header: 'Subprograma',
+          sortable: true,
+          sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
+          render: (a) => etiquetaDe(a.programa ?? a.subprograma),
+        },
       ]}
     />
   )

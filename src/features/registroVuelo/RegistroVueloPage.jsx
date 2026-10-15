@@ -52,7 +52,7 @@ export default function RegistroVueloPage() {
         </RoleGate>
       </header>
 
-      {esDocente && !conActividad && <AvisoActividades destino="el registro de vuelo se muestra" />}
+      {esDocente && !conActividad && <AvisoActividades />}
 
       <FilterBar
         search={borrador.q}

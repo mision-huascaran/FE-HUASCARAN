@@ -106,7 +106,7 @@ export default function MantenimientoColegios() {
       soloOnline
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
-      onGuardar={(valores, popup) => guardado.mutate({ valores, popup }, { onSuccess: () => {} })}
+      onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}
       columnas={[

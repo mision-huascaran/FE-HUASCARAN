@@ -157,8 +157,16 @@ export const MATRIZ = {
     conectividad: CONECTIVIDAD.SOLO_ONLINE,
     [DOCENTE]: null,
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
-    // Nunca recibe nombres completos de alumnos: lo omite el backend, no solo esto.
-    [DIRECTIVO]: { acciones: [VER], alcance: 'todos', sinNombresDeAlumnos: true },
+    /**
+     * EL DIRECTIVO NO ENTRA AL DASHBOARD (CU012, RN-033/RN-034).
+     *
+     * Lo tenía, y con el buscador "Estudiante (nombre o código)" dentro: un rol
+     * que por contrato NO debe ver datos de alumnos podía buscarlos por nombre.
+     * CU012 es explícito: su Inicio son TRES tarjetas y nada más; cualquier
+     * gráfico o desagregación "corresponde exclusivamente al módulo Dashboard",
+     * que no es suyo.
+     */
+    [DIRECTIVO]: null,
   },
 }
 

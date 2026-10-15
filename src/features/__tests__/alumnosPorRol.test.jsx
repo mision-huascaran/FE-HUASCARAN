@@ -33,7 +33,7 @@ function montar(idRol) {
 describe('Módulo Alumnos (CU008)', () => {
   it('el Docente gestiona los alumnos de sus secciones', async () => {
     montar(ROLES.DOCENTE)
-    expect(await screen.findByRole('button', { name: /^nuevo$/i }, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA)).toBeInTheDocument()
     expect((await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)).length).toBeGreaterThan(0)
     // Nunca se borra: inactivar cambia el estado y deja auditoría (D5).
     expect(screen.getAllByRole('button', { name: /^inactivar /i }).length).toBeGreaterThan(0)
@@ -44,7 +44,7 @@ describe('Módulo Alumnos (CU008)', () => {
     // Cambió respecto al Documento de Análisis: el alumno no es un usuario, pero
     // el Supervisor lo da de alta desde la pestaña Alumnos de Usuarios.
     montar(ROLES.SUPERVISOR)
-    expect(await screen.findByRole('button', { name: /^nuevo$/i }, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA)).toBeInTheDocument()
     expect((await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)).length).toBeGreaterThan(0)
   })
 

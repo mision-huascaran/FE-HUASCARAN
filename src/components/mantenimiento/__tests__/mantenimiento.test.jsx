@@ -92,9 +92,9 @@ describe('Plantilla de mantenimiento', () => {
     expect(onCambiarEstado).toHaveBeenCalledWith(FILAS[1], true)
   })
 
-  it('S1 — Nuevo abre el popup vacío y exige los obligatorios', () => {
+  it('S1 — Agregar abre el popup vacío y exige los obligatorios', () => {
     const { onGuardar } = montar()
-    fireEvent.click(screen.getByRole('button', { name: 'Nuevo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar' }))
 
     const dialogo = screen.getByRole('dialog')
     expect(within(dialogo).getByLabelText(/Nombre del colegio/)).toHaveValue('')
@@ -127,7 +127,7 @@ describe('Plantilla de mantenimiento', () => {
   it('sin permiso de alta en la matriz no aparece el botón Nuevo', () => {
     // El Docente no entra en Colegios: la matriz no le da ninguna acción.
     montar(ROLES.DOCENTE)
-    expect(screen.queryByRole('button', { name: 'Nuevo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Agregar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^editar /i })).not.toBeInTheDocument()
   })
 

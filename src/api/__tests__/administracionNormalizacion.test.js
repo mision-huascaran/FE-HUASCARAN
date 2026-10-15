@@ -154,11 +154,18 @@ describe('Servicios de administración contra el mock', () => {
     expect(editado).toMatchObject({ id_colegio: creado.id_colegio, nombre: 'I.E. Prueba de Calidad', distrito: 'Marcará' })
   })
 
-  it('la auditoría de colegios y usuarios se pide al mock; la del alumno usa su historial', async () => {
-    const [delColegio] = await listarAuditoria('colegio', 1)
-    const [delAlumno] = await listarAuditoria('alumno', 1)
-    expect(delColegio.id_cambio).toMatch(/^colegio-1-/)
-    expect(delAlumno.id_cambio).toMatch(/^alumno-1-/)
+  it('la auditoría siempre llega como LISTA de eventos, nunca como paginado (D29)', async () => {
+    // El historial del alumno responde `{items, total, page…}`. Pasarlo tal
+    // cual a la tabla tumbaba la pantalla con "k.slice is not a function".
+    for (const entidad of ['colegio', 'usuario', 'alumno']) {
+      const eventos = await listarAuditoria(entidad, 1)
+      expect(Array.isArray(eventos), `${entidad} debería devolver una lista`).toBe(true)
+    }
+
+    const [evento] = await listarAuditoria('alumno', 1)
+    // La forma del contrato: EventoHistorial, con el detalle en `cambios[]`.
+    expect(evento).toMatchObject({ usuario: expect.any(String), rol: expect.any(String), accion: expect.any(String) })
+    expect(Array.isArray(evento.cambios)).toBe(true)
   })
 
   it('activar un usuario lo deja activo', async () => {

@@ -217,7 +217,8 @@ export default function MantenimientoUsuarios() {
         valoresFiltro={filtros}
         onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
         cargarAuditoria={(id) => listarAuditoria('usuario', id)}
-        onGuardar={(valores, popup) => guardado.mutate({ valores, popup })}
+        genero="f"
+        onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
         onCambiarEstado={(usuario, activo) => estado.mutate({ usuario, activo })}
         filtros={[
           { nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre o correo' },

@@ -44,7 +44,7 @@ function montar() {
  * control llamado "Rol" y, por fuera, se encuentra antes ese.
  */
 async function abrirAlta() {
-  fireEvent.click(await screen.findByRole('button', { name: /nuevo/i }, ESPERA))
+  fireEvent.click(await screen.findByRole('button', { name: /agregar/i }, ESPERA))
   const popup = await screen.findByRole('dialog', {}, ESPERA)
   return { popup, rol: within(popup).getByLabelText(/^rol/i) }
 }
