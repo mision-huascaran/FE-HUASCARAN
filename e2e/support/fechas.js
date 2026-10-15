@@ -25,3 +25,22 @@ export function fechaHoraLima(fecha) {
   const p = partes(fecha)
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`
 }
+
+/** AAAA-MM-DD de un instante, en Lima. */
+export function fechaLima(fecha) {
+  const p = partes(fecha)
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+/** Día de la semana de una fecha AAAA-MM-DD: 1 = lunes … 7 = domingo. */
+export function diaSemana(fechaIso) {
+  const dia = new Date(`${fechaIso}T12:00:00Z`).getUTCDay()
+  return dia === 0 ? 7 : dia
+}
+
+/** La fecha AAAA-MM-DD `dias` días antes. */
+export function restarDias(fechaIso, dias) {
+  const fecha = new Date(`${fechaIso}T12:00:00Z`)
+  fecha.setUTCDate(fecha.getUTCDate() - dias)
+  return fecha.toISOString().slice(0, 10)
+}

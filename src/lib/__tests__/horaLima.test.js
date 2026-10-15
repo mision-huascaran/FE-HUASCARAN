@@ -3,7 +3,7 @@
 // aplicación son la prueba de cuándo se trabajó: no pueden depender de cómo
 // tenga configurado el reloj quien mira.
 import { describe, expect, it } from 'vitest'
-import { formatearFecha, formatearFechaHora, formatearHora } from '../format'
+import { fechaIsoLima, formatearFecha, formatearFechaHora, formatearHora } from '../format'
 
 describe('Horas en zona de Lima', () => {
   it('convierte un instante UTC a hora de Lima (UTC-5)', () => {
@@ -25,5 +25,18 @@ describe('Horas en zona de Lima', () => {
     expect(formatearFechaHora(null)).toBe('—')
     expect(formatearFecha(undefined)).toBe('—')
     expect(formatearHora('')).toBe('—')
+  })
+
+  it('la fecha AAAA-MM-DD de un instante es la de Lima, también de noche', () => {
+    expect(fechaIsoLima('2026-10-08T13:00:00Z')).toBe('2026-10-08')
+    // Las 02:00 UTC del día 9 son las 21:00 del día 8 en Lima: recortar el
+    // texto daría el 9.
+    expect(fechaIsoLima('2026-10-09T02:00:00Z')).toBe('2026-10-08')
+    expect(fechaIsoLima('2026-10-08T23:59:00-05:00')).toBe('2026-10-08')
+  })
+
+  it('la fecha AAAA-MM-DD de un día de calendario no se convierte', () => {
+    expect(fechaIsoLima('2026-10-08')).toBe('2026-10-08')
+    expect(fechaIsoLima(null)).toBe('')
   })
 })

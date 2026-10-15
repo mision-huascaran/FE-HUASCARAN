@@ -5,10 +5,10 @@ seed del backend en cada despliegue (`python -m app.cli sembrar-e2e`). En Jenkin
 `qa`, después del deploy.
 
 qa se compila con `VITE_USE_MOCK=true`, `VITE_AUTH_REAL=true` y `VITE_ADMIN_REAL=true`. Solo se prueban
-módulos **reales**: login, `/me`, logout, Inicio de los 3 roles, actividades, Colegios, Alumnos,
-Usuarios, historial del alumno y Seguimiento. Rúbrica, Seguimiento de Lectura, Registro de Vuelo,
-Asistencia, Dashboard y la ficha `/estudiantes/:id` siguen en mock y no se prueban (salvo para
-comprobar que el Directivo **no llega** al Dashboard).
+módulos **reales**: login y primer ingreso, `/me`, logout, Inicio de los 3 roles, actividades,
+Colegios, Alumnos, Usuarios, historial del alumno, Seguimiento y Asistencias (CU022). Rúbrica,
+Seguimiento de Lectura, Registro de Vuelo, Dashboard y la ficha `/estudiantes/:id` siguen en mock y no
+se prueban (salvo para comprobar que el Directivo **no llega** al Dashboard).
 
 | Archivo | Flujo |
 |---|---|
@@ -16,14 +16,16 @@ comprobar que el Directivo **no llega** al Dashboard).
 | `f2-control-de-acceso.spec.js` | Docente y Directivo terminan en /403 en secciones ajenas |
 | `f3-jornada-docente.spec.js` | Actividad → alta y baja de un alumno → Sesiones |
 | `f3b-cu015-historial-alumno.spec.js` | CU015: el historial muestra la creación (D29, corregido) |
-| `f4-gestion-usuarios.spec.js` | La Supervisora crea e inactiva un Docente |
+| `f4-gestion-usuarios.spec.js` | La Supervisora crea un Docente, primer ingreso (si hay temporal) e inactivación |
 | `f5-indicadores-directivo.spec.js` | 3 tarjetas del Directivo, sin datos de alumnos |
 | `f5b-cu012-directivo-sin-estudiantes.spec.js` | CU012/RN-033: el Directivo no llega al Dashboard (corregido) |
 | `f6-cierre-sesion-con-actividad.spec.js` | Cerrar sesión fuerza el cierre de la actividad |
 | `f7-seguimiento.spec.js` | La Supervisora ve al Docente E2E y la actividad de F3 |
+| `f8-jornada-asistencias.spec.js` | Jornada con Asistencias: marcar todos, tardanza, observación, «2 Asistencias» |
+| `f9-supervisor-asistencias.spec.js` | La Supervisora audita esa jornada en solo lectura |
 
 Corren en serie y en ese orden: F5 y F7 usan el alumno y la actividad que F3 deja en
-`test-results/e2e-state.json`.
+`test-results/e2e-state.json`, y F9 la jornada de asistencias que deja F8.
 
 ## Variables
 

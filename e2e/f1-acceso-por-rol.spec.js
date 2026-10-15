@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { SEED } from './support/cuentas.js'
 import { evidencia } from './support/evidencia.js'
 import { CLAVE_TOKEN, enviarLogin, iniciarSesion, leerToken } from './support/sesion.js'
-import { tarjeta, tarjetas, valorDeTarjeta } from './support/tarjetas.js'
+import { tarjetas, valorDeTarjeta } from './support/tarjetas.js'
 
 test.describe.configure({ retries: 0 })
 
@@ -23,22 +23,35 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     await evidencia(page, 'inicio-docente')
   })
 
-  test('Supervisora: llega a Inicio con las tarjetas del resumen operativo (CU011)', async ({ page }) => {
+  test('Supervisora: llega a Inicio con las tarjetas del resumen operativo y sus alertas (CU011)', async ({ page }) => {
     await iniciarSesion(page, 'supervisor')
 
     await expect(page.getByRole('heading', { name: 'Inicio', level: 1 })).toBeVisible()
+    // Se valida la FORMA, no los números: dependen del calendario real
+    // (periodo vigente, días de clase vencidos) y de lo que hagan otras pruebas.
     for (const etiqueta of [
       'Colegios registrados',
       'Docentes activos',
       'Con actividad en curso',
-      'Registros pendientes',
+      'Registros vencidos',
       'Registros incompletos',
     ]) {
-      await expect(tarjeta(page, etiqueta), `tarjeta «${etiqueta}»`).toBeVisible()
+      await expect(valorDeTarjeta(page, etiqueta), `valor de «${etiqueta}»`).toHaveText(/^\d+$/)
     }
-    // El seed garantiza al menos el colegio E2E activo y el Docente E2E activo.
+    // El seed garantiza al menos el colegio E2E activo.
     expect(Number(await valorDeTarjeta(page, 'Colegios registrados').innerText())).toBeGreaterThanOrEqual(1)
-    expect(Number(await valorDeTarjeta(page, 'Docentes activos').innerText())).toBeGreaterThanOrEqual(1)
+
+    // Alertas operativas: o la lista, con cada alerta redactada, o el aviso de
+    // que no hay ninguna.
+    const alertas = page.getByRole('list', { name: 'Alertas operativas' })
+    const sinAlertas = page.getByText('No existen alertas operativas pendientes de atención.', { exact: true })
+    await expect(alertas.or(sinAlertas)).toBeVisible()
+    if (await alertas.isVisible()) {
+      const items = alertas.getByRole('listitem')
+      expect(await items.count(), 'alertas en la lista').toBeGreaterThan(0)
+      for (const texto of await items.allInnerTexts()) expect(texto.trim(), 'mensaje de la alerta').not.toBe('')
+    }
+
     // La Supervisora no abre actividades: ese botón es del Docente.
     await expect(page.getByRole('button', { name: 'Iniciar actividad' })).toHaveCount(0)
     await evidencia(page, 'inicio-supervisora')

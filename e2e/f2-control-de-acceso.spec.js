@@ -1,4 +1,4 @@
-// F2 — Control de acceso (CU001, CU013, CU016, CU020, RN-033).
+// F2 — Control de acceso (CU001, CU013, CU016, CU020, CU022, RN-033).
 //
 // Docente y Directivo escriben a mano la URL de secciones que no son suyas:
 // deben terminar en /403 sin que la aplicación llegue a pedir esos datos a la
@@ -9,9 +9,16 @@ import { esApi, iniciarSesion, menu } from './support/sesion.js'
 
 const PROHIBIDO = 'No tiene permisos para acceder a esta sección'
 
-/** Espera la respuesta de cada llamada /api que la página ya hizo. */
+/**
+ * Espera la respuesta de cada llamada /api que hizo el documento ACTUAL. Las
+ * del documento anterior que se cortaron al navegar no responden nunca: se
+ * descartan por haber empezado antes de `performance.timeOrigin`.
+ */
 async function respuestasPendientes(page) {
-  const pedidas = (await page.requests()).filter((r) => new URL(r.url()).pathname.startsWith('/api/'))
+  const origen = await page.evaluate(() => performance.timeOrigin)
+  const pedidas = (await page.requests()).filter(
+    (r) => new URL(r.url()).pathname.startsWith('/api/') && r.timing().startTime >= origen,
+  )
   await Promise.all(pedidas.map((r) => r.response().catch(() => null)))
 }
 
@@ -27,13 +34,15 @@ const PROHIBIDAS = {
     { ruta: '/seguimiento', menu: 'Seguimiento', api: 'seguimiento' },
     // RN-033: el Directivo nunca accede a datos de alumnos.
     { ruta: '/alumnos', menu: 'Alumnos', api: 'alumnos' },
+    // CU022: Asistencias es del Docente (registra) y del Supervisor (lee).
+    { ruta: '/asistencia', menu: 'Asistencia', api: 'asistencias' },
   ],
 }
 
 const NOMBRE = { docente: 'Docente', directivo: 'Directivo' }
 
 for (const [rol, secciones] of Object.entries(PROHIBIDAS)) {
-  test(`F2 · ${NOMBRE[rol]}: las secciones ajenas terminan en /403 sin pedir datos (CU001, CU013, CU016, CU020, RN-033)`, async ({ page }) => {
+  test(`F2 · ${NOMBRE[rol]}: las secciones ajenas terminan en /403 sin pedir datos (CU001, CU013, CU016, CU020, CU022, RN-033)`, async ({ page }) => {
     await iniciarSesion(page, rol)
 
     // Ni rastro en el menú.

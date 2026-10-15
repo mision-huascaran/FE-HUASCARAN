@@ -18,7 +18,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import { listarActividadesDe } from '../../api/resources/seguimiento'
 import { ETIQUETA_SINCRONIZACION, etiquetaTipoCierre } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFechaHora } from '../../lib/format'
+import { fechaIsoLima, formatearFechaHora } from '../../lib/format'
 
 /**
  * El módulo de Asistencias, tal como lo nombra la métrica de productividad.
@@ -29,8 +29,11 @@ import { formatearFechaHora } from '../../lib/format'
  */
 const ES_ASISTENCIA = new Set(['asistencia', 'asistencias'])
 
-/** La fecha de la jornada, en `AAAA-MM-DD`, que es lo que lee el filtro. */
-const diaDe = (instante) => String(instante ?? '').slice(0, 10)
+/**
+ * La fecha de la jornada, en `AAAA-MM-DD`, que es lo que lee el filtro. En hora
+ * de Lima: `inicio` llega en UTC y recortarlo daba el día siguiente de noche.
+ */
+const diaDe = (instante) => fechaIsoLima(instante)
 
 /** Iniciales para el avatar, que se genera en el cliente. */
 const iniciales = (docente) =>

@@ -3,23 +3,40 @@ import { expect, test } from '@playwright/test'
 import { esApi } from './sesion.js'
 import { evidencia } from './evidencia.js'
 
-export const SIN_ASIGNACIONES = 'No puede iniciar una actividad porque no tiene asignaciones activas.'
+/**
+ * Lo que muestra el Inicio del Docente según `motivo_no_puede_iniciar` de
+ * `GET /inicio/docente` (literales de CU010). El motivo lo decide el servidor:
+ * el calendario operativo vive en su base de datos.
+ */
+export const MOTIVO_NO_PUEDE_INICIAR = new Map([
+  [
+    'sin_asignaciones',
+    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
+  ],
+  ['fuera_de_periodo', 'No puedes iniciar una actividad fuera del calendario operativo.'],
+])
 export const FUERA_DE_PERIODO = 'fuera de periodo académico (CU010)'
 
-const botonIniciar = (page) => page.getByRole('button', { name: 'Iniciar actividad' })
-const botonFinalizar = (page) => page.getByRole('button', { name: 'Finalizar actividad' })
+// El de la barra superior. Con el modal «Necesitas una actividad de trabajo»
+// abierto hay otro botón con el mismo nombre, en el pie del modal.
+const botonIniciar = (page) => page.getByRole('banner').getByRole('button', { name: 'Iniciar actividad' })
+const botonFinalizar = (page) => page.getByRole('banner').getByRole('button', { name: 'Finalizar actividad' })
 
 /**
- * Sin periodo académico vigente el backend no devuelve asignaciones, y CU010
- * impide iniciar actividad: se verifica el mensaje y se salta la prueba.
+ * Sin periodo académico vigente CU010 impide iniciar actividad: se verifica el
+ * motivo que da el servidor, el texto que lo explica y el botón deshabilitado,
+ * y se salta la prueba. `sin_asignaciones` NO se salta: el seed le da al
+ * Docente E2E 1.º a 3.º en todos los periodos, así que sería un fallo real.
  */
 export async function exigirPeriodoVigente(page, inicio) {
-  if ((inicio?.asignaciones ?? []).length > 0) return
-  await expect(page.getByText(SIN_ASIGNACIONES)).toBeVisible()
+  const motivo = inicio?.motivo_no_puede_iniciar ?? null
+  if (motivo === null || motivo === 'actividad_activa') return
+  await expect(page.getByText(MOTIVO_NO_PUEDE_INICIAR.get(motivo) ?? motivo, { exact: true })).toBeVisible()
   await expect(botonIniciar(page)).toBeDisabled()
-  await evidencia(page, 'fuera-de-periodo-cu010')
+  await evidencia(page, `no-puede-iniciar-${motivo}`)
+  expect(motivo, 'motivo_no_puede_iniciar del Docente E2E (el seed le da asignaciones)').toBe('fuera_de_periodo')
   test.info().annotations.push({ type: 'skip', description: FUERA_DE_PERIODO })
-  // Se salta a propósito: sin periodo académico vigente CU010 impide iniciar actividad, así que el flujo no se puede ejecutar; ya se verificó el mensaje de CU010.
+  // Se salta a propósito: sin periodo académico vigente CU010 impide iniciar actividad, así que el flujo no se puede ejecutar; ya se verificaron el motivo y su mensaje.
   test.skip(true, `Sin periodo académico vigente no se puede iniciar actividad: ${FUERA_DE_PERIODO}`)
 }
 

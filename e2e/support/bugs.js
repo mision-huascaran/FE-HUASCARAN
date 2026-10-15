@@ -19,9 +19,16 @@ export function anotarBug(bug, rodeo) {
   test.info().annotations.push({ type: 'bug', description: `${bug}. Rodeo en la prueba: ${rodeo}` })
 }
 
-/** Espera la respuesta de cada llamada /api que la página ya hizo. */
+/**
+ * Espera la respuesta de cada llamada /api que hizo el documento ACTUAL. Las
+ * del documento anterior que se cortaron al navegar no responden nunca: se
+ * descartan por haber empezado antes de `performance.timeOrigin`.
+ */
 async function respuestasPendientes(page) {
-  const pedidas = (await page.requests()).filter((r) => new URL(r.url()).pathname.startsWith('/api/'))
+  const origen = await page.evaluate(() => performance.timeOrigin)
+  const pedidas = (await page.requests()).filter(
+    (r) => new URL(r.url()).pathname.startsWith('/api/') && r.timing().startTime >= origen,
+  )
   await Promise.all(pedidas.map((r) => r.response().catch(() => null)))
 }
 
