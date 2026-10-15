@@ -35,13 +35,28 @@ export default function BarraActividades() {
         </Badge>
       )}
 
+      {/* En COLOR, y no en el gris de un botón secundario: es el control que
+          habilita todo lo que el docente viene a hacer, y se perdía entre el
+          selector de periodo y el indicador de sincronización. Verde para
+          abrir, rojo para cerrar, con un anillo que lo separa de la barra. */}
       {esDocente &&
         (sesion ? (
-          <Button size="sm" variant="outline" iconLeft={StopCircle} onClick={finalizar}>
+          <Button
+            variant="danger"
+            iconLeft={StopCircle}
+            className="shadow-sm ring-2 ring-danger-600/20"
+            onClick={finalizar}
+          >
             Finalizar actividad
           </Button>
         ) : (
-          <Button size="sm" iconLeft={PlayCircle} disabled={sinAsignaciones} onClick={iniciar}>
+          <Button
+            variant="success"
+            iconLeft={PlayCircle}
+            className="shadow-sm ring-2 ring-success-600/20"
+            disabled={sinAsignaciones}
+            onClick={iniciar}
+          >
             Iniciar actividad
           </Button>
         ))}

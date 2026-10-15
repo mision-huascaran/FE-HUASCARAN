@@ -66,6 +66,12 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
         aplicar()
       }}
     >
+      {/* Los campos en su propio bloque, que crece y se parte en varias líneas
+          si hace falta. Antes iban sueltos en el `flex` del formulario, así que
+          los botones quedaban pegados al último filtro: con dos filtros
+          (Colegios) salían a media pantalla y con seis (Alumnos del Supervisor)
+          al extremo derecho. Ahora están SIEMPRE en el mismo sitio. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">
       {filtros.map((filtro) => (
         <Celda key={filtro.nombre}>
           {filtro.tipo === 'busqueda' ? (
@@ -95,11 +101,12 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
           onChange={(e) => escribir('estado', e.target.value)}
         />
       </Celda>
+      </div>
 
-      {/* Los botones no se estiran: lo que sobra es para los filtros. El
-          margen inferior los alinea con los controles, que reservan un hueco
-          bajo cada uno para su texto de ayuda. */}
-      <div className="mb-6 flex shrink-0 items-center gap-2">
+      {/* Pegados al borde derecho, sin estirarse. El margen inferior los alinea
+          con los controles, que reservan un hueco bajo cada uno para su texto
+          de ayuda. */}
+      <div className="mb-6 ml-auto flex shrink-0 items-center gap-2">
         <Button type="submit" iconLeft={Filter}>
           Filtrar
         </Button>

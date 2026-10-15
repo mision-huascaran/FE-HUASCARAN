@@ -59,9 +59,10 @@ describe('Módulo Alumnos (CU008)', () => {
 
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
     expect(within(dialogo).getByRole('heading', { name: /visualizar/i })).toBeInTheDocument()
-    within(dialogo)
-      .getAllByRole('textbox')
-      .forEach((campo) => expect(campo).toBeDisabled())
+    // Es una ficha, no un formulario en gris: no queda ningún control que
+    // pudiera recibir el foco y dar la impresión de que se está editando.
+    expect(within(dialogo).queryAllByRole('textbox')).toHaveLength(0)
+    expect(within(dialogo).queryAllByRole('combobox')).toHaveLength(0)
     expect(within(dialogo).queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
   })
 })

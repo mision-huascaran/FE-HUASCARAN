@@ -942,6 +942,29 @@ export const handlers = {
         })),
       ),
 
+    /**
+     * `GET /colegios/{id}` — el colegio COMPLETO.
+     *
+     * El listado no trae grados ni programas: solo el detalle. Los grados van
+     * con su `dia_clase` (CU013); el primero se deja a propósito en `null`
+     * para reproducir a los colegios creados antes de que el campo existiera,
+     * que es el caso que el formulario tiene que obligar a completar.
+     */
+    colegio: async (idColegio) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${idColegio}`)
+      return responder({
+        ...colegio,
+        id: colegio.id_colegio,
+        grados: db.GRADOS.map((g, i) => ({
+          id: g.id_grado,
+          nombre: g.nombre,
+          dia_clase: i === 0 ? null : ((i % 5) + 1),
+        })),
+        programas: db.PROGRAMAS.map((p) => ({ id: p.id_programa, nombre: p.nombre })),
+      })
+    },
+
     alumnos: () =>
       responder(
         db.ALUMNOS.map((a) => {

@@ -5,11 +5,14 @@
 // y qué campos se bloquean, no el formulario. Así "Editar" y "Visualizar"
 // muestran exactamente lo mismo y no hay dos sitios donde se desincronice.
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
+import Skeleton from '../ui/Skeleton'
 import Tabs from '../ui/Tabs'
 import CampoMantenimiento from './CampoMantenimiento'
 import PestanaAuditoria from './PestanaAuditoria'
+import VistaDetalle from './VistaDetalle'
 
 const TITULO = { nuevo: 'Nuevo', editar: 'Editar', ver: 'Visualizar' }
 
@@ -71,6 +74,11 @@ export default function PopupMantenimiento({
   seccion,
   campos = [],
   registro = null,
+  // Opcional: cómo pedir el registro COMPLETO. La fila de la tabla puede venir
+  // recortada (un `ColegioItem` no trae grados ni programas), y abrir "Editar"
+  // con ella daría un formulario incompleto que al guardar borraría lo que no
+  // se mostró.
+  cargarDetalle = null,
   guardando = false,
   genero = 'm',
   puedeVerAuditoria = false,
@@ -94,21 +102,30 @@ export default function PopupMantenimiento({
   const camposRef = useRef(campos)
   camposRef.current = campos
 
+  const idRegistro = registro?.id ?? registro?.[`id_${seccion}`] ?? null
+  const detalle = useQuery({
+    queryKey: ['detalle', seccion, idRegistro],
+    queryFn: () => cargarDetalle(idRegistro),
+    enabled: Boolean(abierto && cargarDetalle && idRegistro),
+  })
+
   const [valores, setValores] = useState({})
   const [errores, setErrores] = useState({})
   const [pestana, setPestana] = useState('datos')
 
-  // Solo al abrir, y solo cuando cambia el registro que se está editando.
+  // Solo al abrir, cuando cambia el registro, y una vez más si llega el
+  // detalle: lo que trae el servidor completa (y pisa) lo de la fila.
   useEffect(() => {
     if (!abierto) return
+    const completo = { ...registro, ...(detalle.data ?? {}) }
     const base = {}
     for (const campo of camposRef.current) {
-      base[campo.nombre] = registro?.[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
+      base[campo.nombre] = completo[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
     }
     setValores(base)
     setErrores({})
     setPestana('datos')
-  }, [abierto, registro])
+  }, [abierto, registro, detalle.data])
 
   const cambiar = (nombre, valor) => {
     setValores((v) => ({ ...v, [nombre]: valor }))
@@ -162,7 +179,20 @@ export default function PopupMantenimiento({
         <div className="mt-4">
           <PestanaAuditoria seccion={seccion} registro={registro} cargarAuditoria={cargarAuditoria} />
         </div>
-      ) : (
+      ) : null}
+
+      {pestana !== 'auditoria' && detalle.isLoading ? (
+        <Skeleton className="mt-4 h-40 w-full" />
+      ) : null}
+
+      {pestana !== 'auditoria' &&
+        !detalle.isLoading &&
+        (modo === 'ver' ? (
+          <div className={conAuditoria ? 'mt-4' : ''}>
+            {/* S3 — Visualizar es una FICHA, no un formulario en gris. */}
+            <VistaDetalle campos={camposVisibles} valores={valores} />
+          </div>
+        ) : (
         <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${conAuditoria ? 'mt-4' : ''}`}>
           {camposVisibles.map((campo) => (
             <CampoMantenimiento
@@ -175,7 +205,7 @@ export default function PopupMantenimiento({
             />
           ))}
         </div>
-      )}
+        ))}
     </Modal>
   )
 }

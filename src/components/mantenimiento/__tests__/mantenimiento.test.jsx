@@ -4,7 +4,7 @@
 // S3 Visualizar, S4 Inactivar) y las reglas transversales: Estado = Activo por
 // defecto y que nunca se ofrezca borrar.
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../ui'
@@ -115,12 +115,18 @@ describe('Plantilla de mantenimiento', () => {
     expect(onGuardar).toHaveBeenCalled()
   })
 
-  it('S3 — Visualizar bloquea todos los campos y no deja guardar', () => {
+  it('S3 — Visualizar es una ficha de solo lectura, sin ningún control', async () => {
+    // Antes enseñaba el MISMO formulario que Editar, en gris. Ahora es una
+    // ficha: no hay campos deshabilitados porque no hay campos. Es una
+    // garantía más fuerte que "todos los inputs van disabled".
     montar()
     fireEvent.click(screen.getByRole('button', { name: /^visualizar I\.E\. 86021/i }))
 
     const dialogo = screen.getByRole('dialog')
-    within(dialogo).getAllByRole('textbox').forEach((c) => expect(c).toBeDisabled())
+    await waitFor(() => expect(within(dialogo).getByText('Nombre del colegio')).toBeInTheDocument())
+    expect(within(dialogo).queryAllByRole('textbox')).toHaveLength(0)
+    expect(within(dialogo).queryAllByRole('combobox')).toHaveLength(0)
+    expect(within(dialogo).queryAllByRole('checkbox')).toHaveLength(0)
     expect(within(dialogo).queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
   })
 

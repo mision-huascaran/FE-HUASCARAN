@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import BarraActividades from './BarraActividades'
 import Breadcrumbs from './Breadcrumbs'
@@ -9,20 +10,49 @@ import useFiltrosStore from '../../store/filtrosStore'
 import useSyncStore from '../../store/syncStore'
 import { usePeriodos } from '../../hooks/useCatalogos'
 
-/** Selector del periodo de evaluación vigente (P2). Lo leen todas las pantallas. */
+/**
+ * Las rutas que de verdad LEEN el periodo del selector.
+ *
+ * El selector salía en la barra superior de toda la aplicación, también en
+ * Usuarios, Alumnos y Colegios, donde cambiarlo no hacía absolutamente nada:
+ * un control que promete filtrar y no filtra. No se borra del todo porque sí
+ * manda en las pantallas de consulta del Supervisor y el Directivo; se esconde
+ * donde no pinta nada.
+ *
+ * Los prefijos cubren las rutas con detalle (`/ranking/3`, `/estudiantes/12`).
+ */
+const RUTAS_CON_PERIODO = [
+  '/inicio',
+  '/ranking',
+  '/estudiantes',
+  '/consulta-colegios',
+  '/consolidados',
+  '/nivel-final',
+  '/panel-ejecutivo',
+  '/reportes',
+  '/dashboard',
+  '/rubrica',
+  '/seguimiento-lectura',
+]
+
+const usaElPeriodo = (ruta) => RUTAS_CON_PERIODO.some((base) => ruta === base || ruta.startsWith(`${base}/`))
+
+/** Selector del periodo de evaluación vigente (P2). */
 function SelectorPeriodo() {
   const { data: periodos = [] } = usePeriodos()
   const idPeriodo = useFiltrosStore((s) => s.idPeriodo)
   const setPeriodo = useFiltrosStore((s) => s.setPeriodo)
   const fijarPeriodoPorDefecto = useFiltrosStore((s) => s.fijarPeriodoPorDefecto)
+  const { pathname } = useLocation()
 
-  // Por defecto, el periodo abierto (RN-010).
+  // Por defecto, el periodo abierto (RN-010). Se fija SIEMPRE, también donde el
+  // selector no se ve: las pantallas que lo leen cuentan con que ya tenga valor.
   useEffect(() => {
     const vigente = periodos.find((p) => p.estado === 'abierto') ?? periodos.at(-1)
     if (vigente) fijarPeriodoPorDefecto(vigente.id_periodo)
   }, [periodos, fijarPeriodoPorDefecto])
 
-  if (periodos.length === 0) return null
+  if (periodos.length === 0 || !usaElPeriodo(pathname)) return null
 
   return (
     <Select

@@ -16,6 +16,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
+import { comoGradosConDia } from '../../lib/gradosColegio'
 
 const { alumnos, colegios, usuarios, auth } = ENDPOINTS
 
@@ -192,18 +193,65 @@ export const listarUbicaciones = () =>
  * nombre es único ignorando mayúsculas, espacios y tildes: "Shilla" y "SHILLA "
  * chocan con 409.
  */
+/**
+ * El cuerpo que esperan `POST /colegios` y `PATCH /colegios/{id}` (CU013).
+ *
+ * Lo único con trampa son los GRADOS: el formulario los maneja como
+ * `[{id_grado, dia_clase}]` y el backend los quiere exactamente así, pero una
+ * pantalla vieja (o un colegio creado antes del cambio) puede traerlos como
+ * `[3, 4]`. `comoGradosConDia` normaliza las dos formas; mandar la lista de
+ * números responde 422.
+ *
+ * `provincia` es ahora obligatoria y `distrito` opcional, justo al revés que
+ * antes. Un `null` en provincia da 422, así que no se manda vacía.
+ */
+function cuerpoDeColegio(colegio = {}) {
+  const cuerpo = { ...colegio }
+  if ('grados' in cuerpo) {
+    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase }) => ({
+      id_grado: Number(id_grado),
+      dia_clase: Number(dia_clase),
+    }))
+  }
+  if (cuerpo.distrito === '') cuerpo.distrito = null
+  return cuerpo
+}
+
+/**
+ * `GET /colegios/{id}` — el colegio COMPLETO.
+ *
+ * Hace falta de verdad: el listado (`ColegioItem`) no trae ni `grados` ni
+ * `programas`, así que abrir "Editar" desde la tabla daba un formulario sin
+ * grados, y guardar los habría borrado. El popup pide el detalle al abrirse.
+ */
+export const obtenerColegio = async (idColegio) => {
+  const colegio = await resolver({
+    mock: () => handlers.administracion.colegio(idColegio),
+    real: () => api.get(colegios.detalle(idColegio)),
+    forzarReal: adminContraApiReal,
+  })
+  if (!colegio) return colegio
+  return {
+    ...colegio,
+    id_colegio: colegio.id_colegio ?? colegio.id,
+    // El formulario los maneja como `[{id_grado, dia_clase}]`; el detalle los
+    // manda como `[{id, nombre, dia_clase}]`.
+    grados: comoGradosConDia(colegio.grados),
+  }
+}
+
 export const crearColegio = (colegio) =>
   resolver({
-    mock: () => handlers.administracion.crearColegio(colegio),
-    real: () => api.post(colegios.crear, colegio),
+    mock: () => handlers.administracion.crearColegio(cuerpoDeColegio(colegio)),
+    real: () => api.post(colegios.crear, cuerpoDeColegio(colegio)),
     forzarReal: adminContraApiReal,
   })
 
 /** `PATCH /colegios/{id}` — parcial. Mandar `null` en un obligatorio da 422. */
 export const actualizarColegio = (idColegio, cambios) =>
   resolver({
-    mock: () => handlers.administracion.actualizarColegio(idColegio, cambios),
-    real: () => api.patch(colegios.actualizar(idColegio), cambios),
+    mock: () => handlers.administracion.actualizarColegio(idColegio, cuerpoDeColegio(cambios)),
+    real: () => api.patch(colegios.actualizar(idColegio), cuerpoDeColegio(cambios)),
     forzarReal: adminContraApiReal,
   })
 

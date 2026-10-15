@@ -12,11 +12,14 @@ import {
   crearColegio,
   listarAuditoria,
   listarColegiosAdmin,
+  obtenerColegio,
   listarGradosAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import GradosConDiaDeClase from './GradosConDiaDeClase'
+import { comoGradosConDia, sinDiaDeClase } from '../../lib/gradosColegio'
 
 
 
@@ -39,23 +42,36 @@ export default function MantenimientoColegios() {
        *
        *   · `codigo` modular se quitó: el backend lo rechazó porque no está en
        *     el caso de uso.
-       *   · `zona` pasó a `provincia`, y `departamento` y `distrito` son
-       *     obligatorios (422 si faltan).
+       *   · `zona` pasó a `provincia`. Y OJO, que se invirtió: la PROVINCIA
+       *     es obligatoria (422 si falta o si llega `null` en el PATCH) y el
+       *     DISTRITO pasó a opcional. Los colegios que no tenían provincia
+       *     quedaron con "Por definir".
        *   · Las SECCIONES dejaron de ser una lista editable: la sección es un
        *     atributo del colegio, "Única" por defecto, y el alumno la hereda.
        */
       { nombre: 'nombre', etiqueta: 'Nombre del colegio', requerido: true, ancho: 'completo' },
       { nombre: 'departamento', etiqueta: 'Departamento', requerido: true },
-      { nombre: 'provincia', etiqueta: 'Provincia' },
-      { nombre: 'distrito', etiqueta: 'Distrito', requerido: true },
+      { nombre: 'provincia', etiqueta: 'Provincia', requerido: true },
+      { nombre: 'distrito', etiqueta: 'Distrito' },
       { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', ayuda: 'Por defecto, Primaria' },
       { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
       {
         nombre: 'grados',
         etiqueta: 'Grados que ofrece',
-        tipo: 'multiple',
+        requerido: true,
         ancho: 'completo',
+        // Cada grado lleva ahora su día de clase, obligatorio (CU013).
+        componente: GradosConDiaDeClase,
         opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
+        validar: (valor) => {
+          const elegidos = comoGradosConDia(valor)
+          if (!elegidos.length) return 'Elija al menos un grado'
+          const faltan = sinDiaDeClase(valor)
+          if (!faltan.length) return null
+          // Les pasa a los colegios creados antes de que existiera el campo:
+          // llegan con `dia_clase: null` y hay que decidirlo al editarlos.
+          return 'Falta el día de clase de algún grado'
+        },
       },
     ],
     [grados],
@@ -106,6 +122,8 @@ export default function MantenimientoColegios() {
       soloOnline
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
+      // El listado no trae grados ni programas: se piden al abrir el popup.
+      cargarDetalle={obtenerColegio}
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}

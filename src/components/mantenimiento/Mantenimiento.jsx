@@ -15,12 +15,14 @@ import DataTable from '../ui/DataTable'
 import EmptyState from '../ui/EmptyState'
 import RequiereConexion from '../layout/RequiereConexion'
 import ConfirmarEstado from './ConfirmarEstado'
+import ProponerActividad from './ProponerActividad'
 import FiltrosMantenimiento from './FiltrosMantenimiento'
 import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
 import { mensajeDeError } from '../../api/client'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
+import useActividad from '../../features/inicio/useActividad'
 import { ROLES } from '../../auth/roles'
 
 /** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
@@ -51,6 +53,8 @@ export default function Mantenimiento({
   onGuardar,
   onCambiarEstado,
   cargarAuditoria,
+  // Cómo pedir el registro completo al abrir Ver/Editar (ver el popup).
+  cargarDetalle = null,
   guardando = false,
   soloOnline = false,
   sinConexion = false,
@@ -98,6 +102,45 @@ export default function Mantenimiento({
   // que otros pueden estar usando, y conviene que sea deliberado.
   const [confirmando, setConfirmando] = useState(null)
 
+  /**
+   * Lo que el Docente quería hacer cuando le faltaba la actividad.
+   *
+   * Se guarda para RETOMARLO: se le ofrece iniciarla, y si acepta, la acción
+   * sigue su curso sin que tenga que volver a buscar la fila. Mandarlo arriba
+   * a pulsar otro botón y que vuelva a empezar era la parte molesta.
+   */
+  const [pendientePorActividad, setPendientePorActividad] = useState(null)
+  const { iniciar, sinAsignaciones } = useActividad()
+  const [iniciando, setIniciando] = useState(false)
+
+  const iniciarYContinuar = async () => {
+    setIniciando(true)
+    try {
+      await iniciar()
+    } finally {
+      setIniciando(false)
+    }
+    // `iniciar()` avisa por su cuenta si falla; si salió bien, el store ya
+    // tiene la actividad y la acción puede continuar.
+    if (useActividadStore.getState().sesion) {
+      pendientePorActividad?.seguir()
+      setPendientePorActividad(null)
+    }
+  }
+
+  /**
+   * Envuelve una acción de escritura: si falta la actividad, propone abrirla
+   * en vez de dejar el botón muerto. Sin asignaciones no hay nada que
+   * proponer, así que ahí sí se deshabilita.
+   */
+  const alEscribir = (accion, seguir) => () => {
+    if (exigeActividad) {
+      setPendientePorActividad({ accion, seguir })
+      return
+    }
+    seguir()
+  }
+
   const puedeCrear = puede(seccion, idRol, ACCION.NUEVO)
   const puedeEditar = puede(seccion, idRol, ACCION.EDITAR)
   const puedeInactivar = puede(seccion, idRol, ACCION.INACTIVAR)
@@ -136,9 +179,9 @@ export default function Mantenimiento({
               variant="ghost"
               iconLeft={Pencil}
               aria-label={`Editar ${fila.nombre ?? entidad}`}
-              disabled={bloqueado}
-              title={aviso}
-              onClick={() => setPopup({ modo: 'editar', registro: fila })}
+              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
+              title={sinConexion ? aviso : undefined}
+              onClick={alEscribir(`editar ${entidad}`, () => setPopup({ modo: 'editar', registro: fila }))}
             >
               Editar
             </Button>
@@ -150,9 +193,12 @@ export default function Mantenimiento({
               iconLeft={fila.activo === false ? RotateCcw : Ban}
               className={fila.activo === false ? undefined : 'text-danger-600'}
               aria-label={`${fila.activo === false ? 'Activar' : 'Inactivar'} ${fila.nombre ?? entidad}`}
-              disabled={bloqueado}
-              title={aviso}
-              onClick={() => setConfirmando({ fila, activo: fila.activo === false })}
+              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
+              title={sinConexion ? aviso : undefined}
+              onClick={alEscribir(
+                `${fila.activo === false ? 'activar' : 'inactivar'} ${entidad}`,
+                () => setConfirmando({ fila, activo: fila.activo === false }),
+              )}
             >
               {fila.activo === false ? 'Activar' : 'Inactivar'}
             </Button>
@@ -195,9 +241,9 @@ export default function Mantenimiento({
         {puedeCrear && (
           <Button
             iconLeft={Plus}
-            disabled={Boolean(motivoNuevo)}
-            title={motivoNuevo}
-            onClick={() => setPopup({ modo: 'nuevo', registro: null })}
+            disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
+            title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
+            onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
           >
             Agregar
           </Button>
@@ -233,6 +279,14 @@ export default function Mantenimiento({
         )}
       </Card>
 
+      <ProponerActividad
+        abierto={Boolean(pendientePorActividad)}
+        accion={pendientePorActividad?.accion}
+        iniciando={iniciando}
+        onIniciar={iniciarYContinuar}
+        onCancelar={() => setPendientePorActividad(null)}
+      />
+
       <ConfirmarEstado
         peticion={confirmando}
         entidad={entidad}
@@ -253,6 +307,7 @@ export default function Mantenimiento({
         guardando={guardando}
         puedeVerAuditoria={puedeAuditar}
         cargarAuditoria={cargarAuditoria}
+        cargarDetalle={cargarDetalle}
         genero={genero}
         onGuardar={guardar}
         onCerrar={() => setPopup(null)}
