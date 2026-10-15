@@ -23,7 +23,7 @@
 //     vigente. El Supervisor lo recibe siempre en `false` (CU021).
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCheck, CalendarX2 } from 'lucide-react'
+import { CheckCheck, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -36,7 +36,7 @@ import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes } from '../../api/resources/administracion'
-import { motivoDe } from '../../api/client'
+import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales, useGradosReales, useProgramasReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
@@ -48,6 +48,24 @@ const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
 const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
 const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
+
+/**
+ * Lo que el servidor rechaza, dicho con palabras.
+ *
+ * Sin esto, un 403 o un 422 dejaban la pantalla enseñando "No hay alumnos
+ * matriculados en esta clase": el mismo cartel que cuando el aula existe y está
+ * vacía. El docente leía que su clase no tiene alumnos cuando lo que pasaba era
+ * que esa aula no es suya o que el grado no se dicta en ese colegio.
+ */
+const RECHAZO = {
+  aula_fuera_de_alcance: {
+    titulo: 'Esa aula no está a su cargo',
+    texto: 'Solo puede registrar la asistencia de los colegios y grados que tiene asignados este periodo.',
+  },
+  colegio_inexistente: { titulo: 'El colegio no existe' },
+  grado_no_ofrecido: { titulo: 'Ese grado no se dicta en este colegio' },
+  programa_no_ofrecido: { titulo: 'Ese subprograma no se dicta en esta clase' },
+}
 
 export default function AsistenciaPage() {
   const toast = useToast()
@@ -106,7 +124,9 @@ export default function AsistenciaPage() {
   const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
   // El día lectivo lo decide el SERVIDOR (CU022, Restricciones): llega como un
   // 422 con `motivo: 'fecha_no_lectiva'`.
-  const diaNoLectivo = motivoDe(clase.error) === 'fecha_no_lectiva'
+  const motivo = motivoDe(clase.error)
+  const diaNoLectivo = motivo === 'fecha_no_lectiva'
+  const rechazo = clase.isError && !diaNoLectivo ? (RECHAZO[motivo] ?? {}) : null
 
   /**
    * Quién escribe lo dice el servidor con `editable`, y encima tiene que haber
@@ -175,7 +195,18 @@ export default function AsistenciaPage() {
         </Card>
       )}
 
-      {listos && !diaNoLectivo && !clase.isLoading && alumnos.length === 0 && (
+      {/* Un rechazo del servidor NO es una clase vacía. Se dice cuál fue. */}
+      {rechazo && (
+        <Card>
+          <EmptyState
+            icon={Ban}
+            title={rechazo.titulo ?? 'No se pudo cargar la clase'}
+            description={rechazo.texto ?? mensajeDeError(clase.error)}
+          />
+        </Card>
+      )}
+
+      {listos && !clase.isError && !clase.isLoading && alumnos.length === 0 && (
         <Card>
           <EmptyState title="Sin alumnos en esta clase" description={SIN_ALUMNOS} />
         </Card>
