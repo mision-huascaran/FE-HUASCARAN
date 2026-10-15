@@ -125,16 +125,19 @@ export const NIVEL_ESPERADO_POR_GRADO = [
 ].map((fila) => ({ ...fila, orden: ordenDeLetra(fila.letra) }))
 
 /** Los nueve colegios del programa. Códigos y nombres de plantel ficticios. */
+// `zona` duplica a `provincia` a propósito: el contrato nuevo renombró el
+// campo, pero el dashboard y los consolidados —heredados, aún en simulador—
+// siguen leyendo `zona`. Se quita cuando se migren.
 export const COLEGIOS = [
-  { id_colegio: 1, nombre: 'I.E. 86021 Ranrahirca', abreviatura: 'RAN', zona: 'Yungay', distrito: 'Ranrahirca' },
-  { id_colegio: 2, nombre: 'I.E. 86024 Mancos', abreviatura: 'MAN', zona: 'Yungay', distrito: 'Mancos' },
-  { id_colegio: 3, nombre: 'I.E. 86031 Shupluy', abreviatura: 'SHU', zona: 'Yungay', distrito: 'Shupluy' },
-  { id_colegio: 4, nombre: 'I.E. 86037 Cascapara', abreviatura: 'CAS', zona: 'Yungay', distrito: 'Cascapara' },
-  { id_colegio: 5, nombre: 'I.E. 86042 Yanama', abreviatura: 'YAN', zona: 'Yungay', distrito: 'Yanama' },
-  { id_colegio: 6, nombre: 'I.E. 86412 Marcará', abreviatura: 'MAR', zona: 'Carhuaz', distrito: 'Marcará' },
-  { id_colegio: 7, nombre: 'I.E. 86418 Acopampa', abreviatura: 'ACO', zona: 'Carhuaz', distrito: 'Acopampa' },
-  { id_colegio: 8, nombre: 'I.E. 86423 Shilla', abreviatura: 'SHI', zona: 'Carhuaz', distrito: 'Shilla' },
-  { id_colegio: 9, nombre: 'I.E. 86427 Tinco', abreviatura: 'TIN', zona: 'Carhuaz', distrito: 'Tinco' },
+  { id_colegio: 1, nombre: 'I.E. 86021 Ranrahirca', abreviatura: 'RAN', departamento: 'Áncash', provincia: 'Yungay', zona: 'Yungay', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Ranrahirca' },
+  { id_colegio: 2, nombre: 'I.E. 86024 Mancos', abreviatura: 'MAN', departamento: 'Áncash', provincia: 'Yungay', zona: 'Yungay', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Mancos' },
+  { id_colegio: 3, nombre: 'I.E. 86031 Shupluy', abreviatura: 'SHU', departamento: 'Áncash', provincia: 'Yungay', zona: 'Yungay', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Shupluy' },
+  { id_colegio: 4, nombre: 'I.E. 86037 Cascapara', abreviatura: 'CAS', departamento: 'Áncash', provincia: 'Yungay', zona: 'Yungay', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Cascapara' },
+  { id_colegio: 5, nombre: 'I.E. 86042 Yanama', abreviatura: 'YAN', departamento: 'Áncash', provincia: 'Yungay', zona: 'Yungay', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Yanama' },
+  { id_colegio: 6, nombre: 'I.E. 86412 Marcará', abreviatura: 'MAR', departamento: 'Áncash', provincia: 'Carhuaz', zona: 'Carhuaz', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Marcará' },
+  { id_colegio: 7, nombre: 'I.E. 86418 Acopampa', abreviatura: 'ACO', departamento: 'Áncash', provincia: 'Carhuaz', zona: 'Carhuaz', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Acopampa' },
+  { id_colegio: 8, nombre: 'I.E. 86423 Shilla', abreviatura: 'SHI', departamento: 'Áncash', provincia: 'Carhuaz', zona: 'Carhuaz', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Shilla' },
+  { id_colegio: 9, nombre: 'I.E. 86427 Tinco', abreviatura: 'TIN', departamento: 'Áncash', provincia: 'Carhuaz', zona: 'Carhuaz', nivel_educativo: 'Primaria', seccion: 'Única', distrito: 'Tinco' },
 ]
 
 /** Los cuatro cortes del año (RN-010). Solo uno está abierto a la vez. */

@@ -50,16 +50,22 @@ export async function obtenerPerfil() {
 }
 
 /**
- * POST /logout. El backend NO revoca el JWT: no hay lista de tokens anulados y
- * un token sigue siendo válido hasta que expire. El cierre de sesión real lo
- * hace el cliente al borrar el token, así que si esta llamada falla no importa.
+ * POST /logout. Cierra la sesión DE VERDAD en el servidor (el token muere al
+ * instante) y, si había una actividad abierta, la finaliza como "Forzado por
+ * cierre de sesión".
+ *
+ * Nunca lanza. Devuelve `{ ok: false, sinRespuesta: true }` cuando la petición
+ * no llegó al servidor (sin conexión): en ese caso NADA se cerró allí, y quien
+ * llama tiene que dejar el cierre de la actividad pendiente de sincronizar.
  */
 export function cerrarSesionEnServidor() {
   return resolver({
     forzarReal: authContraApiReal,
     mock: () => handlers.auth.logout(),
     real: () => api.post(ENDPOINTS.auth.logout),
-  }).catch(() => ({ ok: false }))
+  })
+    .then((respuesta) => ({ ...respuesta, ok: true }))
+    .catch((error) => ({ ok: false, sinRespuesta: !error?.response }))
 }
 
 export function solicitarCodigoRecuperacion() {
@@ -119,6 +125,48 @@ export const restablecerPassword = ({ correo, codigo, passwordNueva, confirmacio
       api.post(ENDPOINTS.auth.passwordRestablecer, {
         correo,
         codigo,
+        'contraseña_nueva': passwordNueva,
+        'confirmar_contraseña_nueva': confirmacion,
+      }),
+    forzarReal: authContraApiReal,
+  })
+
+/**
+ * `POST /password/verificar-codigo` — comprueba el PIN SIN gastarlo.
+ *
+ * CU006 exige un proceso estricto de DOS PASOS: primero se valida el PIN y,
+ * solo si es correcto, aparece un formulario nuevo para la contraseña. Antes se
+ * pedían las dos cosas a la vez, así que un PIN equivocado se descubría después
+ * de escribir y repetir la contraseña entera.
+ *
+ * Importante: este endpoint NO consume el PIN. El que lo gasta es
+ * `/password/restablecer`.
+ */
+export const verificarCodigoPublico = ({ correo, codigo }) =>
+  resolver({
+    mock: () => handlers.auth.verificarCodigoPublico({ correo, codigo }),
+    real: () => api.post(ENDPOINTS.auth.passwordVerificarCodigoPublico, { correo, codigo }),
+    forzarReal: authContraApiReal,
+  })
+
+/**
+ * `POST /password/primer-ingreso` — establece la contraseña definitiva.
+ *
+ * CU001: toda cuenta nueva nace con una contraseña temporal de 48 horas y la
+ * marca de "cambio obligatorio". Con ella, `/login` responde 403
+ * `cambio_contrasena_requerido` y no deja entrar a nada.
+ *
+ * LA RESPUESTA ES LA MISMA QUE LA DE `/login`, token incluido: al terminar, el
+ * usuario queda dentro con su sesión de 8 horas. No hay que volver a pedirle
+ * las credenciales.
+ */
+export const establecerPasswordPrimerIngreso = ({ correo, temporal, passwordNueva, confirmacion }) =>
+  resolver({
+    mock: () => handlers.auth.primerIngreso({ correo, temporal, passwordNueva }),
+    real: () =>
+      api.post(ENDPOINTS.auth.passwordPrimerIngreso, {
+        correo,
+        'contraseña_temporal': temporal,
         'contraseña_nueva': passwordNueva,
         'confirmar_contraseña_nueva': confirmacion,
       }),

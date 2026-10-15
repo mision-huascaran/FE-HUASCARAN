@@ -4,6 +4,7 @@
 // solo los archivos de `resources/` usan `resolver()`.
 import axios from 'axios'
 import useSessionStore, { obtenerToken } from '../store/sessionStore'
+import { sincronizarReloj } from '../lib/relojServidor'
 
 export const usarMock = String(import.meta.env.VITE_USE_MOCK ?? 'true') === 'true'
 
@@ -89,12 +90,34 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (respuesta) => respuesta,
+  (respuesta) => {
+    // CU022: cada respuesta recalibra el reloj de referencia. El dispositivo
+    // puede tener la hora cambiada; la cabecera `Date` del servidor no.
+    sincronizarReloj(respuesta.headers?.date)
+    return respuesta
+  },
   (error) => {
     // Token vencido o inválido: se cierra la sesión y el guardado de ruta hace
     // el resto. No se reintenta: reintentar con un token muerto es inútil.
     if (error?.response?.status === 401 && !error.config?.url?.includes('/login')) {
-      useSessionStore.getState().cerrarSesion()
+      /**
+       * El backend distingue por que se cayo la sesion (api_sicedu_frontend 1.3):
+       * `sesion_expirada` son las 8 horas cumplidas y hay que decirlo (CU007);
+       * `sesion_invalida` es un token muerto por logout, cambio de contrasena o
+       * cuenta desactivada, y ahi no toca hablar de tiempo.
+       */
+      const motivo = error?.response?.data?.motivo
+      useSessionStore.getState().cerrarSesion(motivo === 'sesion_expirada' ? 'expiracion' : undefined)
+    }
+    /**
+     * 403 — el rol o el alcance no alcanzan para esta operación (T15).
+     *
+     * Se marca aquí para que las pantallas puedan mostrar "Sin permiso" sin
+     * repetir la comprobación. No se cierra la sesión: el usuario sigue siendo
+     * quien dice ser, simplemente eso no le corresponde.
+     */
+    if (error?.response?.status === 403) {
+      error.sinPermiso = true
     }
     return Promise.reject(error)
   },
@@ -116,6 +139,35 @@ export async function resolver({ mock, real, forzarReal = false }) {
 
 /** Código de estado de un error de axios (o del mock), o null si fue de red. */
 export const estadoDe = (error) => error?.response?.status ?? null
+
+/**
+ * Código ESTABLE del error, el que manda al decidir qué hacer.
+ *
+ * El backend acompaña cada error con `{detail, motivo}`: `detail` es el texto a
+ * mostrar y puede cambiar de redacción; `motivo` es el código con el que se
+ * programa. Comparar `detail` es frágil y está desaconsejado explícitamente en
+ * la guía del backend, así que las pantallas ramifican por esto.
+ */
+export const motivoDe = (error) => error?.response?.data?.motivo ?? null
+
+/**
+ * Errores por campo de un 422, para marcar el formulario en rojo.
+ *
+ * El backend unificó el 422 en `{detail, motivo: "validacion", errores: [...]}`.
+ * Se admite también el formato antiguo de FastAPI (`detail` como array) mientras
+ * queden endpoints sin migrar.
+ */
+export function erroresDeCampo(error) {
+  const datos = error?.response?.data
+  const lista = Array.isArray(datos?.errores) ? datos.errores : datos?.detail
+  if (!Array.isArray(lista)) return {}
+
+  return lista.reduce((mapa, item) => {
+    const campo = item?.campo ?? (Array.isArray(item?.loc) ? item.loc.filter((p) => p !== 'body').join('.') : null)
+    const mensaje = item?.mensaje ?? item?.msg
+    return campo && mensaje ? { ...mapa, [campo]: mensaje } : mapa
+  }, {})
+}
 
 /**
  * Convierte un error de la API en un texto que se pueda pintar.
@@ -147,7 +199,22 @@ export function mensajeDeError(error, porDefecto = 'Intente nuevamente.') {
     return mensajes.length ? mensajes.join(' · ') : porDefecto
   }
 
+  // 422 unificado del backend: `detail` es genérico ("Los datos enviados no
+  // son válidos.") y lo útil viene en `errores`. Sin esto el usuario no sabía
+  // qué campo corregir.
+  const errores = error?.response?.data?.errores
+  if (typeof detalle === 'string' && detalle.trim() && Array.isArray(errores) && errores.length) {
+    const porCampo = errores
+      .map((item) => (item?.campo ? `${item.campo}: ${item?.mensaje ?? 'dato inválido'}` : item?.mensaje))
+      .filter(Boolean)
+    return porCampo.length ? `${detalle} ${porCampo.join(' · ')}` : detalle
+  }
+
   if (typeof detalle === 'string' && detalle.trim()) return detalle
+
+  // 403 sin detalle: el texto por defecto no puede ser "intente de nuevo",
+  // porque reintentar no va a cambiar nada.
+  if (error?.response?.status === 403) return 'Sin permiso para realizar esta acción'
 
   if (!error.response) return 'Sin conexión con el servidor. El dato quedó guardado en este dispositivo.'
 

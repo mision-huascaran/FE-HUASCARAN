@@ -2,7 +2,7 @@
 // del mock. Los gráficos de recharts no se pintan en jsdom (no hay medidas),
 // así que aquí se comprueba lo demás: indicadores, tablas y avisos.
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../App'
@@ -10,6 +10,7 @@ import { ToastProvider } from '../../components/ui'
 import DashboardPage from '../dashboard/DashboardPage'
 import ColegiosPage from '../colegios/ColegiosPage'
 import ColegioDetallePage from '../colegios/ColegioDetallePage'
+import MantenimientoColegios from '../colegios/MantenimientoColegios'
 import ConsolidadosPage from '../consolidados/ConsolidadosPage'
 import AlertasPage from '../alertas/AlertasPage'
 import AdministracionPage from '../administracion/AdministracionPage'
@@ -72,6 +73,14 @@ describe('Colegios (P13)', () => {
     expect(await screen.findByRole('heading', { name: /Ranrahirca/ }, ESPERA)).toBeInTheDocument()
     expect(await screen.findByText('Ranking de aulas', {}, ESPERA)).toBeInTheDocument()
   })
+
+  it('Nuevo colegio pide los Subprogramas, obligatorios en CU013', async () => {
+    montar(<MantenimientoColegios />, { ruta: '/colegios', patron: '/colegios' })
+    fireEvent.click(await screen.findByRole('button', { name: /agregar/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    expect(within(dialogo).getByText('Subprogramas')).toBeInTheDocument()
+    expect(await within(dialogo).findByRole('checkbox', { name: /Alfabetización/ }, ESPERA)).toBeInTheDocument()
+  })
 })
 
 describe('Consolidados (P14)', () => {
@@ -97,7 +106,6 @@ describe('Administración (P16)', () => {
     // Alumnos ya no está aquí: es su propio módulo y lo gestiona el Docente.
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Docentes',
-      'Asignaciones',
       'Colegios',
       'Cuentas',
       'Periodos de evaluación',
@@ -113,9 +121,12 @@ describe('Administración (P16)', () => {
     expect(screen.getByRole('button', { name: /nueva cuenta/i })).toBeInTheDocument()
   })
 
-  it('permite que un directivo acceda a administración para crear y gestionar cuentas', () => {
-    const rutaAdmin = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/administracion')
-    expect(rutaAdmin?.allow).toContain(ROLES.DIRECTIVOS)
+  it('el Directivo ya no gestiona cuentas (D2 del sprint de cierre)', () => {
+    // Antes el Directivo administraba a otros Directivos. El flujo acordado se
+    // lo retira: el Supervisor crea a todos los roles.
+    const usuarios = RUTAS_PROTEGIDAS.find((ruta) => ruta.path === '/usuarios')
+    expect(usuarios?.allow).toEqual([ROLES.SUPERVISOR])
+    expect(usuarios?.allow).not.toContain(ROLES.DIRECTIVO)
   })
 
   it('permite desactivar y reactivar cuentas desde la tabla de administración', async () => {

@@ -4,6 +4,8 @@ import { ChevronUp, KeyRound, LogOut, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import Logo from '../ui/Logo'
 import ModalCambiarPassword from '../../features/perfil/ModalCambiarPassword'
+import ConfirmarSalida from './ConfirmarSalida'
+import useSyncStore from '../../store/syncStore'
 import useOnEscape from '../../hooks/useOnEscape'
 import { useAuth } from '../../auth/AuthProvider'
 import { NOMBRE_ROL } from '../../auth/roles'
@@ -33,6 +35,12 @@ function Contenido({ onNavegar, onCerrar }) {
   const { usuario, salir } = useAuth()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [passwordAbierto, setPasswordAbierto] = useState(false)
+  const [confirmarSalida, setConfirmarSalida] = useState(false)
+  const pendientes = useSyncStore((s) => s.pendientes)
+
+  // CU007: salir con cambios sin enviar no los borra, pero hay que decirlo —
+  // si no, el docente se va creyendo que perdió el trabajo del aula.
+  const intentarSalir = () => (pendientes > 0 ? setConfirmarSalida(true) : salir())
   useOnEscape(menuAbierto, () => setMenuAbierto(false))
   const items = navegacionDe(usuario?.id_rol)
 
@@ -104,7 +112,7 @@ function Contenido({ onNavegar, onCerrar }) {
             <button
               type="button"
               role="menuitem"
-              onClick={salir}
+              onClick={intentarSalir}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -135,6 +143,16 @@ function Contenido({ onNavegar, onCerrar }) {
       </div>
 
       <ModalCambiarPassword abierto={passwordAbierto} onCerrar={() => setPasswordAbierto(false)} />
+
+      <ConfirmarSalida
+        abierto={confirmarSalida}
+        pendientes={pendientes}
+        onCerrar={() => setConfirmarSalida(false)}
+        onSalir={() => {
+          setConfirmarSalida(false)
+          salir()
+        }}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
@@ -61,12 +62,17 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: './src/test/setup.js',
       css: false,
+      // e2e/ son las pruebas de Playwright: corren contra la app desplegada,
+      // no con Vitest (ver playwright.config.js).
+      exclude: [...configDefaults.exclude, 'e2e/**'],
       // Informe lcov para SonarQube (stage de pruebas en qa y uat).
       coverage: {
         provider: 'v8',
         reporter: ['text-summary', 'lcov'],
         include: ['src/**/*.{js,jsx}'],
-        exclude: ['src/**/__tests__/**', 'src/test/**'],
+        // Igual que `sonar.coverage.exclusions`: el arranque (main.jsx) y el
+        // simulador de la API (api/mock) no son lógica de la aplicación.
+        exclude: ['src/**/__tests__/**', 'src/test/**', 'src/main.jsx', 'src/api/mock/**', 'e2e/**'],
       },
       /**
        * Las pruebas resuelven SIEMPRE contra el mock, pase lo que pase en `.env`.

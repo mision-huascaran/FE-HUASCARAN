@@ -17,6 +17,41 @@ function responder(datos, ms = RETARDO_MS) {
   return new Promise((resolver) => setTimeout(() => resolver(copiar(datos)), ms))
 }
 
+// Marcas de asistencia tomadas durante la sesión (CU022). Viven aquí y no en
+// `db`, que se importa de solo lectura. La clave reproduce la unicidad que el
+// caso de uso exige en la base: UN registro por alumno, fecha y subprograma.
+/**
+ * Error con la MISMA forma que el de axios, para que las pantallas puedan
+ * ramificar por `motivo` igual que contra el backend real.
+ */
+function errorMock(status, detail, motivo) {
+  const error = new Error(detail)
+  error.response = { status, data: { detail, motivo } }
+  return error
+}
+
+const ACTIVIDADES_MOCK = {}
+const ASISTENCIAS = {}
+const claveMarca = (idAlumno, fecha, idPrograma) => `${idAlumno}|${fecha}|${idPrograma}`
+
+/** Subprograma por defecto cuando el registro no lo trae (lo fija la pantalla). */
+const ASISTENCIA_PROGRAMA = 1
+
+/** Hoy en Lima, que es la zona en la que se cuentan los días lectivos. */
+const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
+
+/**
+ * Un día es lectivo si cae dentro de alguna semana del año escolar (CU022).
+ *
+ * Las semanas del simulador van de lunes a viernes, así que esto descarta
+ * fines de semana, vacaciones y cualquier fecha fuera del periodo vigente sin
+ * necesidad de una tabla de recesos aparte. Contra el backend real la decisión
+ * la toma el servidor y el cliente solo lee `dia_lectivo`.
+ */
+const esDiaLectivo = (fecha) =>
+  Boolean(fecha) && db.SEMANAS.some((s) => fecha >= s.inicio && fecha <= s.fin)
+const GRILLAS_SEMANALES = {}
+
 function errorHttp(status, detail) {
   const error = new Error(detail)
   error.isAxiosError = true
@@ -340,7 +375,333 @@ function normalizarReporte(payload) {
 }
 
 export const handlers = {
+  /** Grillas semanales de Rúbrica y Seguimiento de Lectura (T32). */
+  grillas: {
+    /**
+     * Una grilla existe si alguien la creó en esta sesión, o si la semana ya
+     * tiene registros sembrados: en los datos de prueba hay 18 semanas con
+     * capturas, y esas no deben pedir que se "cree" nada.
+     */
+    existe: async ({ tipo, idSemana, idColegio, idGrado }) => {
+      if (GRILLAS_SEMANALES[`${tipo}-${idSemana}-${idColegio}-${idGrado}`]) return responder(true)
+      return responder(db.reporteSemanalDe(Number(idSemana)).size > 0)
+    },
+
+    crear: async ({ tipo, idSemana, idColegio, idGrado, idSeccion }) => {
+      const clave = `${tipo}-${idSemana}-${idColegio}-${idGrado}`
+      GRILLAS_SEMANALES[clave] = { clave, tipo, id_semana: idSemana, id_seccion: idSeccion ?? null }
+      return responder(GRILLAS_SEMANALES[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Ausentes del módulo Asistencia. Si para esa semana no hay ninguna grilla
+     * de asistencia todavía, devuelve una lista vacía: nadie consta ausente,
+     * que no es lo mismo que que todos asistieran.
+     */
+    ausentes: async () => {
+      const ids = Object.values(ASISTENCIAS)
+        .filter((m) => m.estado === 'ausente')
+        .map((m) => m.id_alumno)
+      return responder([...new Set(ids)])
+    },
+  },
+
+  /** Resúmenes del Módulo de Inicio (CU010, CU011, CU012). */
+  inicio: {
+    /** CU012: exactamente tres tarjetas. `salud_sistema` en null a proposito. */
+    directivo: () =>
+      responder({
+        beneficiarios_activos: db.ALUMNOS.filter((a) => a.activo !== false).length,
+        colegios_operando: db.COLEGIOS.length,
+        salud_sistema: null,
+      }),
+
+    // Los nombres son EXACTAMENTE los del contrato: divergir aquí hacía que la
+    // pantalla funcionara con el simulador y mostrara "Sin datos disponibles"
+    // contra el servidor, que es el peor orden posible para enterarse.
+    supervisor: async () =>
+      responder({
+        colegios_registrados: db.COLEGIOS.filter((c) => c.activo !== false).length,
+        docentes_activos: db.USUARIOS.filter((u) => u.id_rol === 1 && u.activo !== false).length,
+        docentes_con_actividad_activa: 1,
+        registros_vencidos: 3,
+        registros_incompletos: 1,
+        // Los umbrales (3 días, 4 días hábiles) los decide el servidor: las
+        // alertas llegan ya redactadas para no codificar reglas de negocio en
+        // la interfaz.
+        alertas: [
+          {
+            tipo: 'inactividad_operativa',
+            mensaje: 'Inactividad Operativa - Carlos Minaya: Sin actividad registrada en los últimos 4 días hábiles.',
+            critica: false,
+          },
+          {
+            tipo: 'incumplimiento_sede',
+            mensaje: 'Incumplimiento de Sede - Colegio Shilla: Sin registros obligatorios en el periodo académico actual.',
+            critica: true,
+          },
+        ],
+      }),
+
+    /**
+     * Misma forma que `GET /inicio/docente` del backend real.
+     *
+     * Divergir aquí sale caro: la pantalla funcionaba con el simulador y
+     * reventaba contra el servidor, que es el peor orden posible para
+     * enterarse. Los Resúmenes de Acción NO se devuelven, igual que el
+     * backend, porque dependen de las grillas y todavía no existen.
+     */
+    docente: async (idDocente = 1) => {
+      const asignaciones = db.ASIGNACIONES.filter((a) => a.id_docente === Number(idDocente))
+      const idsColegio = [...new Set(asignaciones.map((a) => a.id_colegio))]
+      const alumnos = idsColegio.flatMap((id) => db.alumnosDe({ colegio: id }))
+
+      return responder({
+        actividad_activa: null,
+        puede_iniciar_actividad: asignaciones.length > 0,
+        sesion_expira: null,
+        asignaciones: idsColegio.map((id) => ({
+          colegio: { id, nombre: db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre },
+          // RN-003: la asignación es por colegio completo, con sus seis grados.
+          grados: db.GRADOS.map((g) => ({
+            id: g.id_grado,
+            nombre: g.nombre,
+            cantidad_alumnos: db.alumnosDe({ colegio: id, grado: g.id_grado }).length,
+            ciclos: ['III'],
+            subprogramas: ['Alfabetización'],
+          })),
+        })),
+        totales: {
+          ciclos: ['III', 'IV'],
+          subprogramas: ['Alfabetización'],
+          cantidad_alumnos: alumnos.length,
+        },
+      })
+    },
+  },
+
+  /**
+   * Asistencias (CU022). Reproduce el contrato real, que ya está publicado.
+   *
+   * Reglas que imita porque la pantalla ramifica por ellas:
+   *
+   *   · `editable` lo decide el SERVIDOR: Docente y día lectivo del periodo
+   *     vigente. El Supervisor siempre lo recibe en `false`.
+   *   · Unicidad por alumno, fecha y subprograma.
+   *   · `aplicado: false` cuando otro dispositivo guardó algo más reciente.
+   */
+  asistencia: {
+    /** Las secciones (aulas) que ese colegio y grado tienen de verdad. */
+    secciones: async ({ idColegio, idGrado }) => {
+      const aulas = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .map((a) => a.aula)
+      return responder([...new Set(aulas)].sort((a, b) => String(a).localeCompare(String(b))))
+    },
+
+    clase: async ({ idColegio, idGrado, idPrograma, fecha }) => {
+      if (!esDiaLectivo(fecha)) {
+        throw errorMock(
+          422,
+          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
+          'fecha_no_lectiva',
+        )
+      }
+
+      const marcas = Object.values(ASISTENCIAS).filter(
+        (m) => m.fecha === fecha && String(m.id_programa) === String(idPrograma),
+      )
+      const conRegistro = new Set(marcas.map((m) => m.id_alumno))
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado), programa: Number(idPrograma) })
+        // Los activos siempre. Los inactivos SOLO si ya constan en esa fecha:
+        // CU022 pide no perderlos de vista al consultar un día pasado.
+        .filter((a) => a.activo || conRegistro.has(a.id_alumno))
+        .map((a) => {
+          const marca = ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]
+          return {
+            id_alumno: a.id_alumno,
+            nombres: a.nombres,
+            apellidos: a.apellidos,
+            activo: a.activo,
+            // `en_aula: false` = tuvo registro aquí pero hoy está en otra aula.
+            en_aula: true,
+            // `null` es "sin marcar", que no es lo mismo que ausente.
+            estado: marca?.estado ?? null,
+            observacion: marca?.observacion ?? null,
+          }
+        })
+        .sort((a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`))
+
+      return responder({ fecha, editable: fecha <= hoyLima(), alumnos })
+    },
+
+    /**
+     * `PUT /asistencias` — uno o varios registros de la misma fecha.
+     *
+     * Un campo omitido NO se cambia: así la observación no borra el estado ni
+     * al revés. `estado: null` se rechaza, porque una marca puesta no se puede
+     * quitar, solo cambiar.
+     */
+    guardar: async ({ fecha, registros = [], fecha_registro: fechaRegistro }) => {
+      if (!esDiaLectivo(fecha) || fecha > hoyLima()) {
+        throw errorMock(
+          422,
+          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
+          'fecha_no_lectiva',
+        )
+      }
+
+      const momento = fechaRegistro ?? new Date().toISOString()
+      const guardados = registros.map((registro) => {
+        const clave = claveMarca(registro.id_alumno, fecha, registro.id_programa ?? ASISTENCIA_PROGRAMA)
+        const anterior = ASISTENCIAS[clave]
+        // "Prevalecerá la modificación con la marca de tiempo más reciente": si
+        // otro dispositivo escribió después, la suya se conserva y se avisa.
+        if (anterior && anterior.actualizado > momento) {
+          return { id_alumno: registro.id_alumno, aplicado: false, estado: anterior.estado, observacion: anterior.observacion }
+        }
+        const marca = {
+          id_alumno: registro.id_alumno,
+          fecha,
+          id_programa: registro.id_programa ?? ASISTENCIA_PROGRAMA,
+          estado: registro.estado ?? anterior?.estado ?? null,
+          observacion: 'observacion' in registro ? registro.observacion : (anterior?.observacion ?? null),
+          actualizado: momento,
+        }
+        ASISTENCIAS[clave] = marca
+        return { id_alumno: marca.id_alumno, aplicado: true, estado: marca.estado, observacion: marca.observacion }
+      })
+
+      return responder({ fecha, registros: guardados }, RETARDO_ESCRITURA_MS)
+    },
+  },
+
+  /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
+  sesiones: {
+    /**
+     * Inicio y fin de una actividad. El id lo trae el cliente, asi que repetir
+     * la llamada con el mismo id devuelve lo mismo en vez de duplicar.
+     */
+    iniciar: ({ id, inicio }) => {
+      const abierta = {
+        id,
+        inicio: inicio ?? new Date().toISOString(),
+        fin: null,
+        estado: 'en_curso',
+        tipo_cierre: null,
+        sesion_expira: null,
+      }
+      ACTIVIDADES_MOCK[id] = abierta
+      return responder(abierta)
+    },
+
+    finalizar: (id, { fin } = {}) => {
+      const previa = ACTIVIDADES_MOCK[id] ?? { id, inicio: new Date().toISOString() }
+      const cerrada = {
+        ...previa,
+        fin: fin ?? new Date().toISOString(),
+        estado: 'finalizada',
+        tipo_cierre: 'Manual por finalizacion de actividad',
+      }
+      ACTIVIDADES_MOCK[id] = cerrada
+      return responder(cerrada)
+    },
+
+    /** CU020: primero los pendientes, luego alfabetico. Hoy todos al dia. */
+    seguimiento: () =>
+      responder({
+        items: db.DOCENTES.map((d) => ({
+          id_docente: d.id_docente,
+          nombres: d.nombre?.split(' ')[0] ?? d.nombre,
+          apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+          activo: d.activo !== false,
+          colegios: [],
+          ultima_conexion: null,
+          sincronizacion: 'al_dia',
+          registros_pendientes: 0,
+        })),
+        total: db.DOCENTES.length,
+        pagina: 1,
+        paginas: 1,
+        por_pagina: 10,
+      }),
+
+    seguimientoDocente: (idDocente) => {
+      const d = db.DOCENTES.find((x) => Number(x.id_docente) === Number(idDocente))
+      if (!d) return Promise.reject(errorMock(404, 'El detalle solicitado no se encuentra disponible.', 'docente_no_encontrado'))
+      return responder({
+        id_docente: d.id_docente,
+        nombres: d.nombre?.split(' ')[0] ?? d.nombre,
+        apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+        activo: d.activo !== false,
+        colegios: [],
+        ultima_conexion: null,
+        sincronizacion: 'al_dia',
+        registros_pendientes: 0,
+      })
+    },
+
+    actividadesDe: () => responder({ items: [], total: 0, pagina: 1, paginas: 1, por_pagina: 10 }),
+
+    listar: async ({ todas = false, idDocente, idColegio, fecha } = {}) => {
+      const base = [
+        { id: 'a3f1b2c4', id_docente: 1, docente: 'Rosa Elena Cárdenas Villanueva', id_colegio: 1, colegio: 'I.E. 86021 Ranrahirca', inicio: '2026-10-05T08:05:00', fin: '2026-10-05T11:40:00', estado: 'cerrada', cambios: 23 },
+        { id: '9d2e7f10', id_docente: 1, docente: 'Rosa Elena Cárdenas Villanueva', id_colegio: 2, colegio: 'I.E. 86024 Mancos', inicio: '2026-10-06T08:10:00', fin: null, estado: 'abierta', cambios: 7 },
+        { id: '55c08ab1', id_docente: 2, docente: 'Luis Ramos', id_colegio: 3, colegio: 'I.E. 86031 Shupluy', inicio: '2026-10-05T09:00:00', fin: '2026-10-05T12:15:00', estado: 'pendiente', cambios: 12 },
+      ]
+      let filtradas = todas ? base : base.filter((s) => s.id_docente === 1)
+      if (idDocente) filtradas = filtradas.filter((s) => String(s.id_docente) === String(idDocente))
+      if (idColegio) filtradas = filtradas.filter((s) => String(s.id_colegio) === String(idColegio))
+      if (fecha) filtradas = filtradas.filter((s) => s.inicio.slice(0, 10) === fecha)
+      return responder(filtradas)
+    },
+
+    detalle: async (id) =>
+      responder({
+        id,
+        cambios: [
+          { id_cambio: `${id}-1`, entidad: 'Rúbrica — Pérez Quispe, Ana', campo: 'Fluidez', valor_anterior: 'Inicio', valor_nuevo: 'Proceso', fecha_cliente: '2026-10-05T09:12:00', fecha_servidor: '2026-10-05T11:41:00', diferido: true },
+          { id_cambio: `${id}-2`, entidad: 'Asistencia — Ramírez López, Carlos', campo: 'Presente', valor_anterior: null, valor_nuevo: 'Ausente', fecha_cliente: '2026-10-05T09:20:00', fecha_servidor: '2026-10-05T11:41:00', diferido: true },
+          { id_cambio: `${id}-3`, entidad: 'Seguimiento de Lectura — Pérez Quispe, Ana', campo: 'Libros de sala', valor_anterior: '2', valor_nuevo: '3', fecha_servidor: '2026-10-05T10:05:00', diferido: false },
+        ],
+      }),
+  },
+
   auth: {
+    /**
+     * `POST /password/primer-ingreso` (CU001).
+     *
+     * Devuelve LO MISMO que `/login`, token incluido: el usuario termina
+     * dentro, sin volver a escribir sus credenciales.
+     */
+    async primerIngreso({ correo, temporal, passwordNueva }) {
+      const usuario = db.USUARIOS.find((u) => u.correo.toLowerCase() === String(correo ?? '').trim().toLowerCase())
+      // 401 genérico: no revela si la cuenta existe (CU002).
+      if (!usuario || temporal !== db.CLAVE_DEMO) throw errorMock(401, 'Correo o contraseña incorrectos.', 'credenciales_invalidas')
+      if (passwordNueva === temporal) {
+        throw errorMock(400, 'La nueva contraseña debe ser diferente de la contraseña anterior.', 'password_igual')
+      }
+      usuario.debe_cambiar_contrasena = false
+      return responder({ access_token: armarToken(usuario.id_usuario), token_type: 'bearer' }, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * `POST /password/verificar-codigo` — valida el PIN SIN gastarlo (CU006).
+     *
+     * El PIN del simulador es siempre `123456`: seis DÍGITOS, como pide CU005.
+     * Los `motivo` son los que distingue el contrato, porque la pantalla
+     * ramifica por ellos.
+     */
+    async verificarCodigoPublico({ correo, codigo }) {
+      if (!esCorreoValido(correo)) throw errorMock(422, 'El correo no es válido', 'validacion')
+      if (String(codigo ?? '').trim() !== '123456') {
+        throw errorMock(400, 'El código ingresado es incorrecto. Inténtelo nuevamente.', 'incorrecto')
+      }
+      return responder({ valido: true })
+    },
+
     /**
      * `POST /password/recuperar`. Responde 200 SIEMPRE, exista el correo o no:
      * si distinguiera, cualquiera podría probar direcciones para averiguar
@@ -351,10 +712,16 @@ export const handlers = {
       return responder({ detail: 'Si el correo está registrado, enviamos un código de verificación' })
     },
 
-    /** `POST /password/restablecer`. El código del mock es siempre `AB12CD`. */
+    /**
+     * `POST /password/restablecer`. El código del mock es siempre `123456`.
+     *
+     * SEIS DÍGITOS, no alfanumérico: CU005 lo dice ("6 dígitos numéricos") y el
+     * campo filtra las letras al teclear, así que un PIN como `AB12CD` era
+     * imposible de escribir y el simulador no se podía usar de verdad.
+     */
     async restablecerPassword({ correo, codigo }) {
       if (!esCorreoValido(correo)) throw errorHttp(422, 'El correo no es válido')
-      if (String(codigo ?? '').trim().toUpperCase() !== 'AB12CD') {
+      if (String(codigo ?? '').trim() !== '123456') {
         throw errorHttp(400, 'El código no es válido o ya caducó')
       }
       return responder({ detail: 'Contraseña actualizada' }, RETARDO_ESCRITURA_MS)
@@ -363,7 +730,7 @@ export const handlers = {
     async login({ correo, password }) {
       const usuario = db.USUARIOS.find((u) => u.correo.toLowerCase() === String(correo ?? '').trim().toLowerCase())
       // P1: un 401 nunca revela cuál de los dos campos falló.
-      if (!usuario || password !== db.CLAVE_DEMO) throw errorHttp(401, 'Credenciales inválidas')
+      if (!usuario || password !== db.CLAVE_DEMO) throw errorHttp(401, 'Correo o contraseña incorrectos.')
       return responder({ access_token: armarToken(usuario.id_usuario), token_type: 'bearer' })
     },
 
@@ -582,6 +949,13 @@ export const handlers = {
   // ── Fase 7 ──────────────────────────────────────────────────────────────────
 
   administracion: {
+    /** Valores existentes para los desplegables de filtro de colegios. */
+    ubicaciones: () =>
+      responder({
+        departamentos: [...new Set(db.COLEGIOS.map((c) => c.departamento).filter(Boolean))],
+        distritos: [...new Set(db.COLEGIOS.map((c) => c.distrito).filter(Boolean))],
+      }),
+
     docentes: () =>
       responder(
         db.DOCENTES.map((d) => {
@@ -609,6 +983,51 @@ export const handlers = {
         })),
       ),
 
+    /**
+     * `GET /colegios/{id}` — el colegio COMPLETO.
+     *
+     * El listado no trae grados ni programas: solo el detalle. Los grados van
+     * con su `dia_clase` (CU013); el primero se deja a propósito en `null`
+     * para reproducir a los colegios creados antes de que el campo existiera,
+     * que es el caso que el formulario tiene que obligar a completar.
+     */
+    colegio: async (idColegio) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${idColegio}`)
+      return responder({
+        ...colegio,
+        id: colegio.id_colegio,
+        grados: db.GRADOS.map((g, i) => ({
+          id: g.id_grado,
+          nombre: g.nombre,
+          dia_clase: i === 0 ? null : ((i % 5) + 1),
+        })),
+        programas: db.PROGRAMAS.map((p) => ({ id: p.id_programa, nombre: p.nombre })),
+      })
+    },
+
+    /**
+     * `GET /alumnos/{id}/resumen` — las tres tarjetas de CU015.
+     *
+     * `nivel_descriptivo` lo calcula el SERVIDOR con la matriz por grado: una
+     * "J" es "Logrado" en 3.º y apenas "Inicio" en 5.º. El simulador devuelve
+     * uno coherente en vez de inventarse la tabla entera.
+     */
+    resumenAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      // Uno de cada cinco todavía no tiene evaluación: es el caso que la
+      // pantalla tiene que resolver con "-" y "Sin evaluar".
+      const sinEvaluar = alumno.id_alumno % 5 === 0
+      return responder({
+        nivel_colocado: sinEvaluar
+          ? null
+          : { letra: 'J', id_nivel_rk: 10, numero_periodo: 3, nivel_descriptivo: 'Logrado' },
+        libros_leidos_anio: sinEvaluar ? 0 : 7,
+        asistencia_porcentaje: sinEvaluar ? 0 : 92.5,
+      })
+    },
+
     alumnos: () =>
       responder(
         db.ALUMNOS.map((a) => {
@@ -634,8 +1053,61 @@ export const handlers = {
             ...u,
             nombre: `${u.nombres} ${u.apellidos}`,
             rol,
+            // Una cuenta recién creada arrastra su temporal hasta el primer
+            // ingreso (CU001). En el simulador solo la última, para que la
+            // columna se vea sin inventar que todas están pendientes.
+            debe_cambiar_contrasena: Boolean(u.debe_cambiar_contrasena),
           }
         }),
+      ),
+
+    /** Baja lógica del colegio (D5): cambia el estado, no borra nada. */
+    cambiarEstadoColegio: async (idColegio, activo) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      if (!colegio) throw errorHttp(404, `No existe un colegio con id_colegio=${idColegio}`)
+      colegio.activo = Boolean(activo)
+      return responder(colegio, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Auditoría de un registro. El mock devuelve un rastro de ejemplo para
+     * poder construir y probar la pestaña; el backend aún no la publica.
+     */
+    auditoria: async () =>
+      responder({
+        items: [
+          {
+            fecha: '2026-10-05T14:32:00-05:00',
+            usuario: 'Docente de Prueba',
+            rol: 'Docente',
+            accion: 'editó',
+            cambios: [
+              { campo: 'Nombres', anterior: 'Ana', nuevo: 'Ana María' },
+              { campo: 'Grado', anterior: '1.º', nuevo: '2.º' },
+            ],
+          },
+          {
+            fecha: '2026-10-04T09:10:00-05:00',
+            usuario: 'Jefa de Prueba',
+            rol: 'Supervisor',
+            accion: 'creó',
+            cambios: [],
+          },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 10,
+        total_pages: 1,
+      }),
+
+    /** Secciones de un colegio. Mientras el backend no las modele, van fijas. */
+    secciones: async (idColegio) =>
+      responder(
+        ['A', 'B', 'C'].map((letra, i) => ({
+          id_seccion: Number(idColegio) * 10 + i + 1,
+          id_colegio: Number(idColegio),
+          nombre: letra,
+        })),
       ),
 
     asignaciones: () =>
@@ -649,6 +1121,27 @@ export const handlers = {
             colegio: db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre ?? '—',
             periodo: periodo?.nombre ?? '—',
             estado_periodo: periodo?.estado ?? null,
+            /**
+             * La asignación es por COLEGIO COMPLETO (RN-003), así que van sus
+             * seis grados. Y los subprogramas de cada grado NO son los que
+             * ofrece el colegio: son los de sus alumnos, igual que en el
+             * backend. De ahí sale que un grado sin alumnos de Comprensión
+             * Lectora no deba ofrecerla, que es justo lo que hacía que el
+             * servidor respondiera 403 a una clase elegida desde la pantalla.
+             */
+            grados: db.GRADOS.map((g) => {
+              const alumnos = db.alumnosDe({ colegio: a.id_colegio, grado: g.id_grado })
+              const nombres = alumnos
+                .map((al) => db.PROGRAMAS.find((p) => p.id_programa === al.id_programa)?.nombre)
+                .filter(Boolean)
+              return {
+                id: g.id_grado,
+                nombre: g.nombre,
+                cantidad_alumnos: alumnos.length,
+                ciclos: [...new Set(alumnos.map((al) => al.ciclo).filter(Boolean))],
+                subprogramas: [...new Set(nombres)],
+              }
+            }),
           }
         }),
       ),
@@ -748,7 +1241,9 @@ export const handlers = {
       const rol = Number(idRol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los datos del usuario')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
-      if (rol === 1) throw errorHttp(400, 'Para crear un docente usa el alta de docentes')
+      // Ya NO se rechaza el rol Docente: `/profesores` desapareció y este es
+      // el único alta de los tres roles. Con id_rol de Docente, el backend crea
+      // además su ficha y sus asignaciones en la misma transacción.
       if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1

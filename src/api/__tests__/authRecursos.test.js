@@ -17,7 +17,9 @@ import {
 } from '../resources/auth'
 
 // El mock acepta un único código, igual para todos los correos.
-const CODIGO = 'AB12CD'
+// CU005: el PIN son SEIS DÍGITOS. El simulador usa `123456`; el alfanumérico
+// de antes era imposible de teclear, porque el campo filtra las letras.
+const CODIGO = '123456'
 const CORREO = 'jefa.prueba@sicedu.test'
 
 /** Estado HTTP de un error del cliente (tiene la forma de un error de axios). */

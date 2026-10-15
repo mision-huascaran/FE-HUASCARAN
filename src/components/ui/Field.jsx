@@ -24,18 +24,24 @@ export default function Field({
         </label>
       )}
       {children}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {error ? (
-            <p className="text-xs font-medium text-danger-600">{error}</p>
-          ) : (
-            hint && <p className="text-xs text-ink-400">{hint}</p>
+      {/* Sin ayuda, sin error y sin contador NO se pinta nada. La fila vacía
+          seguía contando para el `gap` del contenedor y dejaba seis píxeles de
+          aire bajo cada control: lo justo para que los botones de una barra de
+          filtros no cuadraran con las cajas de al lado. */}
+      {(error || hint || counter) && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {error ? (
+              <p className="text-xs font-medium text-danger-600">{error}</p>
+            ) : (
+              hint && <p className="text-xs text-ink-400">{hint}</p>
+            )}
+          </div>
+          {counter && (
+            <span className="shrink-0 text-xs tabular-nums text-ink-400">{counter}</span>
           )}
         </div>
-        {counter && (
-          <span className="shrink-0 text-xs tabular-nums text-ink-400">{counter}</span>
-        )}
-      </div>
+      )}
     </div>
   )
 }

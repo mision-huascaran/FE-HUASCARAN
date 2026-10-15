@@ -92,7 +92,10 @@ function EstadoRubrica({ estado, completa }) {
   )
 }
 
-export default function GrillaRubrica({ idSemana, idColegio, idGrado, soloLectura = false }) {
+export default function GrillaRubrica({ idSemana, idColegio, idGrado, ausentes = [], soloLectura = false }) {
+  // T32: quien consta ausente en el módulo Asistencia no se evalúa. La falta se
+  // marca una sola vez, allí, y aquí solo se respeta.
+  const faltaron = new Set(ausentes.map(Number))
   const { filas, estados, incompletas, cargando, actualizarFila } = useCapturaRubrica({ idSemana, idColegio, idGrado })
   const { data: niveles = [], isLoading: cargandoNiveles } = useNivelesRubrica()
   const { data: programas = [] } = useProgramas()
@@ -142,7 +145,9 @@ export default function GrillaRubrica({ idSemana, idColegio, idGrado, soloLectur
           </thead>
           <tbody>
             {filas.map((fila) => {
-              const completa = filaCompleta(fila)
+              const ausente = faltaron.has(Number(fila.id_alumno))
+              // Un ausente no puede quedar "incompleto": no había a quién evaluar.
+              const completa = ausente || filaCompleta(fila)
               const opciones = porPrograma[fila.id_programa] ?? {}
               return (
                 <tr
@@ -151,7 +156,10 @@ export default function GrillaRubrica({ idSemana, idColegio, idGrado, soloLectur
                 >
                   <th scope="row" className="sticky left-0 z-10 border-b border-line bg-surface-0 px-4 py-2 text-left font-normal">
                     <span className="block truncate text-sm font-medium text-ink-900">{fila.nombre}</span>
-                    <span className="block text-xs text-ink-400">{fila.codigo}</span>
+                    <span className="block text-xs text-ink-400">
+                      {fila.codigo}
+                      {ausente && <span className="ml-2 font-semibold text-danger-600">Ausente</span>}
+                    </span>
                   </th>
                   <td className="border-b border-line px-3 py-2 text-ink-700">{nombrePrograma(fila.id_programa)}</td>
                   <td className="border-b border-line px-3 py-2 text-center text-ink-700">{fila.ciclo_evaluado}</td>
@@ -161,7 +169,7 @@ export default function GrillaRubrica({ idSemana, idColegio, idGrado, soloLectur
                       dimension="Fluidez"
                       opciones={opciones.Fluidez ?? []}
                       valor={fila.id_nivel_fluidez}
-                      soloLectura={soloLectura}
+                      soloLectura={soloLectura || ausente}
                       onCambiar={(id) => actualizarFila(fila.id_alumno, { id_nivel_fluidez: id })}
                     />
                   </td>
@@ -171,7 +179,7 @@ export default function GrillaRubrica({ idSemana, idColegio, idGrado, soloLectur
                       dimension="Comprensión"
                       opciones={opciones['Comprensión'] ?? []}
                       valor={fila.id_nivel_comprension}
-                      soloLectura={soloLectura}
+                      soloLectura={soloLectura || ausente}
                       onCambiar={(id) => actualizarFila(fila.id_alumno, { id_nivel_comprension: id })}
                     />
                   </td>

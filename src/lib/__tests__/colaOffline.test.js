@@ -2,7 +2,8 @@
 // se duplica. Aquí se comprueba lo que decide si el trabajo del docente se
 // pierde o no: qué se reintenta, qué se descarta y qué se le devuelve a la fila.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { _reiniciarCola, encolar, registrarEnviador } from '../colaOffline'
+import { _reiniciarCola, encolar, iniciarCola, registrarEnviador } from '../colaOffline'
+import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 
 const fila = (clave, extra = {}) => ({
@@ -14,6 +15,8 @@ const fila = (clave, extra = {}) => ({
 
 beforeEach(() => {
   _reiniciarCola()
+  // Precondición: hay una sesión iniciada. Sin ella la cola no envía (CP09).
+  useSessionStore.setState({ token: 'mock.1.2026' })
 })
 
 describe('cola de envíos', () => {
@@ -63,5 +66,27 @@ describe('cola de envíos', () => {
 
     liberar({ id_registro: 9 })
     await expect(segunda).resolves.toEqual({ id_registro: 9 })
+  })
+
+  it('sin sesión no envía nada; lo manda al iniciar sesión (CP09, D05)', async () => {
+    // Recuperar la conexión en la pantalla de login no debe sincronizar: el
+    // envío espera al siguiente inicio de sesión, y tampoco se pierde por un
+    // 401 de una petición sin token.
+    await iniciarCola()
+    useSessionStore.setState({ token: null })
+    const enviados = []
+    registrarEnviador('fila-semanal', async (payload) => {
+      enviados.push(payload)
+      return { ok: true }
+    })
+
+    const resultado = encolar(fila('alumno-9-semana-12'))
+    await new Promise((listo) => setTimeout(listo, 20))
+    expect(enviados).toHaveLength(0)
+    expect(useSyncStore.getState().pendientes).toBe(1)
+
+    useSessionStore.setState({ token: 'mock.1.2026' })
+    await expect(resultado).resolves.toEqual({ ok: true })
+    expect(enviados).toHaveLength(1)
   })
 })

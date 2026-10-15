@@ -1,4 +1,8 @@
-// Cubre: RF-001, RNF-002, RNF-003, RNF-004
+// Cubre: RF-001, RNF-002, RNF-003, RNF-004 - CU001 y CU002.
+//
+// Los textos de error NO son libres: CU002 los fija palabra por palabra, para
+// que el mensaje no delate si un correo existe. Se definen en MENSAJE y se usan
+// tal cual; cambiarlos rompe el caso de uso.
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,12 +12,26 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PanelBienvenida from './PanelBienvenida'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import ModalPrimerIngreso from './ModalPrimerIngreso'
 import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
 import { destinoTrasLogin } from '../../rutas'
-import { estadoDe, mensajeDeError } from '../../api/client'
+import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
+import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
+
+/** Textos literales de CU001 y CU002. No se improvisan ni se traducen. */
+export const MENSAJE = {
+  sinConexion:
+    'No se pudo establecer conexión con el servidor. Para iniciar sesión es necesario disponer de conexión a Internet.',
+  credenciales: 'Correo o contraseña incorrectos.',
+  bloqueo: 'Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.',
+  desactivada: 'Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.',
+  // CU001, literal: la contraseña temporal dura 48 horas y, pasadas, la única
+  // salida es pedir un PIN. Reintentar no sirve de nada.
+  temporalExpirada: "Su contraseña temporal ha expirado. Use '¿Olvidó su contraseña?' para generar una nueva.",
+}
 
 const esquema = z.object({
   correo: z.string().min(1, 'Ingrese su correo').email('Ingrese un correo válido'),
@@ -21,11 +39,20 @@ const esquema = z.object({
 })
 
 export default function LoginPage() {
-  const { entrar, autenticado, usuario } = useAuth()
+  const { entrar, entrarConToken, autenticado, usuario, motivoCierre, limpiarMotivoCierre } = useAuth()
   const navegar = useNavigate()
   const { state } = useLocation()
   const [errorGeneral, setErrorGeneral] = useState(null)
+  // El inicio de sesión NUNCA es offline: hace falta el servidor para validar
+  // las credenciales y emitir el token. Se avisa antes de dejar escribir.
+  const enLinea = useConexion()
   const [resetAbierto, setResetAbierto] = useState(false)
+  /**
+   * CU001 — Primer ingreso. Las credenciales temporales se guardan SOLO en
+   * memoria y solo hasta que el usuario establece la definitiva: son una
+   * contraseña, y CU003 prohíbe que toquen LocalStorage o IndexedDB.
+   */
+  const [primerIngreso, setPrimerIngreso] = useState(null)
 
   const {
     register,
@@ -39,33 +66,69 @@ export default function LoginPage() {
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
+    limpiarMotivoCierre()
     try {
       const perfil = await entrar({ correo, password })
       navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
-      // Nunca se dice cuál de los dos campos falló (P1).
+
+      /**
+       * El backend puede responder 401 TAMBIÉN para una cuenta desactivada
+       * (api_sicedu_frontend §3.1: "401/403, ver /docs"), y en ese caso el
+       * texto correcto es el de la cuenta deshabilitada, no el de credenciales.
+       * Por eso se prefiere su `detail`, que ya viene redactado palabra por
+       * palabra como pide CU002; los textos locales son solo el respaldo.
+       */
       if (estado === 401) {
-        setErrorGeneral('Correo o contraseña incorrectos')
+        setErrorGeneral(mensajeDeError(error, MENSAJE.credenciales))
         return
       }
-      // Cuenta dada de baja: el servidor ya manda el texto que toca ("Tu cuenta
-      // está deshabilitada. Contacta a tu supervisor."), y distingue si hay que
-      // acudir a un supervisor o a un directivo según el rol. Antes caía en el
-      // mensaje de red y parecía que el servidor estaba caído.
+      // 429: cinco intentos seguidos fallidos bloquean ese correo 15 minutos,
+      // exista la cuenta o no. El bloqueo no desactiva nada.
+      if (estado === 429) {
+        setErrorGeneral(mensajeDeError(error, MENSAJE.bloqueo))
+        return
+      }
+      /**
+       * HAY TRES 403 DISTINTOS, y se distinguen por `motivo`, nunca por el
+       * código. Tratarlos igual mandaba al usuario de un primer ingreso
+       * perfectamente válido a "su cuenta está desactivada", que es falso y no
+       * tiene salida.
+       */
       if (estado === 403) {
-        setErrorGeneral(mensajeDeError(error, 'Su cuenta está desactivada. Comuníquese con su supervisor.'))
+        const motivo = motivoDe(error)
+        if (motivo === 'cambio_contrasena_requerido') {
+          // No es un error: es un paso obligatorio. Se le ofrece ahí mismo.
+          setPrimerIngreso({ correo, temporal: password })
+          return
+        }
+        if (motivo === 'contrasena_temporal_expirada') {
+          // Las 48 horas pasaron: la salida es el PIN, no reintentar.
+          setErrorGeneral(mensajeDeError(error, MENSAJE.temporalExpirada))
+          return
+        }
+        // Cuenta dada de baja. El texto lo fija CU002: se ignora el del
+        // servidor para no decir de más.
+        setErrorGeneral(mensajeDeError(error, MENSAJE.desactivada))
         return
       }
       if (estado) {
         setErrorGeneral(mensajeDeError(error, 'No se pudo iniciar sesión. Intente nuevamente.'))
         return
       }
-      setErrorGeneral('No se pudo conectar con el servidor. Intente nuevamente en unos segundos.')
+      // Sin respuesta del servidor: para CU001 es el mismo caso que estar sin red.
+      setErrorGeneral(MENSAJE.sinConexion)
     }
   }
 
   const cerrarReset = () => setResetAbierto(false)
+
+  /** Tras el primer ingreso el usuario YA tiene token: entra sin repetir login. */
+  const entrarTrasPrimerIngreso = async (sesion) => {
+    const perfil = await entrarConToken(sesion.access_token)
+    navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+  }
 
 
 
@@ -79,6 +142,31 @@ export default function LoginPage() {
 
           <h1 className="mt-8 text-2xl font-bold text-ink-900 md:text-3xl">Iniciar sesión</h1>
           <p className="mt-1 text-sm text-ink-500">Ingrese con el correo institucional que le asignaron.</p>
+
+          {/* CU007: si la sesión venció sola hay que decirlo, o el usuario
+              aparece aquí sin saber por qué y cree que perdió su trabajo. */}
+          {motivoCierre === 'expiracion' && (
+            <div
+              role="status"
+              className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                Su sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
+                hubieran enviado siguen guardados y se sincronizarán al volver a entrar.
+              </span>
+            </div>
+          )}
+
+          {!enLinea && (
+            <div
+              role="alert"
+              className="mt-6 flex items-start gap-2 rounded-lg border border-warning-600/20 bg-warning-100 p-3 text-sm font-medium text-warning-600"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {MENSAJE.sinConexion}
+            </div>
+          )}
 
           {errorGeneral && (
             <div
@@ -112,16 +200,19 @@ export default function LoginPage() {
             />
 
             <div className="flex items-center justify-end gap-2">
+              {/* CU001: sin conexión también se deshabilita y se ve gris. El
+                  proceso de recuperación necesita servidor de principio a fin. */}
               <button
                 type="button"
+                disabled={!enLinea}
                 onClick={() => setResetAbierto(true)}
-                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-ink-400 disabled:hover:text-ink-400"
               >
                 ¿Olvidó su contraseña?
               </button>
             </div>
 
-            <Button type="submit" loading={isSubmitting} className="w-full">
+            <Button type="submit" loading={isSubmitting} disabled={!enLinea} className="w-full">
               Ingresar
             </Button>
           </form>
@@ -136,6 +227,14 @@ export default function LoginPage() {
             abierto={resetAbierto}
             onCerrar={cerrarReset}
             correoInicial={watch('correo') ?? ''}
+          />
+
+          <ModalPrimerIngreso
+            abierto={Boolean(primerIngreso)}
+            correo={primerIngreso?.correo}
+            temporal={primerIngreso?.temporal}
+            onListo={entrarTrasPrimerIngreso}
+            onCerrar={() => setPrimerIngreso(null)}
           />
 
           <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-400">

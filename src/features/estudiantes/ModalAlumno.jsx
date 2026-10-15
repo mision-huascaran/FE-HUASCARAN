@@ -183,7 +183,9 @@ export default function ModalAlumno({ alumno, abierto, onCerrar, soloLectura = f
           />
         )}
 
-        {pestana === 'ficha' && <ResumenFicha ficha={consultaFicha.data} cargando={consultaFicha.isLoading} catalogoRazkids={catalogoRazkids} />}
+        {pestana === 'ficha' && (
+          <ResumenFicha ficha={consultaFicha.data} cargando={consultaFicha.isLoading} idAlumno={alumno?.id_alumno ?? alumno?.id} />
+        )}
       </div>
     </Modal>
   )

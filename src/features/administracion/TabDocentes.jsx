@@ -10,6 +10,7 @@ import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from './ModalCredencialDocente'
+import { ROLES } from '../../auth/roles'
 import { activarDocente, actualizarDocente, crearDocente, desactivarDocente, listarDocentes } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { esCorreoValido } from '../../lib/validacion'
@@ -48,7 +49,9 @@ export default function TabDocentes() {
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
 
   const alta = useMutation({
-    mutationFn: crearDocente,
+    // Un docente es un usuario con `id_rol` de Docente: `/profesores`
+    // desapareció y `POST /usuarios` es el único alta de los tres roles.
+    mutationFn: (datos) => crearDocente({ ...datos, id_rol: ROLES.DOCENTE }),
     onSuccess: (creado) => {
       refrescar()
       cerrar()

@@ -33,3 +33,37 @@ export const esCorreoValido = (valor) => {
 }
 
 export default esCorreoValido
+
+// ── Política de contraseña (CU006) ──────────────────────────────────────────
+//
+// Antes bastaba con 8 caracteres de letras y números. CU006 exige además
+// mayúscula, minúscula, número y carácter especial, y el formulario debe decir
+// QUÉ requisitos faltan, no solo que la contraseña no vale.
+
+/** Un carácter especial es cualquiera que no sea letra ni número, en cualquier idioma. */
+const ESPECIAL = /[^\p{L}\p{N}]/u
+
+export const REQUISITOS_PASSWORD = [
+  { id: 'longitud', texto: 'Al menos 8 caracteres', cumple: (v) => v.length >= 8 },
+  { id: 'mayuscula', texto: 'Una letra mayúscula', cumple: (v) => v !== v.toLowerCase() },
+  { id: 'minuscula', texto: 'Una letra minúscula', cumple: (v) => v !== v.toUpperCase() },
+  { id: 'numero', texto: 'Un número', cumple: (v) => /\d/.test(v) },
+  { id: 'especial', texto: 'Un carácter especial', cumple: (v) => ESPECIAL.test(v) },
+]
+
+/**
+ * Los requisitos que la contraseña NO cumple todavía.
+ *
+ * Se compara con `toLowerCase`/`toUpperCase` en vez de con `[A-Z]` para que
+ * "Ñ" o "Á" cuenten como mayúscula: hay apellidos y palabras del quechua que
+ * las llevan, y rechazarlas sería arbitrario.
+ */
+export const requisitosIncumplidos = (valor) => {
+  const password = String(valor ?? '')
+  return REQUISITOS_PASSWORD.filter((requisito) => !requisito.cumple(password))
+}
+
+export const esPasswordValida = (valor) => requisitosIncumplidos(valor).length === 0
+
+/** CU005: el PIN son exactamente 6 dígitos numéricos. */
+export const esPinValido = (valor) => /^\d{6}$/.test(String(valor ?? ''))

@@ -12,6 +12,11 @@ import {
   obtenerProgramas,
   obtenerSemanas,
 } from '../api/resources/catalogos'
+import {
+  listarColegiosAdmin,
+  listarGradosAdmin,
+  listarProgramasAdmin,
+} from '../api/resources/administracion'
 
 const OPCIONES_CATALOGO = { staleTime: Infinity, gcTime: Infinity }
 
@@ -26,6 +31,28 @@ export const useNivelGeneral = () => useCatalogo(['catalogo', 'nivel-general'], 
 export const useEsperadoPorGrado = () => useCatalogo(['catalogo', 'esperado-por-grado'], obtenerEsperadoPorGrado)
 export const usePeriodos = () => useCatalogo(['catalogo', 'periodos'], obtenerPeriodos)
 export const useSemanas = () => useCatalogo(['catalogo', 'semanas'], obtenerSemanas)
+
+// ── Los mismos catálogos, pero del backend DE VERDAD ────────────────────────
+//
+// Los de arriba salen del simulador mientras `VITE_USE_MOCK` esté encendido, y
+// eso es a propósito: las pantallas que todavía son mock (Rúbrica, Registro de
+// Vuelo, Dashboard) tienen métricas inventadas, y pintarlas bajo nombres de
+// colegios reales sería peor que no pintarlas.
+//
+// Pero Asistencia ya no es mock. Pedía sus colegios al simulador y por eso no
+// aparecían los que el Supervisor acababa de crear; peor aún, los ids que sí
+// salían eran de otra base, así que `GET /asistencias` nunca iba a encontrar
+// esa clase. Estos hooks son los que deben usar las pantallas ya conectadas.
+// `habilitado` en false para quien no puede pedirlos: `GET /colegios` es de
+// administración y un Docente solo recibiría un 403.
+export const useColegiosReales = (habilitado = true) =>
+  useCatalogo(['catalogo', 'real', 'colegios'], async () => (await listarColegiosAdmin({ estado: 'activo' })).items, {
+    enabled: habilitado,
+  })
+
+export const useGradosReales = () => useCatalogo(['catalogo', 'real', 'grados'], listarGradosAdmin)
+
+export const useProgramasReales = () => useCatalogo(['catalogo', 'real', 'programas'], listarProgramasAdmin)
 
 /**
  * Niveles de rúbrica (P5). Con `idPrograma` trae los de ese programa; sin él,

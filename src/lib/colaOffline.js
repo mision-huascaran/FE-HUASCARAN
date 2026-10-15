@@ -15,7 +15,8 @@
 // corte de conexión. Si IndexedDB no está disponible, sigue funcionando en
 // memoria: el objetivo es no perder el trabajo del docente, no la persistencia.
 import { mensajeDeError } from '../api/client'
-import { get, set } from 'idb-keyval'
+import { del, get, set } from 'idb-keyval'
+import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
@@ -45,9 +46,20 @@ async function persistir() {
   publicarEstado()
   try {
     await set(CLAVE_IDB, cola)
+    return true
   } catch {
-    // Sin IndexedDB (navegación privada, jsdom) la cola sigue en memoria.
+    // Sin IndexedDB (navegación privada, jsdom) la cola sigue en memoria. Para
+    // el reporte semanal y la rúbrica eso basta: su pantalla ya avisa de los
+    // pendientes y el docente tiene un botón de guardar al que volver.
+    return false
   }
+}
+
+/** Error de un envío que exigía quedar guardado en local y no pudo. */
+const errorDePersistencia = () => {
+  const error = new Error('No se pudo guardar en el almacenamiento local')
+  error.response = { status: 0, data: { motivo: 'persistencia_local' } }
+  return error
 }
 
 function resolverPromesa(clave, valor) {
@@ -68,6 +80,22 @@ function esReintentable(error) {
   return estado >= 500
 }
 
+/**
+ * Saca de la cola todo lo que dependía de un envío que se descartó.
+ *
+ * Es recursivo porque una dependencia puede encadenarse, aunque hoy solo haya
+ * un eslabón: el cierre de actividad depende de su inicio.
+ */
+function descartarDependientes(clave, error) {
+  const dependientes = cola.filter((item) => item.dependeDe === clave)
+  dependientes.forEach((item) => {
+    const i = cola.indexOf(item)
+    if (i >= 0) cola.splice(i, 1)
+    rechazarPromesa(item.clave, error)
+    descartarDependientes(item.clave, error)
+  })
+}
+
 function programar(ms) {
   clearTimeout(temporizador)
   temporizador = setTimeout(() => procesar(), ms)
@@ -79,6 +107,11 @@ async function procesar() {
     useSyncStore.getState().terminarSincronizacion(null)
     return
   }
+  // Sin sesión no se envía nada (CU007, CU008): recuperar la conexión en la
+  // pantalla de login no debe sincronizar. Además, sin token cada envío daría
+  // 401, que no es reintentable, y el pendiente se perdería. Se espera al
+  // siguiente inicio de sesión (ver `iniciarCola`).
+  if (!useSessionStore.getState().token) return
 
   procesando = true
   useSyncStore.getState().iniciarSincronizacion()
@@ -106,6 +139,9 @@ async function procesar() {
 
         if (!esReintentable(error)) {
           cola.shift()
+          // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
+          // daría otro error y ensuciaría la cola con fallos encadenados.
+          descartarDependientes(item.clave, error)
           await persistir()
           rechazarPromesa(item.clave, error)
           continue
@@ -140,13 +176,24 @@ async function procesar() {
  * servidor lo acepta y se rechaza cuando se agotan los reintentos, para que la
  * fila pueda mostrar su estado sin saber nada de la cola.
  */
-export function encolar({ clave, tipo, payload, descripcion }) {
+/**
+ * @param dependeDe clave de otro envío que TIENE que llegar antes. Si aquel se
+ *   descarta por un error definitivo, este se descarta con él en vez de salir
+ *   solo. Lo necesita el cierre de una actividad: sin su inicio, el servidor
+ *   responde 404 por una actividad que nunca llegó a existir.
+ * @param exigePersistencia el envío no vale si no queda guardado en
+ *   IndexedDB. Lo pide CU022: la asistencia se marca sin botón de guardar, así
+ *   que si el apunte local falla hay que decirlo y deshacer el clic, o el
+ *   docente creería registrada una asistencia que solo existe en la pantalla.
+ */
+export function encolar({ clave, tipo, payload, descripcion, dependeDe = null, exigePersistencia = false }) {
   const anterior = cola.findIndex((item) => item.clave === clave)
   const item = {
     clave,
     tipo,
     payload,
     descripcion,
+    dependeDe,
     intentos: 0,
     error: null,
     creado: new Date().toISOString(),
@@ -162,7 +209,17 @@ export function encolar({ clave, tipo, payload, descripcion }) {
   }
 
   const promesa = new Promise((resolve, reject) => promesas.set(clave, { resolve, reject }))
-  persistir().then(() => procesar())
+  persistir().then((guardado) => {
+    if (!guardado && exigePersistencia) {
+      // Fuera de la cola: dejarlo ahí prometería un reintento que no
+      // sobrevivirá a cerrar la pestaña.
+      cola = cola.filter((item) => item.clave !== clave)
+      publicarEstado()
+      rechazarPromesa(clave, errorDePersistencia())
+      return
+    }
+    procesar()
+  })
   return promesa
 }
 
@@ -195,7 +252,38 @@ export async function iniciarCola() {
     window.addEventListener('online', () => procesar())
   }
 
+  // Al iniciar sesión se envía lo que quedó pendiente de la sesión anterior
+  // (por ejemplo, el cierre de una actividad hecho sin conexión).
+  useSessionStore.subscribe((estado, previo) => {
+    if (estado.token && estado.token !== previo.token) procesar()
+  })
+
   if (cola.length > 0) procesar()
+}
+
+/** ¿Cuántos cambios quedan sin enviar? Lo consulta el cierre de sesión. */
+export const hayPendientes = () => cola.length
+
+/**
+ * Limpia los datos locales al cerrar sesión — pero SOLO si no queda nada
+ * pendiente.
+ *
+ * Son dos reglas que parecen contradecirse y no lo hacen: IndexedDB guarda
+ * datos de menores y hay que borrarlo al salir, pero CU007 prohíbe que el
+ * cierre de sesión elimine cambios que todavía no llegaron al servidor. Se
+ * resuelve limpiando solo cuando la cola está vacía; si queda algo, se conserva
+ * y se envía tras el siguiente inicio de sesión.
+ *
+ * @returns {Promise<boolean>} true si se limpió, false si había pendientes.
+ */
+export async function limpiarSiTodoSincronizado() {
+  if (cola.length > 0) return false
+  try {
+    await del(CLAVE_IDB)
+  } catch {
+    // Sin IndexedDB disponible no hay nada que limpiar.
+  }
+  return true
 }
 
 /** Solo para los tests: deja la cola como recién abierta. */

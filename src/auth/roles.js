@@ -17,14 +17,20 @@ export const NOMBRE_ROL = {
   [ROLES.DIRECTIVO]: 'Directivo',
 }
 
-/** Ruta de aterrizaje tras el login, por rol (P1). */
+/**
+ * Ruta de aterrizaje tras el login.
+ *
+ * Los tres roles aterrizan en `/inicio`: la matriz del sprint da esa sección a
+ * todos, con un contenido distinto por rol (al Docente sus asignaciones, al
+ * Supervisor métricas por docente, al Directivo el resumen ejecutivo).
+ */
 export const INICIO_POR_ROL = {
   [ROLES.PROFESOR]: '/inicio',
   [ROLES.DOCENTE]: '/inicio',
-  [ROLES.JEFA]: '/dashboard',
-  [ROLES.SUPERVISOR]: '/dashboard',
-  [ROLES.DIRECTIVOS]: '/panel-ejecutivo',
-  [ROLES.DIRECTIVO]: '/panel-ejecutivo',
+  [ROLES.JEFA]: '/inicio',
+  [ROLES.SUPERVISOR]: '/inicio',
+  [ROLES.DIRECTIVOS]: '/inicio',
+  [ROLES.DIRECTIVO]: '/inicio',
 }
 
 export function rutaInicioDe(idRol) {
