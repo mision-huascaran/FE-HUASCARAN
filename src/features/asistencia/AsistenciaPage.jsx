@@ -2,9 +2,13 @@
 //
 // YA NO ES UNA DEMO: el backend publica `GET /asistencias` y `PUT /asistencias`.
 //
-// Una CLASE es fecha + colegio + grado + subprograma. La SECCIÓN no viaja al
-// servidor: es un atributo del colegio ("Única") que el alumno hereda, así que
-// el filtro solo sirve para que el docente se ubique.
+// Una CLASE es fecha + colegio + grado + subprograma, y nada más: la sección no
+// está en el contrato y ya no se pide.
+//
+// Los catálogos salen del backend REAL (`useColegiosReales` y compañía), no del
+// simulador. Con los del simulador no aparecían los colegios recién creados y,
+// lo que es peor, los ids eran de otra base: `GET /asistencias` no podía
+// encontrar ninguna clase.
 //
 // Lo que la separa de las demás grillas:
 //
@@ -30,10 +34,10 @@ import ModalObservacion from './ModalObservacion'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
-import { listarSeccionesDe, obtenerClase } from '../../api/resources/asistencia'
+import { obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes } from '../../api/resources/administracion'
 import { motivoDe } from '../../api/client'
-import { useColegios, useGrados, useProgramas } from '../../hooks/useCatalogos'
+import { useColegiosReales, useGradosReales, useProgramasReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
@@ -54,9 +58,9 @@ export default function AsistenciaPage() {
   const { filtros, cambiar } = useFiltrosAsistencia()
   const [observando, setObservando] = useState(null)
 
-  const { data: colegios = [] } = useColegios()
-  const { data: grados = [] } = useGrados()
-  const { data: programas = [] } = useProgramas()
+  const { data: colegios = [] } = useColegiosReales()
+  const { data: grados = [] } = useGradosReales()
+  const { data: programas = [] } = useProgramasReales()
 
   const { data: docentes = [] } = useQuery({
     queryKey: ['admin', 'docentes'],
@@ -82,21 +86,7 @@ export default function AsistenciaPage() {
     if (!filtros.idPrograma && programas.length) cambiar('subprograma', String(programas[0].id_programa))
   }, [programas, filtros.idPrograma, cambiar])
 
-  const { data: secciones = [] } = useQuery({
-    queryKey: ['asistencia', 'secciones', filtros.idColegio, filtros.idGrado],
-    queryFn: () => listarSeccionesDe({ idColegio: filtros.idColegio, idGrado: filtros.idGrado }),
-    enabled: Boolean(filtros.idColegio && filtros.idGrado),
-  })
-
-  // CU022, paso 3: con una sola aula se rellena sola; con varias se deja vacía
-  // a propósito, porque elegir por el docente sería registrar otra clase.
-  useEffect(() => {
-    if (!filtros.seccion && secciones.length === 1) cambiar('seccion', secciones[0])
-  }, [secciones, filtros.seccion, cambiar])
-
-  const listos = Boolean(
-    filtros.idColegio && filtros.idGrado && filtros.seccion && filtros.idPrograma && filtros.fecha,
-  )
+  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idPrograma && filtros.fecha)
 
   const clase = useQuery({
     queryKey: ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
@@ -165,7 +155,6 @@ export default function AsistenciaPage() {
         cambiar={cambiar}
         colegios={colegios}
         grados={grados}
-        secciones={secciones}
         programas={programas}
         docentes={docentes}
         eligeDocente={!puedeEditar}
@@ -175,7 +164,7 @@ export default function AsistenciaPage() {
         <Card>
           <EmptyState
             title="Complete los filtros"
-            description="La clase se arma con colegio, grado, sección, subprograma y fecha."
+            description="La clase se arma con colegio, grado, subprograma y fecha."
           />
         </Card>
       )}

@@ -74,26 +74,9 @@ function montar(idRol = ROLES.DOCENTE) {
   )
 }
 
-/**
- * Elige la sección. Con dos aulas el desplegable nace VACÍO a propósito
- * (CU022, paso 3), así que hay que saltarse el marcador de posición.
- */
-async function elegirSeccion() {
-  const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
-  await waitFor(() => {
-    const aulas = [...seccion.querySelectorAll('option')].filter((o) => o.value)
-    expect(aulas.length).toBeGreaterThan(0)
-  }, ESPERA)
-  if (!seccion.value) {
-    const primera = [...seccion.querySelectorAll('option')].find((o) => o.value)
-    fireEvent.change(seccion, { target: { value: primera.value } })
-  }
-}
-
-/** Deja los cinco filtros puestos y devuelve la lista ya pintada. */
+/** Deja los cuatro filtros puestos y devuelve la lista ya pintada. */
 async function abrirClase() {
   await abrirFiltros()
-  await elegirSeccion()
   return screen.findByRole('table', {}, ESPERA)
 }
 

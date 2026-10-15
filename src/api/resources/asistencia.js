@@ -10,6 +10,11 @@
 //   · TRES estados, no dos: `presente | tardanza | ausente`, más `null` para
 //     "sin marcar". Y `null` NO se acepta al escribir: una marca puesta no se
 //     puede quitar, solo cambiar.
+//   · LA SECCIÓN NO EXISTE. No está en los parámetros de `GET /asistencias`, no
+//     viene en `AlumnoAsistencia` y `/secciones` se retiró del contrato. El
+//     filtro que había aquí se alimentaba del simulador, así que contra datos
+//     reales salía vacío y, como era obligatorio para armar la clase, dejaba la
+//     pantalla entera sin cargar nunca.
 //   · El guardado es un PUT con VARIOS registros. El autoguardado manda uno,
 //     pero "Marcar todos como presentes" los manda juntos, y el mismo endpoint
 //     sirve para la observación.
@@ -19,20 +24,6 @@ import handlers from '../mock/handlers'
 
 /** Los tres estados del Segmented Control, en el orden en que se pintan. */
 export const ESTADOS_ASISTENCIA = ['presente', 'tardanza', 'ausente']
-
-/**
- * Las secciones (aulas) de un colegio y grado.
- *
- * NO es un endpoint: el backend no modela las secciones y `GET /asistencias`
- * no las recibe. La sección es un atributo del colegio ("Única") que el alumno
- * hereda, y el filtro existe solo porque CU022 lo pide para ubicarse. Se sacan
- * de los alumnos que hay.
- */
-export const listarSeccionesDe = ({ idColegio, idGrado }) =>
-  resolver({
-    mock: () => handlers.asistencia.secciones({ idColegio, idGrado }),
-    real: () => handlers.asistencia.secciones({ idColegio, idGrado }),
-  })
 
 /**
  * `GET /asistencias` — la clase de una fecha.

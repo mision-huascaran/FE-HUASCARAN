@@ -1,11 +1,9 @@
 // Regresión: al entrar en Asistencia la pantalla PINTABA un colegio y un grado,
-// pero el cuerpo seguía diciendo "Elija colegio, grado y fecha" y el desplegable
-// de Sección salía vacío.
+// pero el cuerpo seguía diciendo "Elija colegio, grado y fecha".
 //
 // La causa no era la carga de datos: un `<select>` sin marcador de posición
 // muestra su primera opción aunque el estado valga cadena vacía. Así que la
-// pantalla decía "I.E. 86021 Ranrahirca" mientras el filtro no tenía colegio, y
-// sin colegio la consulta de secciones ni se lanzaba.
+// pantalla decía "I.E. 86021 Ranrahirca" mientras el filtro no tenía colegio.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -52,26 +50,30 @@ describe('Filtros de Asistencia (CU022)', () => {
     await waitFor(() => expect(colegio.value).not.toBe(''), ESPERA)
     expect((await screen.findByLabelText('Grado', {}, ESPERA)).value).not.toBe('')
 
-    // CU022 añade Sección y Subprograma, así que con colegio y grado todavía
-    // faltan datos: lo que se comprueba aquí es que estén ELEGIDOS de verdad.
     expect((await screen.findByLabelText('Subprograma', {}, ESPERA)).value).not.toBe('')
   })
 
-  it('la Sección vuelve a ser filtro, y es el aula del colegio y grado', async () => {
-    // Se había quitado cuando el backend dejó de tratarla como entidad propia
-    // (ya no existe `/secciones`). CU022 la pide otra vez como filtro
-    // obligatorio, pero ahora se deduce de las aulas que ese colegio y ese
-    // grado tienen de verdad, sin tabla aparte.
+  it('no hay filtro de Sección, y la clase se arma igual', async () => {
+    // La sección NO está en el contrato: `GET /asistencias` recibe colegio,
+    // grado, subprograma y fecha, y el alumno que devuelve no trae aula. El
+    // filtro que hubo aquí sacaba sus opciones del simulador, así que contra el
+    // backend real nacía vacío y, siendo obligatorio, la clase no se pedía
+    // nunca: la pantalla se quedaba en "Complete los filtros" para siempre.
     montar()
     await abrirFiltros()
 
     await screen.findByLabelText('Colegio', {}, ESPERA)
-    const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
-    await waitFor(() => expect(seccion.querySelectorAll('option').length).toBeGreaterThan(0), ESPERA)
+    expect(screen.queryByLabelText('Sección')).toBeNull()
+
+    // Con los cuatro que sí existen basta para que la clase cargue.
+    await waitFor(
+      () => expect(screen.queryByText(/complete los filtros/i)).toBeNull(),
+      ESPERA,
+    )
   })
 
   it('unos filtros guardados por una versión anterior no dejan campos sin definir', async () => {
-    // Forma vieja: sin `idDocente` ni `idSeccion`.
+    // Forma vieja: sin `idDocente` ni `idPrograma`.
     localStorage.setItem('sicedu.filtros.asistencia', JSON.stringify({ idColegio: '', idGrado: '', fecha: '2026-10-07' }))
 
     montar()
