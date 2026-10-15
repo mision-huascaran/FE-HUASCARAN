@@ -496,7 +496,7 @@ export const handlers = {
       const aulas = db
         .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
         .map((a) => a.aula)
-      return responder([...new Set(aulas)].sort())
+      return responder([...new Set(aulas)].sort((a, b) => String(a).localeCompare(String(b))))
     },
 
     clase: async ({ idColegio, idGrado, idPrograma, fecha }) => {

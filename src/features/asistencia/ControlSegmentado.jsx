@@ -41,10 +41,9 @@ const LADOS = [
 
 export default function ControlSegmentado({ valor, nombre, deshabilitado, onElegir }) {
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label={`Asistencia de ${nombre}`}
-      className="inline-flex overflow-hidden rounded-lg border border-line"
+      className="m-0 inline-flex min-w-0 overflow-hidden rounded-lg border border-line p-0"
     >
       {LADOS.map((lado) => {
         const elegido = valor === lado.valor
@@ -74,6 +73,6 @@ export default function ControlSegmentado({ valor, nombre, deshabilitado, onEleg
           </button>
         )
       })}
-    </div>
+    </fieldset>
   )
 }

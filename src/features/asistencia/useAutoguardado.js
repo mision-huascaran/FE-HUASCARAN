@@ -130,7 +130,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
           const confirmado = confirmadoPor(guardado, siguiente)
           queryClient.setQueryData(claveClase, (previa) => conAlumno(previa, alumno.id_alumno, confirmado))
         }
-        if (guardado && guardado.aplicado === false) {
+        if (guardado?.aplicado === false) {
           escribir(alumno.id_alumno, { estado: guardado.estado ?? null, observacion: guardado.observacion ?? null })
           toast.info(
             'Otro dispositivo lo registró antes',
