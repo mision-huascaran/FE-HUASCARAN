@@ -11,18 +11,24 @@ import useSyncStore from '../../store/syncStore'
 import { usePeriodos } from '../../hooks/useCatalogos'
 
 /**
- * Las rutas que de verdad LEEN el periodo del selector.
+ * Las rutas donde el selector de periodo SE VE.
  *
- * El selector salía en la barra superior de toda la aplicación, también en
- * Usuarios, Alumnos y Colegios, donde cambiarlo no hacía absolutamente nada:
- * un control que promete filtrar y no filtra. No se borra del todo porque sí
- * manda en las pantallas de consulta del Supervisor y el Directivo; se esconde
- * donde no pinta nada.
+ * Son las pantallas de consulta, que es donde comparar dos cortes tiene
+ * sentido. En el resto se esconde, y cada una por su motivo:
+ *
+ *   · Inicio, Rúbrica y Seguimiento de Lectura son el trabajo del día. Van
+ *     siempre contra el periodo abierto (RN-010), así que el selector promete
+ *     una elección que no cambia nada de lo que se ve.
+ *   · Dashboard y Registro de Vuelo YA TIENEN su propio periodo, dentro de la
+ *     pantalla. Dos selectores para lo mismo, y encima uno arriba y otro
+ *     abajo, es una invitación a dejarlos descuadrados.
+ *
+ * Esconderlo no deja el periodo sin valor: el efecto de abajo lo fija igual en
+ * todas las rutas, también donde el control no se pinta.
  *
  * Los prefijos cubren las rutas con detalle (`/ranking/3`, `/estudiantes/12`).
  */
 const RUTAS_CON_PERIODO = [
-  '/inicio',
   '/ranking',
   '/estudiantes',
   '/consulta-colegios',
@@ -30,9 +36,6 @@ const RUTAS_CON_PERIODO = [
   '/nivel-final',
   '/panel-ejecutivo',
   '/reportes',
-  '/dashboard',
-  '/rubrica',
-  '/seguimiento-lectura',
 ]
 
 const usaElPeriodo = (ruta) => RUTAS_CON_PERIODO.some((base) => ruta === base || ruta.startsWith(`${base}/`))

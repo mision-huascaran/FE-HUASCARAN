@@ -97,11 +97,17 @@ describe('Seguimiento de docentes (CU020)', () => {
     expect(await screen.findByText('Nunca', {}, ESPERA)).toBeInTheDocument()
   })
 
-  it('los filtros viajan al servidor, no se aplican en el cliente', async () => {
+  it('los filtros viajan al servidor al pulsar «Filtrar», no al elegirlos', async () => {
     montar()
     await screen.findByText('Rosa Camones', {}, ESPERA)
+    listar.mockClear()
 
+    // Elegir no consulta: con cuatro filtros serian cuatro peticiones y la
+    // tabla parpadearia entre resultados intermedios.
     fireEvent.change(screen.getByLabelText('Sincronización'), { target: { value: 'pendiente' } })
+    expect(listar).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^filtrar$/i }))
     await waitFor(
       () => expect(listar).toHaveBeenCalledWith(expect.objectContaining({ sincronizacion: 'pendiente' })),
       ESPERA,

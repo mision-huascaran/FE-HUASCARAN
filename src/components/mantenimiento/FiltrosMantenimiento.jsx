@@ -8,15 +8,13 @@
 //
 //   · Todo en UNA FILA. Antes cada filtro ocupaba el ancho completo y la
 //     tabla quedaba empujada fuera de la pantalla: había que bajar seis veces
-//     para ver el primer alumno. `Field` lleva `w-full`, así que la fila no se
-//     arma con los controles sueltos sino envolviendo cada uno en una celda
-//     flexible que sí puede encogerse.
+//     para ver el primer alumno. De eso se encarga ahora `BarraDeFiltros`, que
+//     es la misma fila que usan Seguimiento y Sesiones.
 //   · Se filtra al PULSAR, no al teclear. Con la lista contra el servidor,
 //     cambiar cinco filtros disparaba cinco consultas y la tabla parpadeaba
 //     entre resultados intermedios.
 import { useEffect, useState } from 'react'
-import { Filter, X } from 'lucide-react'
-import Button from '../ui/Button'
+import BarraDeFiltros, { CeldaFiltro } from '../ui/BarraDeFiltros'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
 
@@ -25,11 +23,6 @@ const ESTADOS = [
   { value: 'inactivo', label: 'Inactivos' },
   { value: 'todos', label: 'Todos' },
 ]
-
-/** Una celda de la fila: puede encogerse, con un mínimo legible. */
-function Celda({ children }) {
-  return <div className="min-w-[150px] flex-1 basis-[150px]">{children}</div>
-}
 
 export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCambio, onAplicar }) {
   // Lo que el usuario está escribiendo, todavía sin aplicar.
@@ -59,21 +52,9 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
   }
 
   return (
-    <form
-      className="flex flex-wrap items-end gap-3 border-b border-line p-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        aplicar()
-      }}
-    >
-      {/* Los campos en su propio bloque, que crece y se parte en varias líneas
-          si hace falta. Antes iban sueltos en el `flex` del formulario, así que
-          los botones quedaban pegados al último filtro: con dos filtros
-          (Colegios) salían a media pantalla y con seis (Alumnos del Supervisor)
-          al extremo derecho. Ahora están SIEMPRE en el mismo sitio. */}
-      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">
+    <BarraDeFiltros onFiltrar={aplicar} onLimpiar={limpiar}>
       {filtros.map((filtro) => (
-        <Celda key={filtro.nombre}>
+        <CeldaFiltro key={filtro.nombre}>
           {filtro.tipo === 'busqueda' ? (
             <Input
               label={filtro.etiqueta}
@@ -90,30 +71,17 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
               onChange={(e) => escribir(filtro.nombre, e.target.value)}
             />
           )}
-        </Celda>
+        </CeldaFiltro>
       ))}
 
-      <Celda>
+      <CeldaFiltro>
         <Select
           label="Estado"
           value={borrador.estado ?? 'activo'}
           options={ESTADOS}
           onChange={(e) => escribir('estado', e.target.value)}
         />
-      </Celda>
-      </div>
-
-      {/* Pegados al borde derecho, sin estirarse. El margen inferior los alinea
-          con los controles, que reservan un hueco bajo cada uno para su texto
-          de ayuda. */}
-      <div className="mb-6 ml-auto flex shrink-0 items-center gap-2">
-        <Button type="submit" iconLeft={Filter}>
-          Filtrar
-        </Button>
-        <Button type="button" variant="ghost" iconLeft={X} onClick={limpiar}>
-          Limpiar
-        </Button>
-      </div>
-    </form>
+      </CeldaFiltro>
+    </BarraDeFiltros>
   )
 }

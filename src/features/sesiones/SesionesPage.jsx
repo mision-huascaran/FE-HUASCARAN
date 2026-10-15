@@ -15,6 +15,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { History, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
+import BarraDeFiltros, { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
@@ -99,45 +100,50 @@ export default function SesionesPage() {
       </header>
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-end gap-3 border-b border-line p-4">
-          <Input
-            label="Desde"
-            type="date"
-            value={filtros.desde}
-            error={rangoInvalido ? 'El rango de fechas no es válido' : undefined}
-            onChange={(e) => cambiar('desde', e.target.value)}
-          />
-          <Input label="Hasta" type="date" value={filtros.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
-          <Select label="Estado" placeholder="Todos" value={filtros.estado} options={ESTADOS} onChange={(e) => cambiar('estado', e.target.value)} />
-          <Select
-            label="Sincronización"
-            placeholder="Todos"
-            value={filtros.sincronizacion}
-            options={SINCRONIZACIONES}
-            onChange={(e) => cambiar('sincronizacion', e.target.value)}
-          />
-          <Select
-            label="Tipo de cierre"
-            placeholder="Todos"
-            value={filtros.tipo_cierre}
-            options={CIERRES}
-            onChange={(e) => cambiar('tipo_cierre', e.target.value)}
-          />
-          {/* Se busca al pulsar, no al teclear: el caso de uso lo pide así y
-              además evita una petición por cada cambio de filtro. */}
-          <Button disabled={rangoInvalido} onClick={() => setBuscados(filtros)}>
-            Buscar
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              limpiar()
-              setBuscados({})
-            }}
-          >
-            Limpiar filtros
-          </Button>
-        </div>
+        {/* Se busca al pulsar, no al teclear: el caso de uso lo pide así y
+            además evita una petición por cada cambio de filtro. */}
+        <BarraDeFiltros
+          filtrarDeshabilitado={rangoInvalido}
+          onFiltrar={() => setBuscados(filtros)}
+          onLimpiar={() => {
+            limpiar()
+            setBuscados({})
+          }}
+        >
+          <CeldaFiltro>
+            <Input
+              label="Desde"
+              type="date"
+              value={filtros.desde}
+              error={rangoInvalido ? 'El rango de fechas no es válido' : undefined}
+              onChange={(e) => cambiar('desde', e.target.value)}
+            />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Input label="Hasta" type="date" value={filtros.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Select label="Estado" placeholder="Todos" value={filtros.estado} options={ESTADOS} onChange={(e) => cambiar('estado', e.target.value)} />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Select
+              label="Sincronización"
+              placeholder="Todos"
+              value={filtros.sincronizacion}
+              options={SINCRONIZACIONES}
+              onChange={(e) => cambiar('sincronizacion', e.target.value)}
+            />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Select
+              label="Tipo de cierre"
+              placeholder="Todos"
+              value={filtros.tipo_cierre}
+              options={CIERRES}
+              onChange={(e) => cambiar('tipo_cierre', e.target.value)}
+            />
+          </CeldaFiltro>
+        </BarraDeFiltros>
 
         {consulta.isError ? (
           <EmptyState title="No se pudo obtener el historial de sesiones" description={mensajeDeError(consulta.error)} />

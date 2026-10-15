@@ -1,5 +1,6 @@
 // Barril de los componentes base (§4.5). Las páginas importan desde aquí y
 // nunca vuelven a declarar estilos propios para estos elementos.
+export { default as BarraDeFiltros, CeldaFiltro } from './BarraDeFiltros'
 export { default as Badge } from './Badge'
 export { default as Button } from './Button'
 export { default as Card } from './Card'
