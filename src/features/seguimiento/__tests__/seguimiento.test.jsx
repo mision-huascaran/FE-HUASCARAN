@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { QueryClient } from '@tanstack/react-query'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import SeguimientoPage from '../SeguimientoPage'
@@ -45,6 +46,16 @@ function definirConexion(enLinea) {
   Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
 }
 
+/** La última ruta a la que se navegó, para comprobar los atajos de CU021. */
+let rutaActual = null
+const ultimaRuta = () => rutaActual
+
+function EspiaDeRuta() {
+  const { pathname, search } = useLocation()
+  rutaActual = `${pathname}${search}`
+  return null
+}
+
 function montar({ sinReintentos = false } = {}) {
   // El cliente real reintenta 3 veces con espera creciente. Para el caso de
   // error eso haría que el test agotara su tiempo esperando reintentos.
@@ -52,10 +63,15 @@ function montar({ sinReintentos = false } = {}) {
     ? new QueryClient({ defaultOptions: { queries: { retry: false } } })
     : crearQueryClient()
 
+  // Con Router: el atajo "Ver Asistencias" navega a /asistencia con la fecha
+  // de la jornada, así que la pantalla necesita contexto de rutas (CU021).
   return render(
     <QueryClientProvider client={cliente}>
       <ToastProvider>
-        <SeguimientoPage />
+        <MemoryRouter initialEntries={['/seguimiento']}>
+          <SeguimientoPage />
+          <EspiaDeRuta />
+        </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -152,6 +168,40 @@ describe('Bitácora de un docente (CU021)', () => {
     expect(atajo).toBeDisabled()
     // Una sesión en curso dice "No aplica" en fin Y en tipo de cierre: son dos.
     expect(screen.getAllByText('No aplica')).toHaveLength(2)
+  })
+
+  it('"Ver Asistencias" sí lleva a su módulo, con la FECHA de la jornada (CU021)', async () => {
+    /**
+     * Asistencias ya existe, así que ese atajo deja de estar apagado. Lleva el
+     * día EXACTO de la sesión y no la semana: CU021 lo prohíbe expresamente
+     * ("filtro por día, no por semana"), porque auditar una jornada concreta es
+     * justo lo que el Supervisor viene a hacer.
+     */
+    actividadesDe.mockResolvedValue(
+      pagina([
+        {
+          id: 'a1',
+          fecha: '2026-10-08',
+          inicio: '2026-10-08T13:00:00Z',
+          fin: '2026-10-08T18:00:00Z',
+          tipo_cierre: 'manual',
+          productividad: [
+            { modulo: 'asistencia', cantidad: 15 },
+            { modulo: 'alumnos', cantidad: 3 },
+          ],
+          productividad_texto: '15 Asistencias, 3 Alumnos',
+        },
+      ]),
+    )
+    await abrirDetalle()
+
+    const atajo = await screen.findByRole('button', { name: /ver asistencias/i }, ESPERA)
+    expect(atajo).toBeEnabled()
+    fireEvent.click(atajo)
+    expect(ultimaRuta()).toBe('/asistencia?fecha=2026-10-08')
+
+    // Los demás módulos siguen apagados: no están publicados.
+    expect(screen.getByRole('button', { name: /ver alumnos/i })).toBeDisabled()
   })
 
   it('se puede volver a la grilla general', async () => {

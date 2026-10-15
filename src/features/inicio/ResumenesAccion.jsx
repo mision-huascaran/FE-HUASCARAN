@@ -14,7 +14,7 @@
 // pantalla entera con un `.join` sobre un campo que el contrato renombró, y una
 // pantalla en blanco es mucho peor que un guion.
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, CloudOff } from 'lucide-react'
+import { CloudOff } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import useSessionStore from '../../store/sessionStore'
@@ -52,18 +52,19 @@ export default function ResumenesAccion() {
 
   const frases = []
 
-  // Solo si el backend los manda. Hoy no llegan (§12 del contrato).
-  if (data.evaluados != null && data.alumnos != null) {
-    frases.push({
-      id: 'evaluados',
-      icono: CheckCircle2,
-      tono: 'text-success-600',
-      texto: `Has evaluado a ${data.evaluados} de ${data.alumnos} alumnos.`,
-    })
-  }
-
-  // Este sí sale de la cola local, así que funciona aunque no haya red. Es la
-  // única señal de que el trabajo del aula no se ha perdido.
+  /**
+   * LISTA CERRADA (CU010).
+   *
+   * El caso de uso enumera los Resúmenes de Acción y hoy solo contempla UNO:
+   * los registros offline pendientes. Los de avance académico "se incorporarán
+   * en futuras entregas conforme se aprueben sus reglas de cálculo", así que
+   * pintar un "Has evaluado X de Y" aquí sería adelantarse a una fórmula que
+   * todavía no está decidida.
+   *
+   * Sale de la cola local, no del servidor: por eso funciona sin conexión, que
+   * es justo cuando importa. Es la única señal de que el trabajo del aula no se
+   * ha perdido.
+   */
   if (pendientes > 0) {
     frases.push({
       id: 'pendientes',

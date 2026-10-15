@@ -15,7 +15,7 @@ import StatCard from '../../components/ui/StatCard'
 import { usePeriodos } from '../../hooks/useCatalogos'
 import useFiltrosStore from '../../store/filtrosStore'
 import useSessionStore from '../../store/sessionStore'
-import { formatearHora, formatearRangoSemana } from '../../lib/format'
+import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
 const saludo = () => {
   const hora = dayjs().hour()
@@ -77,10 +77,16 @@ export default function InicioDocente() {
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
             aplicación. Aquí queda el texto estático que pide CU010: la hora de
             inicio y la de fin, sin cronómetro regresivo. */}
+        {/* CU010: si la sesión termina AL DÍA SIGUIENTE hay que decir la
+            fecha. Sin ella, "finaliza a las 02:00" a las 21:00 de un martes se
+            lee como que quedan menos de tres horas cuando quedan cinco, o peor,
+            como que ya pasó. */}
         {sesion && (
           <p className="text-sm text-ink-500">
-            Actividad iniciada a las {formatearHora(sesion.inicio)}. La sesión finaliza a las{' '}
-            {formatearHora(finDeSesion)}.
+            {`Actividad iniciada a las ${formatearHora(sesion.inicio)}. La sesión finaliza `}
+            {enOtroDia(sesion.inicio, finDeSesion)
+              ? `el ${formatearDiaMes(finDeSesion)} a las ${formatearHora(finDeSesion)}.`
+              : `a las ${formatearHora(finDeSesion)}.`}
           </p>
         )}
 

@@ -79,16 +79,19 @@ describe('Resúmenes de Acción del Docente (CU010)', () => {
     expect(screen.queryByText(/Has evaluado/)).not.toBeInTheDocument()
   })
 
-  it('pinta los Resúmenes de Acción cuando el backend los manda', async () => {
-    respuesta.mockResolvedValue({
-      asignaciones: [],
-      totales: {},
-      evaluados: 15,
-      alumnos: 30,
-    })
+  it('la lista de Resúmenes es CERRADA: no inventa un avance académico', async () => {
+    /**
+     * CU010 enumera los Resúmenes de Acción y hoy contempla UNO: los registros
+     * offline pendientes. Los de avance "se incorporarán en futuras entregas
+     * conforme se aprueben sus reglas de cálculo", así que aunque el servidor
+     * mandara un `evaluados`, pintarlo sería adelantarse a una fórmula que
+     * todavía no está decidida.
+     */
+    respuesta.mockResolvedValue({ asignaciones: [], totales: {}, evaluados: 15, alumnos: 30 })
 
     montar()
-    expect(await screen.findByText('Has evaluado a 15 de 30 alumnos.', {}, ESPERA)).toBeInTheDocument()
+    await screen.findByText('Mis asignaciones', {}, ESPERA)
+    expect(screen.queryByText(/Has evaluado/)).not.toBeInTheDocument()
   })
 
   it('avisa de los cambios sin sincronizar, que sale de la cola local', async () => {

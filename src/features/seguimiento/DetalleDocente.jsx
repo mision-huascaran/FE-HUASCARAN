@@ -8,7 +8,8 @@
 // existen en el backend, así que se muestran deshabilitados en vez de llevar a
 // una pantalla vacía que parecería un error.
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, History } from 'lucide-react'
+import { ArrowLeft, Eye, History } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -18,6 +19,18 @@ import { listarActividadesDe } from '../../api/resources/seguimiento'
 import { ETIQUETA_SINCRONIZACION, etiquetaTipoCierre } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
+
+/**
+ * El módulo de Asistencias, tal como lo nombra la métrica de productividad.
+ *
+ * Se aceptan las dos formas porque el contrato lista `asistencia` en
+ * `cambios_por_modulo` y "Asistencias" en el texto: no conviene que el atajo
+ * dependa de cuál de las dos llegue.
+ */
+const ES_ASISTENCIA = new Set(['asistencia', 'asistencias'])
+
+/** La fecha de la jornada, en `AAAA-MM-DD`, que es lo que lee el filtro. */
+const diaDe = (instante) => String(instante ?? '').slice(0, 10)
 
 /** Iniciales para el avatar, que se genera en el cliente. */
 const iniciales = (docente) =>
@@ -29,6 +42,7 @@ const iniciales = (docente) =>
     .slice(0, 2)
 
 export default function DetalleDocente({ docente, onVolver }) {
+  const navegar = useNavigate()
   const consulta = useQuery({
     queryKey: ['seguimiento', 'actividades', docente.id_docente],
     queryFn: () => listarActividadesDe(docente.id_docente),
@@ -95,19 +109,42 @@ export default function DetalleDocente({ docente, onVolver }) {
               {
                 key: 'atajos',
                 header: 'Atajos',
+                /**
+                 * CU021 — Saltar al módulo con los filtros de ESA jornada.
+                 *
+                 * "Ver Asistencias" ya tiene destino: el módulo existe. Lleva la
+                 * FECHA EXACTA de la sesión, no la semana, porque el caso de uso
+                 * lo prohíbe expresamente ("filtro por día, no por semana").
+                 *
+                 * Los demás siguen apagados: Rúbrica, Lectura y Registro de
+                 * Vuelo no están publicados, y un atajo que lleva a una pantalla
+                 * vacía es peor que uno que dice por qué no se puede.
+                 */
                 render: (s) => (
                   <div className="flex flex-wrap gap-1">
-                    {(s.productividad ?? []).map((p) => (
-                      <Button
-                        key={p.modulo}
-                        size="sm"
-                        variant="ghost"
-                        disabled
-                        title="El módulo de captura todavía no está disponible"
-                      >
-                        Ver {p.modulo}
-                      </Button>
-                    ))}
+                    {(s.productividad ?? []).map((p) =>
+                      ES_ASISTENCIA.has(p.modulo) ? (
+                        <Button
+                          key={p.modulo}
+                          size="sm"
+                          variant="ghost"
+                          iconLeft={Eye}
+                          onClick={() => navegar(`/asistencia?fecha=${diaDe(s.inicio ?? s.fecha)}`)}
+                        >
+                          Ver Asistencias
+                        </Button>
+                      ) : (
+                        <Button
+                          key={p.modulo}
+                          size="sm"
+                          variant="ghost"
+                          disabled
+                          title="El módulo de captura todavía no está disponible"
+                        >
+                          Ver {p.modulo}
+                        </Button>
+                      ),
+                    )}
                   </div>
                 ),
               },

@@ -7,6 +7,7 @@
 //
 // Vive en la barra superior para que esté a mano desde cualquier módulo, no
 // solo desde Inicio.
+import { useState } from 'react'
 import { PlayCircle, StopCircle, WifiOff } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
@@ -29,6 +30,11 @@ const MOTIVO = {
 }
 
 export default function BarraActividades() {
+  // CU010: "la interfaz deshabilita temporalmente el botón para evitar
+  // múltiples clics mientras el sistema procesa los cambios". Finalizar
+  // sincroniza la cola y llama al servidor: no es instantáneo, y un segundo
+  // clic mandaba un cierre por una actividad que ya no existe.
+  const [procesando, setProcesando] = useState(false)
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const pendientes = useSyncStore((s) => s.pendientes)
   const enLinea = useConexion()
@@ -57,7 +63,16 @@ export default function BarraActividades() {
             variant="danger"
             iconLeft={StopCircle}
             className="shadow-sm ring-2 ring-danger-600/20"
-            onClick={finalizar}
+            loading={procesando}
+            disabled={procesando}
+            onClick={async () => {
+              setProcesando(true)
+              try {
+                await finalizar()
+              } finally {
+                setProcesando(false)
+              }
+            }}
           >
             Finalizar actividad
           </Button>

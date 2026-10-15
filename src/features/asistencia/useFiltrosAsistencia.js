@@ -11,6 +11,7 @@
 // La FECHA arranca en hoy según el reloj del SERVIDOR, no el del dispositivo
 // (ver `lib/relojServidor.js`): CU022 prohíbe fiarse de la hora local.
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { hoy } from '../../lib/relojServidor'
 
 const CLAVE = 'sicedu.filtros.asistencia'
@@ -36,6 +37,8 @@ function leer() {
 }
 
 export default function useFiltrosAsistencia() {
+  const [parametros] = useSearchParams()
+
   /**
    * Lo guardado se FUSIONA con la forma por defecto en vez de sustituirla: un
    * `localStorage` escrito por una versión anterior no traía `idPrograma`, y
@@ -43,10 +46,18 @@ export default function useFiltrosAsistencia() {
    */
   const [filtros, setFiltros] = useState(() => {
     const guardados = leer() ?? {}
-    // Una fecha futura guardada —reloj del equipo cambiado, o el día siguiente
-    // tras dejar la pestaña abierta— no puede resucitar: CU022 no permite
-    // registrar en el futuro.
-    const fecha = guardados.fecha && guardados.fecha <= hoy() ? guardados.fecha : hoy()
+    /**
+     * `?fecha=` manda sobre lo guardado: así llega el atajo "Ver Asistencias"
+     * del Supervisor (CU021), que abre la jornada EXACTA de una actividad. Si
+     * ganara el localStorage, el atajo llevaría al día que el Supervisor miró
+     * la última vez, que es justo lo que no quiere ver.
+     */
+    const deLaUrl = parametros.get('fecha')
+    const candidata = deLaUrl || guardados.fecha
+    // Una fecha futura —reloj del equipo cambiado, o el día siguiente tras
+    // dejar la pestaña abierta— no puede resucitar: CU022 no permite registrar
+    // en el futuro.
+    const fecha = candidata && candidata <= hoy() ? candidata : hoy()
     return { ...VACIOS, ...guardados, fecha }
   })
 
