@@ -39,7 +39,10 @@ test('F6 · Cerrar sesión con una actividad abierta la fuerza a cerrar e invali
       token: sessionStorage.getItem(clave),
       actividad: sessionStorage.getItem('sicedu.actividad'),
     }), CLAVE_TOKEN)
-    expect(almacenamiento.local, 'claves en Local Storage').toEqual([])
+    // CU007: localStorage se vacía entero, salvo el desfase con el reloj del
+    // servidor, que no es del usuario y es la defensa de CU009/CU022 contra un
+    // reloj de dispositivo manipulado.
+    expect(almacenamiento.local.filter((clave) => clave !== 'sicedu.reloj.desfase'), 'claves en Local Storage').toEqual([])
     expect(almacenamiento.token, 'sicedu.token en sessionStorage').toBeNull()
     expect(almacenamiento.actividad, 'sicedu.actividad en sessionStorage').toBeNull()
   })

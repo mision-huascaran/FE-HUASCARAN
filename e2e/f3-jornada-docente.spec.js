@@ -76,20 +76,28 @@ test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastr
   const apellidos = 'Playwright'
   const filaDelAlumno = () => page.getByRole('row').filter({ hasText: nombres })
 
-  await test.step('Sin actividad, no se puede registrar (CU010)', async () => {
+  await test.step('Sin actividad, no se puede registrar: se ofrece iniciarla (CU010)', async () => {
     await irPorMenu(page, 'Alumnos', '/alumnos')
-    await expect(page.getByRole('button', { name: BOTON_NUEVO, exact: true })).toBeDisabled()
     await expect(page.getByRole('note')).toHaveText(AVISO_SIN_ACTIVIDAD)
+    // «Agregar» ya no está muerto: propone abrir la actividad. La regla no
+    // cambia: sin aceptar, no se abre el formulario.
+    await page.getByRole('button', { name: BOTON_NUEVO, exact: true }).click()
+    const propuesta = page.getByRole('dialog', { name: 'Necesitas una actividad de trabajo' })
+    await expect(propuesta).toBeVisible()
     await evidencia(page, 'alumnos-sin-actividad')
+    await propuesta.getByRole('button', { name: 'Ahora no' }).click()
+    await expect(propuesta).toBeHidden()
+    await expect(page.getByRole('dialog', { name: 'Nuevo alumno' })).toHaveCount(0)
   })
 
   const actividad = await test.step('Iniciar actividad (CU009)', async () => {
     const iniciada = await iniciarActividad(page)
     await irPorMenu(page, 'Inicio', '/inicio')
     // CU010: hora de inicio y de fin como texto fijo, sin cronómetro.
-    await expect(
-      page.getByText(/^Actividad iniciada a las \d{2}:\d{2}\. La sesión finaliza a las \d{2}:\d{2}\.$/),
-    ).toBeVisible()
+    // Si la sesión termina al día siguiente, dice también la fecha: «el DD/MM a las HH:MM».
+    const mismoDia = page.getByText(/^Actividad iniciada a las \d{2}:\d{2}\. La sesión finaliza a las \d{2}:\d{2}\.$/)
+    const otroDia = page.getByText(/^Actividad iniciada a las \d{2}:\d{2}\. La sesión finaliza el \d{2}\/\d{2} a las \d{2}:\d{2}\.$/)
+    await expect(mismoDia.or(otroDia)).toBeVisible()
     await evidencia(page, 'actividad-iniciada')
     return iniciada
   })

@@ -13,23 +13,32 @@ import { expect } from '@playwright/test'
 import { cuentaDe } from './cuentas.js'
 
 export const MARCADOR_PASSWORD = 'oculta-por-e2e'
+/**
+ * Marcador para la contraseña NUEVA del primer ingreso. Cumple la política de
+ * CU006 (mayúscula, minúscula, número y especial) porque el modal no habilita
+ * «Establecer y entrar» hasta que la cumple.
+ */
+export const MARCADOR_PASSWORD_NUEVA = 'Marcador-E2E-1'
 export const CLAVE_TOKEN = 'sicedu.token'
 
 export const esApi = (respuesta, ruta, metodo = 'GET') =>
   new URL(respuesta.url()).pathname === `/api${ruta}` && respuesta.request().method() === metodo
 
-/** Reenvía el `POST /api/login` desde Node con la contraseña real. */
-async function sustituirPassword(page, password) {
+/**
+ * Intercepta un POST y lo reenvía desde Node con `cambios` aplicados al cuerpo
+ * JSON. Lo que el navegador mandó (marcadores) es lo único que queda en el
+ * trace; la respuesta del backend se devuelve tal cual.
+ */
+async function reenviarDesdeNode(page, patron, cambiar) {
   await page.route(
-    '**/api/login',
+    patron,
     async (route) => {
       const peticion = route.request()
       if (peticion.method() !== 'POST') return route.continue()
-      const cuerpo = peticion.postDataJSON() ?? {}
       const respuesta = await fetch(peticion.url(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...cuerpo, password }),
+        body: JSON.stringify(cambiar(peticion.postDataJSON() ?? {})),
       })
       return route.fulfill({
         status: respuesta.status,
@@ -41,12 +50,28 @@ async function sustituirPassword(page, password) {
   )
 }
 
+/** Reenvía el `POST /api/login` desde Node con la contraseña real. */
+const sustituirPassword = (page, password) =>
+  reenviarDesdeNode(page, '**/api/login', (cuerpo) => ({ ...cuerpo, password }))
+
 /**
- * Llena y envía el formulario de login. Devuelve la respuesta de `/api/login`.
- * No comprueba el resultado: eso lo decide quien llama.
+ * Reenvía `POST /api/password/primer-ingreso` con las contraseñas reales. El
+ * navegador escribió marcadores: la temporal sale del formulario de login (el
+ * modal la reutiliza) y la nueva, del propio modal.
  */
-export async function enviarLogin(page, rol) {
-  const { usuario, password } = cuentaDe(rol)
+export const sustituirPrimerIngreso = (page, { temporal, nueva }) =>
+  reenviarDesdeNode(page, '**/api/password/primer-ingreso', (cuerpo) => ({
+    ...cuerpo,
+    'contraseña_temporal': temporal,
+    'contraseña_nueva': nueva,
+    'confirmar_contraseña_nueva': nueva,
+  }))
+
+/**
+ * Llena y envía el formulario de login con unas credenciales dadas. Devuelve
+ * la respuesta de `/api/login`. No comprueba el resultado.
+ */
+export async function enviarLoginCon(page, { usuario, password }) {
   await sustituirPassword(page, password)
 
   await page.goto('/login')
@@ -58,6 +83,9 @@ export async function enviarLogin(page, rol) {
   await page.getByRole('button', { name: 'Ingresar' }).click()
   return respuesta
 }
+
+/** Igual, con la cuenta E2E de un rol (credenciales del entorno). */
+export const enviarLogin = (page, rol) => enviarLoginCon(page, cuentaDe(rol))
 
 /**
  * Inicia sesión y espera a estar en /inicio.

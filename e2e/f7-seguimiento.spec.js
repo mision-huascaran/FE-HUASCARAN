@@ -19,6 +19,8 @@ test('F7 · Seguimiento: el Docente E2E aparece conectado hoy y con la actividad
 
   await test.step('El Docente E2E, con su colegio y su última conexión de hoy (CU020)', async () => {
     await page.getByLabel('Colegio').selectOption({ label: SEED.colegio })
+    // Seguimiento filtra al pulsar, no al cambiar el control.
+    await page.getByRole('button', { name: 'Filtrar' }).click()
     await expect(fila).toHaveCount(1)
     await expect(fila).toContainText(SEED.colegio)
     // Columnas: Docente, Colegios asignados, Última conexión, Sincronización, Pendientes.
@@ -34,9 +36,13 @@ test('F7 · Seguimiento: el Docente E2E aparece conectado hoy y con la actividad
 
     await expect(page.getByRole('heading', { name: SEED.docente, level: 1 })).toBeVisible()
     // La tabla no muestra el id: se reconoce por su hora de inicio.
-    const sesion = page.getByRole('row').filter({ hasText: fechaHoraLima(inicioActividad) })
+    // La tabla no muestra el id: se reconoce por su hora de inicio y su cierre.
+    // Solo la hora no basta: F6 puede abrir otra sesión en el mismo minuto.
+    const sesion = page
+      .getByRole('row')
+      .filter({ hasText: fechaHoraLima(inicioActividad) })
+      .filter({ hasText: 'Manual por finalización de actividad' })
     await expect(sesion.first()).toBeVisible()
-    await expect(sesion.first()).toContainText('Manual por finalización de actividad')
     await evidencia(page, 'seguimiento-bitacora')
   })
 })
