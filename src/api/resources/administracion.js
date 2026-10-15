@@ -658,7 +658,7 @@ export const obtenerUsuario = async (idUsuario) => {
   if (asignacion?.id_anio_escolar != null) {
     const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
     const nombre = anios.find((a) => a.id === asignacion.id_anio_escolar)?.nombre
-    anio = String(nombre ?? '').match(/\d{4}/)?.[0] ?? ''
+    anio = /\d{4}/.exec(String(nombre ?? ''))?.[0] ?? ''
   }
   return {
     ...usuario,

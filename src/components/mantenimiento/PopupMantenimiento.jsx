@@ -117,7 +117,7 @@ export default function PopupMantenimiento({
   // detalle: lo que trae el servidor completa (y pisa) lo de la fila.
   useEffect(() => {
     if (!abierto) return
-    const completo = { ...registro, ...(detalle.data ?? {}) }
+    const completo = { ...registro, ...detalle.data }
     const base = {}
     for (const campo of camposRef.current) {
       base[campo.nombre] = completo[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
