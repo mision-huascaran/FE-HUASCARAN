@@ -1121,6 +1121,27 @@ export const handlers = {
             colegio: db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)?.nombre ?? '—',
             periodo: periodo?.nombre ?? '—',
             estado_periodo: periodo?.estado ?? null,
+            /**
+             * La asignación es por COLEGIO COMPLETO (RN-003), así que van sus
+             * seis grados. Y los subprogramas de cada grado NO son los que
+             * ofrece el colegio: son los de sus alumnos, igual que en el
+             * backend. De ahí sale que un grado sin alumnos de Comprensión
+             * Lectora no deba ofrecerla, que es justo lo que hacía que el
+             * servidor respondiera 403 a una clase elegida desde la pantalla.
+             */
+            grados: db.GRADOS.map((g) => {
+              const alumnos = db.alumnosDe({ colegio: a.id_colegio, grado: g.id_grado })
+              const nombres = alumnos
+                .map((al) => db.PROGRAMAS.find((p) => p.id_programa === al.id_programa)?.nombre)
+                .filter(Boolean)
+              return {
+                id: g.id_grado,
+                nombre: g.nombre,
+                cantidad_alumnos: alumnos.length,
+                ciclos: [...new Set(alumnos.map((al) => al.ciclo).filter(Boolean))],
+                subprogramas: [...new Set(nombres)],
+              }
+            }),
           }
         }),
       ),

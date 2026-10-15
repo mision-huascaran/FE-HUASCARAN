@@ -237,6 +237,16 @@ export const obtenerColegio = async (idColegio) => {
     // El formulario los maneja como `[{id_grado, dia_clase}]`; el detalle los
     // manda como `[{id, nombre, dia_clase}]`.
     grados: comoGradosConDia(colegio.grados),
+    // `ItemCatalogo {id, nombre}` → la forma que usan los desplegables. Esta es
+    // la ÚNICA fuente que da los subprogramas de un colegio con su id:
+    // `/me/asignaciones` los manda por nombre, y casar por texto se rompe en
+    // cuanto alguien renombre uno.
+    programas: (colegio.programas ?? []).map((p) => ({
+      id_programa: Number(p.id_programa ?? p.id),
+      nombre: p.nombre,
+    })),
+    // Un colegio tiene UNA sección y el alumno la hereda; por defecto, "Única".
+    seccion: colegio.seccion || 'Única',
   }
 }
 

@@ -43,8 +43,12 @@ export const useSemanas = () => useCatalogo(['catalogo', 'semanas'], obtenerSema
 // aparecían los que el Supervisor acababa de crear; peor aún, los ids que sí
 // salían eran de otra base, así que `GET /asistencias` nunca iba a encontrar
 // esa clase. Estos hooks son los que deben usar las pantallas ya conectadas.
-export const useColegiosReales = () =>
-  useCatalogo(['catalogo', 'real', 'colegios'], async () => (await listarColegiosAdmin({ estado: 'activo' })).items)
+// `habilitado` en false para quien no puede pedirlos: `GET /colegios` es de
+// administración y un Docente solo recibiría un 403.
+export const useColegiosReales = (habilitado = true) =>
+  useCatalogo(['catalogo', 'real', 'colegios'], async () => (await listarColegiosAdmin({ estado: 'activo' })).items, {
+    enabled: habilitado,
+  })
 
 export const useGradosReales = () => useCatalogo(['catalogo', 'real', 'grados'], listarGradosAdmin)
 

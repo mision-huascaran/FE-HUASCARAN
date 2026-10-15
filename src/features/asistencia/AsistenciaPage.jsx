@@ -5,10 +5,19 @@
 // Una CLASE es fecha + colegio + grado + subprograma, y nada más: la sección no
 // está en el contrato y ya no se pide.
 //
-// Los catálogos salen del backend REAL (`useColegiosReales` y compañía), no del
-// simulador. Con los del simulador no aparecían los colegios recién creados y,
-// lo que es peor, los ids eran de otra base: `GET /asistencias` no podía
-// encontrar ninguna clase.
+// DE DÓNDE SALEN LOS DESPLEGABLES, que es lo que hacía fallar la pantalla:
+//
+//   · El Docente solo puede consultar las aulas que tiene asignadas: cualquier
+//     otra responde 403 `aula_fuera_de_alcance`. Así que sus colegios salen de
+//     `GET /me/asignaciones`, no del catálogo general. Antes salían del
+//     simulador: nueve colegios ficticios con ids de otra base.
+//   · El grado y el subprograma los dice el COLEGIO, no un catálogo global.
+//     `GET /colegios/{id}` trae los suyos con id y nombre, y es la única fuente
+//     que los da con id: `/me/asignaciones` los manda por texto.
+//   · Y el subprograma se acota además al GRADO. Un docente con 3.º de
+//     Alfabetización y 4.º de Comprensión Lectora podía elegir 3.º +
+//     Comprensión Lectora, que no es ninguna de sus aulas, y el servidor le
+//     respondía 403 con razón.
 //
 // Lo que la separa de las demás grillas:
 //
@@ -35,9 +44,9 @@ import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { obtenerClase } from '../../api/resources/asistencia'
-import { listarDocentes } from '../../api/resources/administracion'
+import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
 import { mensajeDeError, motivoDe } from '../../api/client'
-import { useColegiosReales, useGradosReales, useProgramasReales } from '../../hooks/useCatalogos'
+import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
@@ -76,9 +85,65 @@ export default function AsistenciaPage() {
   const { filtros, cambiar } = useFiltrosAsistencia()
   const [observando, setObservando] = useState(null)
 
-  const { data: colegios = [] } = useColegiosReales()
-  const { data: grados = [] } = useGradosReales()
-  const { data: programas = [] } = useProgramasReales()
+  // El Docente ve sus aulas; el Supervisor, todas (CU021: solo de lectura).
+  const esDocente = puedeEditar
+
+  const { data: asignaciones = [] } = useQuery({
+    queryKey: ['me', 'asignaciones'],
+    queryFn: listarMisAsignaciones,
+    enabled: esDocente,
+    ...SIEMPRE,
+  })
+
+  // `GET /colegios` es de administración: pedirlo como Docente sería un 403.
+  const { data: todosLosColegios = [] } = useColegiosReales(!esDocente)
+
+  const colegios = useMemo(
+    () =>
+      esDocente
+        ? asignaciones.map((a) => ({ id_colegio: a.id_colegio, nombre: a.colegio }))
+        : todosLosColegios,
+    [esDocente, asignaciones, todosLosColegios],
+  )
+
+  // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
+  const { data: colegio } = useQuery({
+    queryKey: ['colegio', 'detalle', filtros.idColegio],
+    queryFn: () => obtenerColegio(filtros.idColegio),
+    enabled: Boolean(filtros.idColegio),
+    ...SIEMPRE,
+  })
+
+  const asignacion = useMemo(
+    () => asignaciones.find((a) => String(a.id_colegio) === String(filtros.idColegio)),
+    [asignaciones, filtros.idColegio],
+  )
+
+  const grados = useMemo(() => {
+    const delColegio = colegio?.grados ?? []
+    if (!esDocente || !asignacion) return delColegio
+    const mios = new Set((asignacion.grados ?? []).map(String))
+    return delColegio.filter((g) => mios.has(String(g.id_grado)))
+  }, [colegio, esDocente, asignacion])
+
+  /**
+   * Los subprogramas que esta aula tiene DE VERDAD.
+   *
+   * El colegio los da con id; la asignación, solo los nombres de los que tienen
+   * alumnos en ese grado. Se cruzan por nombre porque es lo único que comparten
+   * —de ahí la petición al backend de que `GradoACargo.subprogramas` pase a
+   * traer id y nombre—. Si el cruce no casa, se ofrecen todos los del colegio:
+   * dejar el desplegable vacío sería peor que ofrecer uno de más.
+   */
+  const programas = useMemo(() => {
+    const delColegio = colegio?.programas ?? []
+    if (!esDocente || !asignacion) return delColegio
+    const grado = (asignacion.detalle_grados ?? []).find((g) => String(g.id_grado) === String(filtros.idGrado))
+    const suyos = new Set(grado?.subprogramas ?? [])
+    if (!suyos.size) return delColegio
+    const cruce = delColegio.filter((p) => suyos.has(p.nombre))
+    return cruce.length ? cruce : delColegio
+  }, [colegio, esDocente, asignacion, filtros.idGrado])
 
   const { data: docentes = [] } = useQuery({
     queryKey: ['admin', 'docentes'],
@@ -96,12 +161,22 @@ export default function AsistenciaPage() {
     if (!filtros.idColegio && colegios.length) cambiar('colegio', String(colegios[0].id_colegio))
   }, [colegios, filtros.idColegio, cambiar])
 
+  /**
+   * El grado y el subprograma DEPENDEN del colegio, así que no basta con
+   * rellenarlos cuando están vacíos: si el que había guardado no está en la
+   * lista nueva, hay que cambiarlo. Dejarlo valdría por una clase que el
+   * servidor va a rechazar, y el docente vería un 403 sin tocar nada.
+   */
   useEffect(() => {
-    if (!filtros.idGrado && grados.length) cambiar('grado', String(grados[0].id_grado))
+    if (!grados.length) return
+    if (grados.some((g) => String(g.id_grado) === String(filtros.idGrado))) return
+    cambiar('grado', String(grados[0].id_grado))
   }, [grados, filtros.idGrado, cambiar])
 
   useEffect(() => {
-    if (!filtros.idPrograma && programas.length) cambiar('subprograma', String(programas[0].id_programa))
+    if (!programas.length) return
+    if (programas.some((p) => String(p.id_programa) === String(filtros.idPrograma))) return
+    cambiar('subprograma', String(programas[0].id_programa))
   }, [programas, filtros.idPrograma, cambiar])
 
   const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idPrograma && filtros.fecha)
@@ -176,6 +251,7 @@ export default function AsistenciaPage() {
         colegios={colegios}
         grados={grados}
         programas={programas}
+        seccion={colegio?.seccion}
         docentes={docentes}
         eligeDocente={!puedeEditar}
       />

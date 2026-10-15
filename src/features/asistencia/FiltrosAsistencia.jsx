@@ -5,8 +5,11 @@
 // CU022 prohíbe registrar en el futuro; las fechas pasadas del periodo sí se
 // pueden consultar.
 //
-// Sin SECCIÓN: el contrato no la tiene. `GET /asistencias` recibe colegio,
-// grado, subprograma y fecha, y el alumno que devuelve no trae aula.
+// La SECCIÓN se muestra pero no se elige ni se envía. Un colegio tiene una sola
+// —"Única" por defecto— y el alumno la hereda, así que no hay nada que decidir:
+// `GET /asistencias` recibe colegio, grado, subprograma y fecha, y el alumno
+// que devuelve no trae aula. Se deja a la vista porque CU022 la lista entre los
+// filtros y porque confirma a qué aula pertenece lo que se está marcando.
 import FilterBar from '../../components/ui/FilterBar'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
@@ -18,6 +21,7 @@ export default function FiltrosAsistencia({
   colegios,
   grados,
   programas,
+  seccion,
   docentes,
   eligeDocente,
 }) {
@@ -48,6 +52,7 @@ export default function FiltrosAsistencia({
         onChange={(e) => cambiar('grado', e.target.value)}
         options={opciones(grados, 'id_grado')}
       />
+      <Input label="Sección" value={seccion ?? '—'} readOnly disabled />
       <Select
         label="Subprograma"
         value={filtros.idPrograma}
