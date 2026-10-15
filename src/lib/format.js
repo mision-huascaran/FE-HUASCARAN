@@ -60,6 +60,19 @@ export const enOtroDia = (a, b) =>
 /** `DD/MM`, para el aviso de CU010 cuando la sesión cruza la medianoche. */
 export const formatearDiaMes = (valor) => (valor ? dayjs(valor).tz(LIMA).format('DD/MM') : '—')
 
+/**
+ * `AAAA-MM-DD` del día de Lima, para filtros y URLs.
+ *
+ * Un instante se convierte a Lima: recortar el texto UTC daría el día
+ * siguiente entre las 19:00 y las 24:00. Un día de calendario ya es de Lima y
+ * se devuelve tal cual: convertirlo lo movería al día anterior.
+ */
+export const fechaIsoLima = (valor) => {
+  if (!valor) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) return String(valor)
+  return dayjs(valor).tz(LIMA).format('YYYY-MM-DD')
+}
+
 /** Porcentaje entero, sin decimales de más en las tarjetas. */
 export const porcentaje = (parte, total) => (total ? Math.round((parte / total) * 100) : 0)
 

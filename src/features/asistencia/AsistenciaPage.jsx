@@ -199,6 +199,14 @@ export default function AsistenciaPage() {
     // Un día no lectivo responde 422: es una respuesta legítima del contrato,
     // no un fallo de red, así que reintentarlo solo retrasa el aviso.
     retry: false,
+    /**
+     * Siempre fresca al entrar. La clase cambia por fuera de esta pantalla —un
+     * alumno dado de alta o de baja en Alumnos, una marca guardada desde otro
+     * dispositivo, y CU022 dice que gana la más reciente—, y con el minuto de
+     * caché general se veía la lista vieja. Sin conexión no se pierde nada: la
+     * consulta se pausa y se sigue viendo lo que ya estaba.
+     */
+    staleTime: 0,
   })
 
   const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])

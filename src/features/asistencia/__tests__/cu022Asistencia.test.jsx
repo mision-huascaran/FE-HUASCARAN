@@ -47,9 +47,16 @@ vi.mock('idb-keyval', () => {
 // El envío se espía para poder rechazarlo: es la única forma de ver la
 // reversión que pide CU022 sin tocar la red.
 const marcar = vi.fn()
+// Sin red, pedir la clase falla como falla axios sin respuesta.
+let sinRed = false
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
-  return { ...original, guardarAsistencia: (...args) => marcar(...args) }
+  return {
+    ...original,
+    guardarAsistencia: (...args) => marcar(...args),
+    obtenerClase: (...args) =>
+      sinRed ? Promise.reject(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })) : original.obtenerClase(...args),
+  }
 })
 
 /** En jsdom no hay ancho: `FilterBar` colapsa los filtros (RNF-002). */
@@ -91,6 +98,7 @@ beforeEach(() => {
   localStorage.clear()
   _reiniciarCola()
   fallaElDisco = false
+  sinRed = false
   marcar.mockReset()
   // La respuesta del contrato: `aplicado: true` por registro.
   marcar.mockImplementation(async ({ fecha, registros }) => ({
@@ -314,6 +322,46 @@ describe('Asistencia (CU022)', () => {
     expect(screen.queryByText(ERROR_LOCAL)).not.toBeInTheDocument()
 
     Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+  })
+
+  it('sin conexión, volver a la pantalla sigue mostrando la clase: no la vacía ni avisa de error', async () => {
+    // La clase se pide fresca cada vez que se entra. Sin red, ese pedido no
+    // puede borrar lo que ya se tenía: se sigue viendo la última lista.
+    useSessionStore.setState({
+      token: 'mock.4.2026',
+      usuario: { id_usuario: 4, id_rol: ROLES.DOCENTE, id_docente: 1, nombres: 'Prueba' },
+      cargando: false,
+    })
+    const client = crearQueryClient()
+    const pantalla = (clave) => (
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <MemoryRouter>
+            <AsistenciaPage key={clave} />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(pantalla('con-red'))
+    await abrirClase()
+    const antes = controles().length
+    expect(antes).toBeGreaterThan(0)
+
+    // Se corta la red y el docente sale y vuelve a entrar a la pantalla.
+    sinRed = true
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+    rerender(pantalla('sin-red'))
+
+    await abrirFiltros()
+    expect(await screen.findByRole('table', {}, ESPERA)).toBeInTheDocument()
+    expect(controles()).toHaveLength(antes)
+    expect(screen.queryByText(/sin alumnos en esta clase/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/no se pudo/i)).not.toBeInTheDocument()
+
+    sinRed = false
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('online'))
   })
 
   it('no deja elegir una fecha futura', async () => {

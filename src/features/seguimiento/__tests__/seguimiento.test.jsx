@@ -210,6 +210,27 @@ describe('Bitácora de un docente (CU021)', () => {
     expect(screen.getByRole('button', { name: /ver alumnos/i })).toBeDisabled()
   })
 
+  it('"Ver Asistencias" de una jornada nocturna lleva al día de Lima, no al de UTC (CU021)', async () => {
+    // Empezó a las 21:00 del 8 en Lima, que son las 02:00 del 9 en UTC.
+    actividadesDe.mockResolvedValue(
+      pagina([
+        {
+          id: 'a1',
+          fecha: '2026-10-08',
+          inicio: '2026-10-09T02:00:00Z',
+          fin: '2026-10-09T03:00:00Z',
+          tipo_cierre: 'manual',
+          productividad: [{ modulo: 'asistencia', cantidad: 5 }],
+          productividad_texto: '5 Asistencias',
+        },
+      ]),
+    )
+    await abrirDetalle()
+
+    fireEvent.click(await screen.findByRole('button', { name: /ver asistencias/i }, ESPERA))
+    expect(ultimaRuta()).toBe('/asistencia?fecha=2026-10-08')
+  })
+
   it('se puede volver a la grilla general', async () => {
     await abrirDetalle()
     fireEvent.click(await screen.findByRole('button', { name: /volver al seguimiento/i }, ESPERA))
