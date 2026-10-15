@@ -1,10 +1,10 @@
-// CU015 — El historial del alumno registra su creación (bug conocido D29).
+// CU015 — El historial del alumno registra su creación.
 //
-// test.fail(): HOY FALLA A PROPÓSITO. `PestanaAuditoria` le pasa a `DataTable`
-// la respuesta paginada entera (`{items, total, …}`) en vez de `respuesta.items`,
-// así que la pestaña nunca muestra filas. Cuando se corrija D29 esta prueba
-// pasará y Playwright la marcará como «expected to fail, but passed»: entonces
-// hay que quitar el test.fail().
+// D29 CORREGIDO: `PestanaAuditoria` le pasaba a `DataTable` la respuesta
+// paginada entera (`{items, total, …}`) en vez de la lista, y la tabla llamaba
+// a `.slice()` sobre un objeto: la pantalla entera se caía con "No se pudo
+// mostrar esta pantalla". Ahora el recurso normaliza y se lee `cambios[]`, que
+// es donde viene el detalle de cada edición.
 //
 // Solo lectura: usa el alumno que creó (e inactivó) F3.
 import { expect, test } from '@playwright/test'
@@ -13,7 +13,6 @@ import { evidencia } from './support/evidencia.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
 test('CU015 – historial registra la creación (D29)', async ({ page }) => {
-  test.fail(true, 'D29: PestanaAuditoria pasa el objeto paginado a DataTable en vez de respuesta.items')
   const { alumno } = exigirEstadoDeF3('alumno')
 
   await iniciarSesion(page, 'docente')

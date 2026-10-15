@@ -5,10 +5,14 @@
 import { expect, test } from '@playwright/test'
 import { SEED } from './cuentas.js'
 
+/**
+ * Los dos están CORREGIDOS. Se dejan declarados porque los rodeos siguen aquí:
+ * si alguno reapareciera, la anotación vuelve a aparecer en el reporte sola.
+ */
 export const BUGS = {
   FORMULARIO_SE_VACIA:
-    'Formulario de mantenimiento se vacía al volver a renderizarse (PopupMantenimiento repone `inicial` cuando cambian `campos`)',
-  POPUP_NO_SE_CIERRA: 'Popup «Nuevo» no se cierra tras guardar con éxito (riesgo de alta duplicada)',
+    'Formulario de mantenimiento se vacía al volver a renderizarse (PopupMantenimiento reponía `inicial` cuando cambiaban `campos`)',
+  POPUP_NO_SE_CIERRA: 'Popup «Agregar» no se cierra tras guardar con éxito (riesgo de alta duplicada)',
 }
 
 export function anotarBug(bug, rodeo) {
@@ -55,9 +59,16 @@ const leerPrecargaYActividad = () =>
   })
 
 /**
- * BUGS.FORMULARIO_SE_VACIA: el popup se vacía cada vez que la pantalla se
- * vuelve a renderizar. Antes de abrirlo se espera a que la pantalla termine de
- * cargar de verdad, con condiciones concretas:
+ * Espera a que la pantalla termine de cargar ANTES de abrir el popup.
+ *
+ * Nació como rodeo de BUGS.FORMULARIO_SE_VACIA —el popup se repoblaba cada vez
+ * que la pantalla se volvía a renderizar y borraba lo escrito—, que ya está
+ * corregido: ahora el formulario se rellena al abrir y nunca más. La espera se
+ * queda porque sigue siendo correcta: abrir el popup antes de que lleguen los
+ * catálogos daría desplegables vacíos, y eso no es un bug, es una carrera.
+ *
+ * Ya NO anota un bug en el reporte: hacerlo diría que algo falla cuando no
+ * falla. Las condiciones son:
  *
  *   1. La tabla (o su vacío) y el filtro Colegio con el colegio E2E: llegaron
  *      la lista, los catálogos y, para el Docente, sus asignaciones.
@@ -71,8 +82,6 @@ const leerPrecargaYActividad = () =>
  * aun así se vaciara, la prueba falla en esa comprobación.
  */
 export async function esperarAntesDeAbrirPopup(page) {
-  anotarBug(BUGS.FORMULARIO_SE_VACIA, 'esperar a que la pantalla termine de cargar antes de abrir el popup y comprobar lo escrito antes de guardar')
-
   const principal = page.getByRole('main')
   await expect(principal.getByRole('table').or(principal.getByText('Sin registros'))).toBeVisible()
   await expect(principal.getByLabel('Colegio', { exact: true }).getByRole('option', { name: SEED.colegio })).toBeAttached()
@@ -97,9 +106,9 @@ export async function esperarAntesDeAbrirPopup(page) {
 }
 
 /**
- * BUGS.POPUP_NO_SE_CIERRA: Mantenimiento.jsx solo cierra el popup con
- * «Cancelar» o la X. Si sigue abierto se anota y se cierra a mano; si ya se
- * corrigió, no hace nada.
+ * BUGS.POPUP_NO_SE_CIERRA, corregido: la plantilla cierra el popup cuando el
+ * guardado responde bien. Esto queda como red: si siguiera abierto lo anota y
+ * lo cierra a mano, y si ya se cerró —que es lo normal ahora— no hace nada.
  */
 export async function cerrarPopupTrasGuardar(popup) {
   if (!(await popup.isVisible())) return
