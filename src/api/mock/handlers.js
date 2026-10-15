@@ -34,6 +34,9 @@ const ACTIVIDADES_MOCK = {}
 const ASISTENCIAS = {}
 const claveMarca = (idAlumno, fecha, idPrograma) => `${idAlumno}|${fecha}|${idPrograma}`
 
+/** Subprograma por defecto cuando el registro no lo trae (lo fija la pantalla). */
+const ASISTENCIA_PROGRAMA = 1
+
 /** Hoy en Lima, que es la zona en la que se cuentan los días lectivos. */
 const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
 
@@ -397,7 +400,7 @@ export const handlers = {
      */
     ausentes: async () => {
       const ids = Object.values(ASISTENCIAS)
-        .filter((m) => m.presente === false)
+        .filter((m) => m.estado === 'ausente')
         .map((m) => m.id_alumno)
       return responder([...new Set(ids)])
     },
@@ -478,15 +481,14 @@ export const handlers = {
   },
 
   /**
-   * Asistencia por FECHA (CU022). Distinta de la asistencia semanal de lectura.
+   * Asistencias (CU022). Reproduce el contrato real, que ya está publicado.
    *
-   * TODO BACKEND: los endpoints no existen todavía (§12 del contrato). Este
-   * simulador reproduce las reglas que CU022 declara del lado del servidor para
-   * poder construir y probar la pantalla:
+   * Reglas que imita porque la pantalla ramifica por ellas:
    *
-   *   · El día lectivo lo decide el SERVIDOR, nunca el cliente.
+   *   · `editable` lo decide el SERVIDOR: Docente y día lectivo del periodo
+   *     vigente. El Supervisor siempre lo recibe en `false`.
    *   · Unicidad por alumno, fecha y subprograma.
-   *   · Ante dos escrituras simultáneas gana la marca de tiempo más reciente.
+   *   · `aplicado: false` cuando otro dispositivo guardó algo más reciente.
    */
   asistencia: {
     /** Las secciones (aulas) que ese colegio y grado tienen de verdad. */
@@ -494,18 +496,17 @@ export const handlers = {
       const aulas = db
         .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
         .map((a) => a.aula)
-      // Las aulas son letras ('A', 'B'): orden alfabético explícito.
-      return responder([...new Set(aulas)].sort((a, b) => a.localeCompare(b)))
+      return responder([...new Set(aulas)].sort())
     },
 
-    /**
-     * La clase de una fecha: alumnos, marcas ya guardadas y la hora del
-     * servidor, que es la que recalibra el reloj del cliente.
-     */
-    clase: async ({ idColegio, idGrado, seccion, idPrograma, fecha }) => {
-      const lectivo = esDiaLectivo(fecha)
-      const servidorAhora = new Date().toISOString()
-      if (!lectivo) return responder({ dia_lectivo: false, alumnos: [], servidor_ahora: servidorAhora })
+    clase: async ({ idColegio, idGrado, idPrograma, fecha }) => {
+      if (!esDiaLectivo(fecha)) {
+        throw errorMock(
+          422,
+          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
+          'fecha_no_lectiva',
+        )
+      }
 
       const marcas = Object.values(ASISTENCIAS).filter(
         (m) => m.fecha === fecha && String(m.id_programa) === String(idPrograma),
@@ -514,51 +515,66 @@ export const handlers = {
 
       const alumnos = db
         .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado), programa: Number(idPrograma) })
-        .filter((a) => (!seccion || a.aula === seccion))
         // Los activos siempre. Los inactivos SOLO si ya constan en esa fecha:
         // CU022 pide no perderlos de vista al consultar un día pasado.
         .filter((a) => a.activo || conRegistro.has(a.id_alumno))
-        .map((a) => ({
-          id_alumno: a.id_alumno,
-          nombres: a.nombres,
-          apellidos: a.apellidos,
-          codigo: a.codigo,
-          seccion: a.aula,
-          activo: a.activo,
-          // `null` es "sin marcar", que no es lo mismo que ausente.
-          presente: ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]?.presente ?? null,
-        }))
+        .map((a) => {
+          const marca = ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]
+          return {
+            id_alumno: a.id_alumno,
+            nombres: a.nombres,
+            apellidos: a.apellidos,
+            activo: a.activo,
+            // `en_aula: false` = tuvo registro aquí pero hoy está en otra aula.
+            en_aula: true,
+            // `null` es "sin marcar", que no es lo mismo que ausente.
+            estado: marca?.estado ?? null,
+            observacion: marca?.observacion ?? null,
+          }
+        })
+        .sort((a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`))
 
-      return responder({ dia_lectivo: true, alumnos, servidor_ahora: servidorAhora })
+      return responder({ fecha, editable: fecha <= hoyLima(), alumnos })
     },
 
     /**
-     * Un micro-paquete del Auto-save: el estado de UN alumno.
+     * `PUT /asistencias` — uno o varios registros de la misma fecha.
      *
-     * Reproduce a propósito dos rechazos que la pantalla tiene que saber
-     * manejar, porque son los que CU022 describe en sus flujos de error.
+     * Un campo omitido NO se cambia: así la observación no borra el estado ni
+     * al revés. `estado: null` se rechaza, porque una marca puesta no se puede
+     * quitar, solo cambiar.
      */
-    marcar: async ({ id_alumno, fecha, id_programa, presente }) => {
-      if (!esDiaLectivo(fecha)) {
-        throw errorMock(422, 'La fecha no corresponde a un día lectivo válido', 'dia_no_lectivo')
-      }
-      if (fecha > hoyLima()) {
-        throw errorMock(422, 'No se puede registrar asistencia en fechas futuras', 'fecha_futura')
+    guardar: async ({ fecha, registros = [], fecha_registro: fechaRegistro }) => {
+      if (!esDiaLectivo(fecha) || fecha > hoyLima()) {
+        throw errorMock(
+          422,
+          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
+          'fecha_no_lectiva',
+        )
       }
 
-      const clave = claveMarca(id_alumno, fecha, id_programa)
-      const anterior = ASISTENCIAS[clave]
-      const marca = {
-        id_alumno,
-        fecha,
-        id_programa,
-        presente,
-        actualizado: new Date().toISOString(),
-      }
-      // "Prevalecerá la modificación con la marca de tiempo más reciente": si
-      // otro dispositivo escribió después, la suya se conserva.
-      if (!anterior || anterior.actualizado <= marca.actualizado) ASISTENCIAS[clave] = marca
-      return responder(ASISTENCIAS[clave], RETARDO_ESCRITURA_MS)
+      const momento = fechaRegistro ?? new Date().toISOString()
+      const guardados = registros.map((registro) => {
+        const clave = claveMarca(registro.id_alumno, fecha, registro.id_programa ?? ASISTENCIA_PROGRAMA)
+        const anterior = ASISTENCIAS[clave]
+        // "Prevalecerá la modificación con la marca de tiempo más reciente": si
+        // otro dispositivo escribió después, la suya se conserva y se avisa.
+        if (anterior && anterior.actualizado > momento) {
+          return { id_alumno: registro.id_alumno, aplicado: false, estado: anterior.estado, observacion: anterior.observacion }
+        }
+        const marca = {
+          id_alumno: registro.id_alumno,
+          fecha,
+          id_programa: registro.id_programa ?? ASISTENCIA_PROGRAMA,
+          estado: registro.estado ?? anterior?.estado ?? null,
+          observacion: 'observacion' in registro ? registro.observacion : (anterior?.observacion ?? null),
+          actualizado: momento,
+        }
+        ASISTENCIAS[clave] = marca
+        return { id_alumno: marca.id_alumno, aplicado: true, estado: marca.estado, observacion: marca.observacion }
+      })
+
+      return responder({ fecha, registros: guardados }, RETARDO_ESCRITURA_MS)
     },
   },
 

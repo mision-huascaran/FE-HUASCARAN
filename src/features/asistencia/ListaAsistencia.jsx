@@ -8,7 +8,7 @@ import useVentanaVirtual from './useVentanaVirtual'
 
 const ALTO_FILA = 56
 
-export default function ListaAsistencia({ alumnos, presenteDe, soloLectura, onMarcar }) {
+export default function ListaAsistencia({ alumnos, marcaDe, soloLectura, onMarcar, onObservar }) {
   const { contenedor, alDesplazar, desde, hasta, huecoArriba, huecoAbajo } = useVentanaVirtual({
     total: alumnos.length,
     altoFila: ALTO_FILA,
@@ -19,9 +19,9 @@ export default function ListaAsistencia({ alumnos, presenteDe, soloLectura, onMa
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-10 bg-surface-100 text-xs font-semibold uppercase tracking-wide text-ink-400">
           <tr>
-            <th className="px-4 py-3 text-left">Nombres</th>
-            <th className="px-4 py-3 text-left">Apellidos</th>
+            <th className="px-4 py-3 text-left">Alumno</th>
             <th className="px-4 py-3 text-center">Asistencia</th>
+            <th className="px-4 py-3 text-center">Observación</th>
           </tr>
         </thead>
         <tbody>
@@ -33,16 +33,21 @@ export default function ListaAsistencia({ alumnos, presenteDe, soloLectura, onMa
             </tr>
           )}
 
-          {alumnos.slice(desde, hasta).map((alumno) => (
-            <FilaAsistencia
-              key={alumno.id_alumno}
-              alumno={alumno}
-              presente={presenteDe(alumno)}
-              soloLectura={soloLectura}
-              alto={ALTO_FILA}
-              onMarcar={onMarcar}
-            />
-          ))}
+          {alumnos.slice(desde, hasta).map((alumno) => {
+            const marca = marcaDe(alumno)
+            return (
+              <FilaAsistencia
+                key={alumno.id_alumno}
+                alumno={alumno}
+                estado={marca.estado}
+                observacion={marca.observacion}
+                soloLectura={soloLectura}
+                alto={ALTO_FILA}
+                onMarcar={onMarcar}
+                onObservar={onObservar}
+              />
+            )
+          })}
 
           {huecoAbajo > 0 && (
             <tr role="presentation">

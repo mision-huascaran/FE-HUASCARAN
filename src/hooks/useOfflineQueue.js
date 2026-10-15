@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
 import { guardarReporteSemanal } from '../api/resources/semanal'
 import { guardarRubricaSemanal } from '../api/resources/rubrica'
-import { marcarAsistencia } from '../api/resources/asistencia'
+import { guardarAsistencia } from '../api/resources/asistencia'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
 import useSyncStore from '../store/syncStore'
@@ -23,7 +23,9 @@ registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
 // CU022: cada micro-paquete del Auto-save. La clave es alumno-fecha-programa,
 // la misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
 // alumno dos veces deja UN solo envío en la cola y no dos contradictorios.
-registrarEnviador(TIPOS_ENVIO.ASISTENCIA, marcarAsistencia)
+registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ fecha, registros, fechaRegistro }) =>
+  guardarAsistencia({ fecha, registros, fechaRegistro }),
+)
 
 /**
  * Inicio y cierre de actividad encolados (CU009).

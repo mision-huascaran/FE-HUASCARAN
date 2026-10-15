@@ -49,7 +49,7 @@ vi.mock('idb-keyval', () => {
 const marcar = vi.fn()
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
-  return { ...original, marcarAsistencia: (...args) => marcar(...args) }
+  return { ...original, guardarAsistencia: (...args) => marcar(...args) }
 })
 
 /** En jsdom no hay ancho: `FilterBar` colapsa los filtros (RNF-002). */
@@ -101,6 +101,7 @@ async function abrirClase() {
 const controles = () => screen.getAllByRole('group', { name: /^Asistencia de / })
 
 const ladoPresente = (control) => within(control).getByRole('button', { name: /^Presente: / })
+const ladoTardanza = (control) => within(control).getByRole('button', { name: /^Tardanza: / })
 const ladoAusente = (control) => within(control).getByRole('button', { name: /^Ausente: / })
 
 beforeEach(() => {
@@ -108,7 +109,11 @@ beforeEach(() => {
   _reiniciarCola()
   fallaElDisco = false
   marcar.mockReset()
-  marcar.mockResolvedValue({ ok: true })
+  // La respuesta del contrato: `aplicado: true` por registro.
+  marcar.mockImplementation(async ({ fecha, registros }) => ({
+    fecha,
+    registros: registros.map((r) => ({ ...r, aplicado: true })),
+  }))
   useActividadStore.getState().iniciar({ idDocente: 1 })
 })
 
@@ -129,7 +134,11 @@ describe('Asistencia (CU022)', () => {
 
     await waitFor(() => expect(ladoPresente(control)).toHaveAttribute('aria-pressed', 'true'), ESPERA)
     await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
-    expect(marcar.mock.calls[0][0]).toMatchObject({ presente: true })
+    const enviado = marcar.mock.calls[0][0]
+    expect(enviado.registros[0]).toMatchObject({ estado: 'presente' })
+    // La hora REAL del clic, con zona: sin ella un envío encolado se
+    // registraría con la hora de la sincronización (CU022).
+    expect(enviado.fechaRegistro).toEqual(expect.any(String))
   })
 
   it('una clase nueva nace SIN MARCAR, que no es lo mismo que ausente', async () => {
@@ -137,8 +146,66 @@ describe('Asistencia (CU022)', () => {
     await abrirClase()
 
     const control = controles()[0]
+    // Los TRES apagados: "sin marcar" no es "ausente".
+    expect(ladoPresente(control)).toHaveAttribute('aria-pressed', 'false')
+    expect(ladoTardanza(control)).toHaveAttribute('aria-pressed', 'false')
+    expect(ladoAusente(control)).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('la tardanza es un estado propio, ni presente ni ausente', async () => {
+    montar()
+    await abrirClase()
+
+    const control = controles()[0]
+    fireEvent.click(ladoTardanza(control))
+
+    await waitFor(() => expect(ladoTardanza(control)).toHaveAttribute('aria-pressed', 'true'), ESPERA)
     expect(ladoPresente(control)).toHaveAttribute('aria-pressed', 'false')
     expect(ladoAusente(control)).toHaveAttribute('aria-pressed', 'false')
+    expect(marcar.mock.calls[0][0].registros[0]).toMatchObject({ estado: 'tardanza' })
+  })
+
+  it('una observación se guarda sin tocar el estado de asistencia', async () => {
+    montar()
+    await abrirClase()
+
+    // Primero se marca; después se añade la nota.
+    fireEvent.click(ladoAusente(controles()[0]))
+    await waitFor(() => expect(ladoAusente(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
+    marcar.mockClear()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /observación de /i })[0])
+    // Por nombre: en jsdom la barra de filtros colapsada también es un diálogo.
+    const dialogo = await screen.findByRole('dialog', { name: /observación/i }, ESPERA)
+    fireEvent.change(within(dialogo).getByLabelText(/motivo o justificación/i), {
+      target: { value: 'Falta por enfermedad' },
+    })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /guardar observación/i }))
+
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+    // Solo viaja la observación: lo que se omite no se toca en el servidor,
+    // así que la nota no borra el "ausente" de antes.
+    const registro = marcar.mock.calls[0][0].registros[0]
+    expect(registro.observacion).toBe('Falta por enfermedad')
+    expect(registro.estado).toBeUndefined()
+    await waitFor(() => expect(ladoAusente(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
+  })
+
+  it('si otro dispositivo gana la carrera, se adopta lo del servidor', async () => {
+    // `aplicado: false` no es un error: significa que otro guardó algo más
+    // reciente. Revertir al valor anterior sería retroceder todavía más.
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      fecha,
+      registros: registros.map((r) => ({ id_alumno: r.id_alumno, aplicado: false, estado: 'tardanza', observacion: null })),
+    }))
+
+    montar()
+    await abrirClase()
+
+    fireEvent.click(ladoPresente(controles()[0]))
+
+    await waitFor(() => expect(ladoTardanza(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
+    expect(ladoPresente(controles()[0])).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('"Marcar todos como presentes" respeta lo que ya se puso a mano', async () => {

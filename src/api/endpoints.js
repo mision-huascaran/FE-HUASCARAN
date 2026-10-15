@@ -6,11 +6,11 @@
 // por pendientes sí existen, y los cambios de estado tienen ruta propia en vez
 // de ir por PATCH con `{activo}`.
 //
-//   PUBLICADO   auth, inicio por rol, actividades, colegios, alumnos, usuarios
-//               y seguimiento. Los esquemas exactos están en {API}/docs.
-//   NO EXISTE   las grillas (Rúbrica, Lectura, Registro de Vuelo, Asistencia) y
-//               la sincronización offline. Siguen resolviéndose contra el mock
-//               hasta que el backend las publique.
+//   PUBLICADO   auth, inicio por rol, actividades, colegios, alumnos, usuarios,
+//               seguimiento y ASISTENCIAS. Los esquemas exactos, en {API}/docs.
+//   NO EXISTE   las demás grillas (Rúbrica, Seguimiento de Lectura y Registro
+//               de Vuelo) y la sincronización offline en lote. Siguen
+//               resolviéndose contra el mock hasta que el backend las publique.
 //
 // Lo que desapareció del contrato anterior y NO debe volver:
 //   · `/profesores`  → todo pasa por `/usuarios` con `id_rol`.
@@ -98,6 +98,17 @@ export const ENDPOINTS = {
     // La baja lógica tiene ruta propia: NO es un PATCH con `{activo}`.
     activar: (id) => `/colegios/${id}/activar`,
     desactivar: (id) => `/colegios/${id}/desactivar`,
+  },
+
+  // PUBLICADO — Asistencias (CU022) ─────────────────────────────────────────
+  //
+  // Una CLASE es fecha + colegio + grado + subprograma. La sección no entra:
+  // es un atributo del colegio que el alumno hereda.
+  asistencia: {
+    // ?id_colegio=&id_grado=&id_programa=&fecha= (los cuatro obligatorios)
+    listar: '/asistencias',
+    // PUT con varios registros a la vez; `estado: null` NO se acepta.
+    guardar: '/asistencias',
   },
 
   // PUBLICADO — Alumnos y su detalle (CU014, CU015) ──────────────────────────

@@ -1,49 +1,86 @@
-// Asistencia por fecha (CU022).
+// Asistencia por clase (CU022). YA NO ES UNA DEMO: el backend la publica.
 //
-// TODO BACKEND: los endpoints NO EXISTEN todavía. El caso de uso aún no está
-// cerrado, así que esto es una demo funcional resuelta contra el simulador: la
-// pantalla, las reglas y el comportamiento offline son los definitivos, y lo
-// único que habrá que cambiar cuando el backend publique las rutas es la rama
-// `real` de estas tres funciones.
+// Una CLASE es la combinación de fecha + colegio + grado + subprograma. La
+// sección NO entra: es un atributo del colegio ("Única") que el alumno hereda,
+// así que `GET /asistencias` no la recibe y el filtro de la pantalla solo sirve
+// para que el docente se ubique.
 //
-// Lo que hará falta pedirle al backend, tal como lo describe CU022:
+// Dos cosas que cambiaron respecto de lo que teníamos:
 //
-//   GET  /asistencia/clase?id_colegio&id_grado&seccion&id_programa&fecha
-//        → { dia_lectivo, alumnos: [{ id_alumno, nombres, apellidos, seccion,
-//            activo, presente }], servidor_ahora }
-//        `presente` es null mientras nadie haya marcado: "sin marcar" y
-//        "ausente" no son lo mismo.
-//        En una fecha pasada la lista incluye también a los alumnos INACTIVOS
-//        que ya tengan registro ese día.
-//   POST /asistencia/marcas  { id_alumno, fecha, id_programa, presente }
-//        Un micro-paquete por interacción. Único por alumno, fecha y
-//        subprograma; ante escrituras simultáneas gana la más reciente.
-//   GET  /asistencia/secciones?id_colegio&id_grado → ["A", "B"]
-//
-// `servidor_ahora` es importante: recalibra el reloj del cliente (ver
-// `lib/relojServidor.js`). CU022 prohíbe fiarse de la hora del dispositivo.
-import { resolver } from '../client'
+//   · TRES estados, no dos: `presente | tardanza | ausente`, más `null` para
+//     "sin marcar". Y `null` NO se acepta al escribir: una marca puesta no se
+//     puede quitar, solo cambiar.
+//   · El guardado es un PUT con VARIOS registros. El autoguardado manda uno,
+//     pero "Marcar todos como presentes" los manda juntos, y el mismo endpoint
+//     sirve para la observación.
+import { api, resolver, adminContraApiReal } from '../client'
+import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
-import { sincronizarReloj } from '../../lib/relojServidor'
 
+/** Los tres estados del Segmented Control, en el orden en que se pintan. */
+export const ESTADOS_ASISTENCIA = ['presente', 'tardanza', 'ausente']
+
+/**
+ * Las secciones (aulas) de un colegio y grado.
+ *
+ * NO es un endpoint: el backend no modela las secciones y `GET /asistencias`
+ * no las recibe. La sección es un atributo del colegio ("Única") que el alumno
+ * hereda, y el filtro existe solo porque CU022 lo pide para ubicarse. Se sacan
+ * de los alumnos que hay.
+ */
 export const listarSeccionesDe = ({ idColegio, idGrado }) =>
   resolver({
     mock: () => handlers.asistencia.secciones({ idColegio, idGrado }),
     real: () => handlers.asistencia.secciones({ idColegio, idGrado }),
   })
 
-export async function obtenerClase({ idColegio, idGrado, seccion, idPrograma, fecha }) {
-  const datos = await resolver({
-    mock: () => handlers.asistencia.clase({ idColegio, idGrado, seccion, idPrograma, fecha }),
-    real: () => handlers.asistencia.clase({ idColegio, idGrado, seccion, idPrograma, fecha }),
-  })
-  sincronizarReloj(datos?.servidor_ahora)
-  return datos
-}
-
-/** Un micro-paquete del Auto-save: el estado de UN alumno. */
-export const marcarAsistencia = (paquete) =>
+/**
+ * `GET /asistencias` — la clase de una fecha.
+ *
+ * Devuelve `{fecha, editable, alumnos}`. `editable` lo decide el SERVIDOR: es
+ * `true` solo si quien pregunta es Docente y la fecha es un día lectivo del
+ * periodo vigente. El Supervisor siempre lo recibe en `false`, y así se entera
+ * la pantalla de que va en solo lectura sin tener que razonarlo por su cuenta.
+ *
+ * Cada alumno trae `activo` y `en_aula`: el primero marca a los dados de baja
+ * que ya constaban ese día, y el segundo a los que rotaron de aula después.
+ * Los dos se muestran igual, señalados.
+ */
+export const obtenerClase = ({ idColegio, idGrado, idPrograma, fecha }) =>
   resolver({
-    mock: () => handlers.asistencia.marcar(paquete),
-    real: () => handlers.asistencia.marcar(paquete),
+    mock: () => handlers.asistencia.clase({ idColegio, idGrado, idPrograma, fecha }),
+    real: () =>
+      api.get(ENDPOINTS.asistencia.listar, {
+        params: {
+          id_colegio: Number(idColegio),
+          id_grado: Number(idGrado),
+          id_programa: Number(idPrograma),
+          fecha,
+        },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * `PUT /asistencias` — guarda uno o varios registros de la misma fecha.
+ *
+ * Un registro lleva `estado`, `observacion` o ambos; lo que se omite no se
+ * toca. `fecha_registro` es el momento REAL del clic, con zona: sin ella el
+ * servidor usa la suya, y un envío que estuvo una hora en la cola offline se
+ * registraría con la hora de la sincronización en vez de la del aula.
+ *
+ * La respuesta trae `aplicado` por registro. En `false` significa que OTRO
+ * dispositivo guardó algo más reciente para ese alumno: gana el suyo, y la
+ * pantalla tiene que repintarse con el `estado` y la `observacion` que vuelven.
+ */
+export const guardarAsistencia = ({ fecha, registros, fechaRegistro }) =>
+  resolver({
+    mock: () => handlers.asistencia.guardar({ fecha, registros, fecha_registro: fechaRegistro }),
+    real: () =>
+      api.put(ENDPOINTS.asistencia.guardar, {
+        fecha,
+        registros,
+        ...(fechaRegistro ? { fecha_registro: fechaRegistro } : {}),
+      }),
+    forzarReal: adminContraApiReal,
   })

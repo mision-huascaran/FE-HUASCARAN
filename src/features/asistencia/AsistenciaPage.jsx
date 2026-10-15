@@ -1,20 +1,23 @@
 // Cubre: CU022 · Registrar asistencias de alumnos.
 //
-// DEMO: el backend todavía no tiene estos endpoints y el caso de uso no está
-// cerrado. Toda la pantalla se resuelve contra el simulador (ver
-// `api/resources/asistencia.js`), pero las reglas son las definitivas.
+// YA NO ES UNA DEMO: el backend publica `GET /asistencias` y `PUT /asistencias`.
+//
+// Una CLASE es fecha + colegio + grado + subprograma. La SECCIÓN no viaja al
+// servidor: es un atributo del colegio ("Única") que el alumno hereda, así que
+// el filtro solo sirve para que el docente se ubique.
 //
 // Lo que la separa de las demás grillas:
 //
 //   · NO HAY BOTÓN DE GUARDAR. Cada clic manda su propio micro-paquete
 //     (Auto-save) y, si falla, el control vuelve solo a donde estaba.
-//   · Tres estados por alumno: presente, ausente y SIN MARCAR. Una clase nueva
-//     nace entera sin marcar, que no es lo mismo que todos ausentes.
+//   · Cuatro estados por alumno: presente, tardanza, ausente y SIN MARCAR. Una
+//     clase nueva nace entera sin marcar, que no es lo mismo que todos ausentes.
 //   · La lista va con Virtual Scrolling: está pensada para un móvil en el aula
 //     y un colegio grande pasa de los sesenta alumnos.
-//   · El Supervisor entra en solo lectura estricta (CU021): sin botón de lote,
-//     sin controles y con el Auto-save apagado del todo.
-import { useEffect, useMemo } from 'react'
+//   · Quién puede escribir lo decide el SERVIDOR con `editable`, no esta
+//     pantalla: es `true` solo para el Docente en un día lectivo del periodo
+//     vigente. El Supervisor lo recibe siempre en `false` (CU021).
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCheck, CalendarX2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -23,11 +26,13 @@ import EmptyState from '../../components/ui/EmptyState'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
+import ModalObservacion from './ModalObservacion'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { listarSeccionesDe, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes } from '../../api/resources/administracion'
+import { motivoDe } from '../../api/client'
 import { useColegios, useGrados, useProgramas } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
@@ -45,11 +50,9 @@ export default function AsistenciaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const conActividad = Boolean(useActividadStore((s) => s.sesion))
   const puedeEditar = puede('asistencia', idRol, ACCION.EDITAR)
-  // El Supervisor nunca escribe; el Docente, solo con una actividad abierta.
-  const autoguardado = puedeEditar && conActividad
-  const soloLectura = !autoguardado
 
   const { filtros, cambiar } = useFiltrosAsistencia()
+  const [observando, setObservando] = useState(null)
 
   const { data: colegios = [] } = useColegios()
   const { data: grados = [] } = useGrados()
@@ -96,17 +99,34 @@ export default function AsistenciaPage() {
   )
 
   const clase = useQuery({
-    queryKey: ['asistencia', 'clase', filtros],
-    queryFn: () => obtenerClase(filtros),
+    queryKey: ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+    queryFn: () =>
+      obtenerClase({
+        idColegio: filtros.idColegio,
+        idGrado: filtros.idGrado,
+        idPrograma: filtros.idPrograma,
+        fecha: filtros.fecha,
+      }),
     enabled: listos,
+    // Un día no lectivo responde 422: es una respuesta legítima del contrato,
+    // no un fallo de red, así que reintentarlo solo retrasa el aviso.
+    retry: false,
   })
 
   const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
-  // El día lectivo lo decide el SERVIDOR (CU022, Restricciones). Mientras no
-  // haya contestado no se afirma que la fecha sea mala.
-  const diaNoLectivo = clase.data?.dia_lectivo === false
+  // El día lectivo lo decide el SERVIDOR (CU022, Restricciones): llega como un
+  // 422 con `motivo: 'fecha_no_lectiva'`.
+  const diaNoLectivo = motivoDe(clase.error) === 'fecha_no_lectiva'
 
-  const { presenteDe, marcar, marcarTodosPresentes, sinMarcar } = useAutoguardado({
+  /**
+   * Quién escribe lo dice el servidor con `editable`, y encima tiene que haber
+   * una actividad abierta. Son dos condiciones distintas: `editable` cubre el
+   * rol y la fecha; la actividad, el requisito de CU010.
+   */
+  const autoguardado = Boolean(clase.data?.editable) && puedeEditar && conActividad
+  const soloLectura = !autoguardado
+
+  const { marcaDe, marcar, observar, marcarTodosPresentes, sinMarcar } = useAutoguardado({
     alumnos,
     fecha: filtros.fecha,
     idPrograma: filtros.idPrograma,
@@ -119,6 +139,12 @@ export default function AsistenciaPage() {
       `${cuantos} alumno${cuantos === 1 ? '' : 's'} marcado${cuantos === 1 ? '' : 's'} como presente`,
       'No se tocaron los que ya tenían una marca puesta a mano.',
     )
+  }
+
+  const guardarObservacion = async (texto) => {
+    const alumno = observando
+    setObservando(null)
+    await observar(alumno, texto)
   }
 
   const hayLista = listos && !diaNoLectivo && alumnos.length > 0
@@ -182,12 +208,19 @@ export default function AsistenciaPage() {
         >
           <ListaAsistencia
             alumnos={alumnos}
-            presenteDe={presenteDe}
+            marcaDe={marcaDe}
             soloLectura={soloLectura}
             onMarcar={marcar}
+            onObservar={setObservando}
           />
         </Card>
       )}
+
+      <ModalObservacion
+        alumno={observando}
+        onGuardar={guardarObservacion}
+        onCerrar={() => setObservando(null)}
+      />
     </div>
   )
 }
