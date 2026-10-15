@@ -213,7 +213,18 @@ function cuerpoDeColegio(colegio = {}) {
       dia_clase: Number(dia_clase),
     }))
   }
+  // `programas: list[int]`, obligatorio. El multi-select los da como strings.
+  if ('programas' in cuerpo) {
+    cuerpo.programas = (cuerpo.programas ?? []).map((p) =>
+      Number(typeof p === 'object' && p !== null ? p.id_programa ?? p.id : p),
+    )
+  }
   if (cuerpo.distrito === '') cuerpo.distrito = null
+  // Con "" el backend responde 422; omitidos, aplica "Única" y "Primaria" al
+  // crear, y en el PATCH no se tocan.
+  const vacio = (valor) => !String(valor ?? '').trim()
+  if ('seccion' in cuerpo && vacio(cuerpo.seccion)) delete cuerpo.seccion
+  if ('nivel_educativo' in cuerpo && vacio(cuerpo.nivel_educativo)) delete cuerpo.nivel_educativo
   return cuerpo
 }
 

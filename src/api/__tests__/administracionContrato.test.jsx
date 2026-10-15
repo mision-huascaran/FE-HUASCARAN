@@ -22,7 +22,7 @@ vi.mock('../client', async (importOriginal) => ({
   adminContraApiReal: true,
 }))
 
-const { actualizarUsuario, listarAuditoria, listarUsuariosAdmin, listarGradosAdmin, listarProgramasAdmin, cambiarEstadoAlumno } =
+const { actualizarUsuario, listarAuditoria, listarUsuariosAdmin, listarGradosAdmin, listarProgramasAdmin, cambiarEstadoAlumno, crearColegio, actualizarColegio } =
   await import('../resources/administracion')
 
 const EDICION = { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test', id_colegio: '7', grados: ['1'] }
@@ -31,6 +31,7 @@ beforeEach(() => {
   get.mockReset()
   get.mockResolvedValue({ data: {} })
   patch.mockClear()
+  post.mockClear()
 })
 
 describe('Año escolar de la asignación', () => {
@@ -102,5 +103,18 @@ describe('Auditoría de entidades sin historial en el backend', () => {
       </QueryClientProvider>,
     )
     expect(await screen.findByText('Sin cambios registrados')).toBeInTheDocument()
+  })
+})
+
+describe('Cuerpo de colegio (CU013)', () => {
+  it('no manda seccion ni nivel_educativo vacíos y convierte programas a números', async () => {
+    await crearColegio({ nombre: 'I.E. X', seccion: '', nivel_educativo: '  ', programas: ['1', 2, { id_programa: 3 }, { id: 4 }] })
+    const cuerpo = post.mock.calls.at(-1)[1]
+    expect(cuerpo).not.toHaveProperty('seccion')
+    expect(cuerpo).not.toHaveProperty('nivel_educativo')
+    expect(cuerpo.programas).toEqual([1, 2, 3, 4])
+
+    await actualizarColegio(5, { seccion: '', nivel_educativo: 'Primaria' })
+    expect(patch.mock.calls.at(-1)[1]).toEqual({ nivel_educativo: 'Primaria' })
   })
 })

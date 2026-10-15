@@ -2,7 +2,7 @@
 // del mock. Los gráficos de recharts no se pintan en jsdom (no hay medidas),
 // así que aquí se comprueba lo demás: indicadores, tablas y avisos.
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../App'
@@ -10,6 +10,7 @@ import { ToastProvider } from '../../components/ui'
 import DashboardPage from '../dashboard/DashboardPage'
 import ColegiosPage from '../colegios/ColegiosPage'
 import ColegioDetallePage from '../colegios/ColegioDetallePage'
+import MantenimientoColegios from '../colegios/MantenimientoColegios'
 import ConsolidadosPage from '../consolidados/ConsolidadosPage'
 import AlertasPage from '../alertas/AlertasPage'
 import AdministracionPage from '../administracion/AdministracionPage'
@@ -71,6 +72,14 @@ describe('Colegios (P13)', () => {
     montar(<ColegioDetallePage />, { ruta: '/colegios/1', patron: '/colegios/:id' })
     expect(await screen.findByRole('heading', { name: /Ranrahirca/ }, ESPERA)).toBeInTheDocument()
     expect(await screen.findByText('Ranking de aulas', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('Nuevo colegio pide los Subprogramas, obligatorios en CU013', async () => {
+    montar(<MantenimientoColegios />, { ruta: '/colegios', patron: '/colegios' })
+    fireEvent.click(await screen.findByRole('button', { name: /agregar/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    expect(within(dialogo).getByText('Subprogramas')).toBeInTheDocument()
+    expect(await within(dialogo).findByRole('checkbox', { name: /Alfabetización/ }, ESPERA)).toBeInTheDocument()
   })
 })
 

@@ -14,6 +14,7 @@ import {
   listarColegiosAdmin,
   obtenerColegio,
   listarGradosAdmin,
+  listarProgramasAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
@@ -32,6 +33,12 @@ export default function MantenimientoColegios() {
   const { data: grados = [] } = useQuery({
     queryKey: ['admin', 'catalogo', 'grados'],
     queryFn: listarGradosAdmin,
+    staleTime: Infinity,
+  })
+
+  const { data: programas = [] } = useQuery({
+    queryKey: ['admin', 'catalogo', 'programas'],
+    queryFn: listarProgramasAdmin,
     staleTime: Infinity,
   })
 
@@ -56,6 +63,14 @@ export default function MantenimientoColegios() {
       { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', ayuda: 'Por defecto, Primaria' },
       { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
       {
+        nombre: 'programas',
+        etiqueta: 'Subprogramas',
+        tipo: 'multiple',
+        requerido: true,
+        ancho: 'completo',
+        opciones: programas.map((p) => ({ value: String(p.id_programa), label: p.nombre })),
+      },
+      {
         nombre: 'grados',
         etiqueta: 'Grados que ofrece',
         requerido: true,
@@ -74,7 +89,7 @@ export default function MantenimientoColegios() {
         },
       },
     ],
-    [grados],
+    [grados, programas],
   )
 
   const consulta = useQuery({
@@ -86,6 +101,10 @@ export default function MantenimientoColegios() {
     queryClient.invalidateQueries({ queryKey: ['colegios'] })
     queryClient.invalidateQueries({ queryKey: ['catalogo'] })
     queryClient.invalidateQueries({ queryKey: ['admin'] })
+    // El popup cachea el detalle y la auditoría: sin esto, "Ver"/"Editar"
+    // mostraban los grados y días anteriores hasta recargar.
+    queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
+    queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
   }
 
   const guardado = useMutation({
@@ -123,7 +142,11 @@ export default function MantenimientoColegios() {
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
       // El listado no trae grados ni programas: se piden al abrir el popup.
-      cargarDetalle={obtenerColegio}
+      // `obtenerColegio` da los programas como objetos; el multi-select usa ids en string.
+      cargarDetalle={async (id) => {
+        const c = await obtenerColegio(id)
+        return c && { ...c, programas: (c.programas ?? []).map((p) => String(p.id_programa)) }
+      }}
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}
