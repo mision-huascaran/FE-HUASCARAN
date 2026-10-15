@@ -10,7 +10,7 @@
 //   · Si el envío se rechaza, el control vuelve solo y avisa con el texto
 //     exacto del caso de uso.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
@@ -172,6 +172,29 @@ describe('Asistencia (CU022)', () => {
     expect(registro.observacion).toBe('Falta por enfermedad')
     expect(registro.estado).toBeUndefined()
     await waitFor(() => expect(ladoAusente(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
+  })
+
+  it('la observación se lee en solo lectura y con el último texto guardado', async () => {
+    montar()
+    await abrirClase()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /observación de /i })[0])
+    let dialogo = await screen.findByRole('dialog', { name: /observación/i }, ESPERA)
+    fireEvent.change(within(dialogo).getByLabelText(/motivo o justificación/i), { target: { value: 'Llegó con su madre' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /guardar observación/i }))
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+
+    // Sin actividad: no se escribe, pero la nota existente se puede leer.
+    act(() => useActividadStore.getState().limpiar())
+    const globo = await screen.findByRole('button', { name: /^ver observación de /i }, ESPERA)
+    expect(globo).toBeEnabled()
+    fireEvent.click(globo)
+
+    dialogo = await screen.findByRole('dialog', { name: /observación/i }, ESPERA)
+    const texto = within(dialogo).getByLabelText(/motivo o justificación/i)
+    expect(texto).toHaveValue('Llegó con su madre')
+    expect(texto).toHaveAttribute('readonly')
+    expect(within(dialogo).queryByRole('button', { name: /guardar observación/i })).not.toBeInTheDocument()
   })
 
   it('si otro dispositivo gana la carrera, se adopta lo del servidor', async () => {

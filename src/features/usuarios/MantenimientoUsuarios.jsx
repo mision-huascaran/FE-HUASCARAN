@@ -22,6 +22,7 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
   listarUsuariosAdmin,
+  obtenerUsuario,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
@@ -86,20 +87,29 @@ export default function MantenimientoUsuarios() {
 
   const consulta = { ...consultaServidor, data: consultaServidor.data ? filas : undefined }
 
-  const refrescar = () => queryClient.invalidateQueries({ queryKey: ['admin'] })
+  const refrescar = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin'] })
+    queryClient.invalidateQueries({ queryKey: ['detalle', 'usuarios'] })
+    queryClient.invalidateQueries({ queryKey: ['auditoria', 'usuarios'] })
+  }
+
+  const mismosGrados = (a, b) =>
+    (a ?? []).map(String).sort().join() === (b ?? []).map(String).sort().join()
 
   const guardado = useMutation({
     mutationFn: ({ valores, popup }) => {
       if (popup.modo === 'editar') {
         // La asignación solo viaja si el Supervisor la CAMBIÓ (otro colegio,
         // grados o año). Si solo corrige el DNI o el correo, mandar el colegio
-        // precargado reasignaría al docente sin que lo pidiera.
+        // precargado reasignaría al docente sin que lo pidiera. Se compara con
+        // lo que precargó el detalle (`GET /usuarios/{id}`), o con la fila.
         const registro = popup.registro
+        const inicial = queryClient.getQueryData(['detalle', 'usuarios', registro.id ?? registro.id_usuario]) ?? registro
         const cambioAsignacion =
           Boolean(valores.id_colegio) &&
-          (String(valores.id_colegio) !== String(registro.id_colegio ?? '') ||
-            (valores.grados ?? []).length > 0 ||
-            String(valores.anio_escolar ?? '').trim() !== '')
+          (String(valores.id_colegio) !== String(inicial.id_colegio ?? '') ||
+            !mismosGrados(valores.grados, inicial.grados) ||
+            String(valores.anio_escolar ?? '').trim() !== String(inicial.anio_escolar ?? '').trim())
         const datos = cambioAsignacion ? valores : { ...valores, id_colegio: '', grados: [], anio_escolar: '' }
         return actualizarUsuario(registro.id_usuario, datos)
       }
@@ -217,6 +227,8 @@ export default function MantenimientoUsuarios() {
         valoresFiltro={filtros}
         onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
         cargarAuditoria={(id) => listarAuditoria('usuario', id)}
+        // El listado no trae año ni grados del Docente: se piden al abrir.
+        cargarDetalle={obtenerUsuario}
         genero="f"
         onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
         onCambiarEstado={(usuario, activo) => estado.mutate({ usuario, activo })}

@@ -220,11 +220,13 @@ function cuerpoDeColegio(colegio = {}) {
     )
   }
   if (cuerpo.distrito === '') cuerpo.distrito = null
-  // Con "" el backend responde 422; omitidos, aplica "Única" y "Primaria" al
-  // crear, y en el PATCH no se tocan.
+  // Con "" el backend responde 422; omitida, aplica "Única" al crear, y en el
+  // PATCH no se toca.
   const vacio = (valor) => !String(valor ?? '').trim()
   if ('seccion' in cuerpo && vacio(cuerpo.seccion)) delete cuerpo.seccion
-  if ('nivel_educativo' in cuerpo && vacio(cuerpo.nivel_educativo)) delete cuerpo.nivel_educativo
+  // El programa es solo de Primaria: se fuerza siempre, y así un colegio que
+  // quedó con otro nivel se corrige al guardarlo.
+  cuerpo.nivel_educativo = 'Primaria'
   return cuerpo
 }
 
@@ -632,6 +634,38 @@ export const crearUsuario = async (datos) => {
   })
   // `UsuarioCreado` envuelve al usuario: `{usuario, correo_enviado, contraseña_temporal}`.
   return respuesta?.usuario ? { ...respuesta, correo: respuesta.usuario.correo } : respuesta
+}
+
+/**
+ * `GET /usuarios/{id}` — `UsuarioDetalle`, con la asignación del Docente.
+ *
+ * El listado solo trae el NOMBRE del colegio, así que "Editar" salía sin año ni
+ * grados. Se devuelve en la forma del formulario: colegio y grados del periodo
+ * vigente (o del primero) como strings, y el año escolar en 4 dígitos.
+ */
+export const obtenerUsuario = async (idUsuario) => {
+  const usuario = await resolver({
+    // El simulador no tiene detalle: el popup se queda con la fila.
+    mock: async () => null,
+    real: () => api.get(usuarios.detalle(idUsuario)),
+    forzarReal: adminContraApiReal,
+  })
+  if (!usuario) return usuario
+  const asignacion = usuario.asignacion ?? null
+  const periodos = asignacion?.periodos ?? []
+  const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+  let anio = ''
+  if (asignacion?.id_anio_escolar != null) {
+    const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
+    const nombre = anios.find((a) => a.id === asignacion.id_anio_escolar)?.nombre
+    anio = String(nombre ?? '').match(/\d{4}/)?.[0] ?? ''
+  }
+  return {
+    ...usuario,
+    id_colegio: periodo?.id_colegio == null ? '' : String(periodo.id_colegio),
+    grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+    anio_escolar: anio,
+  }
 }
 
 /**

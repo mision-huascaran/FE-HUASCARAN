@@ -60,7 +60,7 @@ export default function MantenimientoColegios() {
       { nombre: 'departamento', etiqueta: 'Departamento', requerido: true },
       { nombre: 'provincia', etiqueta: 'Provincia', requerido: true },
       { nombre: 'distrito', etiqueta: 'Distrito' },
-      { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', ayuda: 'Por defecto, Primaria' },
+      { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', soloLectura: true, porDefecto: 'Primaria' },
       { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
       {
         nombre: 'programas',
@@ -68,6 +68,7 @@ export default function MantenimientoColegios() {
         tipo: 'multiple',
         requerido: true,
         ancho: 'completo',
+        columnas: 2,
         opciones: programas.map((p) => ({ value: String(p.id_programa), label: p.nombre })),
       },
       {

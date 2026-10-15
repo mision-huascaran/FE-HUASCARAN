@@ -181,8 +181,13 @@ export default function AsistenciaPage() {
 
   const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idPrograma && filtros.fecha)
 
+  const claveClase = useMemo(
+    () => ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+    [filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+  )
+
   const clase = useQuery({
-    queryKey: ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+    queryKey: claveClase,
     queryFn: () =>
       obtenerClase({
         idColegio: filtros.idColegio,
@@ -216,6 +221,7 @@ export default function AsistenciaPage() {
     fecha: filtros.fecha,
     idPrograma: filtros.idPrograma,
     activo: autoguardado,
+    claveClase,
   })
 
   const marcarTodos = () => {
@@ -307,13 +313,15 @@ export default function AsistenciaPage() {
             marcaDe={marcaDe}
             soloLectura={soloLectura}
             onMarcar={marcar}
-            onObservar={setObservando}
+            // El último texto vive en el estado del autoguardado, no en `alumno`.
+            onObservar={(alumno) => setObservando({ ...alumno, observacion: marcaDe(alumno).observacion })}
           />
         </Card>
       )}
 
       <ModalObservacion
         alumno={observando}
+        soloLectura={soloLectura}
         onGuardar={guardarObservacion}
         onCerrar={() => setObservando(null)}
       />

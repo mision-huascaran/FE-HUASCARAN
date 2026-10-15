@@ -53,7 +53,8 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
       <td className="px-4 py-2 text-center">
         <button
           type="button"
-          disabled={soloLectura}
+          // Una nota existente se puede LEER aunque no se pueda escribir.
+          disabled={soloLectura && !conNota}
           onClick={() => onObservar(alumno)}
           aria-label={`${conNota ? 'Ver' : 'Añadir'} observación de ${nombre}`}
           title={conNota ? observacion : 'Sin observación'}
@@ -65,7 +66,7 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
             conNota
               ? 'border-brand-600 bg-brand-100 text-brand-700'
               : 'border-line text-ink-400 hover:border-brand-500/60 hover:text-ink-700',
-            soloLectura ? 'cursor-not-allowed opacity-60' : '',
+            soloLectura && !conNota ? 'cursor-not-allowed opacity-60' : '',
           ].join(' ')}
         >
           <Globo className="h-4 w-4" aria-hidden="true" />

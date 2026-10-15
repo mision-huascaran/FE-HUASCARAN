@@ -135,6 +135,7 @@ export const ENDPOINTS = {
     // asignaciones en una transacción.
     crear: '/usuarios',
     actualizar: (id) => `/usuarios/${id}`,
+    detalle: (id) => `/usuarios/${id}`,
     activar: (id) => `/usuarios/${id}/activar`,
     desactivar: (id) => `/usuarios/${id}/desactivar`,
   },

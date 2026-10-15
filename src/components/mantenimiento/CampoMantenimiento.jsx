@@ -109,7 +109,9 @@ function SeleccionMultiple({ campo, valor, onCambio, modo, error, bloqueado }) {
       {opciones.length === 0 ? (
         <p className="rounded-lg border border-dashed border-line px-3 py-2 text-sm text-ink-400">Sin opciones disponibles</p>
       ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        // Seis por defecto, pensado para los grados. Clases literales: Tailwind
+        // no ve las que se arman concatenando.
+        <div className={`grid gap-2 ${campo.columnas === 2 ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-6'}`}>
           {opciones.map((o) => {
             const marcado = marcados.has(String(o.value))
             return (

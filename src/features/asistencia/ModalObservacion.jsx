@@ -12,7 +12,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Textarea from '../../components/ui/Textarea'
 
-export default function ModalObservacion({ alumno, guardando, onGuardar, onCerrar }) {
+export default function ModalObservacion({ alumno, guardando, soloLectura = false, onGuardar, onCerrar }) {
   const [texto, setTexto] = useState('')
 
   // Al abrir con otro alumno hay que repoblar: el modal se reutiliza.
@@ -29,23 +29,30 @@ export default function ModalObservacion({ alumno, guardando, onGuardar, onCerra
       title="Observación"
       subtitle={nombre}
       footer={
-        <>
+        soloLectura ? (
           <Button variant="ghost" onClick={onCerrar}>
-            Cancelar
+            Cerrar
           </Button>
-          <Button loading={guardando} onClick={() => onGuardar(texto.trim())}>
-            Guardar observación
-          </Button>
-        </>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={onCerrar}>
+              Cancelar
+            </Button>
+            <Button loading={guardando} onClick={() => onGuardar(texto.trim())}>
+              Guardar observación
+            </Button>
+          </>
+        )
       }
     >
       <Textarea
         label="Motivo o justificación"
         rows={4}
         maxLength={300}
-        autoFocus
+        autoFocus={!soloLectura}
+        readOnly={soloLectura}
         value={texto}
-        hint="Por ejemplo: falta por enfermedad, tardanza por transporte. Déjelo vacío para quitarla."
+        hint={soloLectura ? undefined : 'Por ejemplo: falta por enfermedad, tardanza por transporte. Déjelo vacío para quitarla.'}
         onChange={(e) => setTexto(e.target.value)}
       />
     </Modal>

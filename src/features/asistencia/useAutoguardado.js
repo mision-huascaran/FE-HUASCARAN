@@ -19,6 +19,7 @@
 // al anterior. Es también lo que hace que una ráfaga de clics sobre el mismo
 // alumno cuente como UN cambio en la métrica de productividad (CU021).
 import { useCallback, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { encolar } from '../../lib/colaOffline'
 import { motivoDe } from '../../api/client'
@@ -43,13 +44,28 @@ const sinMarcar = (estado) => estado == null
  */
 const momentoDelClic = () => ahora().toISOString()
 
+/** Lo que el servidor confirmó; si omite un campo, vale lo que se envió. */
+const confirmadoPor = (guardado, enviado) => ({
+  estado: 'estado' in guardado ? guardado.estado ?? null : enviado.estado,
+  observacion: 'observacion' in guardado ? guardado.observacion ?? null : enviado.observacion,
+})
+
+/** La clase en caché con un alumno actualizado. */
+const conAlumno = (clase, idAlumno, marca) =>
+  clase?.alumnos
+    ? { ...clase, alumnos: clase.alumnos.map((a) => (a.id_alumno === idAlumno ? { ...a, ...marca } : a)) }
+    : clase
+
 /**
  * @param alumnos  los de la clase, tal como llegan del servidor.
  * @param activo   false para el Supervisor y para los días no editables: CU022
  *   le desactiva el Auto-save por completo, ni PostgreSQL ni IndexedDB.
+ * @param claveClase la queryKey de la clase: lo que el servidor confirma se
+ *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activo }) {
+export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activo, claveClase }) {
   const toast = useToast()
+  const queryClient = useQueryClient()
 
   // Lo que este navegador ha cambiado por encima de lo que vino del servidor,
   // atado a SU clase: cambiar de fecha o de subprograma no puede arrastrar las
@@ -109,6 +125,11 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
          * porque volver al valor anterior sería retroceder aún más.
          */
         const guardado = respuesta?.registros?.find((r) => r.id_alumno === alumno.id_alumno)
+        // Solo lo que el SERVIDOR confirmó: lo encolado offline no resuelve aún.
+        if (guardado && claveClase) {
+          const confirmado = confirmadoPor(guardado, siguiente)
+          queryClient.setQueryData(claveClase, (previa) => conAlumno(previa, alumno.id_alumno, confirmado))
+        }
         if (guardado && guardado.aplicado === false) {
           escribir(alumno.id_alumno, { estado: guardado.estado ?? null, observacion: guardado.observacion ?? null })
           toast.info(
@@ -130,7 +151,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
         return error
       }
     },
-    [activo, marcaDe, escribir, fecha, idPrograma, toast],
+    [activo, marcaDe, escribir, fecha, idPrograma, toast, claveClase, queryClient],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])
