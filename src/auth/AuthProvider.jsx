@@ -83,6 +83,26 @@ export function AuthProvider({ children }) {
     [setToken, setUsuario, setCargando],
   )
 
+  /**
+   * Entrar con un token ya emitido, sin pasar por `/login`.
+   *
+   * Lo usa el primer ingreso (CU001): `POST /password/primer-ingreso` responde
+   * exactamente lo mismo que `/login`, token incluido, así que el usuario entra
+   * directamente en vez de volver al formulario a reescribir una contraseña que
+   * acaba de establecer.
+   */
+  const entrarConToken = useCallback(
+    async (accessToken) => {
+      setToken(accessToken)
+      const perfil = await obtenerPerfil()
+      perfilPedidoPara.current = accessToken
+      setUsuario(perfil)
+      setCargando(false)
+      return perfil
+    },
+    [setToken, setUsuario, setCargando],
+  )
+
   const salir = useCallback(async (motivo = null) => {
     /**
      * CU008 — La actividad en curso la cierra el SERVIDOR.
@@ -156,11 +176,12 @@ export function AuthProvider({ children }) {
       cargando,
       autenticado: Boolean(token && usuario),
       entrar,
+      entrarConToken,
       salir,
       motivoCierre,
       limpiarMotivoCierre,
     }),
-    [token, usuario, cargando, entrar, salir, motivoCierre, limpiarMotivoCierre],
+    [token, usuario, cargando, entrar, entrarConToken, salir, motivoCierre, limpiarMotivoCierre],
   )
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>

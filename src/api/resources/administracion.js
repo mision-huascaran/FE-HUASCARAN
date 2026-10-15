@@ -495,6 +495,8 @@ export const listarUsuariosAdmin = async (filtros = {}) => {
     id_rol: u.id_rol ?? ID_ROL_POR_NOMBRE[u.rol] ?? null,
     colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
     es_supervisor_original: Boolean(u.es_supervisor_original),
+    // CU001/CU016: todavía no ha cambiado su contraseña temporal.
+    debe_cambiar_contrasena: Boolean(u.debe_cambiar_contrasena),
   }))
 
   // Con la API real el servidor ya filtró. El simulador devuelve la lista

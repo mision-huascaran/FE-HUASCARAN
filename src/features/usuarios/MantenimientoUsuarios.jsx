@@ -230,6 +230,22 @@ export default function MantenimientoUsuarios() {
           { key: 'nombre', header: 'Nombre completo', sortable: true, className: 'font-medium text-ink-900' },
           { key: 'dni', header: 'DNI', align: 'center', render: (u) => etiquetaDe(u.dni) },
           { key: 'correo', header: 'Correo', sortable: true },
+          {
+            /**
+             * CU001/CU016: una cuenta recién creada arrastra una contraseña
+             * temporal de 48 horas hasta su primer ingreso. Saberlo le importa
+             * al Supervisor: si expira sin usarse, él no puede reenviarla y la
+             * persona tiene que pasar por "¿Olvidó su contraseña?".
+             */
+            key: 'debe_cambiar_contrasena',
+            header: 'Acceso',
+            render: (u) =>
+              u.debe_cambiar_contrasena ? (
+                <Badge tone="warning">Pendiente de primer ingreso</Badge>
+              ) : (
+                <span className="text-xs text-ink-400">—</span>
+              ),
+          },
           { key: 'rol', header: 'Rol', render: (u) => <Badge tone="info">{etiquetaDe(u.rol)}</Badge> },
           {
             // Llega como LISTA: nombres de colegios para los docentes y

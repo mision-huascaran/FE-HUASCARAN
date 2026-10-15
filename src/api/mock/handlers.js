@@ -655,16 +655,35 @@ export const handlers = {
 
   auth: {
     /**
-     * Recuperación con Recovery Key (CU001). El simulador imita el retardo
-     * uniforme de unos segundos: sin él, la pantalla parecería instantánea
-     * aquí y "colgada" contra el servidor.
+     * `POST /password/primer-ingreso` (CU001).
+     *
+     * Devuelve LO MISMO que `/login`, token incluido: el usuario termina
+     * dentro, sin volver a escribir sus credenciales.
      */
-    recuperarConLlave: async ({ llave }) => {
-      await new Promise((listo) => setTimeout(listo, 1200))
-      if (!/^[A-Za-z0-9-]{8,}$/.test(String(llave ?? '').trim())) {
-        throw errorMock(422, 'La llave no es válida o ya fue utilizada.', 'llave_invalida')
+    async primerIngreso({ correo, temporal, passwordNueva }) {
+      const usuario = db.USUARIOS.find((u) => u.correo.toLowerCase() === String(correo ?? '').trim().toLowerCase())
+      // 401 genérico: no revela si la cuenta existe (CU002).
+      if (!usuario || temporal !== db.CLAVE_DEMO) throw errorMock(401, 'Correo o contraseña incorrectos.', 'credenciales_invalidas')
+      if (passwordNueva === temporal) {
+        throw errorMock(400, 'La nueva contraseña debe ser diferente de la contraseña anterior.', 'password_igual')
       }
-      return responder({ mensaje: 'Contraseña actualizada correctamente', llaves_restantes: 9 })
+      usuario.debe_cambiar_contrasena = false
+      return responder({ access_token: armarToken(usuario.id_usuario), token_type: 'bearer' }, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * `POST /password/verificar-codigo` — valida el PIN SIN gastarlo (CU006).
+     *
+     * El PIN del simulador es siempre `123456`: seis DÍGITOS, como pide CU005.
+     * Los `motivo` son los que distingue el contrato, porque la pantalla
+     * ramifica por ellos.
+     */
+    async verificarCodigoPublico({ correo, codigo }) {
+      if (!esCorreoValido(correo)) throw errorMock(422, 'El correo no es válido', 'validacion')
+      if (String(codigo ?? '').trim() !== '123456') {
+        throw errorMock(400, 'El código ingresado es incorrecto. Inténtelo nuevamente.', 'incorrecto')
+      }
+      return responder({ valido: true })
     },
 
     /**
@@ -677,10 +696,16 @@ export const handlers = {
       return responder({ detail: 'Si el correo está registrado, enviamos un código de verificación' })
     },
 
-    /** `POST /password/restablecer`. El código del mock es siempre `AB12CD`. */
+    /**
+     * `POST /password/restablecer`. El código del mock es siempre `123456`.
+     *
+     * SEIS DÍGITOS, no alfanumérico: CU005 lo dice ("6 dígitos numéricos") y el
+     * campo filtra las letras al teclear, así que un PIN como `AB12CD` era
+     * imposible de escribir y el simulador no se podía usar de verdad.
+     */
     async restablecerPassword({ correo, codigo }) {
       if (!esCorreoValido(correo)) throw errorHttp(422, 'El correo no es válido')
-      if (String(codigo ?? '').trim().toUpperCase() !== 'AB12CD') {
+      if (String(codigo ?? '').trim() !== '123456') {
         throw errorHttp(400, 'El código no es válido o ya caducó')
       }
       return responder({ detail: 'Contraseña actualizada' }, RETARDO_ESCRITURA_MS)
@@ -965,6 +990,28 @@ export const handlers = {
       })
     },
 
+    /**
+     * `GET /alumnos/{id}/resumen` — las tres tarjetas de CU015.
+     *
+     * `nivel_descriptivo` lo calcula el SERVIDOR con la matriz por grado: una
+     * "J" es "Logrado" en 3.º y apenas "Inicio" en 5.º. El simulador devuelve
+     * uno coherente en vez de inventarse la tabla entera.
+     */
+    resumenAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      // Uno de cada cinco todavía no tiene evaluación: es el caso que la
+      // pantalla tiene que resolver con "-" y "Sin evaluar".
+      const sinEvaluar = alumno.id_alumno % 5 === 0
+      return responder({
+        nivel_colocado: sinEvaluar
+          ? null
+          : { letra: 'J', id_nivel_rk: 10, numero_periodo: 3, nivel_descriptivo: 'Logrado' },
+        libros_leidos_anio: sinEvaluar ? 0 : 7,
+        asistencia_porcentaje: sinEvaluar ? 0 : 92.5,
+      })
+    },
+
     alumnos: () =>
       responder(
         db.ALUMNOS.map((a) => {
@@ -990,6 +1037,10 @@ export const handlers = {
             ...u,
             nombre: `${u.nombres} ${u.apellidos}`,
             rol,
+            // Una cuenta recién creada arrastra su temporal hasta el primer
+            // ingreso (CU001). En el simulador solo la última, para que la
+            // columna se vea sin inventar que todas están pendientes.
+            debe_cambiar_contrasena: Boolean(u.debe_cambiar_contrasena),
           }
         }),
       ),

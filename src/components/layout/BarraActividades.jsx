@@ -16,11 +16,23 @@ import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import { ROLES } from '../../auth/roles'
 
+/**
+ * Los textos de CU010 para `motivo_no_puede_iniciar`, literales.
+ *
+ * `actividad_activa` no está: en ese caso el botón que se ve es "Finalizar
+ * actividad", así que no hay nada que explicar.
+ */
+const MOTIVO = {
+  sin_asignaciones:
+    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
+  fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
+}
+
 export default function BarraActividades() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const pendientes = useSyncStore((s) => s.pendientes)
   const enLinea = useConexion()
-  const { sesion, iniciar, finalizar, sinAsignaciones } = useActividad()
+  const { sesion, iniciar, finalizar, sinAsignaciones, motivoNoPuedeIniciar } = useActividad()
 
   // Solo el Docente trabaja en el aula: el Supervisor y el Directivo no abren
   // actividades, y así lo dicen CU011 y CU012.
@@ -55,6 +67,8 @@ export default function BarraActividades() {
             iconLeft={PlayCircle}
             className="shadow-sm ring-2 ring-success-600/20"
             disabled={sinAsignaciones}
+            // CU010: deshabilitado, NUNCA oculto, y con el motivo a la vista.
+            title={MOTIVO[motivoNoPuedeIniciar]}
             onClick={iniciar}
           >
             Iniciar actividad

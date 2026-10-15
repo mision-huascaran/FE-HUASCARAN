@@ -14,12 +14,17 @@ const CORREO = 'rcardenas@sicedu.test'
 
 let onCerrar
 
-async function llenarSegundoPaso() {
+/**
+ * El flujo completo. Son TRES pasos desde CU006: pedir el PIN, VERIFICARLO
+ * aparte, y solo entonces la contraseña. El PIN del simulador es `AB12CD`.
+ */
+async function llenarSegundoPaso({ pin = '123456' } = {}) {
   onCerrar = vi.fn()
   renderConProveedores(<ModalRecuperarPassword abierto onCerrar={onCerrar} correoInicial={CORREO} />)
   await userEvent.click(screen.getByRole('button', { name: /enviarme el pin/i }))
-  await userEvent.type(await screen.findByLabelText(/PIN recibido/), '123456')
-  await userEvent.type(screen.getByLabelText('Nueva contraseña'), VALIDA)
+  await userEvent.type(await screen.findByLabelText(/PIN recibido/), pin)
+  await userEvent.click(screen.getByRole('button', { name: /verificar y continuar/i }))
+  await userEvent.type(await screen.findByLabelText('Nueva contraseña'), VALIDA)
   await userEvent.type(screen.getByLabelText(/Repita la nueva contraseña/), VALIDA)
   await userEvent.click(screen.getByRole('button', { name: /cambiar contraseña/i }))
 }
@@ -47,7 +52,10 @@ describe('Restablecer la contraseña con el PIN (CU006)', () => {
     vi.spyOn(handlers.auth, 'restablecerPassword').mockRejectedValue(errorHttp(400, { detail: 'texto del servidor', motivo }))
     await llenarSegundoPaso()
 
-    expect(await screen.findByText(texto)).toBeInTheDocument()
+    // `findAllByText` y no `findByText`: con el PIN agotado el texto sale DOS
+    // veces a propósito —en el toast y, fijo, junto al campo, que queda
+    // bloqueado hasta pedir otro PIN (CU006)—.
+    expect((await screen.findAllByText(texto)).length).toBeGreaterThan(0)
     expect(screen.queryByText('texto del servidor')).not.toBeInTheDocument()
     expect(onCerrar).not.toHaveBeenCalled()
   })

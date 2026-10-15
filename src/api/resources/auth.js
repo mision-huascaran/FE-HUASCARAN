@@ -132,34 +132,43 @@ export const restablecerPassword = ({ correo, codigo, passwordNueva, confirmacio
   })
 
 /**
- * CU001 — Recuperar la cuenta del Supervisor original con una Recovery Key.
+ * `POST /password/verificar-codigo` — comprueba el PIN SIN gastarlo.
  *
- * Existe porque esa cuenta es un caso aparte: no se puede eliminar ni
- * desactivar, es la única que crea los usuarios iniciales, y si pierde el
- * acceso y además falla el correo, nadie puede rescatarla. Las 10 llaves de un
- * solo uso se entregan aparte, en un `.txt`, y no dependen de ningún servicio
- * externo.
+ * CU006 exige un proceso estricto de DOS PASOS: primero se valida el PIN y,
+ * solo si es correcto, aparece un formulario nuevo para la contraseña. Antes se
+ * pedían las dos cosas a la vez, así que un PIN equivocado se descubría después
+ * de escribir y repetir la contraseña entera.
  *
- * Público: no lleva token, igual que el resto de la recuperación.
- *
- * TARDA UNOS 7 SEGUNDOS, y los mismos acierte o falle. No es lentitud: un
- * tiempo uniforme impide deducir por la demora si la llave era válida, y
- * encarece probarlas a lo bruto. La pantalla tiene que avisarlo, o el usuario
- * creerá que se colgó.
- *
- * Responde `{ mensaje, llaves_restantes }`: conviene mostrar cuántas quedan,
- * porque cada una se gasta para siempre.
+ * Importante: este endpoint NO consume el PIN. El que lo gasta es
+ * `/password/restablecer`.
  */
-export const recuperarConLlave = ({ correo, llave, passwordNueva, confirmacion }) =>
+export const verificarCodigoPublico = ({ correo, codigo }) =>
   resolver({
-    mock: () => handlers.auth.recuperarConLlave({ correo, llave }),
+    mock: () => handlers.auth.verificarCodigoPublico({ correo, codigo }),
+    real: () => api.post(ENDPOINTS.auth.passwordVerificarCodigoPublico, { correo, codigo }),
+    forzarReal: authContraApiReal,
+  })
+
+/**
+ * `POST /password/primer-ingreso` — establece la contraseña definitiva.
+ *
+ * CU001: toda cuenta nueva nace con una contraseña temporal de 48 horas y la
+ * marca de "cambio obligatorio". Con ella, `/login` responde 403
+ * `cambio_contrasena_requerido` y no deja entrar a nada.
+ *
+ * LA RESPUESTA ES LA MISMA QUE LA DE `/login`, token incluido: al terminar, el
+ * usuario queda dentro con su sesión de 8 horas. No hay que volver a pedirle
+ * las credenciales.
+ */
+export const establecerPasswordPrimerIngreso = ({ correo, temporal, passwordNueva, confirmacion }) =>
+  resolver({
+    mock: () => handlers.auth.primerIngreso({ correo, temporal, passwordNueva }),
     real: () =>
-      api.post(ENDPOINTS.auth.passwordRecuperarConLlave, {
+      api.post(ENDPOINTS.auth.passwordPrimerIngreso, {
         correo,
-        llave,
+        'contraseña_temporal': temporal,
         'contraseña_nueva': passwordNueva,
         'confirmar_contraseña_nueva': confirmacion,
       }),
     forzarReal: authContraApiReal,
   })
-

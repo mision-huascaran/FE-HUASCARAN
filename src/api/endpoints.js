@@ -43,19 +43,21 @@ export const ENDPOINTS = {
     passwordVerificarCodigoPublico: '/password/verificar-codigo', // { correo, codigo }
     passwordRestablecer: '/password/restablecer', // { correo, codigo, contraseña_nueva, confirmar_contraseña_nueva }
     /**
-     * CU001 — Recuperación del Supervisor original con una Recovery Key.
+     * CU001 — Primer ingreso: cambiar la contraseña temporal por la definitiva.
      *
-     * Son 10 llaves de un solo uso, entregadas aparte en un `.txt`. Existe
-     * porque esa cuenta no se puede eliminar ni desactivar y es la única que
-     * crea usuarios: si pierde el acceso y el correo falla, no hay otra vía.
+     * Toda cuenta nueva nace con una temporal de 48 horas y la marca de
+     * "cambio obligatorio", así que `/login` le responde 403
+     * `cambio_contrasena_requerido` hasta que pase por aquí.
      *
-     * Cuerpo: { correo, llave, contraseña_nueva, confirmar_contraseña_nueva }
-     * Respuesta: { mensaje, llaves_restantes }
+     * Cuerpo: { correo, contraseña_temporal, contraseña_nueva,
+     *           confirmar_contraseña_nueva }
+     * Respuesta: la MISMA que `/login`, token incluido.
      *
-     * TARDA ~7 SEGUNDOS A PROPÓSITO, y el mismo tiempo acierte o falle: así
-     * nadie deduce por la demora si una llave era válida.
+     * (Las Recovery Keys se retiraron: `/password/recuperar-con-llave` ya no
+     * existe, responde 404. El Supervisor original recupera su cuenta por el
+     * proceso estándar de PIN.)
      */
-    passwordRecuperarConLlave: '/password/recuperar-con-llave',
+    passwordPrimerIngreso: '/password/primer-ingreso',
   },
 
   // PUBLICADO — un endpoint por rol (CU010, CU011, CU012) ────────────────────

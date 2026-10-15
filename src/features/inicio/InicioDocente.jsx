@@ -23,6 +23,13 @@ const saludo = () => {
   return hora < 19 ? 'Buenas tardes' : 'Buenas noches'
 }
 
+/** Literales de CU010 para `motivo_no_puede_iniciar`. */
+const MOTIVO_SIN_ACTIVIDAD = {
+  sin_asignaciones:
+    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
+  fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
+}
+
 export default function InicioDocente() {
   const usuario = useSessionStore((s) => s.usuario)
   const idPeriodo = useFiltrosStore((s) => s.idPeriodo)
@@ -33,7 +40,7 @@ export default function InicioDocente() {
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
-  const { sesion, sinAsignaciones } = useActividad()
+  const { sesion, sinAsignaciones, motivoNoPuedeIniciar } = useActividad()
 
   /**
    * La hora de fin es la de la SESIÓN AUTENTICADA, no la de la actividad.
@@ -77,11 +84,14 @@ export default function InicioDocente() {
           </p>
         )}
 
-        {/* CU010: sin asignaciones el botón se ve pero deshabilitado, y hay que
-            decir por qué; si no, parece que la aplicación está rota. */}
+        {/* CU010: el botón se ve pero deshabilitado, y hay que decir POR QUÉ;
+            si no, parece que la aplicación está rota. El motivo lo decide el
+            servidor (`motivo_no_puede_iniciar`), porque el calendario operativo
+            vive en su base de datos: "fuera de periodo" no se puede deducir
+            aquí. Los textos son los literales de CU010. */}
         {!sesion && sinAsignaciones && (
           <p className="text-sm font-medium text-warning-600">
-            No puede iniciar una actividad porque no tiene asignaciones activas.
+            {MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ?? MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
           </p>
         )}
       </header>

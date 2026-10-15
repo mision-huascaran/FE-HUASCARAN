@@ -12,11 +12,12 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PanelBienvenida from './PanelBienvenida'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import ModalPrimerIngreso from './ModalPrimerIngreso'
 import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
 import { destinoTrasLogin } from '../../rutas'
-import { estadoDe, mensajeDeError } from '../../api/client'
+import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
 
@@ -27,6 +28,9 @@ export const MENSAJE = {
   credenciales: 'Correo o contraseña incorrectos.',
   bloqueo: 'Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.',
   desactivada: 'Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.',
+  // CU001, literal: la contraseña temporal dura 48 horas y, pasadas, la única
+  // salida es pedir un PIN. Reintentar no sirve de nada.
+  temporalExpirada: "Su contraseña temporal ha expirado. Use '¿Olvidó su contraseña?' para generar una nueva.",
 }
 
 const esquema = z.object({
@@ -35,7 +39,7 @@ const esquema = z.object({
 })
 
 export default function LoginPage() {
-  const { entrar, autenticado, usuario, motivoCierre, limpiarMotivoCierre } = useAuth()
+  const { entrar, entrarConToken, autenticado, usuario, motivoCierre, limpiarMotivoCierre } = useAuth()
   const navegar = useNavigate()
   const { state } = useLocation()
   const [errorGeneral, setErrorGeneral] = useState(null)
@@ -43,6 +47,12 @@ export default function LoginPage() {
   // las credenciales y emitir el token. Se avisa antes de dejar escribir.
   const enLinea = useConexion()
   const [resetAbierto, setResetAbierto] = useState(false)
+  /**
+   * CU001 — Primer ingreso. Las credenciales temporales se guardan SOLO en
+   * memoria y solo hasta que el usuario establece la definitiva: son una
+   * contraseña, y CU003 prohíbe que toquen LocalStorage o IndexedDB.
+   */
+  const [primerIngreso, setPrimerIngreso] = useState(null)
 
   const {
     register,
@@ -80,9 +90,26 @@ export default function LoginPage() {
         setErrorGeneral(mensajeDeError(error, MENSAJE.bloqueo))
         return
       }
-      // Credenciales correctas pero cuenta dada de baja. El texto lo fija
-      // CU002: se ignora el del servidor para no decir de más.
+      /**
+       * HAY TRES 403 DISTINTOS, y se distinguen por `motivo`, nunca por el
+       * código. Tratarlos igual mandaba al usuario de un primer ingreso
+       * perfectamente válido a "su cuenta está desactivada", que es falso y no
+       * tiene salida.
+       */
       if (estado === 403) {
+        const motivo = motivoDe(error)
+        if (motivo === 'cambio_contrasena_requerido') {
+          // No es un error: es un paso obligatorio. Se le ofrece ahí mismo.
+          setPrimerIngreso({ correo, temporal: password })
+          return
+        }
+        if (motivo === 'contrasena_temporal_expirada') {
+          // Las 48 horas pasaron: la salida es el PIN, no reintentar.
+          setErrorGeneral(mensajeDeError(error, MENSAJE.temporalExpirada))
+          return
+        }
+        // Cuenta dada de baja. El texto lo fija CU002: se ignora el del
+        // servidor para no decir de más.
         setErrorGeneral(mensajeDeError(error, MENSAJE.desactivada))
         return
       }
@@ -96,6 +123,12 @@ export default function LoginPage() {
   }
 
   const cerrarReset = () => setResetAbierto(false)
+
+  /** Tras el primer ingreso el usuario YA tiene token: entra sin repetir login. */
+  const entrarTrasPrimerIngreso = async (sesion) => {
+    const perfil = await entrarConToken(sesion.access_token)
+    navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+  }
 
 
 
@@ -194,6 +227,14 @@ export default function LoginPage() {
             abierto={resetAbierto}
             onCerrar={cerrarReset}
             correoInicial={watch('correo') ?? ''}
+          />
+
+          <ModalPrimerIngreso
+            abierto={Boolean(primerIngreso)}
+            correo={primerIngreso?.correo}
+            temporal={primerIngreso?.temporal}
+            onListo={entrarTrasPrimerIngreso}
+            onCerrar={() => setPrimerIngreso(null)}
           />
 
           <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-400">

@@ -87,7 +87,7 @@ describe('Periodo y actividad', () => {
   it('sin asignaciones explica por qué no puede iniciar una actividad', async () => {
     estado.actividad = { sesion: null, sinAsignaciones: true }
     montar()
-    expect(await screen.findByText('No puede iniciar una actividad porque no tiene asignaciones activas.')).toBeInTheDocument()
+    expect(await screen.findByText('No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.')).toBeInTheDocument()
   })
 })
 

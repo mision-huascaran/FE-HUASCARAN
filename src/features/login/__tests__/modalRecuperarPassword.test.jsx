@@ -30,6 +30,17 @@ async function llegarAlSegundoPaso() {
   return screen.findByLabelText(/PIN recibido/, {}, ESPERA)
 }
 
+/**
+ * Hasta el formulario de la contraseña, que desde CU006 es un paso APARTE: el
+ * PIN se valida primero y solo si vale se pide la contraseña.
+ */
+async function llegarAlTercerPaso() {
+  await llegarAlSegundoPaso()
+  fireEvent.change(screen.getByLabelText(/PIN recibido/), { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: /verificar y continuar/i }))
+  return screen.findByLabelText('Nueva contraseña', {}, ESPERA)
+}
+
 describe('Recuperar contraseña (CU004–CU006)', () => {
   it('abre en el primer paso y no pide el PIN todavía', () => {
     montar()
@@ -68,6 +79,22 @@ describe('Recuperar contraseña (CU004–CU006)', () => {
     expect(screen.getByLabelText(/Correo institucional/)).toBeDisabled()
   })
 
+  it('CU006: el PIN se verifica APARTE, antes de pedir la contraseña', async () => {
+    // Proceso estricto de dos pasos: con el PIN a la vista todavía no hay
+    // ningún campo de contraseña. Antes se pedían a la vez, así que un PIN
+    // equivocado se descubría después de escribirla y repetirla entera.
+    montar({ correoInicial: 'rosa@sicedu.test' })
+    await llegarAlSegundoPaso()
+
+    expect(screen.queryByLabelText('Nueva contraseña')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/PIN recibido/), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: /verificar y continuar/i }))
+
+    expect(await screen.findByLabelText('Nueva contraseña', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/PIN recibido/)).not.toBeInTheDocument()
+  })
+
   it('CU005: el PIN solo admite 6 dígitos, nunca letras', async () => {
     montar({ correoInicial: 'rosa@sicedu.test' })
     const pin = await llegarAlSegundoPaso()
@@ -81,12 +108,10 @@ describe('Recuperar contraseña (CU004–CU006)', () => {
 
   it('CU006: exige los cinco requisitos de contraseña y que las dos coincidan', async () => {
     montar({ correoInicial: 'rosa@sicedu.test' })
-    const pin = await llegarAlSegundoPaso()
+    await llegarAlTercerPaso()
 
     const guardar = screen.getByRole('button', { name: /cambiar contraseña/i })
     expect(guardar).toBeDisabled()
-
-    fireEvent.change(pin, { target: { value: '123456' } })
 
     // La política anterior aceptaba esto; CU006 ya no, porque no lleva símbolo.
     fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'Sicedu2026' } })
@@ -104,7 +129,7 @@ describe('Recuperar contraseña (CU004–CU006)', () => {
 
   it('CU006: dice qué requisito falta, no solo que la contraseña no vale', async () => {
     montar({ correoInicial: 'rosa@sicedu.test' })
-    await llegarAlSegundoPaso()
+    await llegarAlTercerPaso()
 
     expect(screen.getByText(/Un carácter especial/)).toBeInTheDocument()
     expect(screen.getByText(/Una letra mayúscula/)).toBeInTheDocument()
