@@ -1,13 +1,15 @@
 // Cabecera de filtros de Asistencia (CU022, paso 3).
 //
-// Los cinco son obligatorios y el orden no es casual: cada uno acota al
+// Los cuatro son obligatorios y el orden no es casual: cada uno acota al
 // siguiente. La FECHA lleva `max` en hoy —según el reloj del servidor— porque
 // CU022 prohíbe registrar en el futuro; las fechas pasadas del periodo sí se
 // pueden consultar.
 //
-// La SECCIÓN se rellena sola cuando el colegio y el grado solo tienen una. Con
-// más de una queda vacía a propósito, esperando que el docente elija: adivinar
-// el aula haría registrar la asistencia de la clase equivocada.
+// La SECCIÓN se muestra pero no se elige ni se envía. Un colegio tiene una sola
+// —"Única" por defecto— y el alumno la hereda, así que no hay nada que decidir:
+// `GET /asistencias` recibe colegio, grado, subprograma y fecha, y el alumno
+// que devuelve no trae aula. Se deja a la vista porque CU022 la lista entre los
+// filtros y porque confirma a qué aula pertenece lo que se está marcando.
 import FilterBar from '../../components/ui/FilterBar'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
@@ -18,8 +20,8 @@ export default function FiltrosAsistencia({
   cambiar,
   colegios,
   grados,
-  secciones,
   programas,
+  seccion,
   docentes,
   eligeDocente,
 }) {
@@ -50,13 +52,7 @@ export default function FiltrosAsistencia({
         onChange={(e) => cambiar('grado', e.target.value)}
         options={opciones(grados, 'id_grado')}
       />
-      <Select
-        label="Sección"
-        value={filtros.seccion}
-        placeholder={secciones.length > 1 ? 'Seleccione' : ''}
-        onChange={(e) => cambiar('seccion', e.target.value)}
-        options={secciones.map((s) => ({ value: s, label: s }))}
-      />
+      <Input label="Sección" value={seccion ?? '—'} readOnly disabled />
       <Select
         label="Subprograma"
         value={filtros.idPrograma}

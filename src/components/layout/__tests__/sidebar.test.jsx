@@ -75,9 +75,8 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('link', { name: /Usuarios/ })).not.toBeInTheDocument()
   })
 
-  it('el Directivo solo ve Inicio y Dashboard (D2)', () => {
+  it('el Directivo solo ve Inicio (CU012)', () => {
     montar(ROLES.DIRECTIVO)
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument()
     // Ya no gestiona cuentas, ni llega a las grillas del aula.
     expect(screen.queryByRole('link', { name: /Usuarios/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Rúbrica/ })).not.toBeInTheDocument()

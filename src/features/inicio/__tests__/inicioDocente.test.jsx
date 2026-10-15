@@ -78,6 +78,20 @@ describe('Periodo y actividad', () => {
     expect(screen.getByText(/Actividad iniciada a las 09:00/)).toBeInTheDocument()
   })
 
+  it('si la sesión termina al día siguiente, CU010 pide que se diga la fecha', async () => {
+    /**
+     * Una actividad abierta a las 21:00 de Lima vence a las 02:00 del día
+     * siguiente. Decir solo "finaliza a las 02:00" se lee como que ya pasó, o
+     * como que quedan minutos cuando quedan cinco horas.
+     */
+    estado.actividad = { sesion: { inicio: '2026-10-11T02:00:00Z' }, sinAsignaciones: false }
+    montar()
+    useSessionStore.setState({ token: jwtDePrueba({ exp: Date.UTC(2026, 9, 11, 7, 0, 0) / 1000 }) })
+
+    expect(await screen.findByText(/La sesión finaliza el 11\/10 a las 02:00/)).toBeInTheDocument()
+    expect(screen.getByText(/Actividad iniciada a las 21:00/)).toBeInTheDocument()
+  })
+
   it('con el token del mock, sin `exp`, calcula el fin desde el inicio de la actividad', async () => {
     estado.actividad = { sesion: { inicio: '2026-10-10T14:00:00Z' }, sinAsignaciones: false }
     montar()
@@ -87,7 +101,7 @@ describe('Periodo y actividad', () => {
   it('sin asignaciones explica por qué no puede iniciar una actividad', async () => {
     estado.actividad = { sesion: null, sinAsignaciones: true }
     montar()
-    expect(await screen.findByText('No puede iniciar una actividad porque no tiene asignaciones activas.')).toBeInTheDocument()
+    expect(await screen.findByText('No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.')).toBeInTheDocument()
   })
 })
 

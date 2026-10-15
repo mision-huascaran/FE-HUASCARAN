@@ -12,11 +12,15 @@ import {
   crearColegio,
   listarAuditoria,
   listarColegiosAdmin,
+  obtenerColegio,
   listarGradosAdmin,
+  listarProgramasAdmin,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import GradosConDiaDeClase from './GradosConDiaDeClase'
+import { comoGradosConDia, sinDiaDeClase } from '../../lib/gradosColegio'
 
 
 
@@ -32,6 +36,12 @@ export default function MantenimientoColegios() {
     staleTime: Infinity,
   })
 
+  const { data: programas = [] } = useQuery({
+    queryKey: ['admin', 'catalogo', 'programas'],
+    queryFn: listarProgramasAdmin,
+    staleTime: Infinity,
+  })
+
   const campos = useMemo(
     () => [
       /**
@@ -39,26 +49,48 @@ export default function MantenimientoColegios() {
        *
        *   · `codigo` modular se quitó: el backend lo rechazó porque no está en
        *     el caso de uso.
-       *   · `zona` pasó a `provincia`, y `departamento` y `distrito` son
-       *     obligatorios (422 si faltan).
+       *   · `zona` pasó a `provincia`. Y OJO, que se invirtió: la PROVINCIA
+       *     es obligatoria (422 si falta o si llega `null` en el PATCH) y el
+       *     DISTRITO pasó a opcional. Los colegios que no tenían provincia
+       *     quedaron con "Por definir".
        *   · Las SECCIONES dejaron de ser una lista editable: la sección es un
        *     atributo del colegio, "Única" por defecto, y el alumno la hereda.
        */
       { nombre: 'nombre', etiqueta: 'Nombre del colegio', requerido: true, ancho: 'completo' },
       { nombre: 'departamento', etiqueta: 'Departamento', requerido: true },
-      { nombre: 'provincia', etiqueta: 'Provincia' },
-      { nombre: 'distrito', etiqueta: 'Distrito', requerido: true },
-      { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', ayuda: 'Por defecto, Primaria' },
+      { nombre: 'provincia', etiqueta: 'Provincia', requerido: true },
+      { nombre: 'distrito', etiqueta: 'Distrito' },
+      { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', soloLectura: true, porDefecto: 'Primaria' },
       { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
+      {
+        nombre: 'programas',
+        etiqueta: 'Subprogramas',
+        tipo: 'multiple',
+        requerido: true,
+        ancho: 'completo',
+        columnas: 2,
+        opciones: programas.map((p) => ({ value: String(p.id_programa), label: p.nombre })),
+      },
       {
         nombre: 'grados',
         etiqueta: 'Grados que ofrece',
-        tipo: 'multiple',
+        requerido: true,
         ancho: 'completo',
+        // Cada grado lleva ahora su día de clase, obligatorio (CU013).
+        componente: GradosConDiaDeClase,
         opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
+        validar: (valor) => {
+          const elegidos = comoGradosConDia(valor)
+          if (!elegidos.length) return 'Elija al menos un grado'
+          const faltan = sinDiaDeClase(valor)
+          if (!faltan.length) return null
+          // Les pasa a los colegios creados antes de que existiera el campo:
+          // llegan con `dia_clase: null` y hay que decidirlo al editarlos.
+          return 'Falta el día de clase de algún grado'
+        },
       },
     ],
-    [grados],
+    [grados, programas],
   )
 
   const consulta = useQuery({
@@ -70,6 +102,10 @@ export default function MantenimientoColegios() {
     queryClient.invalidateQueries({ queryKey: ['colegios'] })
     queryClient.invalidateQueries({ queryKey: ['catalogo'] })
     queryClient.invalidateQueries({ queryKey: ['admin'] })
+    // El popup cachea el detalle y la auditoría: sin esto, "Ver"/"Editar"
+    // mostraban los grados y días anteriores hasta recargar.
+    queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
+    queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
   }
 
   const guardado = useMutation({
@@ -106,7 +142,13 @@ export default function MantenimientoColegios() {
       soloOnline
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
-      onGuardar={(valores, popup) => guardado.mutate({ valores, popup }, { onSuccess: () => {} })}
+      // El listado no trae grados ni programas: se piden al abrir el popup.
+      // `obtenerColegio` da los programas como objetos; el multi-select usa ids en string.
+      cargarDetalle={async (id) => {
+        const c = await obtenerColegio(id)
+        return c && { ...c, programas: (c.programas ?? []).map((p) => String(p.id_programa)) }
+      }}
+      onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}
       columnas={[

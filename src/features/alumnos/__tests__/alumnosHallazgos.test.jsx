@@ -122,7 +122,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     expect(screen.getByText('Luis Huamán')).toBeInTheDocument()
 
     const aviso = 'Acción no disponible sin conexión. Conéctate a internet para gestionar estudiantes.'
-    const nuevo = screen.getByRole('button', { name: /^nuevo$/i })
+    const nuevo = screen.getByRole('button', { name: /^agregar$/i })
     expect(nuevo).toBeDisabled()
     expect(nuevo).toHaveAttribute('title', aviso)
     screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
@@ -148,7 +148,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
   it('D10: el Docente puede elegir su colegio y grado asignados en "Nuevo"', async () => {
     abrirActividad()
     montar()
-    fireEvent.click(await screen.findByRole('button', { name: /^nuevo$/i }, ESPERA))
+    fireEvent.click(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA))
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
 
     const colegio = within(dialogo).getByLabelText(/^Colegio/)
@@ -173,22 +173,40 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     expect(activo).toBe(false)
   })
 
-  it('sin actividad abierta, "Editar" e "Inactivar" están deshabilitados', async () => {
-    // CU010: las escrituras del Docente exigen una actividad activa. Si los
-    // botones siguieran vivos, el docente rellenaría el formulario entero para
-    // que el servidor se lo rechace al guardar con un 409.
+  it('sin actividad abierta, "Editar" OFRECE iniciarla en vez de denegar', async () => {
+    /**
+     * CU010 sigue exigiendo la actividad para escribir: el servidor responde
+     * 409 `actividad_requerida` igualmente, así que esto no es un atajo.
+     *
+     * Lo que cambia es cómo se presenta. Antes el botón salía muerto y el
+     * docente tenía que deducir que la solución estaba en otro botón, arriba
+     * del todo. Ahora se le propone abrirla ahí mismo y continuar.
+     */
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
-    const motivo = 'Pulse "Iniciar actividad" para poder registrar.'
-    const nuevo = screen.getByRole('button', { name: /^nuevo$/i })
-    expect(nuevo).toBeDisabled()
-    expect(nuevo).toHaveAttribute('title', motivo)
+    const editar = screen.getAllByRole('button', { name: /^editar /i })[0]
+    expect(editar).toBeEnabled()
+    fireEvent.click(editar)
 
-    screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
-      expect(boton).toBeDisabled()
-      expect(boton).toHaveAttribute('title', motivo)
-    })
+    // No se abre el formulario: se abre la propuesta.
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    expect(within(dialogo).getByText('Necesitas una actividad de trabajo')).toBeInTheDocument()
+    expect(within(dialogo).getByRole('button', { name: /iniciar actividad/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /editar alumno/i })).not.toBeInTheDocument()
+  })
+
+  it('aceptar la propuesta abre la actividad y continúa con lo que se iba a hacer', async () => {
+    montar()
+    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^editar /i })[0])
+    fireEvent.click(await screen.findByRole('button', { name: /iniciar actividad/i }, ESPERA))
+
+    // La actividad queda abierta y el formulario se abre solo, sin tener que
+    // volver a buscar la fila.
+    await waitFor(() => expect(useActividadStore.getState().sesion).not.toBeNull(), ESPERA)
+    expect(await screen.findByRole('heading', { name: /editar alumno/i }, ESPERA)).toBeInTheDocument()
   })
 
   it('al abrir actividad, los botones de escritura se habilitan', async () => {
@@ -196,7 +214,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
-    expect(screen.getByRole('button', { name: /^nuevo$/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeEnabled()
     screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
       expect(boton).toBeEnabled()
     })

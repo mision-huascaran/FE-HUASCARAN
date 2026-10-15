@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import BarraActividades from './BarraActividades'
 import Breadcrumbs from './Breadcrumbs'
@@ -9,20 +10,52 @@ import useFiltrosStore from '../../store/filtrosStore'
 import useSyncStore from '../../store/syncStore'
 import { usePeriodos } from '../../hooks/useCatalogos'
 
-/** Selector del periodo de evaluación vigente (P2). Lo leen todas las pantallas. */
+/**
+ * Las rutas donde el selector de periodo SE VE.
+ *
+ * Son las pantallas de consulta, que es donde comparar dos cortes tiene
+ * sentido. En el resto se esconde, y cada una por su motivo:
+ *
+ *   · Inicio, Rúbrica y Seguimiento de Lectura son el trabajo del día. Van
+ *     siempre contra el periodo abierto (RN-010), así que el selector promete
+ *     una elección que no cambia nada de lo que se ve.
+ *   · Dashboard y Registro de Vuelo YA TIENEN su propio periodo, dentro de la
+ *     pantalla. Dos selectores para lo mismo, y encima uno arriba y otro
+ *     abajo, es una invitación a dejarlos descuadrados.
+ *
+ * Esconderlo no deja el periodo sin valor: el efecto de abajo lo fija igual en
+ * todas las rutas, también donde el control no se pinta.
+ *
+ * Los prefijos cubren las rutas con detalle (`/ranking/3`, `/estudiantes/12`).
+ */
+const RUTAS_CON_PERIODO = [
+  '/ranking',
+  '/estudiantes',
+  '/consulta-colegios',
+  '/consolidados',
+  '/nivel-final',
+  '/panel-ejecutivo',
+  '/reportes',
+]
+
+const usaElPeriodo = (ruta) => RUTAS_CON_PERIODO.some((base) => ruta === base || ruta.startsWith(`${base}/`))
+
+/** Selector del periodo de evaluación vigente (P2). */
 function SelectorPeriodo() {
   const { data: periodos = [] } = usePeriodos()
   const idPeriodo = useFiltrosStore((s) => s.idPeriodo)
   const setPeriodo = useFiltrosStore((s) => s.setPeriodo)
   const fijarPeriodoPorDefecto = useFiltrosStore((s) => s.fijarPeriodoPorDefecto)
+  const { pathname } = useLocation()
 
-  // Por defecto, el periodo abierto (RN-010).
+  // Por defecto, el periodo abierto (RN-010). Se fija SIEMPRE, también donde el
+  // selector no se ve: las pantallas que lo leen cuentan con que ya tenga valor.
   useEffect(() => {
     const vigente = periodos.find((p) => p.estado === 'abierto') ?? periodos.at(-1)
     if (vigente) fijarPeriodoPorDefecto(vigente.id_periodo)
   }, [periodos, fijarPeriodoPorDefecto])
 
-  if (periodos.length === 0) return null
+  if (periodos.length === 0 || !usaElPeriodo(pathname)) return null
 
   return (
     <Select

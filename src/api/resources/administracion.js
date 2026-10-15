@@ -16,6 +16,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
+import { comoGradosConDia } from '../../lib/gradosColegio'
 
 const { alumnos, colegios, usuarios, auth } = ENDPOINTS
 
@@ -192,18 +193,88 @@ export const listarUbicaciones = () =>
  * nombre es único ignorando mayúsculas, espacios y tildes: "Shilla" y "SHILLA "
  * chocan con 409.
  */
+/**
+ * El cuerpo que esperan `POST /colegios` y `PATCH /colegios/{id}` (CU013).
+ *
+ * Lo único con trampa son los GRADOS: el formulario los maneja como
+ * `[{id_grado, dia_clase}]` y el backend los quiere exactamente así, pero una
+ * pantalla vieja (o un colegio creado antes del cambio) puede traerlos como
+ * `[3, 4]`. `comoGradosConDia` normaliza las dos formas; mandar la lista de
+ * números responde 422.
+ *
+ * `provincia` es ahora obligatoria y `distrito` opcional, justo al revés que
+ * antes. Un `null` en provincia da 422, así que no se manda vacía.
+ */
+function cuerpoDeColegio(colegio = {}) {
+  const cuerpo = { ...colegio }
+  if ('grados' in cuerpo) {
+    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase }) => ({
+      id_grado: Number(id_grado),
+      dia_clase: Number(dia_clase),
+    }))
+  }
+  // `programas: list[int]`, obligatorio. El multi-select los da como strings.
+  if ('programas' in cuerpo) {
+    cuerpo.programas = (cuerpo.programas ?? []).map((p) =>
+      Number(typeof p === 'object' && p !== null ? p.id_programa ?? p.id : p),
+    )
+  }
+  if (cuerpo.distrito === '') cuerpo.distrito = null
+  // Con "" el backend responde 422; omitida, aplica "Única" al crear, y en el
+  // PATCH no se toca.
+  const vacio = (valor) => !String(valor ?? '').trim()
+  if ('seccion' in cuerpo && vacio(cuerpo.seccion)) delete cuerpo.seccion
+  // El programa es solo de Primaria: se fuerza siempre, y así un colegio que
+  // quedó con otro nivel se corrige al guardarlo.
+  cuerpo.nivel_educativo = 'Primaria'
+  return cuerpo
+}
+
+/**
+ * `GET /colegios/{id}` — el colegio COMPLETO.
+ *
+ * Hace falta de verdad: el listado (`ColegioItem`) no trae ni `grados` ni
+ * `programas`, así que abrir "Editar" desde la tabla daba un formulario sin
+ * grados, y guardar los habría borrado. El popup pide el detalle al abrirse.
+ */
+export const obtenerColegio = async (idColegio) => {
+  const colegio = await resolver({
+    mock: () => handlers.administracion.colegio(idColegio),
+    real: () => api.get(colegios.detalle(idColegio)),
+    forzarReal: adminContraApiReal,
+  })
+  if (!colegio) return colegio
+  return {
+    ...colegio,
+    id_colegio: colegio.id_colegio ?? colegio.id,
+    // El formulario los maneja como `[{id_grado, dia_clase}]`; el detalle los
+    // manda como `[{id, nombre, dia_clase}]`.
+    grados: comoGradosConDia(colegio.grados),
+    // `ItemCatalogo {id, nombre}` → la forma que usan los desplegables. Esta es
+    // la ÚNICA fuente que da los subprogramas de un colegio con su id:
+    // `/me/asignaciones` los manda por nombre, y casar por texto se rompe en
+    // cuanto alguien renombre uno.
+    programas: (colegio.programas ?? []).map((p) => ({
+      id_programa: Number(p.id_programa ?? p.id),
+      nombre: p.nombre,
+    })),
+    // Un colegio tiene UNA sección y el alumno la hereda; por defecto, "Única".
+    seccion: colegio.seccion || 'Única',
+  }
+}
+
 export const crearColegio = (colegio) =>
   resolver({
-    mock: () => handlers.administracion.crearColegio(colegio),
-    real: () => api.post(colegios.crear, colegio),
+    mock: () => handlers.administracion.crearColegio(cuerpoDeColegio(colegio)),
+    real: () => api.post(colegios.crear, cuerpoDeColegio(colegio)),
     forzarReal: adminContraApiReal,
   })
 
 /** `PATCH /colegios/{id}` — parcial. Mandar `null` en un obligatorio da 422. */
 export const actualizarColegio = (idColegio, cambios) =>
   resolver({
-    mock: () => handlers.administracion.actualizarColegio(idColegio, cambios),
-    real: () => api.patch(colegios.actualizar(idColegio), cambios),
+    mock: () => handlers.administracion.actualizarColegio(idColegio, cuerpoDeColegio(cambios)),
+    real: () => api.patch(colegios.actualizar(idColegio), cuerpoDeColegio(cambios)),
     forzarReal: adminContraApiReal,
   })
 
@@ -376,12 +447,20 @@ export const cambiarEstadoAlumno = (idAlumno, activo) =>
  * agrupa por evento, así que varias filas con la misma fecha y autor llegan
  * como una sola edición con el detalle de los campos cambiados.
  */
-export const listarHistorialAlumno = (idAlumno) =>
-  resolver({
+export const listarHistorialAlumno = async (idAlumno) => {
+  const datos = await resolver({
     mock: () => handlers.administracion.auditoria('alumno', idAlumno),
     real: () => api.get(alumnos.historial(idAlumno)),
     forzarReal: adminContraApiReal,
   })
+  // D29: la respuesta es un PAGINADO, no una lista. Devolverla tal cual hacía
+  // que la tabla llamara a `.slice()` sobre un objeto y tumbara la pantalla
+  // entera con "No se pudo mostrar esta pantalla".
+  return normalizarPaginado(datos).items.map((evento) => ({
+    ...evento,
+    cambios: Array.isArray(evento.cambios) ? evento.cambios : [],
+  }))
+}
 
 /**
  * Auditoría de un registro, para la pestaña de la plantilla de mantenimiento.
@@ -390,13 +469,16 @@ export const listarHistorialAlumno = (idAlumno) =>
  * Para colegios y usuarios devuelve lista vacía a propósito, y la pestaña
  * muestra su estado vacío en vez de inventarse un historial.
  */
-export const listarAuditoria = (entidad, id) => {
+export const listarAuditoria = async (entidad, id) => {
   if (entidad === 'alumno') return listarHistorialAlumno(id)
-  return resolver({
+  const datos = await resolver({
     mock: () => handlers.administracion.auditoria(entidad, id),
-    real: () => Promise.resolve([]),
+    real: () => Promise.resolve({ items: [] }),
     forzarReal: adminContraApiReal,
   })
+  // Siempre una LISTA, venga de donde venga: la pestaña no tiene por qué saber
+  // si el origen pagina o no (D29).
+  return normalizarPaginado(datos).items
 }
 
 // ── Usuarios de los tres roles (CU016) ──────────────────────────────────────
@@ -436,6 +518,8 @@ export const listarUsuariosAdmin = async (filtros = {}) => {
     id_rol: u.id_rol ?? ID_ROL_POR_NOMBRE[u.rol] ?? null,
     colegios_asignados: Array.isArray(u.colegios_asignados) ? u.colegios_asignados : [],
     es_supervisor_original: Boolean(u.es_supervisor_original),
+    // CU001/CU016: todavía no ha cambiado su contraseña temporal.
+    debe_cambiar_contrasena: Boolean(u.debe_cambiar_contrasena),
   }))
 
   // Con la API real el servidor ya filtró. El simulador devuelve la lista
@@ -550,6 +634,38 @@ export const crearUsuario = async (datos) => {
   })
   // `UsuarioCreado` envuelve al usuario: `{usuario, correo_enviado, contraseña_temporal}`.
   return respuesta?.usuario ? { ...respuesta, correo: respuesta.usuario.correo } : respuesta
+}
+
+/**
+ * `GET /usuarios/{id}` — `UsuarioDetalle`, con la asignación del Docente.
+ *
+ * El listado solo trae el NOMBRE del colegio, así que "Editar" salía sin año ni
+ * grados. Se devuelve en la forma del formulario: colegio y grados del periodo
+ * vigente (o del primero) como strings, y el año escolar en 4 dígitos.
+ */
+export const obtenerUsuario = async (idUsuario) => {
+  const usuario = await resolver({
+    // El simulador no tiene detalle: el popup se queda con la fila.
+    mock: async () => null,
+    real: () => api.get(usuarios.detalle(idUsuario)),
+    forzarReal: adminContraApiReal,
+  })
+  if (!usuario) return usuario
+  const asignacion = usuario.asignacion ?? null
+  const periodos = asignacion?.periodos ?? []
+  const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+  let anio = ''
+  if (asignacion?.id_anio_escolar != null) {
+    const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
+    const nombre = anios.find((a) => a.id === asignacion.id_anio_escolar)?.nombre
+    anio = String(nombre ?? '').match(/\d{4}/)?.[0] ?? ''
+  }
+  return {
+    ...usuario,
+    id_colegio: periodo?.id_colegio == null ? '' : String(periodo.id_colegio),
+    grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+    anio_escolar: anio,
+  }
 }
 
 /**

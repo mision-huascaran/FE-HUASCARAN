@@ -122,7 +122,7 @@ export default function NuevaEvaluacionPage() {
         </p>
       </header>
 
-      {!conActividad && <AvisoActividades destino="la evaluación no se puede guardar; el formulario queda" />}
+      {!conActividad && <AvisoActividades />}
 
       <Card>
         <Stepper steps={PASOS_EVALUACION} current={paso} onStepClick={setPaso} />

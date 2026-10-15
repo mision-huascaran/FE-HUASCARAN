@@ -6,26 +6,24 @@
 import { PlayCircle } from 'lucide-react'
 
 /**
- * @param destino qué queda en solo lectura mientras no haya actividad. El botón
- *   se llama "Iniciar actividad" (CU010): el aviso decía "Iniciar actividades".
- * @param mensaje texto completo, para los casos de uso que lo dan literal. CU022
- *   fija el suyo palabra por palabra y el probador lo comprueba así.
+ * CU010 lo da PALABRA POR PALABRA, igual que CU022. Antes decía «Pulse
+ * "Iniciar actividad" para poder registrar.», que dice lo mismo pero no es lo
+ * que el caso de uso exige, y el probador lo compara carácter a carácter.
  */
-export default function AvisoActividades({ destino = 'la grilla se muestra', mensaje }) {
+const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+
+/**
+ * @param mensaje texto completo. Por defecto el literal de CU010, que es el que
+ *   piden todas las grillas; se puede sustituir si un caso de uso da otro.
+ */
+export default function AvisoActividades({ mensaje = SIN_ACTIVIDAD }) {
   return (
     <div
       role="note"
       className="flex items-start gap-2 rounded-xl border border-info-600/20 bg-info-100 px-4 py-3 text-sm text-ink-700"
     >
       <PlayCircle className="mt-0.5 h-4 w-4 shrink-0 text-info-600" aria-hidden="true" />
-      {mensaje ? (
-        <span>{mensaje}</span>
-      ) : (
-        <span>
-          Pulse <strong>Iniciar actividad</strong> en la barra superior para registrar. Mientras tanto
-          {` ${destino} en solo lectura.`}
-        </span>
-      )}
+      <span>{mensaje}</span>
     </div>
   )
 }

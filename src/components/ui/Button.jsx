@@ -7,6 +7,10 @@ const VARIANTES = {
   outline: 'border border-line-strong bg-surface-0 text-ink-700 hover:bg-surface-50',
   ghost: 'text-ink-700 hover:bg-surface-100',
   danger: 'bg-danger-600 text-white hover:bg-danger-600/90',
+  // Para la acción que ABRE el trabajo del día. Va en verde y no en el azul de
+  // marca a propósito: el botón de actividad se perdía entre los demás de la
+  // barra, y es el que habilita todo lo que el docente viene a hacer.
+  success: 'bg-success-600 text-white hover:bg-success-500 disabled:bg-success-600/50',
 }
 
 const TAMANOS = {

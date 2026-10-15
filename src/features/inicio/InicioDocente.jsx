@@ -15,12 +15,19 @@ import StatCard from '../../components/ui/StatCard'
 import { usePeriodos } from '../../hooks/useCatalogos'
 import useFiltrosStore from '../../store/filtrosStore'
 import useSessionStore from '../../store/sessionStore'
-import { formatearHora, formatearRangoSemana } from '../../lib/format'
+import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
 const saludo = () => {
   const hora = dayjs().hour()
   if (hora < 12) return 'Buenos días'
   return hora < 19 ? 'Buenas tardes' : 'Buenas noches'
+}
+
+/** Literales de CU010 para `motivo_no_puede_iniciar`. */
+const MOTIVO_SIN_ACTIVIDAD = {
+  sin_asignaciones:
+    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
+  fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
 }
 
 export default function InicioDocente() {
@@ -33,7 +40,7 @@ export default function InicioDocente() {
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
-  const { sesion, sinAsignaciones } = useActividad()
+  const { sesion, sinAsignaciones, motivoNoPuedeIniciar } = useActividad()
 
   /**
    * La hora de fin es la de la SESIÓN AUTENTICADA, no la de la actividad.
@@ -70,18 +77,27 @@ export default function InicioDocente() {
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
             aplicación. Aquí queda el texto estático que pide CU010: la hora de
             inicio y la de fin, sin cronómetro regresivo. */}
+        {/* CU010: si la sesión termina AL DÍA SIGUIENTE hay que decir la
+            fecha. Sin ella, "finaliza a las 02:00" a las 21:00 de un martes se
+            lee como que quedan menos de tres horas cuando quedan cinco, o peor,
+            como que ya pasó. */}
         {sesion && (
           <p className="text-sm text-ink-500">
-            Actividad iniciada a las {formatearHora(sesion.inicio)}. La sesión finaliza a las{' '}
-            {formatearHora(finDeSesion)}.
+            {`Actividad iniciada a las ${formatearHora(sesion.inicio)}. La sesión finaliza `}
+            {enOtroDia(sesion.inicio, finDeSesion)
+              ? `el ${formatearDiaMes(finDeSesion)} a las ${formatearHora(finDeSesion)}.`
+              : `a las ${formatearHora(finDeSesion)}.`}
           </p>
         )}
 
-        {/* CU010: sin asignaciones el botón se ve pero deshabilitado, y hay que
-            decir por qué; si no, parece que la aplicación está rota. */}
+        {/* CU010: el botón se ve pero deshabilitado, y hay que decir POR QUÉ;
+            si no, parece que la aplicación está rota. El motivo lo decide el
+            servidor (`motivo_no_puede_iniciar`), porque el calendario operativo
+            vive en su base de datos: "fuera de periodo" no se puede deducir
+            aquí. Los textos son los literales de CU010. */}
         {!sesion && sinAsignaciones && (
           <p className="text-sm font-medium text-warning-600">
-            No puede iniciar una actividad porque no tiene asignaciones activas.
+            {MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ?? MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
           </p>
         )}
       </header>

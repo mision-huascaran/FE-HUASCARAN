@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Eye, Users, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
+import BarraDeFiltros, { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
@@ -30,9 +31,16 @@ const SINCRONIZACIONES = [
   { value: 'pendiente', label: 'Pendiente' },
 ]
 
+const SIN_FILTROS = { id_colegio: '', desde: '', hasta: '', sincronizacion: '' }
+
 export default function SeguimientoPage() {
   const enLinea = useConexion()
-  const [filtros, setFiltros] = useState({ id_colegio: '', desde: '', hasta: '', sincronizacion: '' })
+  // Lo que se esta eligiendo (`borrador`) y lo que de verdad se ha pedido al
+  // servidor (`filtros`). Son dos cosas distintas desde que se filtra al
+  // pulsar: tocar cuatro filtros disparaba cuatro consultas y la tabla
+  // parpadeaba ensenando resultados intermedios que nadie pidio.
+  const [borrador, setBorrador] = useState(SIN_FILTROS)
+  const [filtros, setFiltros] = useState(SIN_FILTROS)
   const [docente, setDocente] = useState(null)
 
   const { data: colegios = [] } = useQuery({
@@ -48,7 +56,12 @@ export default function SeguimientoPage() {
     enabled: enLinea,
   })
 
-  const cambiar = (campo, valor) => setFiltros((f) => ({ ...f, [campo]: valor }))
+  const cambiar = (campo, valor) => setBorrador((b) => ({ ...b, [campo]: valor }))
+
+  const limpiar = () => {
+    setBorrador(SIN_FILTROS)
+    setFiltros(SIN_FILTROS)
+  }
 
   if (!enLinea) {
     return (
@@ -78,26 +91,34 @@ export default function SeguimientoPage() {
       </header>
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-end gap-3 border-b border-line p-4">
-          <Select
-            label="Colegio"
-            placeholder="Todos"
-            value={filtros.id_colegio}
-            options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
-            onChange={(e) => cambiar('id_colegio', e.target.value)}
-          />
+        <BarraDeFiltros onFiltrar={() => setFiltros(borrador)} onLimpiar={limpiar}>
+          <CeldaFiltro>
+            <Select
+              label="Colegio"
+              placeholder="Todos"
+              value={borrador.id_colegio}
+              options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
+              onChange={(e) => cambiar('id_colegio', e.target.value)}
+            />
+          </CeldaFiltro>
           {/* El rango es sobre la ÚLTIMA CONEXIÓN: quien nunca entró queda
               fuera en cuanto se usa, y conviene saberlo antes de extrañarse. */}
-          <Input label="Conectado desde" type="date" value={filtros.desde} onChange={(e) => cambiar('desde', e.target.value)} />
-          <Input label="Hasta" type="date" value={filtros.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
-          <Select
-            label="Sincronización"
-            placeholder="Todas"
-            value={filtros.sincronizacion}
-            options={SINCRONIZACIONES}
-            onChange={(e) => cambiar('sincronizacion', e.target.value)}
-          />
-        </div>
+          <CeldaFiltro>
+            <Input label="Conectado desde" type="date" value={borrador.desde} onChange={(e) => cambiar('desde', e.target.value)} />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Input label="Hasta" type="date" value={borrador.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
+          </CeldaFiltro>
+          <CeldaFiltro>
+            <Select
+              label="Sincronización"
+              placeholder="Todas"
+              value={borrador.sincronizacion}
+              options={SINCRONIZACIONES}
+              onChange={(e) => cambiar('sincronizacion', e.target.value)}
+            />
+          </CeldaFiltro>
+        </BarraDeFiltros>
 
         {consulta.isError ? (
           <EmptyState title="No se pudo cargar el seguimiento" description={mensajeDeError(consulta.error)} />

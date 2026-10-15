@@ -66,9 +66,9 @@ test('F4 · Gestión de usuarios: alta de un Docente, inactivación y filtros po
     // catálogos de colegios y grados, que se vuelven a pedir tras cada
     // inactivación (la limpieza de arriba).
     await esperarAntesDeAbrirPopup(page)
-    await page.getByRole('button', { name: 'Nuevo', exact: true }).click()
+    await page.getByRole('button', { name: 'Agregar', exact: true }).click()
     // Título actual del popup: «Nuevo cuenta» (concordancia: debería ser «Nueva cuenta»).
-    const popup = page.getByRole('dialog', { name: 'Nuevo cuenta' })
+    const popup = page.getByRole('dialog', { name: 'Nueva cuenta' })
     await popup.getByLabel('Nombres').fill(nombres)
     await popup.getByLabel('Apellidos').fill('Docente F4')
     await popup.getByLabel('DNI').fill(dni)

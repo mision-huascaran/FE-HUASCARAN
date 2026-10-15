@@ -28,18 +28,33 @@ export function nuevoIdActividad() {
 /**
  * `POST /actividades`.
  *
+ * `idSesion` es el `jti` de la sesión en la que OCURRIÓ la actividad, y solo
+ * viaja desde la cola offline. Sin él, una actividad que se sincroniza después
+ * de volver a entrar se asocia a la sesión NUEVA, y el servidor comprueba que
+ * su `inicio` sea posterior al de esa sesión: no lo es, porque pasó antes, así
+ * que responde 422 `inicio_invalido` y el envío se queda atascado en la cola
+ * para siempre. Con él, la actividad se registra donde de verdad ocurrió y
+ * hereda el cierre de aquella sesión (CU008, CU009).
+ *
  * Errores que hay que distinguir por `motivo`:
  *   · `actividad_activa_existente` — hay que finalizar la actual primero.
  *   · `sin_asignaciones`           — el docente no tiene asignaciones vigentes.
  *   · `actividad_id_en_uso`        — ese UUID es de otro docente; generar otro.
+ *   · `inicio_invalido`            — el `inicio` no cae dentro de la sesión.
  */
-export const iniciarActividad = ({ id, inicio } = {}) => {
+export const iniciarActividad = ({ id, inicio, id_sesion: idSesion } = {}) => {
   const idActividad = id ?? nuevoIdActividad()
   return resolver({
     mock: () => handlers.sesiones.iniciar({ id: idActividad, inicio }),
     // `inicio` es opcional y, si va, debe llevar zona horaria o el backend
-    // responde 422: un instante sin zona es ambiguo.
-    real: () => api.post(actividades.crear, { id_actividad: idActividad, ...(inicio ? { inicio } : {}) }),
+    // responde 422: un instante sin zona es ambiguo. Con `id_sesion` de otra
+    // sesión deja de ser opcional, pero la cola lo manda siempre.
+    real: () =>
+      api.post(actividades.crear, {
+        id_actividad: idActividad,
+        ...(inicio ? { inicio } : {}),
+        ...(idSesion ? { id_sesion: idSesion } : {}),
+      }),
     forzarReal: adminContraApiReal,
   })
 }

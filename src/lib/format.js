@@ -53,6 +53,13 @@ export const formatearFechaHora = (valor) => (valor ? dayjs(valor).tz(LIMA).form
 /** Solo la hora, para "Actividad iniciada a las HH:MM" (CU010). */
 export const formatearHora = (valor) => (valor ? dayjs(valor).tz(LIMA).format('HH:mm') : '—')
 
+/** `true` si los dos instantes caen en días distintos en hora de Lima. */
+export const enOtroDia = (a, b) =>
+  Boolean(a && b) && dayjs(a).tz(LIMA).format('YYYY-MM-DD') !== dayjs(b).tz(LIMA).format('YYYY-MM-DD')
+
+/** `DD/MM`, para el aviso de CU010 cuando la sesión cruza la medianoche. */
+export const formatearDiaMes = (valor) => (valor ? dayjs(valor).tz(LIMA).format('DD/MM') : '—')
+
 /** Porcentaje entero, sin decimales de más en las tarjetas. */
 export const porcentaje = (parte, total) => (total ? Math.round((parte / total) * 100) : 0)
 

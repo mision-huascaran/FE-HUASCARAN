@@ -15,10 +15,10 @@ comprobar que el Directivo **no llega** al Dashboard).
 | `f1-acceso-por-rol.spec.js` | Cada rol llega a su Inicio; la cuenta inactiva se rechaza |
 | `f2-control-de-acceso.spec.js` | Docente y Directivo terminan en /403 en secciones ajenas |
 | `f3-jornada-docente.spec.js` | Actividad → alta y baja de un alumno → Sesiones |
-| `f3b-cu015-historial-alumno.spec.js` | `test.fail`: el historial no muestra la creación (D29) |
+| `f3b-cu015-historial-alumno.spec.js` | CU015: el historial muestra la creación (D29, corregido) |
 | `f4-gestion-usuarios.spec.js` | La Supervisora crea e inactiva un Docente |
 | `f5-indicadores-directivo.spec.js` | 3 tarjetas del Directivo, sin datos de alumnos |
-| `f5b-cu012-directivo-sin-estudiantes.spec.js` | `test.fail`: el Directivo tiene Dashboard y buscador de estudiantes |
+| `f5b-cu012-directivo-sin-estudiantes.spec.js` | CU012/RN-033: el Directivo no llega al Dashboard (corregido) |
 | `f6-cierre-sesion-con-actividad.spec.js` | Cerrar sesión fuerza el cierre de la actividad |
 | `f7-seguimiento.spec.js` | La Supervisora ve al Docente E2E y la actividad de F3 |
 

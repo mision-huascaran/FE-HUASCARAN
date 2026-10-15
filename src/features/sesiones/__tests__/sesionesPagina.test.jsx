@@ -96,7 +96,7 @@ describe('Listado de sesiones (CU017)', () => {
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-20' } })
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-10-01' } })
 
-    expect(screen.getByRole('button', { name: /^buscar$/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^filtrar$/i })).toBeDisabled()
     expect(listar.mock.calls.length).toBe(llamadasAntes)
   })
 

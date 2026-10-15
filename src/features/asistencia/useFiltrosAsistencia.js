@@ -3,14 +3,16 @@
 // localStorage guarda filtros y preferencias de navegación, nunca registros de
 // negocio. Al volver al módulo, el docente recupera el contexto donde lo dejó.
 //
-// LA SECCIÓN VUELVE. Se había quitado cuando el backend dejó de tratarla como
-// entidad propia, pero CU022 la pide de nuevo como filtro obligatorio: no es
-// una tabla, es el aula a la que pertenece el alumno dentro de su colegio y
-// grado. Se rellena sola cuando solo hay una, que es el caso corriente.
+// LA SECCIÓN SE VA, esta vez de verdad. CU022 la pide como filtro, pero el
+// contrato no la tiene en ninguna parte: `GET /asistencias` recibe colegio,
+// grado, subprograma y fecha, `AlumnoAsistencia` no trae aula y `/secciones` se
+// retiró. Las opciones salían del simulador, así que contra el backend real el
+// desplegable nacía vacío y, siendo obligatorio, la clase no se pedía jamás.
 //
 // La FECHA arranca en hoy según el reloj del SERVIDOR, no el del dispositivo
 // (ver `lib/relojServidor.js`): CU022 prohíbe fiarse de la hora local.
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { hoy } from '../../lib/relojServidor'
 
 const CLAVE = 'sicedu.filtros.asistencia'
@@ -19,12 +21,11 @@ const CAMPO = {
   docente: 'idDocente',
   colegio: 'idColegio',
   grado: 'idGrado',
-  seccion: 'seccion',
   subprograma: 'idPrograma',
   fecha: 'fecha',
 }
 
-const VACIOS = { idDocente: '', idColegio: '', idGrado: '', seccion: '', idPrograma: '', fecha: '' }
+const VACIOS = { idDocente: '', idColegio: '', idGrado: '', idPrograma: '', fecha: '' }
 
 function leer() {
   try {
@@ -36,6 +37,8 @@ function leer() {
 }
 
 export default function useFiltrosAsistencia() {
+  const [parametros] = useSearchParams()
+
   /**
    * Lo guardado se FUSIONA con la forma por defecto en vez de sustituirla: un
    * `localStorage` escrito por una versión anterior no traía `idPrograma`, y
@@ -43,10 +46,18 @@ export default function useFiltrosAsistencia() {
    */
   const [filtros, setFiltros] = useState(() => {
     const guardados = leer() ?? {}
-    // Una fecha futura guardada —reloj del equipo cambiado, o el día siguiente
-    // tras dejar la pestaña abierta— no puede resucitar: CU022 no permite
-    // registrar en el futuro.
-    const fecha = guardados.fecha && guardados.fecha <= hoy() ? guardados.fecha : hoy()
+    /**
+     * `?fecha=` manda sobre lo guardado: así llega el atajo "Ver Asistencias"
+     * del Supervisor (CU021), que abre la jornada EXACTA de una actividad. Si
+     * ganara el localStorage, el atajo llevaría al día que el Supervisor miró
+     * la última vez, que es justo lo que no quiere ver.
+     */
+    const deLaUrl = parametros.get('fecha')
+    const candidata = deLaUrl || guardados.fecha
+    // Una fecha futura —reloj del equipo cambiado, o el día siguiente tras
+    // dejar la pestaña abierta— no puede resucitar: CU022 no permite registrar
+    // en el futuro.
+    const fecha = candidata && candidata <= hoy() ? candidata : hoy()
     return { ...VACIOS, ...guardados, fecha }
   })
 
@@ -55,9 +66,6 @@ export default function useFiltrosAsistencia() {
   const cambiar = useCallback((campo, valor) => {
     setFiltros((previos) => {
       const siguiente = { ...previos, [CAMPO[campo]]: valor }
-      // Cambiar de colegio o de grado invalida la sección: las aulas son de ese
-      // colegio y ese grado, y "B" no significa lo mismo en otro sitio.
-      if (campo === 'colegio' || campo === 'grado') siguiente.seccion = ''
       try {
         localStorage.setItem(CLAVE, JSON.stringify(siguiente))
       } catch {

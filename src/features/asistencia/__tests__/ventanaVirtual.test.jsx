@@ -15,16 +15,19 @@ const alumnos = Array.from({ length: 400 }, (_, i) => ({
   nombres: `Alumno ${i + 1}`,
   apellidos: 'Prueba',
   activo: true,
-  presente: null,
+  en_aula: true,
+  estado: null,
+  observacion: null,
 }))
 
 const montar = (props = {}) =>
   render(
     <ListaAsistencia
       alumnos={alumnos}
-      presenteDe={() => null}
+      marcaDe={() => ({ estado: null, observacion: null })}
       soloLectura={false}
       onMarcar={() => {}}
+      onObservar={() => {}}
       {...props}
     />,
   )
@@ -50,14 +53,18 @@ describe('Virtual Scrolling de la lista', () => {
   })
 
   it('al desplazarse aparecen los alumnos de más abajo', () => {
+    // El nombre va partido en dos `span` ("Apellidos" y ", Nombres") para poder
+    // dar más peso al apellido, que es por donde ordena el servidor.
+    const enPantalla = (nombre) => screen.queryByText(`, ${nombre}`)
+
     const { container } = montar()
-    expect(screen.queryByText('Alumno 200')).not.toBeInTheDocument()
+    expect(enPantalla('Alumno 200')).not.toBeInTheDocument()
 
     const vista = container.firstChild
     fireEvent.scroll(vista, { target: { scrollTop: 199 * ALTO_FILA } })
 
-    expect(screen.getByText('Alumno 200')).toBeInTheDocument()
-    expect(screen.queryByText('Alumno 1')).not.toBeInTheDocument()
+    expect(enPantalla('Alumno 200')).toBeInTheDocument()
+    expect(enPantalla('Alumno 1')).not.toBeInTheDocument()
   })
 
   it('marca a los alumnos dados de baja que constan ese día', () => {

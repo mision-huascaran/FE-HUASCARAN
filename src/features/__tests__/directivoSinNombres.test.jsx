@@ -1,5 +1,6 @@
-// RNF-004 / matriz de permisos: el Directivo solo ve métricas agregadas y NUNCA
-// nombres de alumnos (`sinNombresDeAlumnos` en auth/permisos.js).
+// RNF-004 / RN-033 / CU012: el Directivo solo ve métricas agregadas y NUNCA
+// nombres de alumnos. La defensa más fuerte es que no entre a los módulos que
+// los muestran: el Dashboard tenía un buscador "Estudiante (nombre o código)".
 //
 // Se recorre cada ruta a la que entra el Directivo con los datos del mock, se
 // espera a que terminen TODAS sus consultas y se busca en el documento el
@@ -42,8 +43,10 @@ afterEach(() => {
 })
 
 describe('El Directivo no ve nombres de alumnos (RNF-004)', () => {
-  it('la matriz de permisos lo declara para su única sección con datos', () => {
-    expect(MATRIZ.dashboard[ROLES.DIRECTIVO].sinNombresDeAlumnos).toBe(true)
+  it('la matriz de permisos NO le da el Dashboard (CU012)', () => {
+    // Ahí vivía el buscador de estudiantes por nombre o código. CU012 le deja
+    // tres tarjetas en su Inicio y nada más.
+    expect(MATRIZ.dashboard[ROLES.DIRECTIVO]).toBeNull()
     expect(RUTAS_DEL_DIRECTIVO.length).toBeGreaterThan(0)
   })
 

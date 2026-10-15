@@ -25,11 +25,10 @@ import { guardarEstado } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { esApi, iniciarSesion, irPorMenu } from './support/sesion.js'
 
-// Textos ACTUALES de la pantalla. Se reportan como bugs: CU014 llama «Agregar»
-// al botón y CU010 pide «Inicia una actividad de trabajo para habilitar el
-// registro de datos.» como aviso.
-const BOTON_NUEVO = 'Nuevo'
-const AVISO_SIN_ACTIVIDAD = 'Pulse "Iniciar actividad" para poder registrar.'
+// Los textos que piden los casos de uso, ya corregidos en la pantalla: CU014
+// llama «Agregar» al botón y CU010 da su aviso palabra por palabra.
+const BOTON_NUEVO = 'Agregar'
+const AVISO_SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
 const PREFIJO = 'E2E-'
 
 /** El badge de estado, exacto: «Activo» como texto suelto también está dentro de «Inactivo». */

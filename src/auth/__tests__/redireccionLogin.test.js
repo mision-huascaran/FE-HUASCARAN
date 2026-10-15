@@ -14,7 +14,10 @@ describe('rolPuedeEntrar', () => {
     expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(true)
     expect(rolPuedeEntrar('/dashboard', ROLES.DOCENTE)).toBe(false)
     expect(rolPuedeEntrar('/inicio', ROLES.DOCENTE)).toBe(true)
-    expect(rolPuedeEntrar('/dashboard', ROLES.DIRECTIVO)).toBe(true)
+    // CU012: el Dashboard tampoco es suyo. Llevaba un buscador de estudiantes
+    // por nombre, y RN-033/RN-034 le prohíben ver datos de alumnos. Ocultarlo
+    // del menú no bastaba: escribiendo la URL se entraba igual.
+    expect(rolPuedeEntrar('/dashboard', ROLES.DIRECTIVO)).toBe(false)
     // El Directivo ya no gestiona cuentas (D2 del sprint de cierre).
     expect(rolPuedeEntrar('/usuarios', ROLES.DIRECTIVO)).toBe(false)
   })

@@ -57,7 +57,9 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/sesiones', allow: [PROFESOR], titulo: 'Sesiones', elemento: <SesionesPage /> },
   // CU020 y CU021: lo que el Supervisor usa en su lugar.
   { path: '/seguimiento', allow: [JEFA], titulo: 'Seguimiento', elemento: <SeguimientoPage /> },
-  { path: '/dashboard', allow: [JEFA, DIRECTIVOS], titulo: 'Dashboard', elemento: <DashboardPage /> },
+  // CU012: el Dashboard es solo del Supervisor. Ocultarlo del menú no basta,
+  // la ruta también tiene que rechazar al Directivo (RNF-004).
+  { path: '/dashboard', allow: [JEFA], titulo: 'Dashboard', elemento: <DashboardPage /> },
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },

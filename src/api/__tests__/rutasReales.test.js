@@ -42,7 +42,7 @@ const { listarSeguimiento, obtenerDocenteSeguimiento, listarActividadesDe } =
   await import('../resources/seguimiento')
 const { obtenerInicioDocente, obtenerInicioSupervisor, obtenerInicioDirectivo } =
   await import('../resources/inicio')
-const { recuperarConLlave } = await import('../resources/auth')
+const { establecerPasswordPrimerIngreso, verificarCodigoPublico } = await import('../resources/auth')
 const { obtenerResumenDocente } = await import('../resources/docentes')
 
 beforeEach(() => {
@@ -198,15 +198,27 @@ describe('Listados paginados', () => {
   })
 })
 
-describe('Recovery Key (CU001)', () => {
+describe('Primer ingreso (CU001)', () => {
+  // Las Recovery Keys se retiraron: `/password/recuperar-con-llave` responde
+  // 404. El Supervisor original recupera su cuenta por el PIN como todos.
   it('manda los campos con ñ que espera el backend', async () => {
-    await recuperarConLlave({ correo: 'a@b.test', llave: 'K-1', passwordNueva: 'Ab1!abcd', confirmacion: 'Ab1!abcd' })
-    expect(post).toHaveBeenCalledWith('/password/recuperar-con-llave', {
+    await establecerPasswordPrimerIngreso({
       correo: 'a@b.test',
-      llave: 'K-1',
+      temporal: 'Temporal1!',
+      passwordNueva: 'Ab1!abcd',
+      confirmacion: 'Ab1!abcd',
+    })
+    expect(post).toHaveBeenCalledWith('/password/primer-ingreso', {
+      correo: 'a@b.test',
+      'contraseña_temporal': 'Temporal1!',
       'contraseña_nueva': 'Ab1!abcd',
       'confirmar_contraseña_nueva': 'Ab1!abcd',
     })
+  })
+
+  it('el PIN se verifica aparte, sin gastarlo (CU006)', async () => {
+    await verificarCodigoPublico({ correo: 'a@b.test', codigo: '123456' })
+    expect(post).toHaveBeenCalledWith('/password/verificar-codigo', { correo: 'a@b.test', codigo: '123456' })
   })
 })
 

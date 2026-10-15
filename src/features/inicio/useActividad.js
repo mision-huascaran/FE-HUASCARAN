@@ -177,5 +177,26 @@ export default function useActividad() {
     }
   }
 
-  return { sesion, iniciar, finalizar, sinAsignaciones: asignaciones.length === 0 }
+  /**
+   * Por qué no se puede iniciar, según el SERVIDOR (`motivo_no_puede_iniciar`).
+   *
+   * Lo decide el backend y no el cliente: el calendario operativo (PA1…PA4 y
+   * los recesos) vive en su base de datos, así que deducir aquí si estamos
+   * "fuera de periodo" sería adivinar. CU010 pide además que el botón se vea
+   * DESHABILITADO, nunca oculto, con el motivo al lado.
+   *
+   * Si el servidor no contesta todavía, se cae al dato local: sin asignaciones
+   * tampoco hay nada que iniciar.
+   */
+  const motivo = inicio?.motivo_no_puede_iniciar ?? (asignaciones.length === 0 ? 'sin_asignaciones' : null)
+
+  return {
+    sesion,
+    iniciar,
+    finalizar,
+    motivoNoPuedeIniciar: motivo === 'actividad_activa' ? null : motivo,
+    // `actividad_activa` no impide nada: significa que ya hay una abierta, y
+    // en ese caso el botón que se muestra es "Finalizar actividad".
+    sinAsignaciones: Boolean(motivo) && motivo !== 'actividad_activa',
+  }
 }
