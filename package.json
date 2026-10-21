@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verificar:backend": "node scripts/verificar-backend.mjs",
+    "verificar:csp": "node scripts/verificar-csp.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report playwright-report"

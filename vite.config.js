@@ -69,7 +69,8 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: 'v8',
         reporter: ['text-summary', 'lcov'],
-        include: ['src/**/*.{js,jsx}'],
+        // scripts/verificar-csp.mjs: la validación del stage 'Security Headers - CSP'.
+        include: ['src/**/*.{js,jsx}', 'scripts/verificar-csp.mjs'],
         // Igual que `sonar.coverage.exclusions`: el arranque (main.jsx) y el
         // simulador de la API (api/mock) no son lógica de la aplicación.
         exclude: ['src/**/__tests__/**', 'src/test/**', 'src/main.jsx', 'src/api/mock/**', 'e2e/**'],
