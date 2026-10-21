@@ -19,3 +19,6 @@ playwright-report/
 test-results/
 .env.e2e
 !.env.e2e.example
+
+# Reportes del escaneo OWASP ZAP (stage de Jenkins en qa).
+zap-reports/
