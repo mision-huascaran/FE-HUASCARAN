@@ -1,6 +1,6 @@
 // F5 — Indicadores del Directivo (CU012, RN-033, RN-034).
 //
-// El Directivo ve exactamente tres indicadores institucionales y ningún dato
+// El Directivo ve exactamente dos indicadores institucionales y ningún dato
 // personal de alumnos: ni el nombre del alumno que registró F3, ni la sección
 // Alumnos en su menú.
 import { expect, test } from '@playwright/test'
@@ -9,16 +9,15 @@ import { evidencia } from './support/evidencia.js'
 import { iniciarSesion, menu } from './support/sesion.js'
 import { tarjetas, valorDeTarjeta } from './support/tarjetas.js'
 
-test('F5 · Indicadores del Directivo: 3 tarjetas y ningún dato de alumnos (CU012, RN-033/034)', async ({ page }) => {
+test('F5 · Indicadores del Directivo: 2 tarjetas y ningún dato de alumnos (CU012, RN-033/034)', async ({ page }) => {
   await iniciarSesion(page, 'directivo')
 
-  await test.step('Exactamente 3 tarjetas, cada una con su valor (CU012)', async () => {
-    await expect(tarjetas(page)).toHaveCount(3)
+  await test.step('Exactamente 2 tarjetas, cada una con su valor (CU012)', async () => {
+    // CU012: 'Salud del sistema' retirada a pedido de QA (oct-2026); el CU aún la lista, pendiente de actualizar por analistas.
+    await expect(tarjetas(page)).toHaveCount(2)
     await expect(valorDeTarjeta(page, 'Total de beneficiarios activos')).toHaveText(/^\d+$/)
     await expect(valorDeTarjeta(page, 'Total de colegios operando')).toHaveText(/^\d+$/)
-    // CU012: sin sincronización offline en el backend, «Sin datos disponibles» es válido.
-    await expect(valorDeTarjeta(page, 'Salud del sistema')).toHaveText(/^(\d+%|Sin datos disponibles)$/)
-    await evidencia(page, 'directivo-tres-tarjetas')
+    await evidencia(page, 'directivo-dos-tarjetas')
   })
 
   await test.step('Sin datos personales de alumnos (RN-033, RN-034)', async () => {

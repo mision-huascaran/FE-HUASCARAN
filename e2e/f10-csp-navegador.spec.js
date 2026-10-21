@@ -45,8 +45,7 @@ const PANTALLAS = {
     ],
   },
   directivo: {
-    // El valor de una tarjeta y no cuántas hay: development ya retiró
-    // «Salud del sistema» (3050a73) y el conteo no es asunto de esta prueba.
+    // El valor de una tarjeta y no cuántas hay: el conteo lo validan F1 y F5.
     inicio: (page) => expect(valorDeTarjeta(page, 'Total de beneficiarios activos')).toHaveText(/^\d+$/),
     menu: [],
   },

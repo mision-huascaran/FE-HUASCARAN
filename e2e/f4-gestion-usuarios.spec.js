@@ -1,7 +1,7 @@
 // F4 — Gestión de usuarios y primer ingreso (CU016, CU001, CU002).
 //
 // La Supervisora da de alta a un Docente en el aula libre del colegio E2E
-// (6.º): aparece Activo y «Pendiente de primer ingreso». Si el backend devolvió
+// (6.º): aparece Activo y «Primer ingreso». Si el backend devolvió
 // la contraseña temporal (solo cuando el correo de bienvenida falla), el
 // Docente hace su primer ingreso: la temporal no deja entrar (403
 // `cambio_contrasena_requerido`), establece la definitiva y entra; después
@@ -27,7 +27,10 @@ import {
 } from './support/sesion.js'
 
 const PREFIJO = 'E2E-'
-const PENDIENTE = 'Pendiente de primer ingreso'
+// El badge de la columna Acceso. Era «Pendiente de primer ingreso» y se acortó
+// para que no partiera la fila (3050a73); la frase completa quedó en el title.
+const PENDIENTE = 'Primer ingreso'
+const TITULO_PENDIENTE = 'Aún no ha usado su contraseña temporal. Caduca a las 48 horas.'
 
 /** Filtra la tabla de Usuarios por texto y estado, y espera a que se pinte. */
 async function filtrar(page, texto, estado = 'Activos') {
@@ -126,11 +129,12 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
       await cerrarPopupTrasGuardar(popup)
     })
 
-    await test.step('Aparece Activo, con su DNI, su colegio y «Pendiente de primer ingreso»', async () => {
+    await test.step('Aparece Activo, con su DNI, su colegio y «Primer ingreso»', async () => {
       await filtrar(page, nombres)
       await expect(fila()).toHaveCount(1)
       await expect(badge(fila(), 'Activo')).toBeVisible()
       await expect(badge(fila(), PENDIENTE)).toBeVisible()
+      await expect(badge(fila(), PENDIENTE)).toHaveAttribute('title', TITULO_PENDIENTE)
       await expect(fila()).toContainText(SEED.colegio)
       await expect(fila()).toContainText(dni)
       await evidencia(page, 'usuario-activo-pendiente')
@@ -175,7 +179,7 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
         await cerrarSesion(page)
       })
 
-      await test.step('Ya no figura «Pendiente de primer ingreso»', async () => {
+      await test.step('Ya no figura «Primer ingreso»', async () => {
         await iniciarSesion(page, 'supervisor')
         await irPorMenu(page, 'Usuarios', '/usuarios')
         await filtrar(page, nombres)
@@ -186,7 +190,7 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
       test.info().annotations.push({
         type: 'limitación',
         description:
-          'El correo de bienvenida se envió: el backend no devuelve la contraseña temporal y el primer ingreso no se puede automatizar (CU001). Se verificó solo «Pendiente de primer ingreso».',
+          'El correo de bienvenida se envió: el backend no devuelve la contraseña temporal y el primer ingreso no se puede automatizar (CU001). Se verificó solo «Primer ingreso».',
       })
     }
 
