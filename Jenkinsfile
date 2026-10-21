@@ -266,8 +266,20 @@ pipeline {
                             # El volumen nace de root: el usuario zap (uid 1000) tiene que poder escribir.
                             docker run --rm -u root -v "$ZAP_VOLUMEN:/zap/wrk" --entrypoint chmod "$ZAP_IMAGEN" 0777 /zap/wrk
 
+                            # Reglas del escaneo (zap/reglas-frontend.conf) al volumen. docker cp no
+                            # escribe en un volumen, sino en un contenedor que lo monta: uno creado y
+                            # sin arrancar basta. Si falla, sale con 3 (error de ejecución), no con
+                            # el 1 de `sh -e`, que se leería como "reglas incumplidas".
+                            if ! { docker create --name "$ZAP_CONTENEDOR-reglas" -v "$ZAP_VOLUMEN:/zap/wrk" "$ZAP_IMAGEN" >/dev/null &&
+                                   docker cp zap/reglas-frontend.conf "$ZAP_CONTENEDOR-reglas:/zap/wrk/reglas-frontend.conf"; }; then
+                                echo "ERROR: no se pudo copiar zap/reglas-frontend.conf al volumen de ZAP"
+                                exit 3
+                            fi
+                            docker rm "$ZAP_CONTENEDOR-reglas" >/dev/null
+
                             set -- zap-full-scan.py -t "$ZAP_TARGET" -j --client-spider -m 5
                             set -- "$@" -z "-config scanner.maxScanDurationInMins=30"
+                            set -- "$@" -c reglas-frontend.conf
                             set -- "$@" -r frontend-zap.html -J frontend-zap.json
                             # Jenkins corre `sh -xe`: sin el `||`, un 1 o un 2 de ZAP cortaría
                             # el script antes de copiar los reportes.
@@ -295,7 +307,7 @@ pipeline {
                 always {
                     // También si el timeout cortó el escaneo: no quedan contenedor ni volumen.
                     sh '''
-                        docker rm -f "$ZAP_CONTENEDOR" >/dev/null 2>&1 || true
+                        docker rm -f "$ZAP_CONTENEDOR" "$ZAP_CONTENEDOR-reglas" >/dev/null 2>&1 || true
                         docker volume rm -f "$ZAP_VOLUMEN" >/dev/null 2>&1 || true
                     '''
                     archiveArtifacts(
