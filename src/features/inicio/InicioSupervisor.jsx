@@ -71,7 +71,7 @@ export default function InicioSupervisor() {
     ) : (
       <div className="flex flex-col gap-5">
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
-        <AvisoDatosLocales sinDatos />
+        <AvisoDatosLocales rol="supervisor" sinDatos enLinea={enLinea} />
       </div>
     )
   }
