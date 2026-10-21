@@ -44,6 +44,7 @@ ENV API_UPSTREAM=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY deploy/cabeceras-seguridad.conf /etc/nginx/snippets/cabeceras-seguridad.conf
+COPY deploy/errores/ /usr/share/nginx/errores/
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
