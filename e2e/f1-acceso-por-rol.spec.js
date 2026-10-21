@@ -96,6 +96,7 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
       const razon = 'Cuenta inactivo bloqueada por intentos previos (CU002, 5 en 15 min); reintentar luego de 15 minutos'
       test.info().annotations.push({ type: 'limpieza', description: razon })
       await evidencia(page, 'login-cuenta-inactiva-bloqueada')
+      // Se salta a propósito: la cuenta quedó bloqueada por corridas anteriores, no por un fallo de la app.
       test.skip(true, razon)
     }
 
