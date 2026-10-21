@@ -23,9 +23,11 @@ se prueban (salvo para comprobar que el Directivo **no llega** al Dashboard).
 | `f7-seguimiento.spec.js` | La Supervisora ve al Docente E2E y la actividad de F3 |
 | `f8-jornada-asistencias.spec.js` | Jornada con Asistencias: marcar todos, tardanza, observación, «2 Asistencias» |
 | `f9-supervisor-asistencias.spec.js` | La Supervisora audita esa jornada en solo lectura |
+| `f10-csp-navegador.spec.js` | Login, recuperar contraseña y las pantallas de los 3 roles sin violaciones de CSP (solo navega) |
 
 Corren en serie y en ese orden: F5 y F7 usan el alumno y la actividad que F3 deja en
 `test-results/e2e-state.json`, y F9 la jornada de asistencias que deja F8.
+F10 no depende de nadie: por el orden alfabético corre justo después de F1.
 
 ## Variables
 

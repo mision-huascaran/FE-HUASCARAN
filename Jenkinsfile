@@ -317,6 +317,45 @@ pipeline {
                 }
             }
         }
+
+        // Verificación independiente de la CSP del frontend desplegado, última
+        // etapa de qa. ZAP también mira la CSP; aquí se exige la política del
+        // proyecto (deploy/cabeceras-seguridad.conf) en "/" y en "/login":
+        // directivas mínimas, nada inseguro y una sola cabecera. La lógica y sus
+        // pruebas están en scripts/verificar-csp.mjs; la prueba en el navegador,
+        // en e2e/f10-csp-navegador.spec.js.
+        stage('Security Headers - CSP') {
+            when {
+                beforeAgent true
+                branch 'qa'
+            }
+            agent {
+                // Como 'Pruebas' y 'E2E Tests': con reuseNode el contenedor monta el
+                // workspace de este mismo nodo, así que el JSON queda en zap-reports/
+                // sin docker cp.
+                docker {
+                    image 'node:24-alpine'
+                    reuseNode true
+                }
+            }
+            environment {
+                CSP_TARGET_URL = 'https://qa-huascaran.ingsoftware.lat'
+            }
+            steps {
+                // Sin dependencias, así que sin npm ci. No borra zap-reports/: ahí
+                // quedan los reportes del stage de ZAP. Sale con 1 (stage en rojo) si
+                // la política no cumple o hay un error de red.
+                sh 'node scripts/verificar-csp.mjs "$CSP_TARGET_URL" zap-reports/csp-validation.json'
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'zap-reports/csp-validation.json',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
     }
 
     post {
