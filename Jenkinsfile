@@ -233,6 +233,78 @@ pipeline {
                 }
             }
         }
+
+        // OWASP ZAP Full Scan del frontend desplegado en qa, sin autenticación.
+        //
+        // Los reportes NO se montan desde el workspace: zap-full-scan.py exige
+        // /zap/wrk y, si Jenkins corre en un contenedor, "$WORKSPACE" no existe en
+        // el host y el montaje dejaría zap-reports/ vacío. Se usa un volumen de
+        // Docker con nombre y, al terminar, `docker cp` copia los reportes al
+        // workspace: funciona igual con Jenkins en el host o en un contenedor.
+        stage('OWASP ZAP - Frontend') {
+            when {
+                branch 'qa'
+            }
+            options {
+                timeout(time: 60, unit: 'MINUTES')
+            }
+            environment {
+                ZAP_TARGET     = 'https://qa-huascaran.ingsoftware.lat'
+                // Versión fija para que el resultado sea reproducible (era la "stable").
+                ZAP_IMAGEN     = 'ghcr.io/zaproxy/zaproxy:2.17.0'
+                ZAP_CONTENEDOR = "${PROYECTO}-zap-${BUILD_NUMBER}"
+                ZAP_VOLUMEN    = "${PROYECTO}-zap-${BUILD_NUMBER}-wrk"
+            }
+            steps {
+                script {
+                    def status = sh(
+                        returnStatus: true,
+                        script: '''
+                            rm -rf zap-reports
+                            mkdir -p zap-reports
+                            docker volume create "$ZAP_VOLUMEN" >/dev/null
+                            # El volumen nace de root: el usuario zap (uid 1000) tiene que poder escribir.
+                            docker run --rm -u root -v "$ZAP_VOLUMEN:/zap/wrk" --entrypoint chmod "$ZAP_IMAGEN" 0777 /zap/wrk
+
+                            set -- zap-full-scan.py -t "$ZAP_TARGET" -j --client-spider -m 5
+                            set -- "$@" -z "-config scanner.maxScanDurationInMins=30"
+                            set -- "$@" -r frontend-zap.html -J frontend-zap.json
+                            # Jenkins corre `sh -xe`: sin el `||`, un 1 o un 2 de ZAP cortaría
+                            # el script antes de copiar los reportes.
+                            ESTADO=0
+                            docker run --name "$ZAP_CONTENEDOR" -v "$ZAP_VOLUMEN:/zap/wrk" "$ZAP_IMAGEN" "$@" || ESTADO=$?
+
+                            docker cp "$ZAP_CONTENEDOR:/zap/wrk/." zap-reports/ || echo "AVISO: no se pudieron copiar los reportes de ZAP"
+                            exit $ESTADO
+                        '''
+                    )
+
+                    // Código de salida de zap-full-scan.py:
+                    //   0 = sin alertas · 1 = al menos una regla en FAIL ·
+                    //   2 = solo advertencias (WARN) · 3 u otro = el escaneo no terminó.
+                    if (status == 1) {
+                        error('ZAP Frontend: reglas de seguridad incumplidas')
+                    } else if (status == 2) {
+                        unstable('ZAP Frontend: advertencias detectadas')
+                    } else if (status != 0) {
+                        error("ZAP Frontend: error de ejecución (${status})")
+                    }
+                }
+            }
+            post {
+                always {
+                    // También si el timeout cortó el escaneo: no quedan contenedor ni volumen.
+                    sh '''
+                        docker rm -f "$ZAP_CONTENEDOR" >/dev/null 2>&1 || true
+                        docker volume rm -f "$ZAP_VOLUMEN" >/dev/null 2>&1 || true
+                    '''
+                    archiveArtifacts(
+                        artifacts: 'zap-reports/**',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
     }
 
     post {
