@@ -57,18 +57,34 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     await evidencia(page, 'inicio-supervisora')
   })
 
-  test('Directivo: llega a Inicio con sus 3 tarjetas institucionales (CU012)', async ({ page }) => {
+  test('Directivo: llega a Inicio con sus 2 tarjetas institucionales (CU012)', async ({ page }) => {
     await iniciarSesion(page, 'directivo')
 
-    await expect(tarjetas(page)).toHaveCount(3)
-    for (const etiqueta of ['Total de beneficiarios activos', 'Total de colegios operando', 'Salud del sistema']) {
+    // CU012: 'Salud del sistema' retirada a pedido de QA (oct-2026); el CU aún la lista, pendiente de actualizar por analistas.
+    await expect(tarjetas(page)).toHaveCount(2)
+    for (const etiqueta of ['Total de beneficiarios activos', 'Total de colegios operando']) {
       await expect(valorDeTarjeta(page, etiqueta), `valor de «${etiqueta}»`).not.toBeEmpty()
     }
     await expect(page.getByRole('button', { name: 'Iniciar actividad' })).toHaveCount(0)
     await evidencia(page, 'inicio-directivo')
   })
 
+  // test.fail(): HOY FALLA A PROPÓSITO. En qa, el 403 de la cuenta desactivada
+  // llega con el cuerpo "Error" (text/plain) en vez del JSON del backend con
+  // `motivo: cuenta_desactivada`. Lo reemplaza el Caddy del servidor: esa
+  // respuesta no trae ninguna cabecera de nuestro Nginx (que las pone con
+  // `always`), y directo al backend el error sí llega en JSON. Sin `detail`, la
+  // UI muestra «Sin permiso para realizar esta acción» en vez del mensaje de
+  // CU002. Cuando se corrija, Playwright avisará «expected to fail, but
+  // passed»: entonces hay que quitar el test.fail().
   test('Cuenta inactiva: se rechaza con el mensaje de CU002 y sin token', async ({ page }) => {
+    const bug =
+      '[bug] El Caddy del servidor reemplaza el cuerpo de los errores de /api por "Error" (text/plain): ' +
+      'el 403 de cuenta desactivada llega sin JSON y la UI muestra «Sin permiso para realizar esta acción» ' +
+      'en vez del mensaje de CU002'
+    test.fail(true, bug)
+    test.info().annotations.push({ type: 'bug', description: bug })
+
     const respuesta = await enviarLogin(page, 'inactivo')
 
     // CU002 cuenta el login a una cuenta desactivada como intento fallido: tras
@@ -84,7 +100,8 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     }
 
     expect(respuesta.status(), 'una cuenta desactivada responde 403').toBe(403)
-    const cuerpo = await respuesta.json()
+    const cuerpo = await respuesta.json().catch(() => null)
+    expect(cuerpo, 'el 403 trae el JSON del backend, no el cuerpo de un proxy').not.toBeNull()
     expect(cuerpo).not.toHaveProperty('access_token')
     expect(cuerpo.motivo).toBe('cuenta_desactivada')
 
