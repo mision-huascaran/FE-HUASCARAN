@@ -135,7 +135,7 @@ export default function EstudiantesPage() {
           rows={filas}
           loading={isLoading}
           getRowId={(a) => a.id_alumno}
-          initialPageSize={25}
+          initialPageSize={40}
           stickyFirstColumn
           empty={
             <EmptyState

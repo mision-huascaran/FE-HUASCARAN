@@ -261,8 +261,8 @@ export default function Mantenimiento({
           filtros={filtros}
           valores={valoresFiltro}
           onCambio={onFiltro}
-          // Se aplican todos de golpe al pulsar "Filtrar": así la lista se
-          // consulta una vez y no una por cada campo que se toca.
+          // Todos de golpe, no uno por campo: la barra espera a que se deje
+          // de escribir y manda el conjunto entero en una sola consulta.
           onAplicar={(nuevos) => Object.entries(nuevos).forEach(([n, v]) => onFiltro?.(n, v))}
         />
 
@@ -273,7 +273,7 @@ export default function Mantenimiento({
             loading={consulta.isLoading}
             rows={consulta.data ?? []}
             getRowId={(f) => f.id ?? f[`id_${seccion.replace(/s$/, '')}`] ?? f.id_usuario}
-            initialPageSize={10}
+            initialPageSize={40}
             columns={columnasConAcciones}
           />
         )}

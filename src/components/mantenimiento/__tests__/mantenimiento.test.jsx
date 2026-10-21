@@ -130,6 +130,35 @@ describe('Plantilla de mantenimiento', () => {
     expect(within(dialogo).queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
   })
 
+  it('busca mientras se escribe, sin pulsar "Filtrar" y sin una consulta por tecla', async () => {
+    /**
+     * Antes había que escribir el nombre entero a ciegas y pulsar "Filtrar"
+     * para ver el primer resultado. Ahora la barra espera a que se deje de
+     * escribir: "Ran" son tres pulsaciones y UNA sola consulta, no tres.
+     */
+    const { onFiltro } = montar(ROLES.SUPERVISOR, {
+      filtros: [{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }],
+      valoresFiltro: { q: '', estado: 'activo' },
+    })
+    const buscar = screen.getByLabelText('Buscar')
+
+    fireEvent.change(buscar, { target: { value: 'R' } })
+    fireEvent.change(buscar, { target: { value: 'Ra' } })
+    fireEvent.change(buscar, { target: { value: 'Ran' } })
+
+    // Nada todavía: el dedo sigue en el teclado.
+    expect(onFiltro).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(onFiltro).toHaveBeenCalledWith('q', 'Ran'), { timeout: 3000 })
+    expect(onFiltro.mock.calls.filter(([nombre]) => nombre === 'q')).toHaveLength(1)
+  })
+
+  it('el formulario explica para qué es el asterisco', () => {
+    montar()
+    fireEvent.click(screen.getByRole('button', { name: /agregar/i }))
+    expect(screen.getByText(/son obligatorios/i)).toBeInTheDocument()
+  })
+
   it('sin permiso de alta en la matriz no aparece el botón Nuevo', () => {
     // El Docente no entra en Colegios: la matriz no le da ninguna acción.
     montar(ROLES.DOCENTE)

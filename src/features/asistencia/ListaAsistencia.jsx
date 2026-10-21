@@ -17,7 +17,10 @@ export default function ListaAsistencia({ alumnos, marcaDe, soloLectura, onMarca
   return (
     <div ref={contenedor} onScroll={alDesplazar} className="max-h-[60vh] overflow-y-auto">
       <table className="w-full text-sm">
-        <thead className="sticky top-0 z-10 bg-surface-100 text-xs font-semibold uppercase tracking-wide text-ink-400">
+        {/* Mismo tamaño y tono que `DataTable`: esta lista no puede usar ese
+            componente porque necesita scroll virtual, pero puesta al lado de
+            cualquier otra tabla tiene que leerse igual. */}
+        <thead className="sticky top-0 z-10 bg-surface-100 text-xs font-semibold uppercase tracking-wide text-ink-500">
           <tr>
             <th className="px-4 py-3 text-left">Alumno</th>
             <th className="px-4 py-3 text-center">Asistencia</th>

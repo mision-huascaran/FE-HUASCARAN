@@ -251,9 +251,22 @@ export default function MantenimientoUsuarios() {
              */
             key: 'debe_cambiar_contrasena',
             header: 'Acceso',
+            align: 'center',
+            /**
+             * Etiqueta CORTA y en una sola línea. "Pendiente de primer
+             * ingreso" no cabía en la columna y se partía en dos renglones,
+             * creando un óvalo enorme que se comía la fila y desalineaba el
+             * "—" de las demás. La frase entera vive en el `title`.
+             */
             render: (u) =>
               u.debe_cambiar_contrasena ? (
-                <Badge tone="warning">Pendiente de primer ingreso</Badge>
+                <Badge
+                  tone="warning"
+                  className="whitespace-nowrap"
+                  title="Aún no ha usado su contraseña temporal. Caduca a las 48 horas."
+                >
+                  Primer ingreso
+                </Badge>
               ) : (
                 <span className="text-xs text-ink-400">—</span>
               ),
