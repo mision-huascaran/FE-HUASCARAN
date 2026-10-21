@@ -17,7 +17,7 @@ se prueban (salvo para comprobar que el Directivo **no llega** al Dashboard).
 | `f3-jornada-docente.spec.js` | Actividad → alta y baja de un alumno → Sesiones |
 | `f3b-cu015-historial-alumno.spec.js` | CU015: el historial muestra la creación (D29, corregido) |
 | `f4-gestion-usuarios.spec.js` | La Supervisora crea un Docente, primer ingreso (si hay temporal) e inactivación |
-| `f5-indicadores-directivo.spec.js` | 3 tarjetas del Directivo, sin datos de alumnos |
+| `f5-indicadores-directivo.spec.js` | 2 tarjetas del Directivo, sin datos de alumnos |
 | `f5b-cu012-directivo-sin-estudiantes.spec.js` | CU012/RN-033: el Directivo no llega al Dashboard (corregido) |
 | `f6-cierre-sesion-con-actividad.spec.js` | Cerrar sesión fuerza el cierre de la actividad |
 | `f7-seguimiento.spec.js` | La Supervisora ve al Docente E2E y la actividad de F3 |
