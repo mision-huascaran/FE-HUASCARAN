@@ -24,10 +24,20 @@ const saludo = () => {
 }
 
 /** Literales de CU010 para `motivo_no_puede_iniciar`. */
+/**
+ * Los TRES motivos del contrato, no dos.
+ *
+ * `actividad_activa` faltaba y caía al texto de `sin_asignaciones`, que le
+ * habría dicho al docente que no tiene asignaciones cuando lo que pasa es
+ * justo lo contrario: ya está trabajando. Hoy no se ve, porque con una
+ * actividad abierta el aviso ni se pinta, pero bastaba con que el servidor lo
+ * mandara en otro momento para soltar una mentira.
+ */
 const MOTIVO_SIN_ACTIVIDAD = {
   sin_asignaciones:
     'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
   fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
+  actividad_activa: 'Ya tienes una actividad en curso. Finalízala para poder iniciar otra.',
 }
 
 export default function InicioDocente() {

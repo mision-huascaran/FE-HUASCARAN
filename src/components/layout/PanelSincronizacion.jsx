@@ -61,8 +61,10 @@ export default function PanelSincronizacion({ abierto, onCerrar }) {
       )}
       <p className="mt-5 flex items-start gap-2 rounded-lg bg-info-100 p-3 text-xs text-ink-700">
         <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-info-600" aria-hidden="true" />
-        Si la conexión falla, el sistema reintenta hasta tres veces con esperas de 1, 4 y 9 segundos
-        sin duplicar el registro (RNF-001).
+        {/* Sin el código del requisito: quien usa la aplicación no tiene por
+            qué leer "RNF-001" en pantalla. La conducta se explica igual. */}
+        Si falla el envío, se reintenta solo unas cuantas veces. Nada se duplica y nada se pierde:
+        los registros esperan aquí hasta que vuelva la conexión.
       </p>
     </Drawer>
   )

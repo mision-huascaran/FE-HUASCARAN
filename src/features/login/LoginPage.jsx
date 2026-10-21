@@ -238,8 +238,10 @@ export default function LoginPage() {
           />
 
           <footer className="mt-10 border-t border-line pt-4 text-xs text-ink-400">
-            <p>Conexión cifrada (TLS).</p>
-            <p className="mt-1">
+            {/* Fuera el "Conexión cifrada (TLS)": anunciar la capa de
+                transporte no aporta confianza y sí da pistas a quien busca
+                dónde apretar. El candado del navegador ya lo dice. */}
+            <p>
               Los datos de los estudiantes se tratan conforme a la Ley N.° 29733 de Protección de Datos
               Personales.
             </p>

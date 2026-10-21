@@ -7,21 +7,63 @@
 // bloqueada por la política. Solo navega: no crea ni modifica datos.
 import { expect, test } from '@playwright/test'
 import { cerrarSesion, iniciarSesion, irPorMenu } from './support/sesion.js'
+import { valorDeTarjeta } from './support/tarjetas.js'
 
-/** Pantallas por rol, las mismas a las que llegan F1–F9 (más Colegios, también real). */
+const titulo = (page, nombre) => page.getByRole('main').getByRole('heading', { name: nombre, level: 1 })
+
+/**
+ * Pantalla con tabla ya cargada: su título y la tabla o su vacío (mientras
+ * carga, DataTable muestra un esqueleto). Es la condición de esperarAntesDeAbrirPopup.
+ */
+async function conTabla(page, nombre, vacio = 'Sin registros') {
+  const principal = page.getByRole('main')
+  await expect(titulo(page, nombre)).toBeVisible()
+  await expect(principal.getByRole('table').or(principal.getByText(vacio, { exact: true })).first()).toBeVisible()
+}
+
+/**
+ * Pantallas por rol, las mismas a las que llegan F1–F9 (más Colegios, también
+ * real), cada una con su señal de carga: la que usan F1 y F5 en los Inicio, y
+ * el título con su tabla en las demás.
+ */
 const PANTALLAS = {
-  docente: [
-    ['Alumnos', '/alumnos'],
-    ['Asistencia', '/asistencia'],
-    ['Sesiones', '/sesiones'],
-  ],
-  supervisor: [
-    ['Alumnos', '/alumnos'],
-    ['Usuarios', '/usuarios'],
-    ['Colegios', '/colegios'],
-    ['Seguimiento', '/seguimiento'],
-  ],
-  directivo: [],
+  docente: {
+    inicio: (page) => expect(page.getByRole('heading', { name: 'Mis asignaciones' })).toBeVisible(),
+    menu: [
+      ['Alumnos', '/alumnos', (page) => conTabla(page, 'Alumnos')],
+      ['Asistencia', '/asistencia', (page) => expect(titulo(page, 'Asistencia')).toBeVisible()],
+      ['Sesiones', '/sesiones', (page) => conTabla(page, 'Sesiones', 'No existen sesiones para consultar')],
+    ],
+  },
+  supervisor: {
+    inicio: (page) => expect(valorDeTarjeta(page, 'Colegios registrados')).toHaveText(/^\d+$/),
+    menu: [
+      ['Alumnos', '/alumnos', (page) => conTabla(page, 'Alumnos')],
+      ['Usuarios', '/usuarios', (page) => conTabla(page, 'Usuarios')],
+      ['Colegios', '/colegios', (page) => conTabla(page, 'Colegios')],
+      ['Seguimiento', '/seguimiento', (page) => conTabla(page, 'Seguimiento')],
+    ],
+  },
+  directivo: {
+    // El valor de una tarjeta y no cuántas hay: development ya retiró
+    // «Salud del sistema» (3050a73) y el conteo no es asunto de esta prueba.
+    inicio: (page) => expect(valorDeTarjeta(page, 'Total de beneficiarios activos')).toHaveText(/^\d+$/),
+    menu: [],
+  },
+}
+
+/**
+ * Las fuentes y las imágenes terminaron de cargar (o de fallar): son lo que una
+ * CSP mala bloquearía sin romper la pantalla, así que sus violaciones ya se
+ * registraron cuando esto vuelve.
+ */
+async function esperarFuentesEImagenes(page) {
+  expect(await page.evaluate(async () => (await document.fonts.ready).status)).toBe('loaded')
+  await expect
+    .poll(() => page.evaluate(() => [...document.images].every((imagen) => imagen.complete)), {
+      message: 'las imágenes terminaron de cargar',
+    })
+    .toBe(true)
 }
 
 /**
@@ -49,35 +91,31 @@ async function vigilarCsp(page) {
   return problemas
 }
 
-/** Espera a que la pantalla termine de pedir lo suyo (chunks, fuentes, /api). */
-async function esperarPantalla(page) {
-  await expect(page.getByRole('main')).toBeVisible()
-  await page.waitForLoadState('networkidle')
-}
-
 test.describe('F10 · CSP en el navegador', () => {
   test('sin sesión: login y recuperar contraseña', async ({ page }) => {
     const problemas = await vigilarCsp(page)
 
     await page.goto('/login')
     await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible()
-    await page.waitForLoadState('networkidle')
+    await esperarFuentesEImagenes(page)
     await page.getByRole('button', { name: '¿Olvidó su contraseña?' }).click()
     await expect(page.getByText('Recuperar contraseña')).toBeVisible()
-    await page.waitForLoadState('networkidle')
+    await esperarFuentesEImagenes(page)
 
     expect(problemas, 'sin violaciones de CSP').toEqual([])
   })
 
-  for (const [rol, pantallas] of Object.entries(PANTALLAS)) {
+  for (const [rol, { inicio, menu }] of Object.entries(PANTALLAS)) {
     test(`${rol}: Inicio y sus pantallas`, async ({ page }) => {
       const problemas = await vigilarCsp(page)
 
       await iniciarSesion(page, rol)
-      await esperarPantalla(page)
-      for (const [etiqueta, ruta] of pantallas) {
+      await inicio(page)
+      await esperarFuentesEImagenes(page)
+      for (const [etiqueta, ruta, lista] of menu) {
         await irPorMenu(page, etiqueta, ruta)
-        await esperarPantalla(page)
+        await lista(page)
+        await esperarFuentesEImagenes(page)
       }
       await cerrarSesion(page)
 

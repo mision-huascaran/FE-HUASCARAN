@@ -33,6 +33,10 @@ const SINCRONIZACIONES = [
 
 const SIN_FILTROS = { id_colegio: '', desde: '', hasta: '', sincronizacion: '' }
 
+/** Un rango al revés no es una búsqueda vacía, es un error de quien lo puso. */
+const RANGO_INVALIDO = 'El rango de fechas no es válido'
+const alReves = ({ desde, hasta }) => Boolean(desde && hasta && desde > hasta)
+
 export default function SeguimientoPage() {
   const enLinea = useConexion()
   // Lo que se esta eligiendo (`borrador`) y lo que de verdad se ha pedido al
@@ -63,6 +67,8 @@ export default function SeguimientoPage() {
     setFiltros(SIN_FILTROS)
   }
 
+  const rangoInvalido = alReves(borrador)
+
   if (!enLinea) {
     return (
       <div className="flex flex-col gap-5">
@@ -91,7 +97,11 @@ export default function SeguimientoPage() {
       </header>
 
       <Card padded={false}>
-        <BarraDeFiltros onFiltrar={() => setFiltros(borrador)} onLimpiar={limpiar}>
+        <BarraDeFiltros
+          filtrarDeshabilitado={rangoInvalido}
+          onFiltrar={() => setFiltros(borrador)}
+          onLimpiar={limpiar}
+        >
           <CeldaFiltro>
             <Select
               label="Colegio"
@@ -102,12 +112,30 @@ export default function SeguimientoPage() {
             />
           </CeldaFiltro>
           {/* El rango es sobre la ÚLTIMA CONEXIÓN: quien nunca entró queda
-              fuera en cuanto se usa, y conviene saberlo antes de extrañarse. */}
+              fuera en cuanto se usa, y conviene saberlo antes de extrañarse.
+
+              Cada campo acota al otro con `max` y `min`, así que el propio
+              calendario del navegador impide elegir un rango al revés. El
+              error se comprueba igual, porque la fecha también se puede
+              teclear. */}
           <CeldaFiltro>
-            <Input label="Conectado desde" type="date" value={borrador.desde} onChange={(e) => cambiar('desde', e.target.value)} />
+            <Input
+              label="Conectado desde"
+              type="date"
+              max={borrador.hasta || undefined}
+              error={rangoInvalido ? RANGO_INVALIDO : undefined}
+              value={borrador.desde}
+              onChange={(e) => cambiar('desde', e.target.value)}
+            />
           </CeldaFiltro>
           <CeldaFiltro>
-            <Input label="Hasta" type="date" value={borrador.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
+            <Input
+              label="Hasta"
+              type="date"
+              min={borrador.desde || undefined}
+              value={borrador.hasta}
+              onChange={(e) => cambiar('hasta', e.target.value)}
+            />
           </CeldaFiltro>
           <CeldaFiltro>
             <Select

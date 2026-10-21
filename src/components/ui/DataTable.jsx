@@ -37,8 +37,11 @@ export default function DataTable({
   loading = false,
   empty,
   paginated = true,
-  pageSizeOptions = [5, 10, 25, 50],
-  initialPageSize = 10,
+  // Cuarenta, que es lo que tiene un salón: así un grado entero cabe en una
+  // sola página y nadie pasa de hoja a mitad de la lista. Las opciones suben
+  // de ahí para los listados grandes y bajan para las pantallas pequeñas.
+  pageSizeOptions = [10, 20, 40, 80],
+  initialPageSize = 40,
   rowClassName,
   onRowClick,
   stickyFirstColumn = false,

@@ -193,7 +193,15 @@ export default function PopupMantenimiento({
             <VistaDetalle campos={camposVisibles} valores={valores} />
           </div>
         ) : (
-        <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${conAuditoria ? 'mt-4' : ''}`}>
+        <div className={conAuditoria ? 'mt-4' : ''}>
+        {/* El asterisco no se explica solo. Sale únicamente si hay algún campo
+            que lo lleve, para no prometer obligatorios donde no los hay. */}
+        {camposVisibles.some((campo) => campo.requerido) && (
+          <p className="mb-4 text-xs text-ink-500">
+            Los campos marcados con <span className="font-semibold text-danger-600">*</span> son obligatorios.
+          </p>
+        )}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {camposVisibles.map((campo) => (
             <CampoMantenimiento
               key={campo.nombre}
@@ -204,6 +212,7 @@ export default function PopupMantenimiento({
               onCambio={cambiar}
             />
           ))}
+        </div>
         </div>
         ))}
     </Modal>

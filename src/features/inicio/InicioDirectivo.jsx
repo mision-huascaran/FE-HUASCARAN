@@ -1,12 +1,17 @@
 // CU012 — Módulo de Inicio del Directivo.
 //
-// Interfaz minimalista y ejecutiva: EXACTAMENTE tres tarjetas y nada más. El
-// caso de uso lo dice expresamente — sin gráficos, sin análisis históricos, sin
+// Interfaz minimalista y ejecutiva: sin gráficos, sin análisis históricos, sin
 // desagregaciones ni nada del futuro Dashboard de Donantes.
+//
+// DOS tarjetas, no tres. CU012 enumera tres e incluye "Salud del sistema",
+// pero esa depende de la sincronización offline que el backend todavía no
+// tiene, así que lo único que podía mostrar era "Sin datos disponibles". Una
+// tarjeta que nunca ha enseñado un dato no informa: ocupa sitio y hace dudar
+// de las dos que sí valen. Se retira hasta que haya qué poner en ella.
 //
 // El Directivo no tiene "Iniciar actividad": esos botones son del Docente.
 import { useQuery } from '@tanstack/react-query'
-import { Activity, School, Users } from 'lucide-react'
+import { School, Users } from 'lucide-react'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import AvisoDatosLocales from './AvisoDatosLocales'
@@ -24,16 +29,12 @@ export default function InicioDirectivo() {
      * peticiones y un conteo en el cliente, que con la conectividad de los
      * colegios era justo lo que no convenía.
      *
-     * `salud_sistema` llega hoy en `null` porque depende de la sincronización
-     * offline, que el backend todavía no tiene. CU012 prohíbe inventar un
-     * porcentaje: se muestra "Sin datos disponibles".
      */
     queryFn: async () => {
       const datos = await obtenerInicioDirectivo()
       return {
         beneficiarios: datos?.beneficiarios_activos ?? 0,
         colegios: datos?.colegios_operando ?? 0,
-        salud: datos?.salud_sistema ?? null,
       }
     },
     enabled: enLinea,
@@ -60,17 +61,9 @@ export default function InicioDirectivo() {
 
       {desactualizado && <AvisoDatosLocales />}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <StatCard icon={Users} label="Total de beneficiarios activos" value={resumen.beneficiarios} />
         <StatCard icon={School} label="Total de colegios operando" value={resumen.colegios} />
-        <StatCard
-          icon={Activity}
-          label="Salud del sistema"
-          // CU012 y §1.5 del contrato: un indicador en `null` se pinta
-          // exactamente como "Sin datos disponibles".
-          value={resumen.salud === null ? 'Sin datos disponibles' : `${resumen.salud}%`}
-          hint={resumen.salud === null ? undefined : 'Sincronización global'}
-        />
       </div>
     </div>
   )
