@@ -6,6 +6,7 @@
 import * as db from './db'
 import * as agregados from './consolidados'
 import { esCorreoValido } from '../../lib/validacion'
+import { sincronizarReloj } from '../../lib/relojServidor'
 
 const RETARDO_MS = 300
 
@@ -13,8 +14,22 @@ function copiar(datos) {
   return structuredClone(datos)
 }
 
+/**
+ * Toda respuesta del simulador ancla el reloj, igual que la cabecera `Date` de
+ * una respuesta real (ver `api/client.js`).
+ *
+ * No es un detalle de pruebas: sin esto, trabajar contra el simulador dejaría
+ * la referencia temporal sin verificar para siempre y CU010 bloquearía todas
+ * las escrituras. El simulador hace de servidor, y un servidor dice qué hora
+ * es.
+ */
 function responder(datos, ms = RETARDO_MS) {
-  return new Promise((resolver) => setTimeout(() => resolver(copiar(datos)), ms))
+  return new Promise((resolver) =>
+    setTimeout(() => {
+      sincronizarReloj(new Date().toISOString())
+      resolver(copiar(datos))
+    }, ms),
+  )
 }
 
 // Marcas de asistencia tomadas durante la sesión (CU022). Viven aquí y no en

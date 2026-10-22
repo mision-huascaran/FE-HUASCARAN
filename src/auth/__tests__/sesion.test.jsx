@@ -65,7 +65,19 @@ describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRo
     expect(useSessionStore.getState().usuario.id_rol).toBe(idRol)
     // RNF-003: el token sobrevive a la recarga pero no al cierre del navegador.
     expect(sessionStorage.getItem('sicedu.token')).toBe(useSessionStore.getState().token)
-    expect(localStorage.length).toBe(0)
+
+    /**
+     * Y NINGUNA credencial en localStorage, que es lo que prohíbe RNF-003.
+     *
+     * Antes esto exigía `localStorage.length === 0`, que decía algo más
+     * fuerte de lo que pide la regla: localStorage sí se usa, y los casos de
+     * uso lo mandan: el ancla del reloj (CU010), las selecciones de filtros
+     * (CU023, CU029, CU031) y el último resumen institucional (CU012). Lo que
+     * no puede haber ahí es el token ni nada de la cuenta.
+     */
+    const claves = Object.keys(localStorage)
+    expect(claves.some((c) => /token|password|contrasena|correo|sesion/i.test(c))).toBe(false)
+    expect(Object.values(localStorage)).not.toContain(useSessionStore.getState().token)
   })
 })
 

@@ -24,7 +24,8 @@ import { useToast } from '../../components/ui/Toast'
 import { encolar } from '../../lib/colaOffline'
 import { motivoDe } from '../../api/client'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
-import { ahora } from '../../lib/relojServidor'
+import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../../lib/relojServidor'
+import useConexion from '../../hooks/useConexion'
 
 // Literales de CU022. Se escriben tal cual porque el caso de uso los da como
 // "el mensaje exacto" y el probador los comprueba palabra por palabra.
@@ -65,6 +66,7 @@ const conAlumno = (clase, idAlumno, marca) =>
  */
 export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activo, claveClase }) {
   const toast = useToast()
+  const enLinea = useConexion()
   const queryClient = useQueryClient()
 
   // Lo que este navegador ha cambiado por encima de lo que vino del servidor,
@@ -98,6 +100,22 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
   const enviar = useCallback(
     async (alumno, campos) => {
       if (!activo) return null
+
+      /**
+       * CU010: sin referencia temporal verificable no se habilitan nuevas
+       * escrituras. Solo aplica SIN CONEXIÓN: con red, la propia petición
+       * reancla el reloj, así que bloquear por adelantado no protegería de
+       * nada y estorbaría. El caso real es recargar la página en el aula, sin
+       * señal y con el reloj del equipo cambiado: ahí no hay forma de saber
+       * qué hora es, y una marca con fecha inventada es peor que no marcar.
+       *
+       * La cola de pendientes NO se toca: esos registros se crearon cuando la
+       * referencia sí valía y el backend revalida sus fechas al sincronizar.
+       */
+      if (!enLinea && !hayContinuidad()) {
+        toast.error('No se puede registrar la asistencia', SIN_REFERENCIA_TEMPORAL)
+        return new Error('sin_referencia_temporal')
+      }
 
       const previo = marcaDe(alumno)
       const siguiente = { ...previo, ...campos }
@@ -151,7 +169,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
         return error
       }
     },
-    [activo, marcaDe, escribir, fecha, idPrograma, toast, claveClase, queryClient],
+    [activo, enLinea, marcaDe, escribir, fecha, idPrograma, toast, claveClase, queryClient],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])
