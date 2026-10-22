@@ -8,6 +8,7 @@
 // que aquí no hay una segunda llamada que pudiera quedarse a medias.
 import { useCallback, useMemo } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import { useToast } from '../../components/ui/Toast'
 import {
@@ -385,6 +386,21 @@ export default function MantenimientoAlumnos() {
           sortable: true,
           sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
           render: (a) => etiquetaDe(a.programa ?? a.subprograma),
+        },
+        // CU015: el detalle del alumno (resumen, lectura, rúbrica y vuelo).
+        {
+          key: 'detalle',
+          header: 'Detalle',
+          align: 'center',
+          render: (a) => (
+            <Link
+              to={`/estudiantes/${idDeAlumno(a)}`}
+              className="text-sm font-semibold text-brand-700 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Ver detalle
+            </Link>
+          ),
         },
       ]}
     />

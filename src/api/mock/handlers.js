@@ -2563,8 +2563,60 @@ export const handlers = {
           ? null
           : { letra: 'J', id_nivel_rk: 10, numero_periodo: 3, nivel_descriptivo: 'Logrado' },
         libros_leidos_anio: sinEvaluar ? 0 : 7,
-        asistencia_porcentaje: sinEvaluar ? 0 : 92.5,
+        asistencia: sinEvaluar
+          ? { porcentaje: null, asistidas: 0, contabilizadas: 0 }
+          : { porcentaje: 92.5, asistidas: 37, contabilizadas: 40 },
       })
+    },
+
+    lecturaAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      if (alumno.id_alumno % 5 === 0) return responder([])
+      return responder([
+        { semana: 23, fecha_inicio: '2026-06-15', fecha_fin: '2026-06-19', mes: 6, id_programa: alumno.id_programa,
+          estado_tabla: 'normal', motivo_no_realizada: null, asistencia: 'presente',
+          lsn_titulo: 'El zorro', lsn_nota: 0, lsn_maximo: 5, cantidad_lsl: 3, total_libros: 4,
+          observacion: null, estado_fila: 'completada' },
+        { semana: 22, fecha_inicio: '2026-06-08', fecha_fin: '2026-06-12', mes: 6, id_programa: alumno.id_programa,
+          estado_tabla: 'no_realizada', motivo_no_realizada: 'Paro de transportistas', asistencia: null,
+          lsn_titulo: null, lsn_nota: null, lsn_maximo: null, cantidad_lsl: null, total_libros: 0,
+          observacion: null, estado_fila: 'no_aplica' },
+      ])
+    },
+
+    rubricaAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      if (alumno.id_alumno % 5 === 0) return responder({ evaluaciones: [] })
+      return responder({
+        evaluaciones: [
+          { mes: 6, fluidez: 'Logrado', comprension: null, estado: 'incompleta', resultado_decimas: null },
+          { mes: 5, fluidez: 'Inicio', comprension: 'En proceso', estado: 'completada', resultado_decimas: 16 },
+        ],
+      })
+    },
+
+    registroVueloAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      const conDecision = alumno.id_alumno % 5 !== 0
+      return responder([1, 2, 3, 4].map((numero) => {
+        const decidido = conDecision && numero <= 2
+        let origen = 'pendiente_periodo_anterior'
+        if (numero === 1) origen = 'grado'
+        else if (conDecision && numero <= 3) origen = 'periodo_anterior'
+        return {
+          numero,
+          id_periodo_academico: numero,
+          entrada: origen === 'pendiente_periodo_anterior' ? null : ['E', 'F', 'G'][numero - 1],
+          origen_entrada: origen,
+          nivel_colocado: decidido ? ['F', 'G'][numero - 1] : null,
+          id_nivel_colocado: decidido ? [7, 8][numero - 1] : null,
+          proyeccion: decidido ? ['G', 'H'][numero - 1] : null,
+          nivel_programa: decidido ? 'En proceso' : null,
+        }
+      }))
     },
 
     alumnos: () =>

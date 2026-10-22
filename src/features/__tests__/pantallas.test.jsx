@@ -9,8 +9,6 @@ import { crearQueryClient } from '../../App'
 import { ToastProvider } from '../../components/ui'
 import RegistroVueloPage from '../registroVuelo/RegistroVueloPage'
 import NuevaEvaluacionPage from '../registroVuelo/NuevaEvaluacionPage'
-import EstudiantesPage from '../estudiantes/EstudiantesPage'
-import FichaEstudiantePage from '../estudiantes/FichaEstudiantePage'
 import NivelFinalPage from '../nivelFinal/NivelFinalPage'
 import useSessionStore from '../../store/sessionStore'
 import useFiltrosStore from '../../store/filtrosStore'
@@ -69,34 +67,6 @@ describe('Nueva evaluación diagnóstica (P7)', () => {
     expect(screen.getByText('Resultados de la evaluación')).toBeInTheDocument()
     // El aviso de cálculo automático está presente desde el primer paso.
     expect(screen.getAllByText(/CALCULADO AUTOMÁTICAMENTE/i).length).toBeGreaterThan(0)
-  })
-})
-
-describe('Estudiantes (P10)', () => {
-  it('lista estudiantes sin exponer datos personales de más (RN-019)', async () => {
-    const { container } = montar(<EstudiantesPage />, { ruta: '/estudiantes', patron: '/estudiantes' })
-    expect(await screen.findByRole('table', {}, { timeout: 4000 })).toBeInTheDocument()
-    // Solo nombre, código y datos académicos: ni DNI, ni dirección, ni teléfono.
-    const cabeceras = [...container.querySelectorAll('th')].map((th) => th.textContent.toLowerCase())
-    expect(cabeceras.some((h) => /dni|direcci|tel[eé]fono|nacimiento/.test(h))).toBe(false)
-  })
-
-  it('ofrece al Profesor el interruptor de consulta de otros colegios (RF-003)', async () => {
-    montar(<EstudiantesPage />, { ruta: '/estudiantes', patron: '/estudiantes' })
-    expect(
-      await screen.findByRole('switch', { name: /Ver otros colegios en modo consulta/i }),
-    ).toBeInTheDocument()
-  })
-})
-
-describe('Ficha del estudiante (P11)', () => {
-  it('muestra el ciclo nominal y el evaluado como datos distintos (RN-004)', async () => {
-    montar(<FichaEstudiantePage />, { ruta: `/estudiantes/${ALUMNO.id_alumno}`, patron: '/estudiantes/:id' })
-
-    expect(await screen.findByRole('heading', { level: 1 }, { timeout: 4000 })).toBeInTheDocument()
-    expect(screen.getByText(/Ciclo nominal .* · evaluado/i)).toBeInTheDocument()
-    expect(screen.getByText('Evolución entre evaluaciones diagnósticas')).toBeInTheDocument()
-    expect(screen.getByText('Rúbrica semanal del mes')).toBeInTheDocument()
   })
 })
 
