@@ -100,10 +100,17 @@ beforeEach(() => {
   fallaElDisco = false
   sinRed = false
   marcar.mockReset()
-  // La respuesta del contrato: `aplicado: true` por registro.
+  // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
+  // `aplicado` ya no existe; lo que hay es `estado: 'aceptada' | 'rechazada'`.
   marcar.mockImplementation(async ({ fecha, registros }) => ({
-    fecha,
-    registros: registros.map((r) => ({ ...r, aplicado: true })),
+    clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+    resultados: registros.map((r) => ({
+      id_operacion: r.id_operacion,
+      estado: 'aceptada',
+      motivo: null,
+      detail: null,
+      registro: { id_clase: 12, id_alumno: r.id_alumno, estado: r.estado ?? null, observacion: r.observacion ?? null },
+    })),
   }))
   useActividadStore.getState().iniciar({ idDocente: 1 })
 })
@@ -127,9 +134,10 @@ describe('Asistencia (CU022)', () => {
     await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
     const enviado = marcar.mock.calls[0][0]
     expect(enviado.registros[0]).toMatchObject({ estado: 'presente' })
-    // La hora REAL del clic, con zona: sin ella un envío encolado se
-    // registraría con la hora de la sincronización (CU022).
-    expect(enviado.fechaRegistro).toEqual(expect.any(String))
+    // La hora REAL del clic, con zona, y DENTRO del registro: la habilitación
+    // se evalúa a esa hora, así que un envío encolado no puede llevar la de la
+    // sincronización (CU022).
+    expect(enviado.registros[0].realizado_en).toEqual(expect.any(String))
   })
 
   it('una clase nueva nace SIN MARCAR, que no es lo mismo que ausente', async () => {
@@ -206,11 +214,18 @@ describe('Asistencia (CU022)', () => {
   })
 
   it('si otro dispositivo gana la carrera, se adopta lo del servidor', async () => {
-    // `aplicado: false` no es un error: significa que otro guardó algo más
-    // reciente. Revertir al valor anterior sería retroceder todavía más.
+    // El ítem vuelve ACEPTADA con `motivo: 'registro_mas_reciente'`, que no es
+    // un error: la operación se procesó, solo que ya había algo posterior.
+    // Revertir al valor anterior sería retroceder todavía más.
     marcar.mockImplementation(async ({ fecha, registros }) => ({
-      fecha,
-      registros: registros.map((r) => ({ id_alumno: r.id_alumno, aplicado: false, estado: 'tardanza', observacion: null })),
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'aceptada',
+        motivo: 'registro_mas_reciente',
+        detail: null,
+        registro: { id_clase: 12, id_alumno: r.id_alumno, estado: 'tardanza', observacion: null },
+      })),
     }))
 
     montar()
@@ -379,11 +394,10 @@ describe('Asistencia (CU022)', () => {
     // Un sábado del año escolar: ninguna semana lectiva lo contiene.
     fireEvent.change(await screen.findByLabelText('Fecha', {}, ESPERA), { target: { value: '2026-04-04' } })
 
-    await screen.findByText(
-      'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
-      {},
-      ESPERA,
-    )
+    // El texto es el del SERVIDOR, no uno de la pantalla: el de
+    // `fecha_no_lectiva` lleva dentro el motivo concreto —fin de semana, un
+    // feriado, una suspensión— que el front no tiene forma de saber.
+    await screen.findByText(/d[ií]a no lectivo/i, {}, ESPERA)
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
   })
 })

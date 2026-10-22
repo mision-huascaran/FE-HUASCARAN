@@ -3,14 +3,15 @@
 // Tres columnas: Alumno, Asistencia (el Segmented Control) y Observación (un
 // globo de texto que abre el modal).
 //
-// Dos señales que importan y que el contrato manda por separado:
+// UNA SOLA SEÑAL, desde la tanda 6: `inactivo`.
 //
-//   · `activo: false` — alumno dado de baja que YA constaba ese día. Solo
-//     aparece al consultar una fecha pasada, y hay que marcarlo o el docente
-//     creerá que sigue matriculado.
-//   · `en_aula: false` — tuvo registro en esta clase pero hoy está en otra
-//     aula (rotó de colegio, grado o subprograma). Su registro sigue siendo de
-//     esta clase, así que se muestra igual.
+// Antes eran dos —`activo` y `en_aula`— porque había que distinguir al dado de
+// baja del que rotó de aula. Ya no hace falta: la clase CONGELA su lista en la
+// primera escritura, así que quien entró sigue en la tabla pase lo que pase
+// después, y lo único que interesa decir es si hoy está inactivo.
+//
+// El nombre llega entero en `nombre`: se acabaron `nombres` y `apellidos` por
+// separado, y con ellos el orden que armaba la fila.
 import { MessageSquare, MessageSquareText } from 'lucide-react'
 import ControlSegmentado from './ControlSegmentado'
 
@@ -26,18 +27,16 @@ function Etiqueta({ children, titulo }) {
 }
 
 export default function FilaAsistencia({ alumno, estado, observacion, soloLectura, alto, onMarcar, onObservar }) {
-  const nombre = `${alumno.nombres} ${alumno.apellidos}`
+  const nombre = alumno.nombre ?? ''
   const conNota = Boolean(observacion)
   const Globo = conNota ? MessageSquareText : MessageSquare
 
   return (
     <tr className="border-t border-line" style={{ height: alto }}>
       <td className="px-4 py-2">
-        <span className="font-medium text-ink-900">{alumno.apellidos}</span>
-        <span className="text-ink-700">{`, ${alumno.nombres}`}</span>
-        {alumno.activo === false && <Etiqueta titulo="Dado de baja: tenía registro este día">Inactivo</Etiqueta>}
-        {alumno.en_aula === false && (
-          <Etiqueta titulo="Hoy pertenece a otra aula; este registro es de esta clase">Rotó de aula</Etiqueta>
+        <span className="font-medium text-ink-900">{nombre}</span>
+        {alumno.inactivo && (
+          <Etiqueta titulo="Dado de baja: estaba en la clase cuando se registró">Inactivo</Etiqueta>
         )}
       </td>
 

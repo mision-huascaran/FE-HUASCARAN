@@ -9,10 +9,15 @@
 // De ahí que se guarde `previo` antes de tocar nada: sin él, "deshacer" sería
 // adivinar, y al tercer clic seguido ya no habría a qué volver.
 //
-// Hay un tercer desenlace que no es un error: `aplicado: false`. Significa que
-// OTRO dispositivo guardó algo más reciente para ese alumno. No se revierte al
-// valor anterior —sería volver a algo aún más viejo—, se adopta lo que manda el
-// servidor, que es quien tiene la verdad.
+// Hay un tercer desenlace que no es un error, y en la tanda 6 cambió de forma:
+// el ítem vuelve ACEPTADA con `motivo: "registro_mas_reciente"`. Significa que
+// otro dispositivo guardó algo posterior para ese alumno. Antes llegaba como
+// `aplicado: false`, que se leía como un fallo y no lo es: la operación se
+// procesó, solo que ganó la otra. No se revierte al valor anterior —sería
+// volver a algo aún más viejo—, se adopta el registro que devuelve el servidor.
+//
+// Y hay un CUARTO: un lote puede responder 200 con ítems RECHAZADOS dentro.
+// Eso sí deshace el clic, porque ese registro no se aplicó.
 //
 // La cola offline hace el resto. Su clave es LA CLASE y el alumno, así que un
 // alumno nunca tiene dos envíos contradictorios esperando: el último sustituye
@@ -69,7 +74,7 @@ const conAlumno = (clase, idAlumno, marca) =>
  * @param claveClase la queryKey de la clase: lo que el servidor confirma se
  *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idSeccion, activo, claveClase }) {
+export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrado, idSeccion, activo, claveClase }) {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -138,35 +143,51 @@ export default function useAutoguardado({ alumnos = [], fecha, idSeccion, activo
           clave: claveDeMarca(alumno.id_alumno, fecha, idSeccion),
           tipo: TIPOS_ENVIO.ASISTENCIA,
           payload: {
+            idColegio,
+            idGrado,
+            idSeccion,
             fecha,
-            // Sin `id_programa`: la asistencia es del alumno en esa clase.
-            registros: [{ id_alumno: alumno.id_alumno, ...campos }],
-            fechaRegistro: momentoDelClic(),
+            /**
+             * Un registro es una OPERACIÓN. La cola le pone su `id_operacion`
+             * al enviar; `realizado_en` es la hora REAL del clic, no la de la
+             * sincronización, y el servidor evalúa la habilitación A ESA HORA:
+             * un permiso que venció hoy pero estaba vigente entonces acepta.
+             */
+            registros: [{ id_alumno: alumno.id_alumno, realizado_en: momentoDelClic(), ...campos }],
           },
-          descripcion: `Asistencia de ${alumno.nombres} ${alumno.apellidos}`,
+          descripcion: `Asistencia de ${alumno.nombre}`,
           // Sin botón de guardar, un apunte local que no queda escrito es un
           // dato perdido en silencio.
           exigePersistencia: true,
         })
 
         /**
-         * `aplicado: false` — otro dispositivo ganó la carrera.
-         *
-         * No es un error ni se revierte: se adopta lo que devuelve el servidor,
-         * porque volver al valor anterior sería retroceder aún más.
+         * El lote responde `resultados`, uno por OPERACIÓN, y puede mezclar
+         * aceptados con rechazados. Lo que importa aquí es el de este alumno.
          */
-        const guardado = respuesta?.registros?.find((r) => r.id_alumno === alumno.id_alumno)
+        const mio = respuesta?.resultados?.find((r) => r.registro?.id_alumno === alumno.id_alumno)
+        const guardado = mio?.registro
+
         // Solo lo que el SERVIDOR confirmó: lo encolado offline no resuelve aún.
         if (guardado && claveClase) {
           const confirmado = confirmadoPor(guardado, siguiente)
           queryClient.setQueryData(claveClase, (previa) => conAlumno(previa, alumno.id_alumno, confirmado))
         }
-        if (guardado?.aplicado === false) {
-          escribir(alumno.id_alumno, { estado: guardado.estado ?? null, observacion: guardado.observacion ?? null })
-          toast.info(
-            'Otro dispositivo lo registró antes',
-            `Se conserva lo último guardado para ${alumno.nombres} ${alumno.apellidos}.`,
-          )
+
+        if (mio?.estado === 'rechazada') {
+          // 200 con un ítem rechazado dentro: no es un fallo de red, es que
+          // ESE registro no se pudo aplicar. El control vuelve atrás.
+          escribir(alumno.id_alumno, previo)
+          toast.error('No se registró la asistencia', mio.detail ?? ERROR_SERVIDOR)
+          return new Error(mio.motivo ?? 'rechazada')
+        }
+
+        if (mio?.motivo === 'registro_mas_reciente') {
+          escribir(alumno.id_alumno, {
+            estado: guardado?.estado ?? null,
+            observacion: guardado?.observacion ?? null,
+          })
+          toast.info('Otro dispositivo lo registró después', `Se conserva lo último guardado para ${alumno.nombre}.`)
         }
         return null
       } catch (error) {
@@ -182,7 +203,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idSeccion, activo
         return error
       }
     },
-    [activo, enLinea, marcaDe, escribir, fecha, idSeccion, toast, claveClase, queryClient],
+    [activo, enLinea, marcaDe, escribir, fecha, idColegio, idGrado, idSeccion, toast, claveClase, queryClient],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])

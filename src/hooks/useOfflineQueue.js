@@ -23,8 +23,19 @@ registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
 // CU022: cada micro-paquete del Auto-save. La clave es alumno-fecha-programa,
 // la misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
 // alumno dos veces deja UN solo envío en la cola y no dos contradictorios.
-registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ fecha, registros, fechaRegistro }) =>
-  guardarAsistencia({ fecha, registros, fechaRegistro }),
+/**
+ * La asistencia va por clase, no por fecha suelta: colegio, grado, sección y
+ * fecha. `id_operacion` lo pone la cola y viaja DENTRO de cada registro,
+ * porque el contrato trata cada fila como una operación independiente.
+ */
+registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ idColegio, idGrado, idSeccion, fecha, registros, id_operacion: idOperacion }) =>
+  guardarAsistencia({
+    idColegio,
+    idGrado,
+    idSeccion,
+    fecha,
+    registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
+  }),
 )
 
 /**
