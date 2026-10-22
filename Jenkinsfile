@@ -362,6 +362,8 @@ pipeline {
         always {
             // El .env solo hace falta para levantar el contenedor.
             sh 'rm -f .env'
+            // Limpia el workspace; los artefactos archivados no se borran.
+            deleteDir()
         }
     }
 }
