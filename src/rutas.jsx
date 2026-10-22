@@ -25,6 +25,7 @@ import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
 import ReportesPage from './features/reportes/ReportesPage'
 import NuevaEvaluacionPage from './features/registroVuelo/NuevaEvaluacionPage'
 import RegistroVueloPage from './features/registroVuelo/RegistroVueloPage'
+import LecturaPage from './features/lectura/LecturaPage'
 import ReporteSemanalPage from './features/reporteSemanal/ReporteSemanalPage'
 import UiKitPage from './features/uiKit/UiKitPage'
 import useSessionStore from './store/sessionStore'
@@ -50,7 +51,11 @@ export const RUTAS_PROTEGIDAS = [
   // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
   { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencia', elemento: <AsistenciaPage /> },
   { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <ReporteSemanalPage pestanaFija="rubrica" /> },
-  { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <ReporteSemanalPage pestanaFija="semanal" /> },
+  // La pantalla de Lectura ya no comparte grilla con Rúbrica: desde la tanda 7
+  // su unidad es la TABLA SEMANAL, con su clase de referencia y su versión, y
+  // no una fila por alumno. Rúbrica sigue en la pantalla compartida hasta que
+  // se rehaga como evaluación MENSUAL (tanda 8).
+  { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <LecturaPage /> },
   { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloPage /> },
   { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
   // CU017 a CU019: solo el Docente, y solo sus propias sesiones.

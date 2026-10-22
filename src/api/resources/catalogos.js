@@ -40,5 +40,29 @@ export const obtenerEsperadoPorGrado = () =>
 export const obtenerPeriodos = () =>
   resolver({ mock: () => handlers.catalogos.periodos(), real: () => api.get(catalogos.periodos) })
 
-export const obtenerSemanas = () =>
-  resolver({ mock: () => handlers.catalogos.semanas(), real: () => api.get(catalogos.semanas) })
+/**
+ * `GET /semanas` — YA NO ES UN CATÁLOGO, pese a seguir donde estaba.
+ *
+ * Desde la tanda 7 los cinco filtros son obligatorios y devuelve solo las
+ * semanas del año con ALGUNA CLASE de ese grupo en ese mes. Es un cambio de
+ * fondo, no de firma: una semana sin clase no tiene tabla de lectura ni
+ * obligación de registrarla, así que ofrecerla en el desplegable era mandar al
+ * docente a una pantalla donde solo podía encontrarse un 422.
+ *
+ * Y ya no acepta `id_periodo_academico`: la semana cubre el año escolar
+ * completo, de lunes a viernes, sin depender de los periodos.
+ */
+export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSeccion } = {}) =>
+  resolver({
+    mock: () => handlers.catalogos.semanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion }),
+    real: () =>
+      api.get(catalogos.semanas, {
+        params: {
+          id_anio_escolar: Number(idAnioEscolar),
+          mes: Number(mes),
+          id_colegio: Number(idColegio),
+          id_grado: Number(idGrado),
+          id_seccion: Number(idSeccion),
+        },
+      }),
+  })

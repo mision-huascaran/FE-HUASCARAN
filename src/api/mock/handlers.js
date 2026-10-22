@@ -131,6 +131,151 @@ const claveDeClase = (idColegio, idGrado, idSeccion, fecha) => `${idColegio}|${i
 /** Clases creadas durante la sesion, con su lista congelada y sus marcas. */
 const CLASES_MOCK = {}
 
+// ── Tablas de lectura semanal (CU023 a CU026) ───────────────────────────────
+//
+// La tabla es grupo x subprograma x semana, y su MES es el de su clase de
+// referencia: una semana partida entre dos meses va entera en el mes de su
+// clase. Por eso el mes forma parte de la clave y no se deduce de la semana.
+const TABLAS_LECTURA = {}
+let ultimoIdTabla = 300
+const siguienteIdTabla = () => ++ultimoIdTabla
+
+const claveDeTabla = ({ idColegio, idPrograma, idGrado, idSeccion, mes, idSemana }) =>
+  `${idColegio}|${idGrado}|${idSeccion}|${idPrograma}|${mes}|${idSemana}`
+
+const porIdDeTabla = (id) => {
+  const tabla = Object.values(TABLAS_LECTURA).find((t) => Number(t.id) === Number(id))
+  if (!tabla) throw errorMock(404, 'La tabla de lectura no se encuentra disponible.', 'tabla_no_encontrada')
+  return tabla
+}
+
+/**
+ * La version que se leyo tiene que seguir siendo la vigente.
+ *
+ * Sin esto, dos docentes editando la misma tabla se pisaban sin enterarse: el
+ * segundo guardaba encima y el primero nunca sabia que su cambio se perdio.
+ */
+function exigirVersionDeTabla(tabla, version) {
+  if (version != null && Number(version) !== Number(tabla.version)) {
+    throw errorMock(
+      409,
+      'La tabla fue modificada por otro usuario. Vuelve a consultarla e intentalo de nuevo.',
+      'modificacion_concurrente',
+    )
+  }
+}
+
+/** Datos de LECTURA. Una observacion NO cuenta: el contrato lo dice aparte. */
+const conDatosDeLectura = (d) =>
+  d != null && [d.lsn_titulo, d.lsn_nota, d.lsn_maximo, d.cantidad_lsl].some((v) => v != null)
+
+/** Un envio que solo BORRA (todo en null): se admite incluso con ausente. */
+const soloBorra = (f) =>
+  ['lsn_titulo', 'lsn_nota', 'lsn_maximo', 'cantidad_lsl'].every((c) => !(c in f) || f[c] === null)
+
+/**
+ * La clase de referencia que se propone para una semana.
+ *
+ * La habitual o reprogramada; `null` si la semana solo tiene adicionales, y
+ * entonces el docente tiene que elegir una. En el simulador se toma el lunes,
+ * que es la habitual, y se marca `id_clase: null` si todavia no tiene fila:
+ * para elegirla se usa su fecha.
+ */
+function claseSugeridaDe(semana) {
+  if (!esDiaLectivo(semana.inicio)) return null
+  const claveDelLunes = Object.keys(CLASES_MOCK).find((k) => k.endsWith(`|${semana.inicio}`))
+  return {
+    id_clase: CLASES_MOCK[claveDelLunes]?.id_clase ?? null,
+    fecha: semana.inicio,
+    tipo: 'habitual',
+    reprogramada: false,
+  }
+}
+
+/** La asistencia de un alumno en la clase de referencia de la tabla. */
+const asistenciaEnReferencia = (tabla, idAlumno) =>
+  CLASES_MOCK[tabla.clave_clase]?.marcas?.[idAlumno]?.estado ?? null
+
+const asistioALaReferencia = (tabla, idAlumno) =>
+  ['presente', 'tardanza'].includes(asistenciaEnReferencia(tabla, idAlumno))
+
+/**
+ * Una fila de la tabla: el alumno, su asistencia y sus libros.
+ *
+ * `total_libros` se CALCULA —(1 si hay LSN) + los LSL— y no es editable: es un
+ * dato derivado, y dejar que el cliente lo mandara seria admitir que cuadre
+ * mal. `cantidad_lsl: null` NO es cero: es "no registrado", y de ahi que la
+ * fila siga pendiente en vez de darse por completada con cero libros.
+ */
+function filaDe(tabla, idAlumno) {
+  const clase = CLASES_MOCK[tabla.clave_clase]
+  const alumno = (clase?.lista ?? []).find(
+    (a) => Number(a.id_alumno) === Number(idAlumno) && Number(a.id_programa) === Number(tabla.id_programa),
+  )
+  if (!alumno) return null
+
+  const d = tabla.datos[idAlumno] ?? {}
+  const asistencia = asistenciaEnReferencia(tabla, idAlumno)
+  const presente = ['presente', 'tardanza'].includes(asistencia)
+  const hayLsn = d.lsn_titulo != null
+  const lsl = d.cantidad_lsl ?? null
+
+  const noAplica = tabla.estado === 'no_realizada' || asistencia === 'ausente'
+  const estadoFila = noAplica ? 'no_aplica' : presente && lsl != null ? 'completada' : 'pendiente'
+
+  return {
+    id_alumno: alumno.id_alumno,
+    nombre: `${alumno.apellidos}, ${alumno.nombres}`,
+    inactivo: alumno.activo === false,
+    asistencia,
+    // El nivel academico lo completa el Registro de Vuelo (tanda 9).
+    nivel_academico: null,
+    lsn_titulo: d.lsn_titulo ?? null,
+    lsn_nota: d.lsn_nota ?? null,
+    lsn_maximo: d.lsn_maximo ?? null,
+    cantidad_lsl: lsl,
+    total_libros: (hayLsn ? 1 : 0) + (lsl ?? 0),
+    observacion: d.observacion ?? null,
+    estado_fila: estadoFila,
+    // Tiene libros guardados pero HOY consta ausente: alguien corrigio la
+    // asistencia despues. No se borra nada solo; se avisa para que el docente
+    // decida, que es lo que pide CU024.
+    revisar_asistencia: Boolean(conDatosDeLectura(d) && asistencia === 'ausente'),
+    version: d.version ?? null,
+  }
+}
+
+/** La tabla con sus filas ya armadas, que es como la devuelve el servidor. */
+function conFilas(tabla) {
+  const clase = CLASES_MOCK[tabla.clave_clase]
+  const filas = (clase?.lista ?? [])
+    .filter((a) => Number(a.id_programa) === Number(tabla.id_programa))
+    .map((a) => filaDe(tabla, a.id_alumno))
+    .filter(Boolean)
+
+  return {
+    id: tabla.id,
+    version: tabla.version,
+    estado: tabla.estado,
+    motivo_no_realizada: tabla.motivo_no_realizada,
+    id_colegio: tabla.id_colegio,
+    id_grado: tabla.id_grado,
+    id_seccion: tabla.id_seccion,
+    id_programa: tabla.id_programa,
+    id_anio_escolar: tabla.id_anio_escolar,
+    mes: tabla.mes,
+    id_semana: tabla.id_semana,
+    clase_referencia: {
+      id_clase: clase?.id_clase ?? null,
+      fecha: tabla.clave_clase.split('|').at(-1),
+      tipo: clase?.tipo ?? 'habitual',
+      reprogramada: false,
+    },
+    filas,
+    escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+  }
+}
+
 let ultimoIdClase = 10
 const siguienteIdClase = () => (ultimoIdClase += 1)
 
@@ -1047,6 +1192,244 @@ export const handlers = {
     },
   },
 
+  /**
+   * Seguimiento de Lectura (CU023 a CU026), forma de la tanda 7.
+   *
+   * Reproduce lo que de verdad ramifica la pantalla:
+   *
+   *   · La tabla NO EXISTE hasta que alguien la crea. El 404 con
+   *     `tabla_no_existe` es la respuesta normal, no un fallo, y trae la clase
+   *     sugerida para poder crearla.
+   *   · Las filas son la lista de la clase de referencia filtrada por el
+   *     subprograma de la tabla.
+   *   · Sin presente o tardanza no se registran libros, pero la observacion
+   *     si se admite: justificar la falta es justo lo que hace falta ahi.
+   *   · "No realizada" bloquea TAMBIEN las observaciones y pone todas las
+   *     filas en `no_aplica`.
+   */
+  lectura: {
+    tabla: async ({ idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }) => {
+      const clave = claveDeTabla({ idColegio, idPrograma, idGrado, idSeccion, mes, idSemana })
+      const guardada = TABLAS_LECTURA[clave]
+      if (guardada) return responder(conFilas(guardada))
+
+      const semana = db.SEMANAS.find((s) => Number(s.id_semana) === Number(idSemana))
+      if (!semana) throw errorMock(404, 'La semana seleccionada no existe.', 'semana_no_encontrada')
+
+      const error = errorMock(
+        404,
+        'No existe una tabla de lectura semanal para los filtros seleccionados.',
+        'tabla_no_existe',
+      )
+      error.response.data.clase_referencia_sugerida = claseSugeridaDe(semana)
+      error.response.data.escritura = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
+      error.response.data.id_anio_escolar = Number(idAnioEscolar)
+      throw error
+    },
+
+    crear: async (cuerpo) => {
+      const clave = claveDeTabla({
+        idColegio: cuerpo.id_colegio,
+        idPrograma: cuerpo.id_programa,
+        idGrado: cuerpo.id_grado,
+        idSeccion: cuerpo.id_seccion,
+        mes: cuerpo.mes,
+        idSemana: cuerpo.id_semana,
+      })
+      // Idempotente por `id_operacion`: un reintento devuelve LA MISMA tabla.
+      const existente = TABLAS_LECTURA[clave]
+      if (existente) {
+        if (existente.id_operacion === cuerpo.id_operacion) return responder(conFilas(existente))
+        const choque = errorMock(
+          409,
+          'Ya existe una tabla de lectura semanal para los filtros seleccionados.',
+          'tabla_existente',
+        )
+        choque.response.data.id = existente.id
+        throw choque
+      }
+
+      const semana = db.SEMANAS.find((s) => Number(s.id_semana) === Number(cuerpo.id_semana))
+      if (!semana) throw errorMock(404, 'La semana seleccionada no existe.', 'semana_no_encontrada')
+      if (semana.inicio > hoyLima()) {
+        throw errorMock(
+          422,
+          'No es posible adelantar registros. Seleccione la semana actual o una anterior.',
+          'semana_futura',
+        )
+      }
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(cuerpo.id_colegio), grado: Number(cuerpo.id_grado) })
+        .filter((a) => Number(a.id_programa) === Number(cuerpo.id_programa))
+      if (alumnos.length === 0) {
+        throw errorMock(
+          422,
+          'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.',
+          'sin_alumnos',
+        )
+      }
+
+      const porId = cuerpo.id_clase_referencia
+        ? Object.keys(CLASES_MOCK).find((k) => CLASES_MOCK[k].id_clase === Number(cuerpo.id_clase_referencia))
+        : null
+      const fecha =
+        porId?.split('|').at(-1) ?? cuerpo.fecha_clase_referencia ?? claseSugeridaDe(semana)?.fecha ?? semana.inicio
+      // Crear la tabla CONGELA la lista de la clase, y crea la clase si no
+      // tenia fila: es lo que hace el servidor en la misma transaccion.
+      const claveClase = claveDeClase(cuerpo.id_colegio, cuerpo.id_grado, cuerpo.id_seccion, fecha)
+      if (!CLASES_MOCK[claveClase]) {
+        CLASES_MOCK[claveClase] = {
+          id_clase: siguienteIdClase(),
+          tipo: 'habitual',
+          lista: db.alumnosDe({ colegio: Number(cuerpo.id_colegio), grado: Number(cuerpo.id_grado) }),
+          marcas: {},
+        }
+      }
+
+      TABLAS_LECTURA[clave] = {
+        id: siguienteIdTabla(),
+        id_operacion: cuerpo.id_operacion,
+        version: 1,
+        estado: 'normal',
+        motivo_no_realizada: null,
+        id_colegio: Number(cuerpo.id_colegio),
+        id_grado: Number(cuerpo.id_grado),
+        id_seccion: Number(cuerpo.id_seccion),
+        id_programa: Number(cuerpo.id_programa),
+        id_anio_escolar: Number(cuerpo.id_anio_escolar),
+        mes: Number(cuerpo.mes),
+        id_semana: Number(cuerpo.id_semana),
+        clave_clase: claveClase,
+        datos: {},
+      }
+      return responder(conFilas(TABLAS_LECTURA[clave]), RETARDO_ESCRITURA_MS)
+    },
+
+    claseReferencia: async (idTabla, { version, idClase, fecha }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (tabla.estado === 'no_realizada') {
+        throw errorMock(409, 'La lectura semanal de esta tabla fue marcada como no realizada.', 'lectura_no_realizada')
+      }
+      if (Object.values(tabla.datos).some(conDatosDeLectura)) {
+        throw errorMock(
+          409,
+          'No es posible cambiar la clase de referencia porque ya existen registros de lectura guardados para esta tabla.',
+          'tabla_con_datos',
+        )
+      }
+      const nueva = fecha
+        ? claveDeClase(tabla.id_colegio, tabla.id_grado, tabla.id_seccion, fecha)
+        : Object.keys(CLASES_MOCK).find((k) => CLASES_MOCK[k].id_clase === Number(idClase))
+      if (!nueva) {
+        throw errorMock(422, 'La clase seleccionada no es de este grupo o de esta semana.', 'clase_fuera_de_la_semana')
+      }
+      tabla.clave_clase = nueva
+      tabla.version += 1
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+
+    guardarFilas: async (idTabla, filas = []) => {
+      const tabla = porIdDeTabla(idTabla)
+
+      const resultados = filas.map((f) => {
+        const rechazo = (motivo, detail) => ({
+          id_operacion: f.id_operacion,
+          estado: 'rechazada',
+          motivo,
+          detail,
+          registro: null,
+        })
+
+        if (tabla.estado === 'no_realizada') {
+          return rechazo('lectura_no_realizada', 'La lectura semanal de esta tabla fue marcada como no realizada.')
+        }
+
+        if (!filaDe(tabla, f.id_alumno)) {
+          return rechazo(
+            'alumno_fuera_de_la_tabla',
+            'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
+          )
+        }
+
+        // Un titulo con SOLO ESPACIOS cuenta como vacio.
+        const titulo = typeof f.lsn_titulo === 'string' ? f.lsn_titulo.trim() || null : f.lsn_titulo
+        const tocaLibros = ['lsn_titulo', 'lsn_nota', 'lsn_maximo', 'cantidad_lsl'].some((c) => c in f)
+
+        // Sin presente o tardanza no hay libros; la observacion si pasa, y
+        // BORRAR tambien: es como se resuelve un `revisar_asistencia`.
+        if (tocaLibros && !soloBorra(f) && !asistioALaReferencia(tabla, f.id_alumno)) {
+          return rechazo(
+            'sin_asistencia',
+            'El estudiante debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
+          )
+        }
+
+        const guardado = tabla.datos[f.id_alumno] ?? {}
+        const nota = 'lsn_nota' in f ? f.lsn_nota : guardado.lsn_nota
+        const maximo = 'lsn_maximo' in f ? f.lsn_maximo : guardado.lsn_maximo
+        const tituloFinal = 'lsn_titulo' in f ? titulo : guardado.lsn_titulo
+        const partes = [tituloFinal, nota, maximo]
+
+        if (partes.some((v) => v != null) && partes.some((v) => v == null)) {
+          return rechazo(
+            'lsn_incompleto',
+            'Para registrar un LSN, completa el titulo, la nota obtenida y el puntaje maximo.',
+          )
+        }
+        if (partes.every((v) => v != null) && (![5, 10].includes(Number(maximo)) || nota < 0 || nota > Number(maximo))) {
+          return rechazo('lsn_invalido', 'Selecciona un maximo de 5 o 10 e ingresa una nota entre 0 y ese maximo.')
+        }
+
+        tabla.datos[f.id_alumno] = {
+          ...guardado,
+          ...('lsn_titulo' in f ? { lsn_titulo: titulo } : {}),
+          ...('lsn_nota' in f ? { lsn_nota: f.lsn_nota } : {}),
+          ...('lsn_maximo' in f ? { lsn_maximo: f.lsn_maximo } : {}),
+          ...('cantidad_lsl' in f ? { cantidad_lsl: f.cantidad_lsl } : {}),
+          ...('observacion' in f ? { observacion: f.observacion } : {}),
+          version: (guardado.version ?? 0) + 1,
+        }
+
+        return {
+          id_operacion: f.id_operacion,
+          estado: 'aceptada',
+          motivo: null,
+          detail: null,
+          registro: filaDe(tabla, f.id_alumno),
+        }
+      })
+
+      return responder(resultados, RETARDO_ESCRITURA_MS)
+    },
+
+    noRealizada: async (idTabla, { version, motivo }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (!motivo || !String(motivo).trim()) {
+        throw errorMock(
+          422,
+          'Es obligatorio registrar una justificacion para indicar por que no se realizo la lectura semanal.',
+          'validacion',
+        )
+      }
+      // Las observaciones NO cuentan como datos de lectura.
+      if (Object.values(tabla.datos).some(conDatosDeLectura)) {
+        throw errorMock(
+          409,
+          'No es posible marcar la lectura semanal como no realizada porque ya existen registros de lectura guardados para esta tabla.',
+          'tabla_con_datos',
+        )
+      }
+      tabla.estado = 'no_realizada'
+      tabla.motivo_no_realizada = String(motivo).trim()
+      tabla.version += 1
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+  },
+
+
   /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
   sesiones: {
     /**
@@ -1256,7 +1639,41 @@ export const handlers = {
     nivelGeneral: () => responder(db.NIVEL_GENERAL),
     esperadoPorGrado: () => responder(db.NIVEL_ESPERADO_POR_GRADO),
     periodos: () => responder(db.PERIODOS),
-    semanas: () => responder(db.SEMANAS),
+    /**
+     * `GET /semanas` — solo las semanas con ALGUNA CLASE del grupo en ese mes.
+     *
+     * Antes devolvia el ano entero. Una semana sin clase no tiene tabla de
+     * lectura ni obligacion de registrarla, asi que ofrecerla en el
+     * desplegable era mandar al docente a una pantalla donde lo unico que
+     * podia encontrarse era un 422.
+     *
+     * DEUDA CONOCIDA, y conviene no perderla de vista: el simulador sigue
+     * mandando `numero`, `inicio`, `fin`, `mes` y `anio` ademas de los campos
+     * del contrato. No es por compatibilidad bonita, es que CUATRO pantallas
+     * anteriores a esta tanda —Nivel final, Consolidados, el detalle del
+     * alumno y el resumen del Inicio— usan esta llamada SIN FILTROS como si
+     * fuera el catalogo de semanas del ano, y de ahi sacan su lista de meses y
+     * "la semana actual". Contra el backend real esa llamada sin los cinco
+     * filtros responde 422, asi que esas cuatro se rompen el dia que se
+     * conecten: necesitan otra fuente para los meses, no esta.
+     */
+    semanas: ({ mes } = {}) =>
+      responder(
+        db.SEMANAS.filter((s) => !mes || Number(s.mes) === Number(mes)).map((s) => ({
+          id: s.id_semana,
+          id_semana: s.id_semana,
+          numero_semana: s.numero,
+          fecha_inicio: s.inicio,
+          fecha_fin: s.fin,
+          cerrada: false,
+          // Lo que esperan las cuatro pantallas de antes de la tanda 7.
+          numero: s.numero,
+          inicio: s.inicio,
+          fin: s.fin,
+          mes: s.mes,
+          anio: s.anio,
+        })),
+      ),
   },
 
   alumnos: {
@@ -1876,6 +2293,18 @@ export const handlers = {
       return responder({ ok: true }, RETARDO_ESCRITURA_MS)
     },
   },
+}
+
+/**
+ * Vacia el estado que el simulador acumula durante la sesion.
+ *
+ * Solo para las pruebas. Las clases y las tablas de lectura viven en modulo, y
+ * sin esto una prueba hereda lo que creo la anterior: crear la misma tabla dos
+ * veces responde 409 con razon, pero el fallo aparece en la prueba equivocada.
+ */
+export function _reiniciarSimulador() {
+  Object.keys(CLASES_MOCK).forEach((k) => delete CLASES_MOCK[k])
+  Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
 }
 
 export default handlers
