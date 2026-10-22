@@ -287,14 +287,18 @@ export default function MantenimientoUsuarios() {
         entidad="cuenta"
         titulo="Usuarios"
         /**
-         * "Ver detalle" solo en las filas de Docente: Supervisores y
-         * Directivos no tienen permisos de corrección ni nada más que
-         * enseñar. En sus filas el hueco se reserva, para que la columna de
-         * acciones no baile de una fila a otra.
+         * Solo en las filas de Docente: Supervisores y Directivos no tienen
+         * permisos de corrección ni nada más que enseñar. En sus filas el
+         * hueco se reserva, para que la columna de acciones no baile.
+         *
+         * Dice "Otorgar permisos" y no "Ver detalle" porque es lo que se va a
+         * hacer ahí, y porque junto al "Ver" de al lado eran dos ojos seguidos
+         * que no se distinguían y llevaban a sitios distintos.
          */
         verDetalle={{
           abrir: setDocenteAbierto,
           aplicaA: esDocente,
+          etiqueta: 'Otorgar permisos',
         }}
         consulta={consulta}
         campos={campos}

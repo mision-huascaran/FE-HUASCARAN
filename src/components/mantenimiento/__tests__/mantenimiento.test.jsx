@@ -181,6 +181,29 @@ describe('Plantilla de mantenimiento', () => {
     expect(onCambiarEstado).toHaveBeenCalledWith(expect.anything(), false)
   })
 
+  it('el acceso al detalle dice ADÓNDE lleva, y no compite con "Ver"', () => {
+    /**
+     * Llevaba un ojo y decía "Ver detalle", justo al lado del "Ver" que abre
+     * la ficha: dos botones con el mismo icono y casi el mismo texto que
+     * llevaban a sitios distintos. Ahora cada sección pone su etiqueta.
+     */
+    const abrir = vi.fn()
+    montar(ROLES.SUPERVISOR, { verDetalle: { abrir, etiqueta: 'Otorgar permisos' } })
+
+    const boton = screen.getAllByRole('button', { name: /otorgar permisos/i })[0]
+    fireEvent.click(boton)
+    expect(abrir).toHaveBeenCalled()
+    // Y el "Ver" de la ficha sigue existiendo, aparte.
+    expect(screen.getAllByRole('button', { name: /^visualizar/i }).length).toBeGreaterThan(0)
+  })
+
+  it('sin detalle que ver, la fila no ofrece el botón', () => {
+    // En Usuarios solo los Docentes lo tienen; el hueco se reserva para que
+    // la columna de acciones no baile de una fila a otra.
+    montar(ROLES.SUPERVISOR, { verDetalle: { abrir: vi.fn(), etiqueta: 'Otorgar permisos', aplicaA: () => false } })
+    expect(screen.queryByRole('button', { name: /otorgar permisos/i })).toBeNull()
+  })
+
   it('el formulario explica para qué es el asterisco', () => {
     montar()
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }))

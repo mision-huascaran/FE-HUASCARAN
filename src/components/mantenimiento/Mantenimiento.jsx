@@ -7,7 +7,7 @@
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
 import { useMemo, useState } from 'react'
-import { Ban, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { Ban, ClipboardList, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -62,9 +62,14 @@ export default function Mantenimiento({
    */
   fechaEfectiva = null,
   /**
-   * `{abrir, aplicaA?}` para ofrecer "Ver detalle" en la fila. `aplicaA`
-   * decide en cuáles: en Usuarios solo los Docentes tienen detalle, y en las
-   * demás filas el hueco se reserva para no desalinear la columna.
+   * `{abrir, aplicaA?, etiqueta?, icono?}` para ofrecer el acceso a la vista
+   * de detalle en la fila.
+   *
+   * `etiqueta` e `icono` se pasan porque cada sección va a un sitio distinto y
+   * conviene que el botón lo diga: en Usuarios lleva al registro de permisos
+   * del Docente, no a "un detalle". `aplicaA` decide en qué filas aparece —en
+   * Usuarios solo los Docentes lo tienen— y en las demás el hueco se reserva
+   * para no desalinear la columna.
    */
   verDetalle = null,
   guardando = false,
@@ -176,24 +181,35 @@ export default function Mantenimiento({
       align: 'center',
       render: (fila) => (
         <div className="flex items-center justify-center gap-1">
-          {/* "Ver detalle" abre una VISTA dentro de la SPA, no el popup: es lo
-              que piden CU013 y CU016 para el detalle del colegio y el del
-              docente. Solo se ofrece donde hay detalle que ver, y en las demás
-              filas se reserva el hueco para que la columna no baile. */}
+          {/* Abre una VISTA dentro de la SPA, no el popup: es lo que piden
+              CU013 y CU016 para el detalle del colegio y el del docente.
+
+              NO DICE "Ver detalle" NI LLEVA UN OJO. Quedaba junto al "Ver" de
+              al lado, con el mismo icono y casi el mismo texto: dos ojos
+              seguidos que no se distinguían y que llevaban a sitios distintos.
+              Ahora el texto dice a qué se va y el icono lo acompaña. Es una
+              libreta y no un "+" porque el botón abre el registro de permisos
+              —donde se consulta, se otorga y se revoca—, no un formulario de
+              alta: un "+" prometería que se abre el modal de golpe.
+
+              Los CU todavía lo llaman "Ver detalle"; los analistas lo
+              corregirán. Solo se ofrece donde hay detalle que ver, y en las
+              demás filas se reserva el hueco para que la columna no baile. */}
           {verDetalle &&
             (verDetalle.aplicaA?.(fila) ?? true ? (
               <Button
                 size="sm"
                 variant="ghost"
-                iconLeft={Eye}
-                title="Ver detalle"
-                aria-label={`Ver detalle de ${fila.nombre ?? entidad}`}
+                iconLeft={verDetalle.icono ?? ClipboardList}
+                title={verDetalle.etiqueta ?? 'Ver detalle'}
+                aria-label={`${verDetalle.etiqueta ?? 'Ver detalle'} de ${fila.nombre ?? entidad}`}
                 onClick={() => verDetalle.abrir(fila)}
               >
-                Ver detalle
+                {verDetalle.etiqueta ?? 'Ver detalle'}
               </Button>
             ) : (
-              <span aria-hidden="true" className="inline-block w-[7.5rem]" />
+              // El hueco se mide por el texto más largo que puede ocupar.
+              <span aria-hidden="true" className="inline-block w-[9.5rem]" />
             ))}
           <Button
             size="sm"
