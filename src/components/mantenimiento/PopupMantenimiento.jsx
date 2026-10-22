@@ -12,6 +12,7 @@ import Skeleton from '../ui/Skeleton'
 import Tabs from '../ui/Tabs'
 import CampoMantenimiento from './CampoMantenimiento'
 import PestanaAuditoria from './PestanaAuditoria'
+import { MOSTRAR_AUDITORIA } from '../../config/funcionalidades'
 import VistaDetalle from './VistaDetalle'
 
 const TITULO = { nuevo: 'Nuevo', editar: 'Editar', ver: 'Visualizar' }
@@ -188,8 +189,9 @@ export default function PopupMantenimiento({
     onGuardar(sinLosOcultos(campos, valores))
   }
 
-  // La auditoría solo tiene sentido sobre un registro que ya existe.
-  const conAuditoria = puedeVerAuditoria && modo !== 'nuevo' && Boolean(registro)
+  // La auditoría solo tiene sentido sobre un registro que ya existe. Con el
+  // interruptor apagado no hay pestañas ni margen: solo los datos.
+  const conAuditoria = MOSTRAR_AUDITORIA && puedeVerAuditoria && modo !== 'nuevo' && Boolean(registro)
 
   return (
     <Modal

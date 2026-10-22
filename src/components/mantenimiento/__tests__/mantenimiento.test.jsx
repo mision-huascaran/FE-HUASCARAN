@@ -11,6 +11,7 @@ import { ToastProvider } from '../../ui'
 import Mantenimiento from '../Mantenimiento'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
+import { MOSTRAR_AUDITORIA } from '../../../config/funcionalidades'
 
 const FILAS = [
   { id_colegio: 1, nombre: 'I.E. 86021 Ranrahirca', zona: 'Yungay', activo: true },
@@ -128,6 +129,21 @@ describe('Plantilla de mantenimiento', () => {
     expect(within(dialogo).queryAllByRole('combobox')).toHaveLength(0)
     expect(within(dialogo).queryAllByRole('checkbox')).toHaveLength(0)
     expect(within(dialogo).queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  it('con MOSTRAR_AUDITORIA en false, Ver no ofrece la pestaña Auditoría ni deja pestañas sueltas', async () => {
+    // El Supervisor SÍ tiene permiso de auditoría en Colegios: lo que la oculta
+    // es el interruptor, no la matriz.
+    expect(MOSTRAR_AUDITORIA).toBe(false)
+    const cargarAuditoria = vi.fn(async () => [])
+    montar(ROLES.SUPERVISOR, { cargarAuditoria })
+    fireEvent.click(screen.getByRole('button', { name: /^visualizar I\.E\. 86021/i }))
+
+    const dialogo = screen.getByRole('dialog')
+    await waitFor(() => expect(within(dialogo).getByText('Nombre del colegio')).toBeInTheDocument())
+    expect(within(dialogo).queryByRole('tab', { name: 'Auditoría' })).not.toBeInTheDocument()
+    expect(within(dialogo).queryByRole('tablist')).not.toBeInTheDocument()
+    expect(cargarAuditoria).not.toHaveBeenCalled()
   })
 
   it('busca mientras se escribe, sin pulsar "Filtrar" y sin una consulta por tecla', async () => {
