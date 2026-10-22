@@ -57,11 +57,17 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     await evidencia(page, 'inicio-supervisora')
   })
 
-  test('Directivo: llega a Inicio con sus 2 tarjetas institucionales (CU012)', async ({ page }) => {
+  test('Directivo: llega a Inicio con sus 3 tarjetas institucionales (CU012)', async ({ page }) => {
     await iniciarSesion(page, 'directivo')
 
-    // CU012: 'Salud del sistema' retirada a pedido de QA (oct-2026); el CU aún la lista, pendiente de actualizar por analistas.
-    await expect(tarjetas(page)).toHaveCount(2)
+    /**
+     * TRES tarjetas. La retirada de "Salud del sistema" se revirtió: CU012 la
+     * enumera, trae su fórmula y hasta su caso vacío —"Sin datos disponibles"
+     * cuando el servidor no puede calcularla—. Que hoy llegue siempre en
+     * `null` no es un fallo: es ese flujo alternativo. Desmontarla obligaría a
+     * volver a construirla en cuanto el backend reporte la cola offline.
+     */
+    await expect(tarjetas(page)).toHaveCount(3)
     for (const etiqueta of ['Total de beneficiarios activos', 'Total de colegios operando']) {
       await expect(valorDeTarjeta(page, etiqueta), `valor de «${etiqueta}»`).not.toBeEmpty()
     }
