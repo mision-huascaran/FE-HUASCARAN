@@ -2,12 +2,8 @@
 // cachean por toda la sesión y no se vuelven a pedir al cambiar de pantalla.
 import { useQuery } from '@tanstack/react-query'
 import {
-  obtenerColegios,
-  obtenerGrados,
   obtenerNivelesRazkids,
   obtenerNivelesRubrica,
-  obtenerPeriodos,
-  obtenerProgramas,
 } from '../api/resources/catalogos'
 import {
   listarColegiosAdmin,
@@ -20,23 +16,10 @@ const OPCIONES_CATALOGO = { staleTime: Infinity, gcTime: Infinity }
 const useCatalogo = (clave, fn, opciones) =>
   useQuery({ queryKey: clave, queryFn: fn, ...OPCIONES_CATALOGO, ...opciones })
 
-export const useColegios = () => useCatalogo(['catalogo', 'colegios'], obtenerColegios)
-export const useGrados = () => useCatalogo(['catalogo', 'grados'], obtenerGrados)
-export const useProgramas = () => useCatalogo(['catalogo', 'programas'], obtenerProgramas)
 export const useNivelesRazkids = () => useCatalogo(['catalogo', 'niveles-razkids'], obtenerNivelesRazkids)
-export const usePeriodos = () => useCatalogo(['catalogo', 'periodos'], obtenerPeriodos)
 
-// ── Los mismos catálogos, pero del backend DE VERDAD ────────────────────────
+// ── Catálogos de administración, del backend ─────────────────────────────────
 //
-// Los de arriba salen del simulador mientras `VITE_USE_MOCK` esté encendido, y
-// eso es a propósito: las pantallas que todavía son mock (Rúbrica, Registro de
-// Vuelo, Dashboard) tienen métricas inventadas, y pintarlas bajo nombres de
-// colegios reales sería peor que no pintarlas.
-//
-// Pero Asistencia ya no es mock. Pedía sus colegios al simulador y por eso no
-// aparecían los que el Supervisor acababa de crear; peor aún, los ids que sí
-// salían eran de otra base, así que `GET /asistencias` nunca iba a encontrar
-// esa clase. Estos hooks son los que deben usar las pantallas ya conectadas.
 // `habilitado` en false para quien no puede pedirlos: `GET /colegios` es de
 // administración y un Docente solo recibiría un 403.
 export const useColegiosReales = (habilitado = true) =>

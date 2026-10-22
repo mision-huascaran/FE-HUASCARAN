@@ -12,13 +12,13 @@ WORKDIR /app
 # el JavaScript. Cambiarlas exige reconstruir la imagen.
 #
 # VITE_API_BASE_URL=/api  → la API vive bajo el mismo dominio (§11), sin CORS.
-# VITE_USE_MOCK=true      → HOY el backend no publica endpoints de negocio.
-# VITE_AUTH_REAL=true     → la sesión sí va contra la API real.
+# VITE_USE_MOCK=false     → todo contra la API real (el simulador queda para
+#                           desarrollar sin backend y para las pruebas).
+# VITE_AUTH_REAL / VITE_ADMIN_REAL solo importan con el mock encendido.
 ARG VITE_API_BASE_URL=/api
-ARG VITE_USE_MOCK=true
+ARG VITE_USE_MOCK=false
 ARG VITE_AUTH_REAL=true
-# VITE_ADMIN_REAL=true  → las pantallas de Administración usan la API real.
-ARG VITE_ADMIN_REAL=false
+ARG VITE_ADMIN_REAL=true
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_USE_MOCK=$VITE_USE_MOCK \
     VITE_AUTH_REAL=$VITE_AUTH_REAL \

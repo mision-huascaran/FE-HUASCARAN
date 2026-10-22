@@ -46,8 +46,9 @@ export const adminContraApiReal =
  */
 export const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
-// RNF-003: en producción la API solo se consume por TLS.
-if (import.meta.env.PROD && !usarMock && !baseURL.startsWith('https://')) {
+// RNF-003: en producción la API solo se consume por TLS. Una ruta relativa
+// (`/api`) va por el mismo origen, que ya es https: solo se avisa de un http://.
+if (import.meta.env.PROD && !usarMock && baseURL.startsWith('http://')) {
   console.warn('[SICEDU] VITE_API_BASE_URL debe usar https en producción (RNF-003).')
 }
 

@@ -5,22 +5,6 @@ import handlers from '../mock/handlers'
 
 const { catalogos } = ENDPOINTS
 
-/*
- * Estos catálogos alimentan el dashboard, los filtros y las pantallas de
- * captura, que siguen resolviéndose contra el mock: si aquí llegaran los
- * colegios reales, el dashboard pintaría nombres reales sobre métricas del
- * mock. Administración pide los suyos aparte (resources/administracion.js),
- * porque allí los ids tienen que ser los del backend de verdad.
- */
-export const obtenerColegios = () =>
-  resolver({ mock: () => handlers.catalogos.colegios(), real: () => api.get(catalogos.colegios) })
-
-export const obtenerGrados = () =>
-  resolver({ mock: () => handlers.catalogos.grados(), real: () => api.get(catalogos.grados) })
-
-export const obtenerProgramas = () =>
-  resolver({ mock: () => handlers.catalogos.programas(), real: () => api.get(catalogos.programas) })
-
 /**
  * `GET /niveles-razkids` — la escala aa–Z (27 niveles, sin Z1 ni Z2 desde T9).
  *
@@ -43,15 +27,17 @@ export const obtenerNivelesRazkids = async () => {
   }))
 }
 
-/** Los niveles de rúbrica dependen del programa del alumno (P5, RN-011). */
-export const obtenerNivelesRubrica = (programa) =>
+/**
+ * `GET /niveles-rubrica?id_programa=` — códigos 0-4 con sus nombres (P4 §3).
+ * Sin programa, el catálogo completo (es lo que baja la precarga offline).
+ */
+export const obtenerNivelesRubrica = (idPrograma) =>
   resolver({
-    mock: () => handlers.catalogos.nivelesRubrica({ programa }),
-    real: () => api.get(catalogos.nivelesRubrica, { params: { programa } }),
+    mock: () => handlers.catalogos.nivelesRubrica({ programa: idPrograma }),
+    real: () =>
+      api.get(catalogos.nivelesRubrica, { params: idPrograma ? { id_programa: Number(idPrograma) } : {} }),
+    forzarReal: adminContraApiReal,
   })
-
-export const obtenerPeriodos = () =>
-  resolver({ mock: () => handlers.catalogos.periodos(), real: () => api.get(catalogos.periodos) })
 
 /**
  * `GET /semanas` — YA NO ES UN CATÁLOGO, pese a seguir donde estaba.

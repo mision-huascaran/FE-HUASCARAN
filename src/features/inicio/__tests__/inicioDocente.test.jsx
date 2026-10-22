@@ -3,7 +3,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import InicioDocente from '../InicioDocente'
-import useFiltrosStore from '../../../store/filtrosStore'
 import useSessionStore from '../../../store/sessionStore'
 import { PERIODO_VIGENTE } from '../../../api/mock/db'
 import { ROLES } from '../../../auth/roles'
@@ -38,7 +37,6 @@ function montar({ usuario = {}, hora = 9 } = {}) {
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
-  useFiltrosStore.setState({ idPeriodo: PERIODO_VIGENTE.id_periodo })
   estado.resumen = { data: RESUMEN, isLoading: false, semanaActual: null }
   estado.actividad = { sesion: null, sinAsignaciones: false }
 })

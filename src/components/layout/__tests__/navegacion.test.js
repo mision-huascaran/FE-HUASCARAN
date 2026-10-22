@@ -31,7 +31,7 @@ describe('NAV_BY_ROLE', () => {
     // "derivado desde el CU021", en solo lectura y desde Seguimiento.
     const rutas = navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)
     expect([...rutas].sort()).toEqual(
-      ['/inicio', '/colegios', '/alumnos', '/usuarios', '/seguimiento', '/dashboard'].sort(),
+      ['/inicio', '/colegios', '/alumnos', '/usuarios', '/seguimiento'].sort(),
     )
   })
 

@@ -25,7 +25,6 @@ const ACCESOS = [
   // El Supervisor sigue a sus docentes en Seguimiento (CU020): Sesiones es
   // solo del Docente y lo mandaba a /403.
   { to: '/seguimiento', label: 'Seguimiento de los docentes' },
-  { to: '/dashboard', label: 'Dashboard' },
 ]
 
 /** Lo que se pinta cuando el servidor no puede calcular un indicador. */

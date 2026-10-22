@@ -268,7 +268,7 @@ describe('Verificación de la sesión al recargar', () => {
 
   it('mientras /me responde muestra la pantalla de verificación, no la ruta', async () => {
     useSessionStore.setState({ token: 'mock.4.2026', usuario: null, cargando: true })
-    renderConProveedores(null, { ruta: '/dashboard' })
+    renderConProveedores(null, { ruta: '/seguimiento' })
 
     expect(screen.getByText('Verificando su sesión…')).toBeInTheDocument()
     await waitFor(() => expect(useSessionStore.getState().usuario?.id_rol).toBe(ROLES.SUPERVISOR))

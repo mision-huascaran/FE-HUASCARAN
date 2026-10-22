@@ -6,8 +6,6 @@ import RoleRoute from './auth/RoleRoute'
 import ForbiddenPage from './features/errores/ForbiddenPage'
 import InicioPage from './features/inicio/InicioPage'
 import MantenimientoColegios from './features/colegios/MantenimientoColegios'
-import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
-import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
 import MantenimientoUsuarios from './features/usuarios/MantenimientoUsuarios'
 import SesionesPage from './features/sesiones/SesionesPage'
@@ -61,15 +59,11 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/sesiones', allow: [PROFESOR], titulo: 'Sesiones', elemento: <SesionesPage /> },
   // CU020 y CU021: lo que el Supervisor usa en su lugar.
   { path: '/seguimiento', allow: [JEFA], titulo: 'Seguimiento', elemento: <SeguimientoPage /> },
-  // CU012: el Dashboard es solo del Supervisor. Ocultarlo del menú no basta,
-  // la ruta también tiene que rechazar al Directivo (RNF-004).
-  { path: '/dashboard', allow: [JEFA], titulo: 'Dashboard', elemento: <DashboardPage /> },
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
   { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
-  { path: '/consulta-colegios', allow: [PROFESOR], titulo: 'Consulta de otros colegios', elemento: <ConsultaColegiosPage /> },
 ]
 
 const enDesarrollo = import.meta.env.DEV

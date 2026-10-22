@@ -12,9 +12,9 @@ services:
       context: .
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_USE_MOCK: ${VITE_USE_MOCK:-true}
+        VITE_USE_MOCK: ${VITE_USE_MOCK:-false}
         VITE_AUTH_REAL: ${VITE_AUTH_REAL:-true}
-        VITE_ADMIN_REAL: ${VITE_ADMIN_REAL:-false}
+        VITE_ADMIN_REAL: ${VITE_ADMIN_REAL:-true}
     container_name: ${ENTORNO:-local}-huascaran
     environment:
       # El backend del mismo entorno (ver .env.example).

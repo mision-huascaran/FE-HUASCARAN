@@ -100,7 +100,7 @@ describe('guardas de rol (RNF-004)', () => {
   })
 
   it('sin sesión, cualquier ruta protegida lleva al login', async () => {
-    renderRuta('/dashboard', null)
+    renderRuta('/seguimiento', null)
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
   })
 

@@ -4,7 +4,7 @@
 //
 // Se recorre cada ruta a la que entra el Directivo con los datos del mock, se
 // espera a que terminen TODAS sus consultas y se busca en el documento el
-// nombre y el código de cada alumno. También se revisan las descargas.
+// nombre y el código de cada alumno.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import { RUTAS_PROTEGIDAS } from '../../rutas'
@@ -12,13 +12,6 @@ import { ALUMNOS } from '../../api/mock/db'
 import { ROLES } from '../../auth/roles'
 import { MATRIZ } from '../../auth/permisos'
 import { renderConProveedores } from '../../test/renderConProveedores'
-
-// Las descargas se interceptan para leer las filas sin generar archivos.
-vi.mock('../../lib/export', async (importOriginal) => ({
-  ...(await importOriginal()),
-  descargarCSV: vi.fn(),
-  descargarExcel: vi.fn(),
-}))
 
 const RUTAS_DEL_DIRECTIVO = RUTAS_PROTEGIDAS.filter((r) => r.allow.includes(ROLES.DIRECTIVO)).map((r) =>
   r.path.replace(':id', '1'),
@@ -41,10 +34,9 @@ afterEach(() => {
 })
 
 describe('El Directivo no ve nombres de alumnos (RNF-004)', () => {
-  it('la matriz de permisos NO le da el Dashboard (CU012)', () => {
-    // Ahí vivía el buscador de estudiantes por nombre o código. CU012 le deja
-    // tres tarjetas en su Inicio y nada más.
-    expect(MATRIZ.dashboard[ROLES.DIRECTIVO]).toBeNull()
+  it('la matriz de permisos solo le da el Inicio (CU012)', () => {
+    // CU012 le deja tres tarjetas en su Inicio y nada más.
+    expect(Object.values(MATRIZ).filter((s) => s[ROLES.DIRECTIVO]).map((s) => s.ruta)).toEqual(['/inicio'])
     expect(RUTAS_DEL_DIRECTIVO.length).toBeGreaterThan(0)
   })
 
