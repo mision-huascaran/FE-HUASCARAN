@@ -55,6 +55,27 @@ describe('El periodo de un colegio en una fecha', () => {
     expect(periodoDe([CALENDARIO], 1, '2026-10-10').es_lectivo).toBe(false)
   })
 
+  it('con varios años del mismo colegio, elige el que contiene la fecha', () => {
+    /**
+     * `/me/habilitaciones` manda un calendario por (colegio, año escolar) y no
+     * filtra por año en curso, porque el receso posterior a PA4 puede caer en
+     * el año calendario siguiente. Quedarse con el primero del colegio daría
+     * el periodo de otro año.
+     */
+    const del2027 = {
+      id_colegio: 1,
+      id_anio_escolar: 2,
+      periodos: [
+        { tipo: 'PA', numero: 1, id_periodo_academico: 41, fecha_inicio: '2027-03-01', fecha_fin: '2027-05-15' },
+      ],
+      dias_no_lectivos: [],
+    }
+
+    const calendarios = [{ ...CALENDARIO, id_anio_escolar: 1 }, del2027]
+    expect(periodoDe(calendarios, 1, '2026-10-05')).toMatchObject({ id_periodo_academico: 33 })
+    expect(periodoDe(calendarios, 1, '2027-03-10')).toMatchObject({ id_periodo_academico: 41 })
+  })
+
   it('distingue "no hay calendario" de "fuera de periodo"', () => {
     // Son dos cosas distintas: una se arregla conectándose, la otra no.
     expect(periodoDe([CALENDARIO], 99, '2026-10-05')).toBeNull()

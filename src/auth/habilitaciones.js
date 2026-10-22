@@ -69,10 +69,29 @@ const mismo = (a, b) => a != null && b != null && String(a) === String(b)
  * `{tipo: null}` cuando la fecha cae fuera de todos sus periodos.
  */
 export function periodoDe(calendarios = [], idColegio, fecha) {
-  const calendario = calendarios.find((c) => mismo(c.id_colegio, idColegio))
-  if (!calendario) return null
+  /**
+   * Un colegio puede traer MÁS DE UN calendario: uno por año escolar.
+   *
+   * `/me/habilitaciones` manda el calendario de cada (colegio, año escolar)
+   * que aparezca en alguna habilitación utilizable, y no filtra por "año en
+   * curso" porque el receso posterior a PA4 puede caer en el año calendario
+   * siguiente. Así que no vale quedarse con el primero del colegio: hay que
+   * buscar el que CONTIENE la fecha, que es lo que desempata entre años.
+   */
+  const delColegio = calendarios.filter((c) => mismo(c.id_colegio, idColegio))
+  if (!delColegio.length) return null
 
-  const periodo = (calendario.periodos ?? []).find((p) => fecha >= p.fecha_inicio && fecha <= p.fecha_fin)
+  let calendario = null
+  let periodo = null
+  for (const c of delColegio) {
+    const encontrado = (c.periodos ?? []).find((p) => fecha >= p.fecha_inicio && fecha <= p.fecha_fin)
+    if (encontrado) {
+      calendario = c
+      periodo = encontrado
+      break
+    }
+  }
+
   if (!periodo) return { tipo: null, numero: null, id_periodo_academico: null, es_lectivo: false }
 
   /**

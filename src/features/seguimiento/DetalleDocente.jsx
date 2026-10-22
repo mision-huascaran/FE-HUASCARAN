@@ -16,7 +16,12 @@ import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
 import { listarActividadesDe } from '../../api/resources/seguimiento'
-import { ETIQUETA_SINCRONIZACION, etiquetaTipoCierre } from '../../api/resources/actividades'
+import {
+  AYUDA_SINCRONIZACION,
+  ETIQUETA_SINCRONIZACION,
+  TONO_SINCRONIZACION,
+  etiquetaTipoCierre,
+} from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { fechaIsoLima, formatearFechaHora } from '../../lib/format'
 
@@ -77,7 +82,10 @@ export default function DetalleDocente({ docente, onVolver }) {
                 {c.nombre}
               </Badge>
             ))}
-            <Badge tone={docente.sincronizacion === 'pendiente' ? 'warning' : 'success'}>
+            <Badge
+              tone={TONO_SINCRONIZACION[docente.sincronizacion] ?? 'neutral'}
+              title={AYUDA_SINCRONIZACION[docente.sincronizacion]}
+            >
               {ETIQUETA_SINCRONIZACION[docente.sincronizacion] ?? docente.sincronizacion}
             </Badge>
           </div>

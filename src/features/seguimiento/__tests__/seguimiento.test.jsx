@@ -5,7 +5,7 @@
 // diga con palabras, que los atajos NO lleven a ningún sitio mientras las
 // grillas no existan, y que sin conexión no se tire de la memoria local.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { QueryClient } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -93,8 +93,47 @@ describe('Seguimiento de docentes (CU020)', () => {
   })
 
   it('quien nunca entró lo dice con palabras, no con una celda vacía', async () => {
+    // Y no "Nunca", que suena a dato comprobado: lo que consta es que no hay
+    // registro de que haya iniciado sesión.
     montar()
-    expect(await screen.findByText('Nunca', {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Sin inicio de sesión registrado', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('"sin información" no se pinta de verde, y un contador nulo no es cero', async () => {
+    /**
+     * El bug que esto cierra: el tono salía de `=== 'pendiente' ? warning :
+     * success`, así que CUALQUIER otro valor era verde. Cuando el backend
+     * añadió `error` y `sin_informacion`, ese atajo pasó de impreciso a falso:
+     * un docente con un envío rechazado se veía en verde.
+     *
+     * Y `registros_pendientes` llega en `null` mientras el servidor no reciba
+     * la cola offline. Un 0 ahí afirmaría que no hay nada pendiente, que es
+     * justo lo que no se sabe.
+     */
+    listar.mockResolvedValue({
+      items: [
+        {
+          id_docente: 9,
+          nombres: 'Ana',
+          apellidos: 'Quispe',
+          colegios: [],
+          ultima_conexion: null,
+          sincronizacion: 'sin_informacion',
+          registros_pendientes: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 40,
+      total_pages: 1,
+    })
+    montar()
+
+    // Dentro de la TABLA: "Sin información" también es una opción del filtro.
+    const tabla = await screen.findByRole('table', {}, ESPERA)
+    const etiqueta = await within(tabla).findByText('Sin información', {}, ESPERA)
+    expect(etiqueta.className).not.toMatch(/success/)
+    expect(within(tabla).getByText('No disponible')).toBeInTheDocument()
   })
 
   it('los filtros viajan al servidor al pulsar «Filtrar», no al elegirlos', async () => {
