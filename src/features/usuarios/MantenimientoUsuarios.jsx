@@ -12,6 +12,7 @@ import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Badge from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from '../administracion/ModalCredencialDocente'
+import DetalleDocente from './DetalleDocente'
 import {
   activarUsuario,
   actualizarUsuario,
@@ -47,6 +48,8 @@ const ROLES_CREABLES = [
 
 export default function MantenimientoUsuarios() {
   const toast = useToast()
+  // El Docente cuyo detalle se está viendo, o `null` en el listado.
+  const [docenteAbierto, setDocenteAbierto] = useState(null)
   const queryClient = useQueryClient()
   const enLinea = useConexion()
   const [filtros, setFiltros] = useState({ estado: 'activo' })
@@ -261,12 +264,38 @@ export default function MantenimientoUsuarios() {
     [colegios, grados, recesoDe],
   )
 
+  /**
+   * El detalle del Docente reemplaza el listado en el área principal, sin
+   * navegar: así "Volver a Usuarios" devuelve con los filtros y la página
+   * intactos, que es lo que pide CU016. Si fuera una ruta habría que
+   * reconstruirlos al volver.
+   */
+  if (docenteAbierto) {
+    return (
+      <DetalleDocente
+        docente={docenteAbierto}
+        colegios={colegios}
+        onVolver={() => setDocenteAbierto(null)}
+      />
+    )
+  }
+
   return (
     <>
       <Mantenimiento
         seccion="usuarios"
         entidad="cuenta"
         titulo="Usuarios"
+        /**
+         * "Ver detalle" solo en las filas de Docente: Supervisores y
+         * Directivos no tienen permisos de corrección ni nada más que
+         * enseñar. En sus filas el hueco se reserva, para que la columna de
+         * acciones no baile de una fila a otra.
+         */
+        verDetalle={{
+          abrir: setDocenteAbierto,
+          aplicaA: esDocente,
+        }}
         consulta={consulta}
         campos={campos}
         guardando={guardado.isPending}

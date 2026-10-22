@@ -75,9 +75,15 @@ describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRo
      * (CU023, CU029, CU031) y el último resumen institucional (CU012). Lo que
      * no puede haber ahí es el token ni nada de la cuenta.
      */
-    const claves = Object.keys(localStorage)
+    /**
+     * Se recorre con `key(i)`, no con `Object.keys`: en jsdom el objeto
+     * `Storage` no garantiza que sus claves se enumeren como las de un objeto
+     * corriente, y la comprobación salía inestable según lo que hubiera
+     * escrito el resto de la aplicación en ese momento.
+     */
+    const claves = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
     expect(claves.some((c) => /token|password|contrasena|correo|sesion/i.test(c))).toBe(false)
-    expect(Object.values(localStorage)).not.toContain(useSessionStore.getState().token)
+    expect(claves.map((c) => localStorage.getItem(c))).not.toContain(useSessionStore.getState().token)
   })
 })
 

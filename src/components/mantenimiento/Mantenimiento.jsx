@@ -61,6 +61,12 @@ export default function Mantenimiento({
    * depende el historial de pertenencia.
    */
   fechaEfectiva = null,
+  /**
+   * `{abrir, aplicaA?}` para ofrecer "Ver detalle" en la fila. `aplicaA`
+   * decide en cuáles: en Usuarios solo los Docentes tienen detalle, y en las
+   * demás filas el hueco se reserva para no desalinear la columna.
+   */
+  verDetalle = null,
   guardando = false,
   soloOnline = false,
   sinConexion = false,
@@ -170,6 +176,25 @@ export default function Mantenimiento({
       align: 'center',
       render: (fila) => (
         <div className="flex items-center justify-center gap-1">
+          {/* "Ver detalle" abre una VISTA dentro de la SPA, no el popup: es lo
+              que piden CU013 y CU016 para el detalle del colegio y el del
+              docente. Solo se ofrece donde hay detalle que ver, y en las demás
+              filas se reserva el hueco para que la columna no baile. */}
+          {verDetalle &&
+            (verDetalle.aplicaA?.(fila) ?? true ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                iconLeft={Eye}
+                title="Ver detalle"
+                aria-label={`Ver detalle de ${fila.nombre ?? entidad}`}
+                onClick={() => verDetalle.abrir(fila)}
+              >
+                Ver detalle
+              </Button>
+            ) : (
+              <span aria-hidden="true" className="inline-block w-[7.5rem]" />
+            ))}
           <Button
             size="sm"
             variant="ghost"
@@ -225,7 +250,7 @@ export default function Mantenimiento({
     }
 
     return [...columnas, estado, acciones]
-  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso])
+  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso, verDetalle])
 
   if (sinPantalla) {
     return (

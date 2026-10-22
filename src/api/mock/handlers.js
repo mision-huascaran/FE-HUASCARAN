@@ -10,6 +10,24 @@ import { sincronizarReloj } from '../../lib/relojServidor'
 
 const RETARDO_MS = 300
 
+/** Permisos otorgados durante la sesión (CU028). Viven aquí, no en `db`. */
+const PERMISOS_MOCK = {}
+
+/**
+ * El estado de un permiso NO se guarda: se calcula con la hora.
+ *
+ * Por eso un permiso caduca solo, sin que nadie refresque nada, y por eso la
+ * pantalla no puede fiarse de un campo guardado.
+ */
+function conEstado(permiso) {
+  const ahora = Date.now()
+  let estado = 'vigente'
+  if (permiso.revocado_en) estado = 'revocado'
+  else if (Date.parse(permiso.inicio) > ahora) estado = 'programado'
+  else if (Date.parse(permiso.fin) <= ahora) estado = 'vencido'
+  return { ...permiso, estado }
+}
+
 /**
  * Calendario del año lectivo del simulador (CU027): cuatro PA con su receso.
  *
@@ -603,6 +621,87 @@ export const handlers = {
         motivo_no_lectivo: periodo.tipo === 'PR'
           ? 'receso'
           : (noLectivo?.motivo ?? (finDeSemana ? 'fin_de_semana' : null)),
+      })
+    },
+  },
+
+  /**
+   * Permisos excepcionales de corrección (CU028).
+   *
+   * Viven en memoria, como las asistencias: lo que importa del simulador aquí
+   * no son los datos sino los ESTADOS, que se calculan con la hora —programado,
+   * vigente, vencido, revocado— y son lo que la pantalla ramifica.
+   */
+  permisos: {
+    listar: async (idUsuario, filtros = {}) => {
+      const mios = Object.values(PERMISOS_MOCK)
+        .filter((p) => String(p.id_usuario) === String(idUsuario))
+        .map(conEstado)
+        .filter((p) => !filtros.modulo || p.modulo === filtros.modulo)
+        .filter((p) => !filtros.estado || p.estado === filtros.estado)
+        .filter((p) => !filtros.id_colegio || String(p.colegio.id) === String(filtros.id_colegio))
+        // Del más recientemente otorgado al más antiguo.
+        .sort((a, b) => String(b.otorgado_en).localeCompare(String(a.otorgado_en)))
+      return responder({ items: mios, total: mios.length, page: 1, page_size: 40, total_pages: 1 })
+    },
+
+    detalle: async (idUsuario, idPermiso) => {
+      const permiso = PERMISOS_MOCK[idPermiso]
+      if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')
+      return responder(conEstado(permiso))
+    },
+
+    otorgar: async (idUsuario, datos) => {
+      const id = Math.max(0, ...Object.keys(PERMISOS_MOCK).map(Number)) + 1
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(datos.id_colegio))
+      const grado = db.GRADOS.find((g) => g.id_grado === Number(datos.id_grado))
+      PERMISOS_MOCK[id] = {
+        id,
+        id_usuario: Number(idUsuario),
+        anio_escolar: { id: Number(datos.id_anio_escolar), nombre: String(db.ANIO_LECTIVO) },
+        colegio: { id: colegio?.id_colegio ?? Number(datos.id_colegio), nombre: colegio?.nombre ?? '—' },
+        grado: { id: grado?.id_grado ?? Number(datos.id_grado), nombre: grado?.nombre ?? '—' },
+        periodo: { id: Number(datos.id_periodo_academico), nombre: `PA${datos.id_periodo_academico}` },
+        modulo: datos.modulo,
+        inicio: datos.desde_ahora ? new Date().toISOString() : datos.inicio,
+        fin: datos.fin,
+        motivo: datos.motivo,
+        otorgado_en: new Date().toISOString(),
+        otorgado_por: { id: 2, nombre: 'Jefa de Prueba' },
+        revocado_por: null,
+        revocado_en: null,
+        motivo_revocacion: null,
+      }
+      return responder(conEstado(PERMISOS_MOCK[id]), RETARDO_ESCRITURA_MS)
+    },
+
+    revocar: async (idUsuario, idPermiso, motivo) => {
+      const permiso = PERMISOS_MOCK[idPermiso]
+      if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')
+      if (permiso.revocado_en) {
+        throw errorMock(409, 'El permiso ya fue revocado. Se actualizó su información.', 'permiso_revocado')
+      }
+      if (conEstado(permiso).estado === 'vencido') {
+        throw errorMock(409, 'El permiso ya venció y no requiere revocación.', 'permiso_vencido')
+      }
+      permiso.revocado_en = new Date().toISOString()
+      permiso.revocado_por = { id: 2, nombre: 'Jefa de Prueba' }
+      permiso.motivo_revocacion = motivo
+      return responder(conEstado(permiso), RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Los PA cuyo plazo ordinario YA terminó, que son los únicos que admiten
+     * un permiso. El simulador ofrece los anteriores al actual.
+     */
+    opciones: async ({ idColegio }) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      return responder({
+        periodos: CALENDARIO_MOCK.periodos
+          .filter((p) => p.tipo === 'PA' && p.numero < 3)
+          .map((p) => ({ id: p.id_periodo_academico, nombre: `PA${p.numero}` })),
+        grados: db.GRADOS.map((g) => ({ id: g.id_grado, nombre: g.nombre })),
+        colegio: colegio ? { id: colegio.id_colegio, nombre: colegio.nombre } : null,
       })
     },
   },
