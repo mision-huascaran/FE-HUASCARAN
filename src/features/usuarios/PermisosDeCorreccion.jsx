@@ -11,7 +11,7 @@
 //   · EL ESTADO SE CALCULA con la hora, no se guarda. Un permiso caduca solo.
 //   · TODO EXIGE CONEXIÓN. No hay versión offline de esto ni debe haberla:
 //     autorizar una corrección es un acto administrativo, no trabajo de aula.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, Plus, ShieldOff, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
@@ -33,7 +33,7 @@ import {
   listarPermisos,
   revocarPermiso,
 } from '../../api/resources/permisos'
-import { listarAniosEscolares } from '../../api/resources/administracion'
+import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
@@ -60,6 +60,24 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     queryFn: listarAniosEscolares,
     staleTime: Infinity,
   })
+
+  /**
+   * El año arranca en el VIGENTE, no en "Todos" (CU028).
+   *
+   * Los demás filtros sí empiezan en "Todos", pero este no: la lista de
+   * permisos de un docente a lo largo de varios años mezcla cosas que no se
+   * comparan, y lo que casi siempre se quiere ver es lo de este año.
+   *
+   * Si no hay ninguno vigente se queda en "Todos", que es mejor que proponer
+   * un año al azar.
+   */
+  useEffect(() => {
+    if (!anios.length) return
+    const vigente = anioVigente(anios)
+    if (!vigente) return
+    setBorrador((b) => (b.id_anio_escolar ? b : { ...b, id_anio_escolar: String(vigente.id) }))
+    setFiltros((f) => (f.id_anio_escolar ? f : { ...f, id_anio_escolar: String(vigente.id) }))
+  }, [anios])
 
   const consulta = useQuery({
     queryKey: ['permisos', idUsuario, filtros],
@@ -214,6 +232,9 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         abierto={otorgando}
         idUsuario={idUsuario}
         colegios={colegios}
+        // CU028: el modal precarga el año que se está consultando, si sigue
+        // disponible. Casi siempre se otorga para lo que se acaba de mirar.
+        idAnioEscolar={filtros.id_anio_escolar}
         onCerrar={() => setOtorgando(false)}
         onOtorgado={() => {
           setOtorgando(false)

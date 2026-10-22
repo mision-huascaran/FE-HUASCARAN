@@ -14,10 +14,15 @@
 // valor anterior —sería volver a algo aún más viejo—, se adopta lo que manda el
 // servidor, que es quien tiene la verdad.
 //
-// La cola offline hace el resto. Su clave es alumno-fecha-programa, así que un
+// La cola offline hace el resto. Su clave es LA CLASE y el alumno, así que un
 // alumno nunca tiene dos envíos contradictorios esperando: el último sustituye
 // al anterior. Es también lo que hace que una ráfaga de clics sobre el mismo
 // alumno cuente como UN cambio en la métrica de productividad (CU021).
+//
+// OJO CON EL SUBPROGRAMA: no forma parte de la clave. Un alumno tiene UN solo
+// registro de asistencia por clase (CU022), no uno por subprograma. Si entrara
+// en la clave, cambiar el filtro de Subprograma generaría un segundo envío
+// para la misma persona y el mismo día.
 import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
@@ -64,15 +69,22 @@ const conAlumno = (clase, idAlumno, marca) =>
  * @param claveClase la queryKey de la clase: lo que el servidor confirma se
  *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activo, claveClase }) {
+export default function useAutoguardado({ alumnos = [], fecha, idSeccion, activo, claveClase }) {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
 
-  // Lo que este navegador ha cambiado por encima de lo que vino del servidor,
-  // atado a SU clase: cambiar de fecha o de subprograma no puede arrastrar las
-  // marcas de la anterior, porque los ids de alumno se repiten entre clases.
-  const clase = `${fecha}|${idPrograma}`
+  /**
+   * Lo que este navegador ha cambiado por encima de lo que vino del servidor,
+   * atado a SU clase: cambiar de fecha o de aula no puede arrastrar las marcas
+   * de la anterior.
+   *
+   * El subprograma NO entra: es un filtro de la vista, no otra clase. Si
+   * entrara, cambiar el filtro borraría de la pantalla lo que se acaba de
+   * marcar, que es justo lo que CU022 prohíbe ("cambiar el filtro conserva las
+   * asistencias ya registradas").
+   */
+  const clase = `${fecha}|${idSeccion}`
   const [cambios, setCambios] = useState({ clase, locales: {} })
   const locales = useMemo(() => (cambios.clase === clase ? cambios.locales : {}), [cambios, clase])
 
@@ -123,11 +135,12 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
 
       try {
         const respuesta = await encolar({
-          clave: claveDeMarca(alumno.id_alumno, fecha, idPrograma),
+          clave: claveDeMarca(alumno.id_alumno, fecha, idSeccion),
           tipo: TIPOS_ENVIO.ASISTENCIA,
           payload: {
             fecha,
-            registros: [{ id_alumno: alumno.id_alumno, id_programa: Number(idPrograma), ...campos }],
+            // Sin `id_programa`: la asistencia es del alumno en esa clase.
+            registros: [{ id_alumno: alumno.id_alumno, ...campos }],
             fechaRegistro: momentoDelClic(),
           },
           descripcion: `Asistencia de ${alumno.nombres} ${alumno.apellidos}`,
@@ -169,7 +182,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
         return error
       }
     },
-    [activo, enLinea, marcaDe, escribir, fecha, idPrograma, toast, claveClase, queryClient],
+    [activo, enLinea, marcaDe, escribir, fecha, idSeccion, toast, claveClase, queryClient],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])

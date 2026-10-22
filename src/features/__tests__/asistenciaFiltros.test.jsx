@@ -55,8 +55,16 @@ describe('Filtros de Asistencia (CU022)', () => {
     const grado = await screen.findByLabelText('Grado', {}, ESPERA)
     await waitFor(() => expect(grado.value).not.toBe(''), ESPERA)
 
+    /**
+     * El Subprograma, en cambio, arranca VACÍO a propósito: es "Todos".
+     *
+     * Dejó de formar parte de la identidad de la clase (CU022 v2): una clase
+     * reúne a los alumnos de Alfabetización y de Comprensión Lectora que estén
+     * en esa aula, y el filtro solo recorta a quién se ve. Proponer uno
+     * escondería a media clase sin que nadie lo hubiera pedido.
+     */
     const subprograma = await screen.findByLabelText('Subprograma', {}, ESPERA)
-    await waitFor(() => expect(subprograma.value).not.toBe(''), ESPERA)
+    expect(subprograma.value).toBe('')
   })
 
   it('con una sola sección se elige sola, y la clase carga', async () => {

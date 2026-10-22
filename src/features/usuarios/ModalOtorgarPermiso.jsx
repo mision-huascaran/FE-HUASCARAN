@@ -35,7 +35,14 @@ const VACIO = {
   motivo: '',
 }
 
-export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [], onCerrar, onOtorgado }) {
+export default function ModalOtorgarPermiso({
+  abierto,
+  idUsuario,
+  colegios = [],
+  idAnioEscolar = '',
+  onCerrar,
+  onOtorgado,
+}) {
   const toast = useToast()
   const [datos, setDatos] = useState(VACIO)
 
@@ -55,10 +62,16 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
 
   useEffect(() => {
     if (!abierto) return
-    // Se propone el año en curso, que es con el que se trabaja casi siempre,
-    // pero se deja cambiar: un permiso puede ser para regularizar el anterior.
-    setDatos({ ...VACIO, id_anio_escolar: String(anioVigente(anios)?.id ?? '') })
-  }, [abierto, anios])
+    /**
+     * Se precarga el año que se está CONSULTANDO, si sigue disponible: casi
+     * siempre se otorga para lo que se acaba de mirar. Si no hay consulta o
+     * ese año ya no está, se propone el vigente, y si tampoco, se deja vacío
+     * para que el Supervisor elija —nunca se adivina un año—.
+     */
+    const disponible = anios.some((a) => String(a.id) === String(idAnioEscolar))
+    const propuesto = disponible ? String(idAnioEscolar) : String(anioVigente(anios)?.id ?? '')
+    setDatos({ ...VACIO, id_anio_escolar: propuesto })
+  }, [abierto, anios, idAnioEscolar])
 
   /**
    * Los periodos y grados que ese colegio admite.
@@ -127,7 +140,8 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
           required
           value={datos.id_anio_escolar}
           options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
-          hint="Por defecto, el año en curso"
+          placeholder="Seleccione"
+          hint="El de la consulta, o el año en curso"
           onChange={(e) => cambiar('id_anio_escolar', e.target.value)}
         />
         <Select

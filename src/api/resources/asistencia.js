@@ -1,5 +1,15 @@
 // Asistencia por clase (CU022). YA NO ES UNA DEMO: el backend la publica.
 //
+// UNA CLASE NO TIENE SUBPROGRAMA. Es colegio × año escolar × grado × sección ×
+// fecha efectiva, y reúne a los alumnos de Alfabetización y de Comprensión
+// Lectora que estén en esa aula. Cada alumno tiene UN solo registro de
+// asistencia por clase, no uno por subprograma: estuvo o no estuvo, y eso no
+// depende de qué está leyendo.
+//
+// El filtro Subprograma sigue existiendo, pero es VISUAL: delimita a quién se
+// ve, sin cambiar la identidad de la clase ni crear otra. Cambiarlo conserva
+// lo ya marcado.
+//
 // Una CLASE es la combinación de fecha + colegio + grado + subprograma. La
 // sección NO entra: es un atributo del colegio ("Única") que el alumno hereda,
 // así que `GET /asistencias` no la recibe y el filtro de la pantalla solo sirve
@@ -37,18 +47,17 @@ export const ESTADOS_ASISTENCIA = ['presente', 'tardanza', 'ausente']
  * que ya constaban ese día, y el segundo a los que rotaron de aula después.
  * Los dos se muestran igual, señalados.
  */
-export const obtenerClase = ({ idColegio, idGrado, idSeccion, idPrograma, fecha }) =>
+export const obtenerClase = ({ idColegio, idGrado, idSeccion, fecha }) =>
   resolver({
-    mock: () => handlers.asistencia.clase({ idColegio, idGrado, idSeccion, idPrograma, fecha }),
+    mock: () => handlers.asistencia.clase({ idColegio, idGrado, idSeccion, fecha }),
     real: () =>
       api.get(ENDPOINTS.asistencia.listar, {
         params: {
           id_colegio: Number(idColegio),
           id_grado: Number(idGrado),
-          // La clase es colegio × grado × SECCIÓN (T6): el subprograma es del
-          // alumno, no de la clase, y cada alumno trae el suyo.
+          // SIN `id_programa`: el subprograma es del alumno, no de la clase, y
+          // cada alumno trae el suyo en la respuesta.
           id_seccion: Number(idSeccion),
-          id_programa: Number(idPrograma),
           fecha,
         },
       }),

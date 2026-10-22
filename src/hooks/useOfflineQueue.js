@@ -70,8 +70,17 @@ registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, async ({ id, fin }) => {
 export const claveDeFila = (tipo, idAlumno, idSemana) => `${tipo}:${idAlumno}-${idSemana}`
 
 /** Clave de una marca de asistencia: alumno, fecha y subprograma (CU022). */
-export const claveDeMarca = (idAlumno, fecha, idPrograma) =>
-  `${TIPOS_ENVIO.ASISTENCIA}:${idAlumno}-${fecha}-${idPrograma}`
+/**
+ * La clave de una marca de asistencia: LA CLASE y el alumno.
+ *
+ * El subprograma NO entra. Un alumno tiene un único registro de asistencia por
+ * clase (CU022): estuvo o no estuvo, y eso no depende de qué está leyendo. Si
+ * el subprograma formara parte de la clave, cambiar ese filtro generaría un
+ * segundo envío para la misma persona y el mismo día, y el servidor acabaría
+ * con dos asistencias contradictorias de un alumno que solo estuvo una vez.
+ */
+export const claveDeMarca = (idAlumno, fecha, idSeccion) =>
+  `${TIPOS_ENVIO.ASISTENCIA}:${idAlumno}-${fecha}-${idSeccion}`
 
 export default function useOfflineQueue() {
   const pendientes = useSyncStore((s) => s.pendientes)

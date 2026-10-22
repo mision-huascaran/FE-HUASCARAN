@@ -185,10 +185,18 @@ export default function AsistenciaPage() {
     cambiar('grado', String(grados[0].id_grado))
   }, [grados, filtros.idGrado, cambiar])
 
+  /**
+   * El subprograma ya NO se elige solo.
+   *
+   * Antes era obligatorio para armar la clase, así que había que proponer uno.
+   * Ahora es un filtro: su valor por defecto es "todos", que es lo que de
+   * verdad tiene el aula. Lo único que se hace es limpiarlo si deja de ser
+   * válido al cambiar de colegio.
+   */
   useEffect(() => {
-    if (!programas.length) return
+    if (!filtros.idPrograma || !programas.length) return
     if (programas.some((p) => String(p.id_programa) === String(filtros.idPrograma))) return
-    cambiar('subprograma', String(programas[0].id_programa))
+    cambiar('subprograma', '')
   }, [programas, filtros.idPrograma, cambiar])
 
   /**
@@ -203,9 +211,15 @@ export default function AsistenciaPage() {
     cambiar('seccion', secciones.length === 1 ? String(secciones[0].id) : '')
   }, [secciones, filtros.idSeccion, cambiar])
 
-  const listos = Boolean(
-    filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.fecha,
-  )
+  /**
+   * La clase se arma SIN subprograma: colegio, grado, sección y fecha.
+   *
+   * El subprograma es un filtro de la vista —delimita a quién se ve— y no
+   * forma parte de la identidad de la clase (CU022). Exigirlo aquí dejaría la
+   * pantalla sin cargar mientras no se eligiera uno, para una clase que ya
+   * está completamente determinada.
+   */
+  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.fecha)
 
   const claveClase = useMemo(
     () => [
@@ -214,10 +228,9 @@ export default function AsistenciaPage() {
       filtros.idColegio,
       filtros.idGrado,
       filtros.idSeccion,
-      filtros.idPrograma,
       filtros.fecha,
     ],
-    [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.idPrograma, filtros.fecha],
+    [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
   )
 
   const clase = useQuery({
@@ -227,7 +240,6 @@ export default function AsistenciaPage() {
         idColegio: filtros.idColegio,
         idGrado: filtros.idGrado,
         idSeccion: filtros.idSeccion,
-        idPrograma: filtros.idPrograma,
         fecha: filtros.fecha,
       }),
     enabled: listos,
@@ -244,7 +256,23 @@ export default function AsistenciaPage() {
     staleTime: 0,
   })
 
-  const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
+  const todosLosAlumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
+
+  /**
+   * El filtro Subprograma recorta LO QUE SE VE, no lo que se pide.
+   *
+   * La clase trae a los alumnos de Alfabetización y de Comprensión Lectora que
+   * estén en esa aula, porque es una sola clase. Elegir un subprograma deja ver
+   * solo a unos, pero las marcas de los demás siguen ahí: CU022 pide
+   * expresamente que cambiar el filtro conserve las asistencias registradas.
+   */
+  const alumnos = useMemo(
+    () =>
+      filtros.idPrograma
+        ? todosLosAlumnos.filter((a) => String(a.id_programa) === String(filtros.idPrograma))
+        : todosLosAlumnos,
+    [todosLosAlumnos, filtros.idPrograma],
+  )
   // El día lectivo lo decide el SERVIDOR (CU022, Restricciones): llega como un
   // 422 con `motivo: 'fecha_no_lectiva'`.
   const motivo = motivoDe(clase.error)
@@ -262,7 +290,7 @@ export default function AsistenciaPage() {
   const { marcaDe, marcar, observar, marcarTodosPresentes, sinMarcar } = useAutoguardado({
     alumnos,
     fecha: filtros.fecha,
-    idPrograma: filtros.idPrograma,
+    idSeccion: filtros.idSeccion,
     activo: autoguardado,
     claveClase,
   })
@@ -309,7 +337,7 @@ export default function AsistenciaPage() {
         <Card>
           <EmptyState
             title="Complete los filtros"
-            description="La clase se arma con colegio, grado, sección, subprograma y fecha."
+            description="La clase se arma con colegio, grado, sección y fecha."
           />
         </Card>
       )}

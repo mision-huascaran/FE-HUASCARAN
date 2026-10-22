@@ -92,7 +92,8 @@ function errorMock(status, detail, motivo) {
 
 const ACTIVIDADES_MOCK = {}
 const ASISTENCIAS = {}
-const claveMarca = (idAlumno, fecha, idPrograma) => `${idAlumno}|${fecha}|${idPrograma}`
+/** Un alumno, UNA asistencia por clase: el subprograma no entra en la clave. */
+const claveMarca = (idAlumno, fecha) => `${idAlumno}|${fecha}`
 
 /** Subprograma por defecto cuando el registro no lo trae (lo fija la pantalla). */
 const ASISTENCIA_PROGRAMA = 1
@@ -739,7 +740,12 @@ export const handlers = {
       return responder([...new Set(aulas)].sort((a, b) => String(a).localeCompare(String(b))))
     },
 
-    clase: async ({ idColegio, idGrado, idPrograma, fecha }) => {
+    /**
+     * La clase NO lleva subprograma (CU022 v2): reúne a los alumnos de
+     * Alfabetización y de Comprensión Lectora que estén en esa aula, y cada
+     * uno trae el suyo. El filtro de la pantalla es visual.
+     */
+    clase: async ({ idColegio, idGrado, fecha }) => {
       if (!esDiaLectivo(fecha)) {
         throw errorMock(
           422,
@@ -748,22 +754,23 @@ export const handlers = {
         )
       }
 
-      const marcas = Object.values(ASISTENCIAS).filter(
-        (m) => m.fecha === fecha && String(m.id_programa) === String(idPrograma),
-      )
+      const marcas = Object.values(ASISTENCIAS).filter((m) => m.fecha === fecha)
       const conRegistro = new Set(marcas.map((m) => m.id_alumno))
 
       const alumnos = db
-        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado), programa: Number(idPrograma) })
+        // Sin `programa`: la lista histórica comprende ambos subprogramas.
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
         // Los activos siempre. Los inactivos SOLO si ya constan en esa fecha:
         // CU022 pide no perderlos de vista al consultar un día pasado.
         .filter((a) => a.activo || conRegistro.has(a.id_alumno))
         .map((a) => {
-          const marca = ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]
+          const marca = ASISTENCIAS[claveMarca(a.id_alumno, fecha)]
           return {
             id_alumno: a.id_alumno,
             nombres: a.nombres,
             apellidos: a.apellidos,
+            // Cada alumno trae el SUYO: es lo que permite filtrar en la vista.
+            id_programa: a.id_programa,
             activo: a.activo,
             // `en_aula: false` = tuvo registro aquí pero hoy está en otra aula.
             en_aula: true,
@@ -795,7 +802,7 @@ export const handlers = {
 
       const momento = fechaRegistro ?? new Date().toISOString()
       const guardados = registros.map((registro) => {
-        const clave = claveMarca(registro.id_alumno, fecha, registro.id_programa ?? ASISTENCIA_PROGRAMA)
+        const clave = claveMarca(registro.id_alumno, fecha)
         const anterior = ASISTENCIAS[clave]
         // "Prevalecerá la modificación con la marca de tiempo más reciente": si
         // otro dispositivo escribió después, la suya se conserva y se avisa.

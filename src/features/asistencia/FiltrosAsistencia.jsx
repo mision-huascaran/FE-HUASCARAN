@@ -64,8 +64,12 @@ export default function FiltrosAsistencia({
         onChange={(e) => cambiar('seccion', e.target.value)}
         options={secciones.map((x) => ({ value: String(x.id), label: x.nombre }))}
       />
+      {/* VISUAL: delimita a quién se ve, sin cambiar la clase ni perder lo
+          marcado. Por eso su valor por defecto es "Todos": una clase reúne a
+          los alumnos de los dos subprogramas que haya en esa aula. */}
       <Select
         label="Subprograma"
+        placeholder="Todos"
         value={filtros.idPrograma}
         onChange={(e) => cambiar('subprograma', e.target.value)}
         options={opciones(programas, 'id_programa')}
