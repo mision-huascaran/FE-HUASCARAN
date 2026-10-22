@@ -27,7 +27,7 @@ import {
 } from '../../api/resources/administracion'
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
-import { obtenerNivelesRazkids, obtenerNivelesRubrica, obtenerSemanas } from '../../api/resources/catalogos'
+import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useActividadStore from '../../store/actividadStore'
@@ -153,7 +153,6 @@ export default function useActividad() {
       grados: () => listarGradosAdmin(),
       nivelesRubrica: () => obtenerNivelesRubrica(),
       nivelesRazkids: () => obtenerNivelesRazkids(),
-      semanas: () => obtenerSemanas(),
       asignaciones: () => listarMisAsignaciones(),
     }, { propietario: propietarioDe(useSessionStore.getState().usuario) })
     queryClient.invalidateQueries({ queryKey: ['precarga'] })

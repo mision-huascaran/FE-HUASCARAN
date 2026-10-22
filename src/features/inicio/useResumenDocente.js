@@ -1,7 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
+import dayjs from 'dayjs'
 import { obtenerResumenDocente } from '../../api/resources/docentes'
-import { useSemanas } from '../../hooks/useCatalogos'
+import { ahora } from '../../lib/relojServidor'
 import useSessionStore from '../../store/sessionStore'
+
+/**
+ * La semana en curso (lunes a viernes) según la hora del servidor.
+ *
+ * Ya no sale de `GET /semanas`: desde T7 ese endpoint exige grupo y mes, y el
+ * Inicio no tiene grupo. Se calcula del reloj anclado al servidor, que es lo
+ * único que hace falta para decirle al docente en qué semana está.
+ */
+export function semanaEnCurso(referencia = ahora()) {
+  const dia = dayjs(referencia)
+  // dayjs: 0 = domingo. El sábado y el domingo miran la semana que termina.
+  const desdeLunes = (dia.day() + 6) % 7
+  const lunes = dia.subtract(desdeLunes, 'day').startOf('day')
+  return { inicio: lunes.format('YYYY-MM-DD'), fin: lunes.add(4, 'day').format('YYYY-MM-DD') }
+}
 
 /**
  * La semana en curso y, si algún día existe, el resumen de avance del Docente.
@@ -18,13 +34,12 @@ import useSessionStore from '../../store/sessionStore'
  */
 export default function useResumenDocente() {
   const idDocente = useSessionStore((s) => s.usuario?.id_docente)
-  const { data: semanas = [] } = useSemanas()
-  const semanaActual = semanas.at(-1) ?? null
+  const semanaActual = semanaEnCurso()
 
   const consulta = useQuery({
-    queryKey: ['resumen-docente', idDocente, semanaActual?.id_semana],
-    queryFn: () => obtenerResumenDocente(idDocente, { semana: semanaActual.id_semana }),
-    enabled: Boolean(idDocente && semanaActual),
+    queryKey: ['resumen-docente', idDocente, semanaActual.inicio],
+    queryFn: () => obtenerResumenDocente(idDocente, {}),
+    enabled: Boolean(idDocente),
   })
 
   return { ...consulta, semanaActual }

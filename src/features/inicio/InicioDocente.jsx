@@ -79,7 +79,7 @@ export default function InicioDocente() {
             no de un periodo, y le dice al docente dónde está. */}
         {semanaActual && (
           <p className="mt-1 text-sm text-ink-500">
-            {`Semana ${semanaActual.numero} · ${formatearRangoSemana(semanaActual)}`}
+            {`Semana del ${formatearRangoSemana(semanaActual)}`}
           </p>
         )}
         </div>

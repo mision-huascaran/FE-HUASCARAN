@@ -1,5 +1,5 @@
 // Catálogos del sistema. Ninguno se hardcodea en la interfaz (RN-011, RN-012).
-import { api, resolver } from '../client'
+import { adminContraApiReal, api, resolver } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 
@@ -21,8 +21,27 @@ export const obtenerGrados = () =>
 export const obtenerProgramas = () =>
   resolver({ mock: () => handlers.catalogos.programas(), real: () => api.get(catalogos.programas) })
 
-export const obtenerNivelesRazkids = () =>
-  resolver({ mock: () => handlers.catalogos.nivelesRazkids(), real: () => api.get(catalogos.nivelesRazkids) })
+/**
+ * `GET /niveles-razkids` — la escala aa–Z (27 niveles, sin Z1 ni Z2 desde T9).
+ *
+ * Va contra la API real: Registro de Vuelo guarda `id_nivel_colocado` con
+ * estos ids, y uno del simulador no existiría en el servidor. El backend manda
+ * `{id, letra}`; las pantallas leen `id_nivel_razkids` y `orden`, así que se
+ * normaliza aquí, en un solo sitio (el orden es el de la lista: aa primero).
+ */
+export const obtenerNivelesRazkids = async () => {
+  const niveles = await resolver({
+    mock: () => handlers.catalogos.nivelesRazkids(),
+    real: () => api.get(catalogos.nivelesRazkids),
+    forzarReal: adminContraApiReal,
+  })
+  return (niveles ?? []).map((n, i) => ({
+    ...n,
+    id: n.id ?? n.id_nivel_razkids,
+    id_nivel_razkids: n.id_nivel_razkids ?? n.id,
+    orden: n.orden ?? i + 1,
+  }))
+}
 
 /** Los niveles de rúbrica dependen del programa del alumno (P5, RN-011). */
 export const obtenerNivelesRubrica = (programa) =>
@@ -65,4 +84,7 @@ export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSecci
           id_seccion: Number(idSeccion),
         },
       }),
+    // Las semanas deciden qué tabla de Lectura se pide al backend real: si
+    // salieran del simulador, sus ids no serían los del servidor.
+    forzarReal: adminContraApiReal,
   })
