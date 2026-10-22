@@ -10,6 +10,33 @@ import { sincronizarReloj } from '../../lib/relojServidor'
 
 const RETARDO_MS = 300
 
+/**
+ * Calendario del año lectivo del simulador (CU027): cuatro PA con su receso.
+ *
+ * Los ocho periodos van seguidos y sin huecos dentro del año, como en un
+ * calendario real. Diciembre queda fuera a propósito, para tener a mano una
+ * fecha "fuera de todo periodo" con la que probar ese borde.
+ */
+const CALENDARIO_MOCK = {
+  id_calendario: 1,
+  origen: 'general',
+  version: 1,
+  periodos: [
+    { tipo: 'PA', numero: 1, id_periodo_academico: 31, fecha_inicio: '2026-03-02', fecha_fin: '2026-05-15' },
+    { tipo: 'PR', numero: 1, id_periodo_academico: 91, fecha_inicio: '2026-05-16', fecha_fin: '2026-05-31' },
+    { tipo: 'PA', numero: 2, id_periodo_academico: 32, fecha_inicio: '2026-06-01', fecha_fin: '2026-07-31' },
+    { tipo: 'PR', numero: 2, id_periodo_academico: 92, fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15' },
+    { tipo: 'PA', numero: 3, id_periodo_academico: 33, fecha_inicio: '2026-08-16', fecha_fin: '2026-10-31' },
+    { tipo: 'PR', numero: 3, id_periodo_academico: 93, fecha_inicio: '2026-11-01', fecha_fin: '2026-11-08' },
+    { tipo: 'PA', numero: 4, id_periodo_academico: 34, fecha_inicio: '2026-11-09', fecha_fin: '2026-11-30' },
+    { tipo: 'PR', numero: 4, id_periodo_academico: 94, fecha_inicio: '2026-12-01', fecha_fin: '2026-12-15' },
+  ],
+  dias_no_lectivos: [
+    { id: 1, motivo: 'Día de la Independencia', fecha_inicio: '2026-07-28', fecha_fin: '2026-07-29', origen: 'general' },
+    { id: 2, motivo: 'Feriado', fecha_inicio: '2026-10-08', fecha_fin: '2026-10-08', origen: 'general' },
+  ],
+}
+
 function copiar(datos) {
   return structuredClone(datos)
 }
@@ -505,6 +532,72 @@ export const handlers = {
    *   · Unicidad por alumno, fecha y subprograma.
    *   · `aplicado: false` cuando otro dispositivo guardó algo más reciente.
    */
+  /**
+   * Habilitaciones y calendario (CU027, CU028), con la forma del contrato de
+   * la semana 11.
+   *
+   * El simulador monta un calendario de cuatro PA con sus recesos para el año
+   * lectivo y le da al docente una asignación ordinaria en cada uno de sus
+   * colegios. Sirve para desarrollar las pantallas y, sobre todo, para que las
+   * pruebas puedan ejercitar los bordes: permiso vencido, fecha fuera de
+   * periodo, colegio sin calendario descargado.
+   */
+  habilitaciones: {
+    mias: async () => {
+      const idDocente = 1
+      const idsColegio = [...new Set(db.ASIGNACIONES.filter((a) => a.id_docente === idDocente).map((a) => a.id_colegio))]
+
+      return responder({
+        generado_en: new Date().toISOString(),
+        asignaciones: idsColegio.flatMap((idColegio) =>
+          db.GRADOS.flatMap((g) =>
+            CALENDARIO_MOCK.periodos
+              .filter((p) => p.tipo === 'PA')
+              .map((p) => ({
+                id_colegio: idColegio,
+                id_grado: g.id_grado,
+                id_periodo_academico: p.id_periodo_academico,
+                // La retroactiva la otorga el Supervisor caso por caso: el
+                // simulador no la inventa, para que se vea la diferencia.
+                retroactiva: false,
+              })),
+          ),
+        ),
+        permisos: [],
+        calendarios: idsColegio.map((idColegio) => ({ ...CALENDARIO_MOCK, id_colegio: idColegio })),
+      })
+    },
+
+    periodo: async ({ idColegio, fecha }) => {
+      const periodo = CALENDARIO_MOCK.periodos.find((p) => fecha >= p.fecha_inicio && fecha <= p.fecha_fin)
+      if (!periodo) {
+        return responder({
+          fecha,
+          tipo: null,
+          numero: null,
+          id_periodo_academico: null,
+          es_lectivo: false,
+          motivo_no_lectivo: 'fuera_de_periodo',
+        })
+      }
+      const noLectivo = CALENDARIO_MOCK.dias_no_lectivos.find((d) => fecha >= d.fecha_inicio && fecha <= d.fecha_fin)
+      const finDeSemana = [0, 6].includes(new Date(`${fecha}T12:00:00`).getDay())
+      return responder({
+        fecha,
+        id_colegio: Number(idColegio),
+        tipo: periodo.tipo,
+        numero: periodo.numero,
+        id_periodo_academico: periodo.id_periodo_academico,
+        fecha_inicio: periodo.fecha_inicio,
+        fecha_fin: periodo.fecha_fin,
+        es_lectivo: periodo.tipo === 'PA' && !noLectivo && !finDeSemana,
+        motivo_no_lectivo: periodo.tipo === 'PR'
+          ? 'receso'
+          : (noLectivo?.motivo ?? (finDeSemana ? 'fin_de_semana' : null)),
+      })
+    },
+  },
+
   asistencia: {
     /** Las secciones (aulas) que ese colegio y grado tienen de verdad. */
     secciones: async ({ idColegio, idGrado }) => {
