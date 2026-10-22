@@ -57,16 +57,20 @@ describe('Saludo', () => {
   })
 })
 
-describe('Periodo y actividad', () => {
-  it('muestra el periodo vigente', async () => {
+describe('Semana y actividad', () => {
+  it('muestra la semana en curso, y YA NO un periodo global', async () => {
+    /**
+     * CU027 reparte el año en PA1 a PA4 con sus recesos, y cada colegio puede
+     * tener fechas propias: no existe un "periodo de evaluación" único que se
+     * pueda anunciar en una cabecera. Un docente con dos colegios puede estar
+     * en PA3 en uno y en receso en el otro. La semana sí se queda: esa es del
+     * calendario, no de un periodo.
+     */
     montar()
-    expect(await screen.findByText(`${PERIODO_VIGENTE.nombre} ${PERIODO_VIGENTE.anio}`)).toBeInTheDocument()
-  })
+    await screen.findByRole('heading', { level: 1 })
 
-  it('sin periodo elegido muestra un guion, no un texto vacío', async () => {
-    useFiltrosStore.setState({ idPeriodo: null })
-    montar()
-    expect(await screen.findByText('—')).toBeInTheDocument()
+    expect(screen.queryByText(/Periodo de evaluación/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(`${PERIODO_VIGENTE.nombre} ${PERIODO_VIGENTE.anio}`)).not.toBeInTheDocument()
   })
 
   it('con actividad iniciada dice la hora de fin de la SESIÓN, la del token (CU010)', async () => {

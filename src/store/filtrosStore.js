@@ -14,8 +14,18 @@ export const FILTROS_DASHBOARD_VACIOS = {
 /**
  * Filtros que sobreviven a la navegación.
  *
- * - `idPeriodo`: el periodo de evaluación vigente, que la barra superior deja
- *   elegir y todas las pantallas leen (P2).
+ * - `idPeriodo`: HEREDADO, en retirada. Era "el periodo de evaluación vigente"
+ *   para TODA la aplicación, elegido en la barra superior. CU027 lo deja sin
+ *   sentido: el año se reparte en PA1 a PA4 con sus recesos y cada colegio
+ *   puede tener fechas propias, así que no hay un periodo único que valga para
+ *   todos. El periodo aplicable es función de (colegio, fecha) y lo resuelve
+ *   el servidor: `GET /calendarios/periodo`, o el calendario descargado en
+ *   `auth/habilitaciones.js` cuando no hay conexión.
+ *
+ *   Las pantallas vivas ya no lo usan. Siguen leyéndolo las del mockup antiguo
+ *   —Ranking, Consolidados, Nivel final, Panel ejecutivo, Reportes y Consulta
+ *   de colegios—, que están pendientes de decidir si se retiran. NO AÑADIR
+ *   consumidores nuevos: lo que haga falta se pide al calendario del colegio.
  * - `dashboard`: los filtros del dashboard (P12). Se guardan aquí para que al
  *   volver a la pantalla sigan puestos, y se reflejan en la URL para que la
  *   vista se pueda compartir (`useFiltrosDashboard`).

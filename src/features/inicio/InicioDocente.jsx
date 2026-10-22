@@ -8,12 +8,9 @@ import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad from './useActividad'
-import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
-import { usePeriodos } from '../../hooks/useCatalogos'
-import useFiltrosStore from '../../store/filtrosStore'
 import useSessionStore from '../../store/sessionStore'
 import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
@@ -42,11 +39,8 @@ const MOTIVO_SIN_ACTIVIDAD = {
 
 export default function InicioDocente() {
   const usuario = useSessionStore((s) => s.usuario)
-  const idPeriodo = useFiltrosStore((s) => s.idPeriodo)
-  const { data: periodos = [] } = usePeriodos()
   const { data: resumen, isLoading, semanaActual } = useResumenDocente()
 
-  const periodo = periodos.find((p) => p.id_periodo === idPeriodo)
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
@@ -75,13 +69,18 @@ export default function InicioDocente() {
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">
           {saludo()}, {primerNombre}
         </h1>
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-500">
-          Periodo de evaluación
-          <Badge tone={periodo?.estado === 'abierto' ? 'success' : 'neutral'}>
-            {periodo ? `${periodo.nombre} ${periodo.anio}` : '—'}
-          </Badge>
-          {semanaActual && <span>· Semana {semanaActual.numero} · {formatearRangoSemana(semanaActual)}</span>}
-        </p>
+        {/* YA NO SE ANUNCIA UN "periodo de evaluación" GLOBAL.
+            CU027 reparte el año en PA1 a PA4 con sus recesos, y cada colegio
+            puede tener fechas propias: no existe un periodo único para toda
+            la aplicación que se pueda poner en una cabecera. El periodo
+            aplicable es función de (colegio, fecha) y lo resuelve el
+            servidor. La semana en curso sí se queda: esa es del calendario,
+            no de un periodo, y le dice al docente dónde está. */}
+        {semanaActual && (
+          <p className="mt-1 text-sm text-ink-500">
+            {`Semana ${semanaActual.numero} · ${formatearRangoSemana(semanaActual)}`}
+          </p>
+        )}
         </div>
 
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
