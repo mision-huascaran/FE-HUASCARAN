@@ -1,18 +1,14 @@
 // Punto de entrada de la cola offline para los componentes (RNF-001).
 // Registra qué recurso atiende cada tipo de envío y expone el estado que pintan
-// el SyncBadge y las filas del reporte semanal.
+// el SyncBadge y las filas de Asistencia.
 import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
-import { guardarReporteSemanal } from '../api/resources/semanal'
-import { guardarRubricaSemanal } from '../api/resources/rubrica'
 import { guardarAsistencia } from '../api/resources/asistencia'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
 import useSyncStore from '../store/syncStore'
 
 export const TIPOS_ENVIO = {
-  REPORTE_SEMANAL: 'reporte-semanal',
-  RUBRICA_SEMANAL: 'rubrica-semanal',
   ACTIVIDAD_INICIO: 'actividad-inicio',
   ACTIVIDAD_CIERRE: 'actividad-cierre',
   ASISTENCIA: 'asistencia',
@@ -25,8 +21,6 @@ export const TIPOS_ENVIO = {
  * `actividad`—, así que la traducción se declara donde se sabe a qué endpoint
  * va cada envío: aquí mismo.
  */
-registrarEnviador(TIPOS_ENVIO.REPORTE_SEMANAL, guardarReporteSemanal, { modulo: 'lectura' })
-registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal, { modulo: 'rubrica' })
 // CU022: cada micro-paquete del Auto-save. La clave es LA CLASE y el alumno, la
 // misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
 // alumno dos veces deja UN solo envío en la cola y no dos contradictorios.

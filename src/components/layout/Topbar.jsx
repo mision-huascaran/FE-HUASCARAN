@@ -26,17 +26,9 @@ import { usePeriodos } from '../../hooks/useCatalogos'
  * Esconderlo no deja el periodo sin valor: el efecto de abajo lo fija igual en
  * todas las rutas, también donde el control no se pinta.
  *
- * Los prefijos cubren las rutas con detalle (`/ranking/3`, `/estudiantes/12`).
+ * Los prefijos cubren las rutas con detalle (`/consulta-colegios/3`).
  */
-const RUTAS_CON_PERIODO = [
-  '/ranking',
-  '/estudiantes',
-  '/consulta-colegios',
-  '/consolidados',
-  '/nivel-final',
-  '/panel-ejecutivo',
-  '/reportes',
-]
+const RUTAS_CON_PERIODO = ['/consulta-colegios']
 
 const usaElPeriodo = (ruta) => RUTAS_CON_PERIODO.some((base) => ruta === base || ruta.startsWith(`${base}/`))
 

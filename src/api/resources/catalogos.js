@@ -50,12 +50,6 @@ export const obtenerNivelesRubrica = (programa) =>
     real: () => api.get(catalogos.nivelesRubrica, { params: { programa } }),
   })
 
-export const obtenerNivelGeneral = () =>
-  resolver({ mock: () => handlers.catalogos.nivelGeneral(), real: () => api.get(catalogos.nivelGeneral) })
-
-export const obtenerEsperadoPorGrado = () =>
-  resolver({ mock: () => handlers.catalogos.esperadoPorGrado(), real: () => api.get(catalogos.esperadoPorGrado) })
-
 export const obtenerPeriodos = () =>
   resolver({ mock: () => handlers.catalogos.periodos(), real: () => api.get(catalogos.periodos) })
 

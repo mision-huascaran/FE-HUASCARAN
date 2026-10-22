@@ -3,14 +3,11 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   obtenerColegios,
-  obtenerEsperadoPorGrado,
   obtenerGrados,
-  obtenerNivelGeneral,
   obtenerNivelesRazkids,
   obtenerNivelesRubrica,
   obtenerPeriodos,
   obtenerProgramas,
-  obtenerSemanas,
 } from '../api/resources/catalogos'
 import {
   listarColegiosAdmin,
@@ -27,10 +24,7 @@ export const useColegios = () => useCatalogo(['catalogo', 'colegios'], obtenerCo
 export const useGrados = () => useCatalogo(['catalogo', 'grados'], obtenerGrados)
 export const useProgramas = () => useCatalogo(['catalogo', 'programas'], obtenerProgramas)
 export const useNivelesRazkids = () => useCatalogo(['catalogo', 'niveles-razkids'], obtenerNivelesRazkids)
-export const useNivelGeneral = () => useCatalogo(['catalogo', 'nivel-general'], obtenerNivelGeneral)
-export const useEsperadoPorGrado = () => useCatalogo(['catalogo', 'esperado-por-grado'], obtenerEsperadoPorGrado)
 export const usePeriodos = () => useCatalogo(['catalogo', 'periodos'], obtenerPeriodos)
-export const useSemanas = () => useCatalogo(['catalogo', 'semanas'], obtenerSemanas)
 
 // ── Los mismos catálogos, pero del backend DE VERDAD ────────────────────────
 //

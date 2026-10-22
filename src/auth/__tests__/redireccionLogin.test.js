@@ -44,7 +44,7 @@ describe('destinoTrasLogin', () => {
 
   it('respeta la ruta pedida cuando el rol sí puede entrar', () => {
     expect(destinoTrasLogin('/estudiantes', ROLES.DOCENTE)).toBe('/estudiantes')
-    expect(destinoTrasLogin('/consolidados', ROLES.SUPERVISOR)).toBe('/consolidados')
+    expect(destinoTrasLogin('/seguimiento', ROLES.SUPERVISOR)).toBe('/seguimiento')
   })
 
   it('sin ruta previa los tres roles aterrizan en Inicio', () => {

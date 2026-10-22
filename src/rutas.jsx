@@ -5,12 +5,7 @@ import ProtectedRoute from './auth/ProtectedRoute'
 import RoleRoute from './auth/RoleRoute'
 import ForbiddenPage from './features/errores/ForbiddenPage'
 import InicioPage from './features/inicio/InicioPage'
-import AdministracionPage from './features/administracion/AdministracionPage'
-import AlertasPage from './features/alertas/AlertasPage'
-import ColegioDetallePage from './features/colegios/ColegioDetallePage'
-import ColegiosPage from './features/colegios/ColegiosPage'
 import MantenimientoColegios from './features/colegios/MantenimientoColegios'
-import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
 import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
@@ -20,9 +15,6 @@ import SeguimientoPage from './features/seguimiento/SeguimientoPage'
 import AsistenciaPage from './features/asistencia/AsistenciaPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
-import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
-import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
-import ReportesPage from './features/reportes/ReportesPage'
 import RegistroVueloAnualPage from './features/registroVuelo/RegistroVueloAnualPage'
 import LecturaPage from './features/lectura/LecturaPage'
 import RubricaPage from './features/rubrica/RubricaPage'
@@ -77,15 +69,7 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
   { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
-  { path: '/ranking', allow: [JEFA, DIRECTIVOS], titulo: 'Ranking de colegios', elemento: <ColegiosPage /> },
-  { path: '/ranking/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
-  { path: '/nivel-final', allow: [PROFESOR, JEFA], titulo: 'Nivel final mensual', elemento: <NivelFinalPage /> },
   { path: '/consulta-colegios', allow: [PROFESOR], titulo: 'Consulta de otros colegios', elemento: <ConsultaColegiosPage /> },
-  { path: '/consolidados', allow: [JEFA], titulo: 'Consolidados', elemento: <ConsolidadosPage /> },
-  { path: '/alertas', allow: [JEFA], titulo: 'Alertas de inconsistencias', elemento: <AlertasPage /> },
-  { path: '/administracion', allow: [JEFA], titulo: 'Administración', elemento: <AdministracionPage /> },
-  { path: '/panel-ejecutivo', allow: [DIRECTIVOS], titulo: 'Panel ejecutivo', elemento: <PanelEjecutivoPage /> },
-  { path: '/reportes', allow: [DIRECTIVOS], titulo: 'Reportes y descargas', elemento: <ReportesPage /> },
 ]
 
 const enDesarrollo = import.meta.env.DEV

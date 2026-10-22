@@ -253,55 +253,12 @@ export const ENDPOINTS = {
     asignaciones: '/asignaciones',
     nivelesRazkids: '/niveles-razkids',
     nivelesRubrica: '/niveles-rubrica', // ?programa=
-    nivelesGenerales: '/niveles-generales',
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // NO EXISTE AÚN (api_sicedu_frontend §12). Las pantallas que dependen de
-  // esto siguen en mock; sus rutas son provisionales y habrá que contrastarlas
-  // con /docs cuando el backend publique las grillas.
-  // ─────────────────────────────────────────────────────────────────────────
-  // De los niveles, solo este sigue sin existir.
-  esperadoPorGrado: '/niveles/esperado-por-grado',
-
-  reporteSemanal: {
-    listar: '/reporte-semanal',
-    crear: '/reporte-semanal',
-    actualizar: (id) => `/reporte-semanal/${id}`,
-    agregarLibro: (id) => `/reporte-semanal/${id}/libros`,
-    eliminarLibro: (idLibro) => `/reporte-semanal/libros/${idLibro}`,
-  },
-
-  rubricaSemanal: {
-    listar: '/rubrica-semanal',
-    crear: '/rubrica-semanal',
-  },
-
-  evaluacionDiagnostica: {
-    listar: '/evaluacion-diagnostica',
-    crear: '/evaluacion-diagnostica',
-    actualizar: (id) => `/evaluacion-diagnostica/${id}`,
-  },
-
-  nivelFinalMensual: {
-    listar: '/nivel-final-mensual',
-    ajustar: (id) => `/nivel-final-mensual/${id}/ajuste`,
   },
 
   dashboard: {
     resumen: '/dashboard/resumen',
     ejecutivo: '/dashboard/ejecutivo',
     rankingAulas: '/dashboard/ranking-aulas',
-  },
-
-  consolidados: {
-    nivel: '/consolidados/nivel',
-    libros: '/consolidados/libros',
-  },
-
-  alertas: {
-    inconsistencias: '/alertas/inconsistencias',
-    revisar: (id) => `/alertas/inconsistencias/${id}`,
   },
 }
 

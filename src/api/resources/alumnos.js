@@ -2,13 +2,6 @@ import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 
-/** GET /alumnos?colegio=&grado=&programa=&q= */
-export const listarAlumnos = (filtros = {}) =>
-  resolver({
-    mock: () => handlers.alumnos.listar(filtros),
-    real: () => api.get(ENDPOINTS.alumnos.listar, { params: filtros }),
-  })
-
 /**
  * `GET /alumnos/{id}` — cabecera del detalle (CU015) y popup de edición
  * (CU014). Va contra la API real: el listado de Alumnos ya es real y un id

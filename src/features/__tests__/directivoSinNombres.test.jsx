@@ -7,12 +7,10 @@
 // nombre y el código de cada alumno. También se revisan las descargas.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { RUTAS_PROTEGIDAS } from '../../rutas'
 import { ALUMNOS } from '../../api/mock/db'
 import { ROLES } from '../../auth/roles'
 import { MATRIZ } from '../../auth/permisos'
-import { descargarCSV, descargarExcel } from '../../lib/export'
 import { renderConProveedores } from '../../test/renderConProveedores'
 
 // Las descargas se interceptan para leer las filas sin generar archivos.
@@ -59,23 +57,5 @@ describe('El Directivo no ve nombres de alumnos (RNF-004)', () => {
   it.each(RUTAS_DEL_DIRECTIVO)('en %s no aparece ningún nombre ni código de alumno', async (ruta) => {
     await montarYEsperar(ruta)
     expect(rastrosEn(document.body.textContent)).toEqual([])
-  })
-
-  it('las descargas de /reportes son agregadas: ninguna fila nombra a un alumno', async () => {
-    await montarYEsperar('/reportes')
-    const descargas = () => [...descargarCSV.mock.calls, ...descargarExcel.mock.calls]
-
-    const botones = screen.getAllByRole('button', { name: /csv|excel/i })
-    expect(botones.length).toBeGreaterThan(0)
-    // Mientras una descarga se genera los demás botones se deshabilitan:
-    // se espera a que termine cada una antes de pulsar la siguiente.
-    for (const [i, boton] of botones.entries()) {
-      await waitFor(() => expect(boton).toBeEnabled())
-      await userEvent.click(boton)
-      await waitFor(() => expect(descargas()).toHaveLength(i + 1))
-    }
-
-    const exportado = JSON.stringify(descargas().map(([filas]) => filas))
-    expect(rastrosEn(exportado)).toEqual([])
   })
 })
