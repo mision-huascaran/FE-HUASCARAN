@@ -62,11 +62,19 @@ describe('Bajas lógicas: tienen ruta propia', () => {
     expect(patch).toHaveBeenCalledWith('/colegios/3/activar')
   })
 
-  it('lo mismo con los alumnos', async () => {
-    await cambiarEstadoAlumno(9, false)
-    expect(patch).toHaveBeenCalledWith('/alumnos/9/desactivar')
+  it('lo mismo con los alumnos, y AHORA con fecha efectiva', async () => {
+    /**
+     * Desde T3 el cuerpo es obligatorio: `aplicar_desde` es la fecha efectiva
+     * de la baja o el alta, no la del clic. Un alumno que se fue el día 3 pero
+     * se inactiva el 20 no estuvo en el aula esas dos semanas, y el historial
+     * tiene que poder decirlo.
+     */
+    await cambiarEstadoAlumno(9, false, { aplicarDesde: '2026-10-03' })
+    expect(patch).toHaveBeenCalledWith('/alumnos/9/desactivar', { aplicar_desde: '2026-10-03' })
+
+    // Sin fecha, hoy según el reloj del SERVIDOR: el caso corriente.
     await cambiarEstadoAlumno(9, true)
-    expect(patch).toHaveBeenCalledWith('/alumnos/9/activar')
+    expect(patch).toHaveBeenCalledWith('/alumnos/9/activar', { aplicar_desde: expect.any(String) })
   })
 })
 
@@ -261,7 +269,7 @@ describe('Contrato real de Alumnos y asignaciones (hallazgos del 09/10/2026)', (
     expect(items[0]).toMatchObject({ id_alumno: 42, id_colegio: 7, id_grado: 1, id_programa: 1, ciclo: 'III' })
 
     await cambiarEstadoAlumno(items[0].id_alumno, false)
-    expect(patch).toHaveBeenCalledWith('/alumnos/42/desactivar')
+    expect(patch).toHaveBeenCalledWith('/alumnos/42/desactivar', { aplicar_desde: expect.any(String) })
   })
 
   it('los filtros llegan con los nombres y tipos de GET /alumnos (openapi.json)', async () => {

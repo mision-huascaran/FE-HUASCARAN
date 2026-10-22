@@ -17,6 +17,7 @@ import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 import { comoGradosConDia } from '../../lib/gradosColegio'
+import { hoy } from '../../lib/relojServidor'
 
 const { alumnos, colegios, usuarios, auth } = ENDPOINTS
 
@@ -317,7 +318,12 @@ export function normalizarAlumno(a) {
     id_colegio: a.id_colegio ?? idDe(a.colegio),
     id_grado: a.id_grado ?? idDe(a.grado),
     id_programa: a.id_programa ?? a.id_programa_actual ?? idDe(a.programa ?? a.subprograma),
-    // Solo lectura en el formulario: se muestran como texto, no como objeto.
+    /**
+     * La sección pasó de texto a objeto `{id, nombre}` cuando T3 la convirtió
+     * en entidad. Se guardan las dos caras: el id para mandarlo al servidor y
+     * el nombre para pintarlo.
+     */
+    id_seccion: a.id_seccion ?? idDe(a.seccion),
     seccion: etiquetaDeCampo(a.seccion),
     ciclo: etiquetaDeCampo(a.ciclo),
     anonimo: !nombre,
@@ -390,13 +396,40 @@ function cicloComoTexto(valor) {
  * `POST /alumnos`.
  *
  * NO se manda el ciclo: lo calcula el backend (Alfabetización → III;
- * Comprensión Lectora → 2.º III, 3.º y 4.º IV, 5.º y 6.º V). Tampoco la
- * sección, que el alumno hereda del colegio. 1.º grado solo admite
- * Alfabetización, y el colegio debe ofrecer ese grado y ese subprograma.
+ * Comprensión Lectora → 2.º III, 3.º y 4.º IV, 5.º y 6.º V). 1.º grado solo
+ * admite Alfabetización, y el colegio debe ofrecer ese grado y ese
+ * subprograma.
+ *
+ * DOS CAMPOS NUEVOS desde T3, y los dos obligatorios en la práctica:
+ *
+ *   · `pertenece_desde` — desde cuándo el alumno está en ese grupo. Es lo que
+ *     sostiene todo el historial de pertenencia: sin esa fecha no se puede
+ *     saber quién estaba en un aula el día de una clase, que es de lo que
+ *     dependen las tablas históricas de Lectura, Rúbrica y Registro de Vuelo.
+ *     No puede ser futura.
+ *   · `id_seccion` — se puede omitir si el grado tiene UNA sola sección, pero
+ *     con varias el servidor responde 422. Se manda siempre que se tenga.
  */
-export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }) =>
+export const crearAlumno = ({
+  nombres,
+  apellidos,
+  id_colegio: idColegio,
+  id_grado: idGrado,
+  id_programa: idPrograma,
+  id_seccion: idSeccion,
+  pertenece_desde: perteneceDesde,
+}) =>
   resolver({
-    mock: () => handlers.administracion.crearAlumno({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }),
+    mock: () =>
+      handlers.administracion.crearAlumno({
+        nombres,
+        apellidos,
+        id_colegio: idColegio,
+        id_grado: idGrado,
+        id_programa: idPrograma,
+        id_seccion: idSeccion,
+        pertenece_desde: perteneceDesde,
+      }),
     real: () =>
       api.post(alumnos.crear, {
         nombres,
@@ -406,6 +439,8 @@ export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grad
         // `AlumnoCrear` pide `id_programa` (no `id_programa_actual`): con el
         // nombre viejo el alta respondía 422 por falta de un campo obligatorio.
         id_programa: Number(idPrograma),
+        ...(idSeccion ? { id_seccion: Number(idSeccion) } : {}),
+        ...(perteneceDesde ? { pertenece_desde: perteneceDesde } : {}),
       }),
     forzarReal: adminContraApiReal,
   })
@@ -428,17 +463,41 @@ function cuerpoDeAlumno(cambios) {
   if (cambios.apellidos !== undefined) cuerpo.apellidos = cambios.apellidos
   if (cambios.id_colegio) cuerpo.id_colegio = Number(cambios.id_colegio)
   if (cambios.id_grado) cuerpo.id_grado = Number(cambios.id_grado)
+  if (cambios.id_seccion) cuerpo.id_seccion = Number(cambios.id_seccion)
   const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
   if (idPrograma) cuerpo.id_programa = Number(idPrograma)
+  /**
+   * Cambiar de GRUPO —colegio, grado, sección o subprograma— exige decir desde
+   * cuándo. Corregir solo el nombre, no: por eso viaja aparte y solo cuando la
+   * pantalla lo manda.
+   */
+  if (cambios.cambio_grupo_desde) cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
   return cuerpo
 }
 
-export const cambiarEstadoAlumno = (idAlumno, activo) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo }),
-    real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno)),
+/** Los campos que, al cambiar, convierten una edición en un cambio de grupo. */
+export const CAMPOS_DE_GRUPO = ['id_colegio', 'id_grado', 'id_seccion', 'id_programa']
+
+/**
+ * Activar o inactivar a un alumno. AHORA LLEVA CUERPO, y es obligatorio.
+ *
+ * `aplicar_desde` es la fecha efectiva de la baja o el alta, no la del clic.
+ * Importa para el historial: un alumno que se fue el día 3 pero se inactiva el
+ * día 20 no estuvo en el aula esas dos semanas, y las tablas de esas fechas
+ * tienen que reflejarlo.
+ *
+ * Se envía la fecha de HOY según el reloj del servidor cuando la pantalla no
+ * da otra. Es el caso corriente y evita que la operación falle con un 422,
+ * pero no sustituye al selector de fecha efectiva, que es trabajo pendiente.
+ */
+export const cambiarEstadoAlumno = (idAlumno, activo, { aplicarDesde } = {}) => {
+  const cuerpo = { aplicar_desde: aplicarDesde || hoy() }
+  return resolver({
+    mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo, ...cuerpo }),
+    real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno), cuerpo),
     forzarReal: adminContraApiReal,
   })
+}
 
 /**
  * Historial del alumno (CU015), construido a partir de la auditoría.

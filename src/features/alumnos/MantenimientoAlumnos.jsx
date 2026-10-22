@@ -6,8 +6,8 @@
 //
 // Al crear un alumno el backend crea su expediente en la misma transacción, así
 // que aquí no hay una segunda llamada que pudiera quedarse a medias.
-import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useMemo } from 'react'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import { useToast } from '../../components/ui/Toast'
 import {
@@ -21,9 +21,11 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
   listarProgramasAdmin,
+  obtenerColegio,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
+import { hoy } from '../../lib/relojServidor'
 import useConexion from '../../hooks/useConexion'
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import usePrecarga from '../../hooks/usePrecarga'
@@ -93,6 +95,42 @@ export default function MantenimientoAlumnos() {
   )
 
   /**
+   * Las SECCIONES de cada grado, que solo trae el detalle del colegio.
+   *
+   * El listado (`ColegioItem`) no las tiene, y desde T3 `colegio.seccion`
+   * desapareció: cada grado tiene las suyas. Se piden los detalles de los
+   * colegios que esta persona puede elegir —uno o dos para un Docente, los
+   * nueve para el Supervisor— y se cachean para siempre, porque cambian
+   * cuando el Supervisor añade una sección y no más.
+   */
+  const detalles = useQueries({
+    queries: colegios.map((c) => ({
+      queryKey: ['colegio', 'detalle', c.id_colegio],
+      queryFn: () => obtenerColegio(c.id_colegio),
+      enabled: enLinea,
+      ...SIEMPRE,
+    })),
+  })
+
+  const seccionesPorGrado = useMemo(() => {
+    const mapa = {}
+    for (const { data } of detalles) {
+      if (!data) continue
+      for (const g of data.grados ?? []) {
+        mapa[`${data.id_colegio}|${g.id_grado}`] = g.secciones ?? []
+      }
+    }
+    return mapa
+  // `detalles` es un array nuevo en cada render; lo que importa es su contenido.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalles.map((d) => d.data?.id_colegio).join(), detalles.filter((d) => d.data).length])
+
+  const seccionesDe = useCallback(
+    (valores) => seccionesPorGrado[`${valores?.id_colegio}|${valores?.id_grado}`] ?? [],
+    [seccionesPorGrado],
+  )
+
+  /**
    * El Docente solo puede elegir entre lo que tiene asignado: fuera de ahí el
    * servidor responde "no pertenece a un colegio y grado que tengas asignado".
    *
@@ -142,11 +180,24 @@ export default function MantenimientoAlumnos() {
         requerido: true,
         opciones: opciones(permitidos.grados, 'id_grado'),
       },
+      /**
+       * LA SECCIÓN SE ELIGE. Dejó de ser un atributo heredado del colegio
+       * cuando T3 la convirtió en entidad por grado: un grado nace con
+       * "Única", pero el Supervisor puede añadir más.
+       *
+       * Con una sola, el desplegable la deja puesta y no hay nada que decidir.
+       * Con varias es obligatoria, y si no se manda el servidor responde 422.
+       */
       {
-        nombre: 'seccion',
+        nombre: 'id_seccion',
         etiqueta: 'Sección',
-        soloLectura: true,
-        ayuda: 'La hereda del colegio: no se elige',
+        tipo: 'select',
+        // Obligatoria solo cuando hay de dónde elegir: con una sola, el
+        // servidor la asigna igual aunque no se mande.
+        requerido: false,
+        opciones: (valores) =>
+          seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
+        ayuda: 'Las del colegio y grado elegidos',
       },
       {
         nombre: 'ciclo',
@@ -161,9 +212,28 @@ export default function MantenimientoAlumnos() {
         requerido: true,
         opciones: opciones(programas, 'id_programa'),
       },
+      /**
+       * DESDE CUÁNDO pertenece al grupo. Es lo que sostiene el historial de
+       * pertenencia: sin esa fecha no se puede saber quién estaba en un aula
+       * el día de una clase, y de eso dependen las tablas históricas de
+       * Lectura, Rúbrica y Registro de Vuelo.
+       *
+       * El tope es hoy según el reloj del SERVIDOR, no el del equipo: una
+       * fecha futura la rechaza el backend con "Selecciona la fecha de hoy o
+       * una fecha anterior."
+       */
+      {
+        nombre: 'pertenece_desde',
+        etiqueta: 'Pertenece al grupo desde',
+        tipo: 'fecha',
+        requerido: true,
+        max: hoy(),
+        soloEn: 'nuevo',
+        ayuda: 'Desde qué día está en este colegio, grado y sección',
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [permitidos.colegios, permitidos.grados, programas],
+    [permitidos.colegios, permitidos.grados, programas, seccionesDe],
   )
 
   const consulta = useQuery({

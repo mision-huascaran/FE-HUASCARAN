@@ -28,7 +28,25 @@ const tituloDe = (modo, entidad, genero) =>
  * Docente, y pedírselos a un Supervisor confundía (se mostraban con la ayuda
  * "Solo para Docente" y aun así se podían rellenar).
  */
-const visiblesEn = (campos, valores) => campos.filter((c) => !c.visible || c.visible(valores))
+/**
+ * Qué campos se ven.
+ *
+ * `visible(valores)` depende de lo escrito —los grados solo si el rol es
+ * Docente—; `soloEn` depende del MODO. La fecha de pertenencia del alumno, por
+ * ejemplo, se pide al crear y no al editar: para moverlo de grupo hay otro
+ * campo, con otra regla.
+ */
+const visiblesEn = (campos, valores, modo) =>
+  campos
+    .filter((c) => (!c.visible || c.visible(valores)) && (!c.soloEn || c.soloEn === modo))
+    /**
+     * `opciones` puede ser una FUNCIÓN de lo escrito hasta ahora.
+     *
+     * Hace falta para los desplegables que dependen de otro: las secciones son
+     * las del colegio y grado elegidos, y eso no se sabe hasta que alguien los
+     * elige. Se resuelve aquí, que es donde viven los valores.
+     */
+    .map((c) => (typeof c.opciones === 'function' ? { ...c, opciones: c.opciones(valores) } : c))
 
 /**
  * Lo escrito en un campo que luego se ocultó no se envía.
@@ -134,7 +152,7 @@ export default function PopupMantenimiento({
 
   // Lo que se ve y, por tanto, lo que se valida: exigir un campo escondido
   // dejaría el popup sin guardar y sin decir por qué.
-  const camposVisibles = visiblesEn(campos, valores)
+  const camposVisibles = visiblesEn(campos, valores, modo)
 
   const enviar = () => {
     const problemas = validar(camposVisibles, valores, modo)
