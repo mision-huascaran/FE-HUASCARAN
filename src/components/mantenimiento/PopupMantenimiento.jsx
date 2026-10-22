@@ -83,14 +83,37 @@ const visiblesEn = (campos, valores, modo, registro) => {
  * Supervisor, esos grados siguen en el estado aunque ya no se vean: hay que
  * devolverlos a vacío o se mandarían al servidor.
  */
-function sinLosOcultos(campos, valores) {
+/**
+ * "Oculto" es lo que `visiblesEn` deja fuera, con el MISMO criterio: `visible`
+ * con el contexto `{ modo, registro }` y también `soloEn`. Llamar aquí a
+ * `visible(valores)` a secas reventaba el alta de alumnos —el campo de cambio
+ * de grupo lee `registro` del segundo argumento— antes de llegar a `onGuardar`.
+ */
+function sinLosOcultos(campos, visibles, valores) {
+  const seVen = new Set(visibles.map((c) => c.nombre))
   const limpio = { ...valores }
   for (const campo of campos) {
-    if (campo.visible && !campo.visible(valores)) {
+    if (!seVen.has(campo.nombre)) {
       limpio[campo.nombre] = campo.tipo === 'multiple' ? [] : ''
     }
   }
   return limpio
+}
+
+/**
+ * Los desplegables con `unicaPorDefecto` que tienen UNA sola opción y no la
+ * llevan puesta: la sección de un grado que solo tiene "Única", por ejemplo.
+ * Un valor que sigue siendo una opción válida no se toca.
+ */
+function unicasSinElegir(campos, valores, editable) {
+  const pendientes = {}
+  if (!editable) return pendientes
+  for (const campo of campos) {
+    if (campo.tipo !== 'select' || !campo.unicaPorDefecto || campo.opciones?.length !== 1) continue
+    const unica = String(campo.opciones[0].value)
+    if (String(valores[campo.nombre] ?? '') !== unica) pendientes[campo.nombre] = unica
+  }
+  return pendientes
 }
 
 /** E1: obligatorios y formato, antes de molestar al servidor. */
@@ -182,11 +205,19 @@ export default function PopupMantenimiento({
   // dejaría el popup sin guardar y sin decir por qué.
   const camposVisibles = visiblesEn(campos, valores, modo, registro)
 
+  // Con una sola opción no hay nada que decidir: se deja puesta. Va por clave
+  // de texto porque `camposVisibles` es un array nuevo en cada render.
+  const unicas = JSON.stringify(unicasSinElegir(camposVisibles, valores, abierto && modo !== 'ver'))
+  useEffect(() => {
+    const pendientes = JSON.parse(unicas)
+    if (Object.keys(pendientes).length) setValores((v) => ({ ...v, ...pendientes }))
+  }, [unicas])
+
   const enviar = () => {
     const problemas = validar(camposVisibles, valores, modo)
     setErrores(problemas)
     if (Object.keys(problemas).some((k) => problemas[k])) return
-    onGuardar(sinLosOcultos(campos, valores))
+    onGuardar(sinLosOcultos(campos, camposVisibles, valores))
   }
 
   // La auditoría solo tiene sentido sobre un registro que ya existe. Con el

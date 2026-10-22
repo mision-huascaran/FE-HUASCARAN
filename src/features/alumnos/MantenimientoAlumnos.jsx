@@ -199,6 +199,7 @@ export default function MantenimientoAlumnos() {
         // Obligatoria solo cuando hay de dónde elegir: con una sola, el
         // servidor la asigna igual aunque no se mande.
         requerido: false,
+        unicaPorDefecto: true,
         opciones: (valores) =>
           seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
         ayuda: 'Las del colegio y grado elegidos',
@@ -256,7 +257,7 @@ export default function MantenimientoAlumnos() {
         soloEn: 'editar',
         max: hoy(),
         min: (valores) => valores?.pertenece_desde || undefined,
-        visible: (valores, { registro }) => cambiaDeGrupo(registro, valores),
+        visible: (valores, { registro } = {}) => cambiaDeGrupo(registro, valores),
         ayuda: 'Desde qué día pertenece a su nuevo grupo',
       },
     ],
