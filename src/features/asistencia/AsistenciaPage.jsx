@@ -127,6 +127,18 @@ export default function AsistenciaPage() {
   }, [colegio, esDocente, asignacion])
 
   /**
+   * Las secciones del grado elegido, que solo trae el detalle del colegio.
+   *
+   * `colegio.seccion` desapareció con T3: ahora cada grado tiene las suyas, y
+   * `GET /asistencias` recibe `id_seccion` porque la clase es colegio × grado
+   * × sección, sin subprograma —el subprograma es del alumno—.
+   */
+  const secciones = useMemo(
+    () => grados.find((g) => String(g.id_grado) === String(filtros.idGrado))?.secciones ?? [],
+    [grados, filtros.idGrado],
+  )
+
+  /**
    * Los subprogramas que esta aula tiene DE VERDAD.
    *
    * El colegio los da con id; la asignación, solo los nombres de los que tienen
@@ -179,11 +191,33 @@ export default function AsistenciaPage() {
     cambiar('subprograma', String(programas[0].id_programa))
   }, [programas, filtros.idPrograma, cambiar])
 
-  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idPrograma && filtros.fecha)
+  /**
+   * Con UNA sección se elige sola; con varias se deja vacía a propósito.
+   *
+   * Es la misma regla que CU023 da para Lectura: adivinar el aula haría
+   * registrar la asistencia de la clase equivocada, y son clases distintas.
+   */
+  useEffect(() => {
+    if (!secciones.length) return
+    if (secciones.some((x) => String(x.id) === String(filtros.idSeccion))) return
+    cambiar('seccion', secciones.length === 1 ? String(secciones[0].id) : '')
+  }, [secciones, filtros.idSeccion, cambiar])
+
+  const listos = Boolean(
+    filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.fecha,
+  )
 
   const claveClase = useMemo(
-    () => ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
-    [filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+    () => [
+      'asistencia',
+      'clase',
+      filtros.idColegio,
+      filtros.idGrado,
+      filtros.idSeccion,
+      filtros.idPrograma,
+      filtros.fecha,
+    ],
+    [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.idPrograma, filtros.fecha],
   )
 
   const clase = useQuery({
@@ -192,6 +226,7 @@ export default function AsistenciaPage() {
       obtenerClase({
         idColegio: filtros.idColegio,
         idGrado: filtros.idGrado,
+        idSeccion: filtros.idSeccion,
         idPrograma: filtros.idPrograma,
         fecha: filtros.fecha,
       }),
@@ -265,7 +300,7 @@ export default function AsistenciaPage() {
         colegios={colegios}
         grados={grados}
         programas={programas}
-        seccion={colegio?.seccion}
+        secciones={secciones}
         docentes={docentes}
         eligeDocente={!puedeEditar}
       />
@@ -274,7 +309,7 @@ export default function AsistenciaPage() {
         <Card>
           <EmptyState
             title="Complete los filtros"
-            description="La clase se arma con colegio, grado, subprograma y fecha."
+            description="La clase se arma con colegio, grado, sección, subprograma y fecha."
           />
         </Card>
       )}

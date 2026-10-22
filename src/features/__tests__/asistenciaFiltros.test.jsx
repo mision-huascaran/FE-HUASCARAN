@@ -59,24 +59,24 @@ describe('Filtros de Asistencia (CU022)', () => {
     await waitFor(() => expect(subprograma.value).not.toBe(''), ESPERA)
   })
 
-  it('la Sección se ve pero no se elige, y no hace falta para armar la clase', async () => {
-    // La sección NO viaja al servidor: `GET /asistencias` recibe colegio,
-    // grado, subprograma y fecha, y el alumno que devuelve no trae aula. Como
-    // desplegable obligatorio sacaba sus opciones del simulador, así que contra
-    // el backend real nacía vacío y la clase no se pedía nunca: la pantalla se
-    // quedaba en "Complete los filtros" para siempre. Ahora solo informa.
+  it('con una sola sección se elige sola, y la clase carga', async () => {
+    /**
+     * La sección ha pasado por tres formas en tres semanas: atributo del
+     * colegio, retirada del todo, y con T3 entidad POR GRADO. Ahora
+     * `GET /asistencias` la recibe como `id_seccion`, porque la clase es
+     * colegio × grado × sección.
+     *
+     * Con una sola —lo que tienen hoy todos los colegios— se elige sola y no
+     * hay nada que decidir. Lo que no puede pasar es que vuelva a bloquear la
+     * pantalla, que es lo que hacía cuando el desplegable nacía vacío.
+     */
     montar()
     await abrirFiltros()
 
-    await screen.findByLabelText('Colegio', {}, ESPERA)
     const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
-    expect(seccion).toBeDisabled()
+    await waitFor(() => expect(seccion.value).not.toBe(''), ESPERA)
 
-    // Con los cuatro que sí viajan basta para que la clase cargue.
-    await waitFor(
-      () => expect(screen.queryByText(/complete los filtros/i)).toBeNull(),
-      ESPERA,
-    )
+    await waitFor(() => expect(screen.queryByText(/complete los filtros/i)).toBeNull(), ESPERA)
   })
 
   it('al Docente solo le ofrece sus aulas, y el subprograma del grado elegido', async () => {

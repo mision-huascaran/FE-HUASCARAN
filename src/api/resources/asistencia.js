@@ -37,14 +37,17 @@ export const ESTADOS_ASISTENCIA = ['presente', 'tardanza', 'ausente']
  * que ya constaban ese día, y el segundo a los que rotaron de aula después.
  * Los dos se muestran igual, señalados.
  */
-export const obtenerClase = ({ idColegio, idGrado, idPrograma, fecha }) =>
+export const obtenerClase = ({ idColegio, idGrado, idSeccion, idPrograma, fecha }) =>
   resolver({
-    mock: () => handlers.asistencia.clase({ idColegio, idGrado, idPrograma, fecha }),
+    mock: () => handlers.asistencia.clase({ idColegio, idGrado, idSeccion, idPrograma, fecha }),
     real: () =>
       api.get(ENDPOINTS.asistencia.listar, {
         params: {
           id_colegio: Number(idColegio),
           id_grado: Number(idGrado),
+          // La clase es colegio × grado × SECCIÓN (T6): el subprograma es del
+          // alumno, no de la clase, y cada alumno trae el suyo.
+          id_seccion: Number(idSeccion),
           id_programa: Number(idPrograma),
           fecha,
         },

@@ -208,10 +208,18 @@ export const listarUbicaciones = () =>
  */
 function cuerpoDeColegio(colegio = {}) {
   const cuerpo = { ...colegio }
+  /**
+   * Los grados viajan con su día de clase y sus SECCIONES por nombre.
+   *
+   * El backend solo agrega: las que no vienen se conservan, y "A", "a" y " a "
+   * son la misma. Se mandan todas —las que ya existen y las nuevas— porque así
+   * la petición es idempotente: repetirla no crea nada de más ni borra nada.
+   */
   if ('grados' in cuerpo) {
-    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase }) => ({
+    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase, secciones }) => ({
       id_grado: Number(id_grado),
       dia_clase: Number(dia_clase),
+      ...(secciones?.length ? { secciones: secciones.map((x) => x.nombre) } : {}),
     }))
   }
   // `programas: list[int]`, obligatorio. El multi-select los da como strings.
@@ -259,8 +267,10 @@ export const obtenerColegio = async (idColegio) => {
       id_programa: Number(p.id_programa ?? p.id),
       nombre: p.nombre,
     })),
-    // Un colegio tiene UNA sección y el alumno la hereda; por defecto, "Única".
-    seccion: colegio.seccion || 'Única',
+    /**
+     * `colegio.seccion` DESAPARECIÓ del contrato con T3. Las secciones son
+     * ahora de cada grado y vienen dentro de `grados[].secciones`.
+     */
   }
 }
 

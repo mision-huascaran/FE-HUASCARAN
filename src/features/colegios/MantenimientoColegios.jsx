@@ -61,7 +61,6 @@ export default function MantenimientoColegios() {
       { nombre: 'provincia', etiqueta: 'Provincia', requerido: true },
       { nombre: 'distrito', etiqueta: 'Distrito' },
       { nombre: 'nivel_educativo', etiqueta: 'Nivel educativo', soloLectura: true, porDefecto: 'Primaria' },
-      { nombre: 'seccion', etiqueta: 'Sección', ayuda: 'Por defecto, Única. La heredan sus alumnos' },
       {
         nombre: 'programas',
         etiqueta: 'Subprogramas',

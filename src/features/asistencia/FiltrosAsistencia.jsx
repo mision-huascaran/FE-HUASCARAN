@@ -1,15 +1,20 @@
 // Cabecera de filtros de Asistencia (CU022, paso 3).
 //
-// Los cuatro son obligatorios y el orden no es casual: cada uno acota al
+// Los filtros son obligatorios y el orden no es casual: cada uno acota al
 // siguiente. La FECHA lleva `max` en hoy —según el reloj del servidor— porque
 // CU022 prohíbe registrar en el futuro; las fechas pasadas del periodo sí se
 // pueden consultar.
 //
-// La SECCIÓN se muestra pero no se elige ni se envía. Un colegio tiene una sola
-// —"Única" por defecto— y el alumno la hereda, así que no hay nada que decidir:
-// `GET /asistencias` recibe colegio, grado, subprograma y fecha, y el alumno
-// que devuelve no trae aula. Se deja a la vista porque CU022 la lista entre los
-// filtros y porque confirma a qué aula pertenece lo que se está marcando.
+// LA SECCIÓN VUELVE A ELEGIRSE, y esta vez de verdad. Pasó por tres formas en
+// tres semanas, y conviene saber por qué: era un atributo del colegio
+// ("Única") que el alumno heredaba, se quitó al ver que no estaba en el
+// contrato de entonces —el desplegable nacía vacío y bloqueaba la pantalla—, y
+// con T3 volvió como ENTIDAD POR GRADO. Ahora un grado puede tener varias y
+// `GET /asistencias` recibe `id_seccion`: la clase es colegio × grado ×
+// sección, sin subprograma, porque el subprograma es del alumno.
+//
+// Con una sola sección se elige sola y no hay nada que decidir, que es el caso
+// corriente; con varias hay que escoger, porque son clases distintas.
 import FilterBar from '../../components/ui/FilterBar'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
@@ -21,7 +26,7 @@ export default function FiltrosAsistencia({
   colegios,
   grados,
   programas,
-  seccion,
+  secciones,
   docentes,
   eligeDocente,
 }) {
@@ -52,7 +57,13 @@ export default function FiltrosAsistencia({
         onChange={(e) => cambiar('grado', e.target.value)}
         options={opciones(grados, 'id_grado')}
       />
-      <Input label="Sección" value={seccion ?? '—'} readOnly disabled />
+      <Select
+        label="Sección"
+        value={filtros.idSeccion}
+        placeholder={secciones.length > 1 ? 'Seleccione' : ''}
+        onChange={(e) => cambiar('seccion', e.target.value)}
+        options={secciones.map((x) => ({ value: String(x.id), label: x.nombre }))}
+      />
       <Select
         label="Subprograma"
         value={filtros.idPrograma}

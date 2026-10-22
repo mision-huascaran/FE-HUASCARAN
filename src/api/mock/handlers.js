@@ -1105,10 +1105,20 @@ export const handlers = {
       return responder({
         ...colegio,
         id: colegio.id_colegio,
+        /**
+         * Cada grado con su día y sus SECCIONES (T3).
+         *
+         * Una por grado, "Única", que es con lo que nace un grado y el caso
+         * corriente de todos los colegios de hoy. El caso de varias secciones
+         * se ejercita en las pruebas que lo necesitan, montando su propio
+         * detalle: ponerlo aquí obligaría a elegir sección en cada prueba de
+         * Asistencia, que no es de lo que van.
+         */
         grados: db.GRADOS.map((g, i) => ({
           id: g.id_grado,
           nombre: g.nombre,
           dia_clase: i === 0 ? null : ((i % 5) + 1),
+          secciones: [{ id: 100 + g.id_grado, nombre: 'Única' }],
         })),
         programas: db.PROGRAMAS.map((p) => ({ id: p.id_programa, nombre: p.nombre })),
       })
