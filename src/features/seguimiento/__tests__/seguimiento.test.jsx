@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { QueryClient } from '@tanstack/react-query'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import SeguimientoPage from '../SeguimientoPage'
@@ -50,16 +50,6 @@ function definirConexion(enLinea) {
   Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
 }
 
-/** La última ruta a la que se navegó, para comprobar los atajos de CU021. */
-let rutaActual = null
-const ultimaRuta = () => rutaActual
-
-function EspiaDeRuta() {
-  const { pathname, search } = useLocation()
-  rutaActual = `${pathname}${search}`
-  return null
-}
-
 function montar({ sinReintentos = false } = {}) {
   // El cliente real reintenta 3 veces con espera creciente. Para el caso de
   // error eso haría que el test agotara su tiempo esperando reintentos.
@@ -74,7 +64,6 @@ function montar({ sinReintentos = false } = {}) {
       <ToastProvider>
         <MemoryRouter initialEntries={['/seguimiento']}>
           <SeguimientoPage />
-          <EspiaDeRuta />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
