@@ -13,6 +13,7 @@
 // cualquier otro cambio.
 import dayjs from 'dayjs'
 import { create } from 'zustand'
+import { ahora, hayContinuidad } from '../lib/relojServidor'
 
 /** Vigencia máxima de una actividad, igual que la del JWT (CU007). */
 export const HORAS_DE_VIGENCIA = 8
@@ -77,7 +78,20 @@ const useActividadStore = create((set, get) => ({
   cerrar: () => {
     const { sesion, cerradas } = get()
     if (!sesion) return null
-    const cerrada = { ...sesion, fin: new Date().toISOString() }
+    /**
+     * La hora del SERVIDOR, no la del equipo.
+     *
+     * Con `new Date()` bastaba mientras el servidor se fiaba de la hora que le
+     * mandaban. Ya no: una operación con `realizado_en` posterior a la hora
+     * real del servidor vuelve rechazada (`realizado_en_futuro`), y un cierre
+     * de actividad encolado se quedaba atascado para siempre por un reloj
+     * adelantado. `ahora()` va anclado a la hora que dio el servidor.
+     *
+     * `finVerificado` dice si esa ancla existe. Sin ella la hora es la del
+     * equipo y no se puede afirmar: CU008 pide que ese cierre se marque como
+     * no verificado en vez de darlo por bueno.
+     */
+    const cerrada = { ...sesion, fin: ahora().toISOString(), finVerificado: hayContinuidad() }
     guardar(null)
     set({ sesion: null, cerradas: [...cerradas, sesion.id] })
     return cerrada

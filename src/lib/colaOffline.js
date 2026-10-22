@@ -17,14 +17,28 @@
 import { mensajeDeError, motivoDe } from '../api/client'
 import { del, get, set } from 'idb-keyval'
 import { avisarPendientes, consultarOperacion } from '../api/resources/sincronizacion'
+import { idDeDispositivo } from './dispositivo'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
 const ESPERAS_MS = [1000, 4000, 9000]
+/** Tope del contrato para `POST /sincronizacion/pendientes`. */
+const MAX_AVISOS_POR_LOTE = 500
 export const MAX_INTENTOS = ESPERAS_MS.length
 
 const enviadores = new Map()
+/**
+ * El MÓDULO del contrato al que pertenece cada tipo de envío.
+ *
+ * No se puede usar `item.tipo` tal cual: los nombres de aquí son los de la
+ * interfaz —"asistencia", "actividad-cierre"— y el contrato tiene su propia
+ * lista cerrada: `asistencias`, `lectura`, `rubrica`, `registro_vuelo`,
+ * `alumnos`, `actividad`. Mandar el nombre de casa haría que el servidor
+ * descartara el aviso por un valor inválido, y en silencio: el aviso no
+ * interrumpe el envío, así que nadie se enteraría.
+ */
+const modulos = new Map()
 const promesas = new Map()
 
 let cola = []
@@ -32,9 +46,15 @@ let iniciada = false
 let procesando = false
 let temporizador = null
 
-/** Cada tipo de envío declara cómo se manda al servidor. */
-export function registrarEnviador(tipo, enviar) {
+/**
+ * Cada tipo de envío declara cómo se manda al servidor.
+ *
+ * @param modulo el del contrato, para el aviso de pendientes. Se declara aquí,
+ *   junto al enviador, porque es la única parte que sabe a qué endpoint va.
+ */
+export function registrarEnviador(tipo, enviar, { modulo } = {}) {
   enviadores.set(tipo, enviar)
+  if (modulo) modulos.set(tipo, modulo)
 }
 
 function publicarEstado() {
@@ -132,16 +152,26 @@ const sinRespuesta = (error) => !error?.response
  * perder el trabajo por no poder avisar sería absurdo.
  */
 async function avisarDeLoPendiente() {
-  if (cola.length === 0) return
+  const aviso = cola
+    // Sin módulo del contrato no se avisa de esa operación: el servidor
+    // rechazaría el lote entero por un valor que no está en su lista, y con él
+    // el aviso de todas las demás.
+    .filter((item) => modulos.has(item.tipo))
+    .map((item) => ({
+      id_operacion: item.idOperacion,
+      id_dispositivo: idDeDispositivo(),
+      modulo: modulos.get(item.tipo),
+      realizado_en: item.creado,
+      ...(item.idActividad ? { id_actividad: item.idActividad } : {}),
+    }))
+    // El contrato admite 500 por lote. Es muchísimo más de lo que cabe en una
+    // jornada, pero si alguna vez se pasara, el recorte deja pasar el aviso de
+    // las 500 primeras en vez de perder el lote completo por exceder el límite.
+    .slice(0, MAX_AVISOS_POR_LOTE)
+
+  if (aviso.length === 0) return
   try {
-    await avisarPendientes(
-      cola.map((item) => ({
-        id_operacion: item.idOperacion,
-        modulo: item.tipo,
-        realizado_en: item.creado,
-        ...(item.idActividad ? { id_actividad: item.idActividad } : {}),
-      })),
-    )
+    await avisarPendientes(aviso)
   } catch {
     // El aviso es un extra. Lo que no puede fallar es el envío.
   }

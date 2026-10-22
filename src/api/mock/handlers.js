@@ -810,7 +810,8 @@ export const handlers = {
    * visto— y lo que hace que la cola reintente.
    */
   sincronizacion: {
-    pendientes: async (operaciones = []) => responder({ recibidas: operaciones.length }),
+    pendientes: async (operaciones = []) =>
+      responder({ recibidos: operaciones.length, registrados: operaciones.length }),
     operacion: async (idOperacion) => responder({ id_operacion: idOperacion, estado: 'desconocida' }),
   },
 

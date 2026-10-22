@@ -48,3 +48,36 @@ export const consultarOperacion = (idOperacion) =>
     real: () => api.get(ENDPOINTS.sincronizacion.operacion(idOperacion)),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * Por qué el servidor rechaza una OPERACIÓN, con su texto.
+ *
+ * Son los motivos comunes a todos los módulos: los cuatro valen igual en
+ * Asistencias que en Lectura, Rúbrica o Registro de Vuelo, así que viven aquí
+ * y cada módulo les suma los suyos.
+ *
+ * Dos de ellos merecen una explicación, porque no son errores del docente:
+ *
+ *   · `realizado_en_futuro` — el reloj del dispositivo iba adelantado cuando
+ *     se capturó el dato. Se nombra como lo que es, un desajuste de hora, y no
+ *     como un dato inválido: lo que se escribió estaba bien.
+ *   · `operacion_ajena` — ese `id_operacion` ya se usó, y en otra cuenta. No
+ *     se reintenta: volver a mandarlo daría lo mismo.
+ *
+ * El texto bueno es el `detail` del servidor; estos son el respaldo.
+ */
+export const MOTIVO_OPERACION = {
+  fuera_de_actividad: 'La operación se realizó fuera de una actividad de trabajo del docente.',
+  actividad_requerida: 'Inicia una actividad de trabajo para registrar información.',
+  realizado_en_futuro:
+    'La hora del dispositivo iba adelantada cuando se registró el dato. Comprueba la fecha y la hora del equipo.',
+  operacion_ajena: 'El identificador de la operación ya fue usado.',
+}
+
+/**
+ * El texto de un `ResultadoOperacion` rechazado.
+ *
+ * @param extra motivos propios del módulo, que pesan igual que los comunes.
+ */
+export const textoDeRechazo = (resultado, extra = {}) =>
+  resultado?.detail ?? extra[resultado?.motivo] ?? MOTIVO_OPERACION[resultado?.motivo] ?? null

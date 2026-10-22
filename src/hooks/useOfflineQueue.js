@@ -18,10 +18,17 @@ export const TIPOS_ENVIO = {
   ASISTENCIA: 'asistencia',
 }
 
-registrarEnviador(TIPOS_ENVIO.REPORTE_SEMANAL, guardarReporteSemanal)
-registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
-// CU022: cada micro-paquete del Auto-save. La clave es alumno-fecha-programa,
-// la misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
+/**
+ * El segundo argumento es el MÓDULO del contrato, para el aviso de pendientes.
+ * Los nombres de aquí son los de la interfaz y los de allí son una lista
+ * cerrada —`asistencias`, `lectura`, `rubrica`, `registro_vuelo`, `alumnos`,
+ * `actividad`—, así que la traducción se declara donde se sabe a qué endpoint
+ * va cada envío: aquí mismo.
+ */
+registrarEnviador(TIPOS_ENVIO.REPORTE_SEMANAL, guardarReporteSemanal, { modulo: 'lectura' })
+registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal, { modulo: 'rubrica' })
+// CU022: cada micro-paquete del Auto-save. La clave es LA CLASE y el alumno, la
+// misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
 // alumno dos veces deja UN solo envío en la cola y no dos contradictorios.
 /**
  * La asistencia va por clase, no por fecha suelta: colegio, grado, sección y
@@ -36,6 +43,7 @@ registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ idColegio, idGrado, idSeccion, fech
     fecha,
     registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
   }),
+  { modulo: 'asistencias' },
 )
 
 /**
@@ -66,16 +74,22 @@ registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ idColegio, idGrado, idSeccion, fech
  * Va SOLO aquí. En `/finalizar` no hace falta: el servidor usa la sesión que la
  * actividad ya tiene.
  */
-registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_INICIO, ({ id, inicio, id_sesion: idSesion }) =>
-  iniciarActividad({ id, inicio, id_sesion: idSesion }),
+registrarEnviador(
+  TIPOS_ENVIO.ACTIVIDAD_INICIO,
+  ({ id, inicio, id_sesion: idSesion }) => iniciarActividad({ id, inicio, id_sesion: idSesion }),
+  { modulo: 'actividad' },
 )
-registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, async ({ id, fin }) => {
-  const respuesta = await finalizarActividad(id, { fin })
-  // Ya cerrada en el servidor: que una respuesta anterior de Inicio no la
-  // vuelva a dar por abierta en este navegador.
-  useActividadStore.getState().marcarCerrada(id)
-  return respuesta
-})
+registrarEnviador(
+  TIPOS_ENVIO.ACTIVIDAD_CIERRE,
+  async ({ id, fin }) => {
+    const respuesta = await finalizarActividad(id, { fin })
+    // Ya cerrada en el servidor: que una respuesta anterior de Inicio no la
+    // vuelva a dar por abierta en este navegador.
+    useActividadStore.getState().marcarCerrada(id)
+    return respuesta
+  },
+  { modulo: 'actividad' },
+)
 
 /** Clave de idempotencia de una fila de captura: `alumno-semana` (RNF-001). */
 export const claveDeFila = (tipo, idAlumno, idSemana) => `${tipo}:${idAlumno}-${idSemana}`

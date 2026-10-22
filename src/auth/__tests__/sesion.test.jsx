@@ -91,7 +91,17 @@ describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRo
      * (CU010), las selecciones de filtros (CU023, CU029, CU031) y el último
      * resumen institucional (CU012).
      */
+    /**
+     * El token se afirma ANTES de buscarlo. Sin esto la comprobación era una
+     * trampa: si el estado aún no lo tenía, `not.toContain('')` falla siempre
+     * —toda cadena contiene la vacía— y `not.toContain(null)` revienta, así
+     * que un retraso del login se leía como una credencial en localStorage.
+     * El fallo decía lo contrario de lo que pasaba.
+     */
     const token = useSessionStore.getState().token
+    expect(typeof token).toBe('string')
+    expect(token.length).toBeGreaterThan(0)
+
     const enLocal = Array.from({ length: localStorage.length }, (_, i) =>
       localStorage.getItem(localStorage.key(i)),
     ).join('|')

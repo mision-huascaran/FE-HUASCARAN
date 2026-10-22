@@ -33,6 +33,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { encolar } from '../../lib/colaOffline'
 import { motivoDe } from '../../api/client'
+import { MOTIVO_REGISTRO } from '../../api/resources/asistencia'
+import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../../lib/relojServidor'
 import useConexion from '../../hooks/useConexion'
@@ -178,7 +180,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
           // 200 con un ítem rechazado dentro: no es un fallo de red, es que
           // ESE registro no se pudo aplicar. El control vuelve atrás.
           escribir(alumno.id_alumno, previo)
-          toast.error('No se registró la asistencia', mio.detail ?? ERROR_SERVIDOR)
+          toast.error('No se registró la asistencia', textoDeRechazo(mio, MOTIVO_REGISTRO) ?? ERROR_SERVIDOR)
           return new Error(mio.motivo ?? 'rechazada')
         }
 

@@ -102,3 +102,18 @@ export const guardarAsistencia = ({ idClase, idColegio, idGrado, idSeccion, fech
       }),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * Lo que el servidor rechaza de UN registro, además de los motivos comunes.
+ *
+ * Los de fecha (`MOTIVO_FECHA`) se repiten aquí porque en el PUT llegan por
+ * ítem y no como un 422 del lote: la fecha pudo dejar de ser válida entre que
+ * se capturó sin señal y que se sincronizó.
+ */
+export const MOTIVO_REGISTRO = {
+  ...MOTIVO_FECHA,
+  sin_habilitacion:
+    'No tienes una habilitación vigente para registrar o corregir asistencias en la fecha seleccionada.',
+  sin_clase_programada: 'No hay una clase programada para esta fecha. Para registrarla, márcala como clase adicional.',
+  alumno_fuera_de_la_clase: 'El alumno no está en la lista de esta clase.',
+}
