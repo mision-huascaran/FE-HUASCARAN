@@ -36,17 +36,41 @@ const tituloDe = (modo, entidad, genero) =>
  * ejemplo, se pide al crear y no al editar: para moverlo de grupo hay otro
  * campo, con otra regla.
  */
-const visiblesEn = (campos, valores, modo) =>
-  campos
-    .filter((c) => (!c.visible || c.visible(valores)) && (!c.soloEn || c.soloEn === modo))
-    /**
-     * `opciones` puede ser una FUNCIÓN de lo escrito hasta ahora.
-     *
-     * Hace falta para los desplegables que dependen de otro: las secciones son
-     * las del colegio y grado elegidos, y eso no se sabe hasta que alguien los
-     * elige. Se resuelve aquí, que es donde viven los valores.
-     */
-    .map((c) => (typeof c.opciones === 'function' ? { ...c, opciones: c.opciones(valores) } : c))
+/** Lo que es función se resuelve con lo escrito; lo demás pasa tal cual. */
+const resolver = (valor, valores, contexto) =>
+  typeof valor === 'function' ? valor(valores, contexto) : valor
+
+const visiblesEn = (campos, valores, modo, registro) => {
+  const contexto = { modo, registro }
+  return (
+    campos
+      /**
+       * `visible` recibe TAMBIÉN el registro original.
+       *
+       * Sin él no se puede preguntar "¿ha cambiado esto?", que es justo lo que
+       * decide si hay que pedir la fecha de cambio de grupo: mover a un alumno
+       * de aula la exige, corregirle una tilde al apellido no.
+       */
+      .filter(
+        (c) =>
+          (!c.visible || c.visible(valores, contexto)) && (!c.soloEn || c.soloEn === modo),
+      )
+      /**
+       * `opciones`, `min` y `max` pueden ser FUNCIONES de lo escrito hasta ahora.
+       *
+       * Hacen falta para lo que depende de otro campo: las secciones son las
+       * del colegio y grado elegidos, y el tope de una fecha puede depender de
+       * cuándo empezó el grupo actual. Se resuelve aquí, que es donde viven
+       * los valores.
+       */
+      .map((c) => ({
+        ...c,
+        opciones: resolver(c.opciones, valores, contexto),
+        min: resolver(c.min, valores, contexto),
+        max: resolver(c.max, valores, contexto),
+      }))
+  )
+}
 
 /**
  * Lo escrito en un campo que luego se ocultó no se envía.
@@ -152,7 +176,7 @@ export default function PopupMantenimiento({
 
   // Lo que se ve y, por tanto, lo que se valida: exigir un campo escondido
   // dejaría el popup sin guardar y sin decir por qué.
-  const camposVisibles = visiblesEn(campos, valores, modo)
+  const camposVisibles = visiblesEn(campos, valores, modo, registro)
 
   const enviar = () => {
     const problemas = validar(camposVisibles, valores, modo)

@@ -21,6 +21,8 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
   listarProgramasAdmin,
+  cambiaDeGrupo,
+  obtenerAlumno,
   obtenerColegio,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
@@ -60,6 +62,7 @@ const CICLOS = [
  * la causa desde la pantalla.
  */
 const idDeAlumno = (alumno) => alumno?.id_alumno ?? alumno?.id
+
 
 export default function MantenimientoAlumnos() {
   const toast = useToast()
@@ -231,6 +234,30 @@ export default function MantenimientoAlumnos() {
         soloEn: 'nuevo',
         ayuda: 'Desde qué día está en este colegio, grado y sección',
       },
+      /**
+       * MOVER DE GRUPO exige decir desde cuándo; corregir una tilde, no.
+       *
+       * Por eso el campo no está siempre: aparece solo cuando alguno de los
+       * cuatro campos que forman el grupo —colegio, grado, sección,
+       * subprograma— es distinto del que tenía el alumno al abrir. Si se pone
+       * siempre, se acaba rellenando con hoy por inercia y el historial queda
+       * con fechas que no pasaron.
+       *
+       * El mínimo es el inicio de su grupo actual, que llega en el detalle: el
+       * backend rechaza una fecha anterior con "ese día empezó su grupo
+       * actual". Si el detalle aún no cargó, se deja al servidor validarlo.
+       */
+      {
+        nombre: 'cambio_grupo_desde',
+        etiqueta: 'Cambia de grupo desde',
+        tipo: 'fecha',
+        requerido: true,
+        soloEn: 'editar',
+        max: hoy(),
+        min: (valores) => valores?.pertenece_desde || undefined,
+        visible: (valores, { registro }) => cambiaDeGrupo(registro, valores),
+        ayuda: 'Desde qué día pertenece a su nuevo grupo',
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [permitidos.colegios, permitidos.grados, programas, seccionesDe],
@@ -270,7 +297,8 @@ export default function MantenimientoAlumnos() {
   const estado = useMutation({
     // La baja lógica tiene ruta propia (`/desactivar`, `/activar`), como en
     // Colegios: un PATCH con `{activo}` no cambia el estado.
-    mutationFn: ({ alumno, activo }) => cambiarEstadoAlumno(idDeAlumno(alumno), activo),
+    mutationFn: ({ alumno, activo, fecha }) =>
+      cambiarEstadoAlumno(idDeAlumno(alumno), activo, { aplicarDesde: fecha }),
     onSuccess: (_d, { activo }) => {
       refrescar()
       toast.success(activo ? 'Alumno activado' : 'Alumno inactivado', 'Su historial académico se conserva.')
@@ -295,7 +323,20 @@ export default function MantenimientoAlumnos() {
       // `mutateAsync` y no `mutate`: la plantilla cierra el popup solo si la
       // promesa se resuelve, y lo deja abierto con los datos si falla.
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
-      onCambiarEstado={(alumno, activo) => estado.mutate({ alumno, activo })}
+      // El detalle trae `pertenece_desde`, que es el mínimo de la fecha de
+      // cambio de grupo. El popup lo pide al abrirse.
+      cargarDetalle={obtenerAlumno}
+      onCambiarEstado={(alumno, activo, fecha) => estado.mutate({ alumno, activo, fecha })}
+      /**
+       * Alumnos es la única sección que pregunta DESDE CUÁNDO. El backend lo
+       * exige —sin cuerpo responde 422— porque de esa fecha depende el
+       * historial de pertenencia, y de él, quién aparece en cada tabla
+       * histórica de Lectura, Rúbrica y Registro de Vuelo.
+       */
+      fechaEfectiva={{
+        etiqueta: 'Fecha efectiva',
+        ayuda: 'Desde qué día aplica el cambio, que puede no ser hoy',
+      }}
       filtros={[
         { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
         { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },

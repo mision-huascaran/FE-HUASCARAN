@@ -153,6 +153,34 @@ describe('Plantilla de mantenimiento', () => {
     expect(onFiltro.mock.calls.filter(([nombre]) => nombre === 'q')).toHaveLength(1)
   })
 
+  it('con fecha efectiva, el diálogo la pregunta y la manda', async () => {
+    /**
+     * No es la fecha del clic: es desde cuándo vale la baja. Un alumno que se
+     * fue el día 3 y se inactiva el 20 no estuvo en el aula esas dos semanas,
+     * y las tablas históricas de esas fechas tienen que poder decirlo.
+     */
+    const { onCambiarEstado } = montar(ROLES.SUPERVISOR, {
+      fechaEfectiva: { etiqueta: 'Fecha efectiva' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+
+    const fecha = await screen.findByLabelText('Fecha efectiva')
+    fireEvent.change(fecha, { target: { value: '2026-10-03' } })
+    fireEvent.click(screen.getByRole('button', { name: /^inactivar$/i }))
+
+    expect(onCambiarEstado).toHaveBeenCalledWith(expect.anything(), false, '2026-10-03')
+  })
+
+  it('sin fecha efectiva, el diálogo no la pregunta ni la manda', () => {
+    // Colegios y Usuarios no la usan: su backend no acepta cuerpo.
+    const { onCambiarEstado } = montar()
+    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+
+    expect(screen.queryByLabelText(/fecha/i)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^inactivar$/i }))
+    expect(onCambiarEstado).toHaveBeenCalledWith(expect.anything(), false)
+  })
+
   it('el formulario explica para qué es el asterisco', () => {
     montar()
     fireEvent.click(screen.getByRole('button', { name: /agregar/i }))

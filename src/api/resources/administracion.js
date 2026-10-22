@@ -446,6 +446,26 @@ export const crearAlumno = ({
   })
 
 /**
+ * `GET /alumnos/{id}` — el alumno completo.
+ *
+ * Hace falta por un campo concreto: `pertenece_desde`, el inicio de su grupo
+ * actual. El backend lo añadió "para validar `cambio_grupo_desde` en el
+ * front", y es el mínimo de esa fecha: mover a alguien a un grupo nuevo desde
+ * antes de que empezara el anterior no significa nada.
+ *
+ * Llega en `null` si el alumno está inactivo, porque entonces no tiene grupo
+ * en curso.
+ */
+export const obtenerAlumno = async (idAlumno) => {
+  const alumno = await resolver({
+    mock: () => handlers.administracion.alumno(idAlumno),
+    real: () => api.get(alumnos.detalle(idAlumno)),
+    forzarReal: adminContraApiReal,
+  })
+  return alumno ? normalizarAlumno(alumno) : alumno
+}
+
+/**
  * `PATCH /alumnos/{id}` — solo los campos editables, con los nombres del
  * backend. El formulario también lleva sección y ciclo, que son de solo
  * lectura (los calcula el servidor) y no deben viajar.
@@ -477,6 +497,24 @@ function cuerpoDeAlumno(cambios) {
 
 /** Los campos que, al cambiar, convierten una edición en un cambio de grupo. */
 export const CAMPOS_DE_GRUPO = ['id_colegio', 'id_grado', 'id_seccion', 'id_programa']
+/**
+ * ¿La edición mueve al alumno de grupo?
+ *
+ * El grupo son cuatro campos: colegio, grado, sección y subprograma. Tocar
+ * cualquiera de ellos abre un intervalo nuevo en su historial de pertenencia y
+ * el backend pide la fecha efectiva. Se comparan como texto porque el
+ * formulario devuelve cadenas donde el registro trae números.
+ */
+export const cambiaDeGrupo = (antes, ahora) =>
+  Boolean(antes) &&
+  CAMPOS_DE_GRUPO.some((campo) => {
+    const previo = antes[campo]
+    const nuevo = ahora?.[campo]
+    // Un campo que el formulario todavía no tocó no cuenta como cambio.
+    if (nuevo === undefined || nuevo === null || nuevo === '') return false
+    return String(previo ?? '') !== String(nuevo)
+  })
+
 
 /**
  * Activar o inactivar a un alumno. AHORA LLEVA CUERPO, y es obligatorio.

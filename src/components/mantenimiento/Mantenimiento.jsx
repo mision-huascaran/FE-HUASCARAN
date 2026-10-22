@@ -55,6 +55,12 @@ export default function Mantenimiento({
   cargarAuditoria,
   // Cómo pedir el registro completo al abrir Ver/Editar (ver el popup).
   cargarDetalle = null,
+  /**
+   * `{etiqueta, ayuda}` si al activar o inactivar hay que preguntar DESDE
+   * CUÁNDO. Solo Alumnos la necesita: su backend la exige porque de ella
+   * depende el historial de pertenencia.
+   */
+  fechaEfectiva = null,
   guardando = false,
   soloOnline = false,
   sinConexion = false,
@@ -290,9 +296,13 @@ export default function Mantenimiento({
       <ConfirmarEstado
         peticion={confirmando}
         entidad={entidad}
+        fechaEfectiva={fechaEfectiva}
         onCancelar={() => setConfirmando(null)}
-        onConfirmar={() => {
-          onCambiarEstado(confirmando.fila, confirmando.activo)
+        onConfirmar={(fecha) => {
+          // La fecha solo viaja si la sección la pidió. Colegios y Usuarios no
+          // la usan y su backend no acepta cuerpo: mandarla sería ruido.
+          if (fechaEfectiva) onCambiarEstado(confirmando.fila, confirmando.activo, fecha)
+          else onCambiarEstado(confirmando.fila, confirmando.activo)
           setConfirmando(null)
         }}
       />

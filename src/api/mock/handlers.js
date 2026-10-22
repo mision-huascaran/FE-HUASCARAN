@@ -1121,6 +1121,21 @@ export const handlers = {
      * "J" es "Logrado" en 3.º y apenas "Inicio" en 5.º. El simulador devuelve
      * uno coherente en vez de inventarse la tabla entera.
      */
+    /**
+     * `GET /alumnos/{id}` — el alumno con el inicio de su grupo actual.
+     *
+     * `pertenece_desde` es `null` cuando está inactivo: sin grupo en curso no
+     * hay fecha de inicio que dar.
+     */
+    alumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      return responder({
+        ...alumno,
+        pertenece_desde: alumno.activo ? db.ANIO_ESCOLAR_INICIO ?? '2026-03-02' : null,
+      })
+    },
+
     resumenAlumno: async (idAlumno) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
       if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
