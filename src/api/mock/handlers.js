@@ -1066,6 +1066,25 @@ export const handlers = {
   // ── Fase 7 ──────────────────────────────────────────────────────────────────
 
   administracion: {
+    /**
+     * `GET /colegios/estado-calendario` — el periodo de HOY en cada colegio.
+     *
+     * El simulador pone a uno en receso a propósito: es el único caso en que
+     * el formulario pregunta si la asignación es retroactiva o próxima, y sin
+     * un colegio así no habría forma de verlo.
+     */
+    estadoCalendario: async () =>
+      responder(
+        db.COLEGIOS.map((c, i) => ({
+          id: c.id_colegio,
+          nombre: c.nombre,
+          estado_calendario:
+            i === 1
+              ? { tipo: 'PR', numero: 3, es_pr4: false, fecha_fin: '2026-11-08' }
+              : { tipo: 'PA', numero: 3, es_pr4: false, fecha_fin: '2026-10-31' },
+        })),
+      ),
+
     /** Valores existentes para los desplegables de filtro de colegios. */
     ubicaciones: () =>
       responder({

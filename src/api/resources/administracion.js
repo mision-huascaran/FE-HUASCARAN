@@ -672,8 +672,71 @@ async function asignacionDe(datos, { obligatoria }) {
   // ofrece el colegio. `grados: null` responde 422 ("no puede ser nulo") y
   // `grados: []` también ("al menos un elemento"), aunque openapi diga otra cosa.
   if (grados.length) asignacion.grados = grados
+  /**
+   * DESDE QUÉ PERIODO empieza la asignación, solo si ese colegio está HOY en
+   * receso (T4).
+   *
+   * En un PA o en un año que todavía no ha empezado el backend lo ignora, así
+   * que no se manda: el formulario tampoco lo pregunta. Pero si el colegio
+   * está en PR y falta, responde 422 `inicio_asignacion_requerido`.
+   *
+   *   · `retroactivo` — crea además la fila del PA recién culminado, para
+   *     regularizarlo. Solo habilita escribir mientras dure ese receso.
+   *   · `proximo` — desde el PA siguiente. En el PR4 no existe un PA
+   *     siguiente, y el backend lo rechaza diciendo que hay que elegir el año
+   *     escolar que viene.
+   */
+  if (datos.inicio_asignacion) asignacion.inicio_asignacion = datos.inicio_asignacion
   return asignacion
 }
+
+/**
+ * `GET /colegios/estado-calendario` — en qué periodo está HOY cada colegio.
+ *
+ * Hace falta para una sola pregunta del formulario de Usuarios: si el colegio
+ * elegido está en receso, hay que preguntar si la asignación es retroactiva o
+ * empieza en el próximo periodo. Cada colegio tiene su propio calendario, así
+ * que no se puede deducir de un periodo global —ya no existe—.
+ *
+ * `estado_calendario` llega en `null` cuando ese colegio no tiene calendario
+ * configurado para el año.
+ */
+/**
+ * ¿Ese colegio está HOY en receso? Devuelve el PR, o `null`.
+ *
+ * Es la única pregunta que decide si el formulario de Usuarios tiene que pedir
+ * "desde qué periodo": en un PA no hay ambigüedad y el backend ignora el
+ * campo, y sin calendario configurado tampoco hay nada que preguntar.
+ */
+export function recesoDelColegio(estados = [], idColegio) {
+  const estado = estados.find((c) => String(c.id) === String(idColegio))?.estado_calendario
+  return estado?.tipo === 'PR' ? estado : null
+}
+
+/**
+ * Las opciones de "desde qué periodo" para un receso.
+ *
+ * En el PR4 NO se ofrece "Próximo": no existe un PA siguiente dentro de ese
+ * año escolar y el backend lo rechaza pidiendo que se elija el año que viene.
+ * Ofrecerlo sería invitar al error.
+ */
+export const opcionesDeInicio = (receso) =>
+  receso
+    ? [
+        { value: 'retroactivo', label: `Retroactivo: regularizar el PA${receso.numero ?? ''} que acaba de terminar` },
+        ...(receso.es_pr4 ? [] : [{ value: 'proximo', label: 'Próximo: empezar en el siguiente periodo' }]),
+      ]
+    : []
+
+export const listarEstadoCalendario = (idAnioEscolar) =>
+  resolver({
+    mock: () => handlers.administracion.estadoCalendario(idAnioEscolar),
+    real: () =>
+      api.get(colegios.estadoCalendario, {
+        params: idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {},
+      }),
+    forzarReal: adminContraApiReal,
+  })
 
 /**
  * Filtro por colegio de Usuarios, en el cliente: `GET /usuarios` no lo admite.

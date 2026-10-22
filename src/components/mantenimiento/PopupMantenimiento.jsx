@@ -68,6 +68,9 @@ const visiblesEn = (campos, valores, modo, registro) => {
         opciones: resolver(c.opciones, valores, contexto),
         min: resolver(c.min, valores, contexto),
         max: resolver(c.max, valores, contexto),
+        // La ayuda también: "este colegio está en receso (PR3) hasta el 08/11"
+        // depende del colegio que se acabe de elegir.
+        ayuda: resolver(c.ayuda, valores, contexto),
       }))
   )
 }

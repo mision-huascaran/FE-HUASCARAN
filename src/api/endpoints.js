@@ -95,6 +95,9 @@ export const ENDPOINTS = {
     actualizar: (id) => `/colegios/${id}`, // PATCH; null en obligatorio → 422
     // Valores existentes para llenar los desplegables de filtro.
     ubicaciones: '/colegios/ubicaciones',
+    // En qué periodo está HOY cada colegio, para decidir si una asignación
+    // nueva es retroactiva o empieza en el próximo PA (CU016, T4).
+    estadoCalendario: '/colegios/estado-calendario',
     // La baja lógica tiene ruta propia: NO es un PATCH con `{activo}`.
     activar: (id) => `/colegios/${id}/activar`,
     desactivar: (id) => `/colegios/${id}/desactivar`,
