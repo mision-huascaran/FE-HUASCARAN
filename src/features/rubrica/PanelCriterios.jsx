@@ -14,7 +14,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
 import { obtenerCriterios } from '../../api/resources/rubricaMensual'
 
-export default function PanelCriterios({ open, idPrograma, idCiclo, nombrePrograma, onCerrar }) {
+export default function PanelCriterios({ open, idPrograma, idCiclo, ciclo, nombrePrograma, onCerrar }) {
   const { data: criterios = [], isLoading } = useQuery({
     queryKey: ['rubrica', 'criterios', { idPrograma, idCiclo }],
     queryFn: () => obtenerCriterios({ idPrograma, idCiclo }),
@@ -34,7 +34,7 @@ export default function PanelCriterios({ open, idPrograma, idCiclo, nombreProgra
       open={open}
       onClose={onCerrar}
       title="Criterios de la rúbrica"
-      subtitle={[nombrePrograma, idCiclo ? `Ciclo ${idCiclo}` : null].filter(Boolean).join(' · ')}
+      subtitle={[nombrePrograma, ciclo ? `Ciclo ${ciclo}` : null].filter(Boolean).join(' · ')}
       footer={
         <Button variant="ghost" onClick={onCerrar}>
           Cerrar

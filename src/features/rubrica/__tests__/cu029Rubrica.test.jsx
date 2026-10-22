@@ -44,6 +44,7 @@ const pagina = (extra = {}) => ({
   page_size: 40,
   total_pages: 1,
   ciclo: 'III',
+  id_ciclo: 1,
   id_periodo_academico: 2,
   escritura: ESCRITURA,
   detail: null,
@@ -51,6 +52,7 @@ const pagina = (extra = {}) => ({
 })
 
 const listarRubricas = vi.fn()
+const obtenerCriterios = vi.fn(async () => [])
 const guardarRubricas = vi.fn()
 
 // "Cargar versión actual" descarta la operación rechazada (P4 §1).
@@ -64,7 +66,7 @@ vi.mock('../../../api/resources/rubricaMensual', async (importOriginal) => ({
   ...(await importOriginal()),
   listarRubricas: (...a) => listarRubricas(...a),
   guardarRubricas: (...a) => guardarRubricas(...a),
-  obtenerCriterios: vi.fn(async () => []),
+  obtenerCriterios: (...a) => obtenerCriterios(...a),
 }))
 
 // Los filtros se fijan para que el test hable de la rúbrica y no de los
@@ -292,6 +294,19 @@ describe('Meses que no se pueden evaluar', () => {
 
     await screen.findByText(/sin alumnos que evaluar/i, {}, ESPERA)
     expect(screen.getByText(/no hay alumnos que corresponda evaluar/i)).toBeInTheDocument()
+  })
+})
+
+describe('Criterios (CU029)', () => {
+  it('se piden con el id_ciclo ENTERO que manda GET /rubricas, no con su nombre', async () => {
+    listarRubricas.mockResolvedValue(pagina({ ciclo: 'IV', id_ciclo: 2 }))
+    montar()
+    await screen.findByLabelText(/fluidez de/i, {}, ESPERA)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver criterios' }))
+    await waitFor(() => expect(obtenerCriterios).toHaveBeenCalled(), ESPERA)
+    expect(obtenerCriterios.mock.calls[0][0]).toEqual(expect.objectContaining({ idCiclo: 2 }))
+    expect(within(await screen.findByRole('dialog', {}, ESPERA)).getByText(/Ciclo IV/)).toBeInTheDocument()
   })
 })
 

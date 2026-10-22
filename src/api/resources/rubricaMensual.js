@@ -156,7 +156,7 @@ export const obtenerCriterios = ({ idPrograma, idCiclo }) =>
     mock: () => handlers.rubricas.criterios({ idPrograma, idCiclo }),
     real: () =>
       api.get(rubricas.criterios, {
-        params: { id_programa: Number(idPrograma), id_ciclo: idCiclo },
+        params: { id_programa: Number(idPrograma), id_ciclo: Number(idCiclo) },
       }),
     forzarReal: adminContraApiReal,
   })

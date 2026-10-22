@@ -158,12 +158,12 @@ describe('La lista del mes', () => {
 describe('Los descriptores pedagógicos', () => {
   it('Alfabetización no se dicta en IV ni en V: lista vacía, no un error', async () => {
     // Que esa combinación no exista no es un fallo que haya que explicar.
-    expect(await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 'IV' })).toEqual([])
-    expect(await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 'V' })).toEqual([])
+    expect(await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 2 })).toEqual([])
+    expect(await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 3 })).toEqual([])
   })
 
   it('vienen con su valor, su nombre y su descriptor, por dimensión', async () => {
-    const criterios = await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 'III' })
+    const criterios = await handlers.rubricas.criterios({ idPrograma: ALFABETIZACION, idCiclo: 1 })
     expect(criterios.length).toBeGreaterThan(0)
     expect(criterios[0]).toMatchObject({ dimension: 'Fluidez', valor: 0, nombre: 'Pre-inicio' })
     expect(criterios[0].descriptor).toEqual(expect.any(String))

@@ -1695,6 +1695,7 @@ export const handlers = {
         page_size: porPagina,
         total_pages: Math.max(1, Math.ceil(total / porPagina)),
         ciclo: ciclo?.nombre ?? 'III',
+        id_ciclo: ciclo?.id_ciclo ?? 1,
         id_periodo_academico: 2,
         escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
         // Sin alumnos NO es un error: es un 200 que lo dice con palabras.
@@ -1772,7 +1773,9 @@ export const handlers = {
     criterios: async ({ idPrograma, idCiclo }) => {
       const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(idPrograma))
       const nombre = sinTildesSimple(programa?.nombre)
-      if (nombre === 'Alfabetizacion' && ['IV', 'V'].includes(String(idCiclo))) return responder([])
+      // `id_ciclo` es el entero del catálogo, como en el backend (no "III").
+      const ciclo = db.CICLOS.find((c) => c.id_ciclo === Number(idCiclo))
+      if (nombre === 'Alfabetizacion' && ['IV', 'V'].includes(ciclo?.nombre)) return responder([])
 
       const escala = escalaDeProgramaMock(programa?.nombre)
       const nombres = ['Pre-inicio', 'Inicio', 'En proceso', 'Logrado', 'Avanzado']

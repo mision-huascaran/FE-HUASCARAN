@@ -253,7 +253,9 @@ export default function RubricaPage() {
       <PanelCriterios
         open={verCriterios}
         idPrograma={filtros.idPrograma}
-        idCiclo={datos?.ciclo ?? null}
+        // El backend exige el ENTERO: `ciclo` ("III") es solo para mostrarlo.
+        idCiclo={datos?.id_ciclo ?? null}
+        ciclo={datos?.ciclo ?? null}
         nombrePrograma={nombrePrograma}
         onCerrar={() => setVerCriterios(false)}
       />
