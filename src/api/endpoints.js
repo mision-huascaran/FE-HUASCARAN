@@ -85,6 +85,15 @@ export const ENDPOINTS = {
     docentes: '/seguimiento/docentes', // ?id_colegio=&desde=&hasta=&sincronizacion=&activo=&page=
     docente: (id) => `/seguimiento/docentes/${id}`,
     actividadesDe: (id) => `/seguimiento/docentes/${id}/actividades`,
+    /**
+     * SEMANA 11 — Los registros que una actividad TOCÓ (CU021, T10).
+     *
+     * Sale de la AUDITORÍA de la actividad, no de la fecha: dos actividades
+     * del mismo día tocaron cosas distintas, y filtrar por fecha mezclaría el
+     * trabajo de una con el de la otra. `?modulo=` y paginado de 40.
+     */
+    registrosDe: (idDocente, idActividad) =>
+      `/seguimiento/docentes/${idDocente}/actividades/${idActividad}/registros`,
   },
 
   // PUBLICADO — Colegios (CU013) ─────────────────────────────────────────────

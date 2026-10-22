@@ -3,19 +3,26 @@
 // Sin pestañas a propósito: el caso de uso pide la cabecera y, justo debajo,
 // la tabla de sesiones de la más reciente a la más antigua.
 //
-// Los ATAJOS llevan al módulo operativo con los filtros del docente y la fecha
-// ya puestos, siempre en SOLO LECTURA. Hoy esos módulos (las grillas) no
-// existen en el backend, así que se muestran deshabilitados en vez de llevar a
-// una pantalla vacía que parecería un error.
+// Los ATAJOS abren lo que ESA JORNADA tocó, en solo lectura.
+//
+// Antes no llevaban a ninguna parte: tres estaban deshabilitados porque sus
+// módulos no existían, y "Ver Asistencias" navegaba al módulo con la FECHA de
+// la sesión. Eso último casi funcionaba, pero mentía: dos actividades del mismo
+// día tocaron cosas distintas y el filtro por fecha las mezclaba.
+//
+// Desde la tanda 10 hay un endpoint que responde desde la AUDITORÍA de la
+// actividad, así que el atajo enseña lo que esta persona hizo en esta sesión,
+// que es la pregunta de CU021, y no lo que pasó ese día.
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, History } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
-import { listarActividadesDe } from '../../api/resources/seguimiento'
+import RegistrosDeActividad from './RegistrosDeActividad'
+import { MODULOS_DE_ACTIVIDAD, listarActividadesDe } from '../../api/resources/seguimiento'
 import {
   AYUDA_SINCRONIZACION,
   ETIQUETA_SINCRONIZACION,
@@ -23,22 +30,31 @@ import {
   etiquetaTipoCierre,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { fechaIsoLima, formatearFechaHora } from '../../lib/format'
+import { formatearFechaHora } from '../../lib/format'
 
 /**
- * El módulo de Asistencias, tal como lo nombra la métrica de productividad.
+ * El nombre del módulo que usa el endpoint de registros, a partir del que
+ * nombra la productividad.
  *
- * Se aceptan las dos formas porque el contrato lista `asistencia` en
- * `cambios_por_modulo` y "Asistencias" en el texto: no conviene que el atajo
- * dependa de cuál de las dos llegue.
+ * La productividad dice `asistencia` en singular en `cambios_por_modulo` y
+ * "Asistencias" en el texto; el endpoint de registros solo acepta la lista
+ * cerrada `asistencias | lectura | rubrica | registro_vuelo | alumnos`, y
+ * cualquier otra cosa responde 422. Se traduce aquí en vez de confiar en que
+ * lleguen iguales.
  */
-const ES_ASISTENCIA = new Set(['asistencia', 'asistencias'])
+const ALIAS = { asistencia: 'asistencias', vuelo: 'registro_vuelo', alumno: 'alumnos' }
 
-/**
- * La fecha de la jornada, en `AAAA-MM-DD`, que es lo que lee el filtro. En hora
- * de Lima: `inicio` llega en UTC y recortarlo daba el día siguiente de noche.
- */
-const diaDe = (instante) => fechaIsoLima(instante)
+const claveDeModulo = (modulo) => {
+  const texto = String(modulo ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s-]+/g, '_')
+  return ALIAS[texto] ?? texto
+}
+
+const etiquetaDeModulo = (clave) =>
+  MODULOS_DE_ACTIVIDAD.find((m) => m.clave === clave)?.etiqueta ?? 'registros'
 
 /** Iniciales para el avatar, que se genera en el cliente. */
 const iniciales = (docente) =>
@@ -50,7 +66,7 @@ const iniciales = (docente) =>
     .slice(0, 2)
 
 export default function DetalleDocente({ docente, onVolver }) {
-  const navegar = useNavigate()
+  const [viendo, setViendo] = useState(null)
   const consulta = useQuery({
     queryKey: ['seguimiento', 'actividades', docente.id_docente],
     queryFn: () => listarActividadesDe(docente.id_docente),
@@ -133,29 +149,26 @@ export default function DetalleDocente({ docente, onVolver }) {
                  */
                 render: (s) => (
                   <div className="flex flex-wrap gap-1">
-                    {(s.productividad ?? []).map((p) =>
-                      ES_ASISTENCIA.has(p.modulo) ? (
+                    {(s.productividad ?? []).map((p) => {
+                      const clave = claveDeModulo(p.modulo)
+                      /*
+                        Un módulo que no está en la lista cerrada del endpoint
+                        respondería 422, así que no se ofrece el atajo: enseñar
+                        un botón que solo puede fallar es peor que no tenerlo.
+                      */
+                      if (!MODULOS_DE_ACTIVIDAD.some((m) => m.clave === clave)) return null
+                      return (
                         <Button
                           key={p.modulo}
                           size="sm"
                           variant="ghost"
                           iconLeft={Eye}
-                          onClick={() => navegar(`/asistencia?fecha=${diaDe(s.inicio ?? s.fecha)}`)}
+                          onClick={() => setViendo({ idDocente: docente.id_docente, actividad: s, modulo: clave })}
                         >
-                          Ver Asistencias
+                          Ver {etiquetaDeModulo(clave)}
                         </Button>
-                      ) : (
-                        <Button
-                          key={p.modulo}
-                          size="sm"
-                          variant="ghost"
-                          disabled
-                          title="El módulo de captura todavía no está disponible"
-                        >
-                          Ver {p.modulo}
-                        </Button>
-                      ),
-                    )}
+                      )
+                    })}
                   </div>
                 ),
               },
@@ -163,6 +176,8 @@ export default function DetalleDocente({ docente, onVolver }) {
           />
         )}
       </Card>
+
+      <RegistrosDeActividad contexto={viendo} onCerrar={() => setViendo(null)} />
     </div>
   )
 }

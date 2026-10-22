@@ -255,6 +255,9 @@ const DECISIONES_MOCK = {}
 
 const claveDeDecision = (idAlumno, idPeriodo) => `${idAlumno}|${idPeriodo}`
 
+/** Los modulos que un atajo de CU021 puede abrir. Lista CERRADA del contrato. */
+const MODULOS_DE_ACTIVIDAD_MOCK = ['asistencias', 'lectura', 'rubrica', 'registro_vuelo', 'alumnos']
+
 /** Los cuatro PA del ano, con su estado segun la fecha de hoy. */
 function periodosDelAnio() {
   const anio = db.ANIO_LECTIVO
@@ -884,6 +887,11 @@ export const handlers = {
         docentes_con_actividad_activa: 1,
         registros_vencidos: 3,
         registros_incompletos: 1,
+        // El desglose de la tanda 10. Suma lo mismo que el total: si no
+        // cuadrara, la pantalla ensenaria dos verdades distintas del mismo
+        // dato y nadie sabria cual creer.
+        vencidos_por_modulo: { asistencias: 1, lectura: 0, rubrica: 2, registro_vuelo: 0 },
+        incompletos_por_modulo: { asistencias: 1, lectura: 0, rubrica: 0, registro_vuelo: 0 },
         // Los umbrales (3 días, 4 días hábiles) los decide el servidor: las
         // alertas llegan ya redactadas para no codificar reglas de negocio en
         // la interfaz.
@@ -1999,6 +2007,104 @@ export const handlers = {
     },
 
     actividadesDe: () => responder({ items: [], total: 0, pagina: 1, paginas: 1, por_pagina: 10 }),
+
+    /**
+     * Los registros que una actividad TOCO (CU021, tanda 10).
+     *
+     * Sale de la AUDITORIA de la actividad y no de la fecha: dos actividades
+     * del mismo dia tocaron cosas distintas, y filtrar por fecha mezclaria el
+     * trabajo de una con el de la otra.
+     *
+     * Cada modulo trae su propia unidad, y por eso las columnas que sobran van
+     * en null en vez de omitirse: una fila de rubrica no tiene fecha porque su
+     * unidad es el MES, no porque falte el dato.
+     */
+    registrosDeActividad: async (idDocente, idActividad, { modulo, pagina = 1 } = {}) => {
+      if (!MODULOS_DE_ACTIVIDAD_MOCK.includes(modulo)) {
+        const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
+        error.response.data.errores = [{ campo: 'modulo', mensaje: 'El modulo indicado no existe.' }]
+        throw error
+      }
+
+      const colegio = db.COLEGIOS[0]
+      const grado = db.GRADOS[1]
+      const programa = db.PROGRAMAS[1]
+      const alumno = db.ALUMNOS[0]
+      const semana = db.SEMANAS.at(-1)
+
+      const comun = {
+        modulo,
+        colegio: { id: colegio.id_colegio, nombre: colegio.nombre },
+        grado: { id: grado.id_grado, nombre: grado.nombre },
+        seccion: { id: 2, nombre: 'Unica' },
+        programa: null,
+        alumno: null,
+        fecha: null,
+        id_semana: null,
+        semana_inicio: null,
+        mes: null,
+        id_anio_escolar: 2,
+        id_periodo_academico: null,
+        cambios: 1,
+      }
+
+      const porModulo = {
+        // Una fila por CLASE: `cambios` son los alumnos con cambios.
+        asistencias: [{ ...comun, id: 12, fecha: semana.inicio, cambios: 23 }],
+        // Una fila por TABLA SEMANAL.
+        lectura: [
+          {
+            ...comun,
+            id: 7,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            id_semana: semana.id_semana,
+            semana_inicio: semana.inicio,
+            mes: semana.mes,
+            cambios: 5,
+          },
+        ],
+        // Una fila por ALUMNO y MES.
+        rubrica: [
+          {
+            ...comun,
+            id: 12,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            mes: semana.mes,
+            cambios: 2,
+          },
+        ],
+        // Una fila por ALUMNO y PERIODO ACADEMICO.
+        registro_vuelo: [
+          {
+            ...comun,
+            id: 8,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            id_periodo_academico: 6,
+            cambios: 1,
+          },
+        ],
+        // Una fila por ALUMNO.
+        alumnos: [
+          {
+            ...comun,
+            id: alumno.id_alumno,
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            cambios: 1,
+          },
+        ],
+      }
+
+      const items = porModulo[modulo] ?? []
+      return responder({
+        items,
+        total: items.length,
+        page: Number(pagina),
+        page_size: 40,
+        total_pages: 1,
+      })
+    },
 
     listar: async ({ todas = false, idDocente, idColegio, fecha } = {}) => {
       const base = [

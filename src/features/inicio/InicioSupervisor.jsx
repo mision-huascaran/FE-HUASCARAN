@@ -12,6 +12,7 @@ import Card from '../../components/ui/Card'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import AlertasInactividad from './AlertasInactividad'
+import DesglosePorModulo from './DesglosePorModulo'
 import AvisoDatosLocales from './AvisoDatosLocales'
 import useResumenLocal from './useResumenLocal'
 import { obtenerResumenSupervisor } from '../../api/resources/inicio'
@@ -57,6 +58,12 @@ export default function InicioSupervisor() {
           d?.docentes_con_actividad_activa ?? d?.docentes_con_actividad ?? d?.docentesConActividad ?? 0,
         registrosVencidos: d?.registros_vencidos ?? null,
         registrosIncompletos: d?.registros_incompletos ?? null,
+        // El desglose de la tanda 10. Se guarda tal cual, con `null` cuando el
+        // servidor no lo manda: un servidor sin actualizar no lo trae, y
+        // rellenarlo con ceros seria afirmar que los cuatro modulos estan al
+        // dia sin saberlo.
+        vencidosPorModulo: d?.vencidos_por_modulo ?? null,
+        incompletosPorModulo: d?.incompletos_por_modulo ?? null,
         alertas: d?.alertas ?? [],
       }
     },
@@ -95,6 +102,20 @@ export default function InicioSupervisor() {
         <StatCard icon={AlertTriangle} label="Registros vencidos" value={resumen.registrosVencidos ?? SIN_DATOS} />
         <StatCard icon={AlertTriangle} label="Registros incompletos" value={resumen.registrosIncompletos ?? SIN_DATOS} />
       </div>
+
+      {/*
+        El desglose por módulo, que es lo que convierte una cifra en una
+        decisión: "40 vencidos" no dice qué hacer, pero "20 rúbricas y 10
+        asistencias" sí, porque se persiguen de formas distintas.
+      */}
+      {(resumen.vencidosPorModulo || resumen.incompletosPorModulo) && (
+        <Card title="Qué está vencido y qué está a medias">
+          <div className="flex flex-col gap-4">
+            <DesglosePorModulo titulo="Vencidos por módulo" desglose={resumen.vencidosPorModulo} />
+            <DesglosePorModulo titulo="Incompletos por módulo" desglose={resumen.incompletosPorModulo} />
+          </div>
+        </Card>
+      )}
 
       <AlertasInactividad alertas={resumen.alertas} desactualizadas={desactualizado} />
 
