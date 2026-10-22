@@ -26,7 +26,7 @@ import ReportesPage from './features/reportes/ReportesPage'
 import NuevaEvaluacionPage from './features/registroVuelo/NuevaEvaluacionPage'
 import RegistroVueloPage from './features/registroVuelo/RegistroVueloPage'
 import LecturaPage from './features/lectura/LecturaPage'
-import ReporteSemanalPage from './features/reporteSemanal/ReporteSemanalPage'
+import RubricaPage from './features/rubrica/RubricaPage'
 import UiKitPage from './features/uiKit/UiKitPage'
 import useSessionStore from './store/sessionStore'
 import { ROLES, rutaInicioDe } from './auth/roles'
@@ -50,7 +50,10 @@ export const RUTAS_PROTEGIDAS = [
   // Rúbrica y Seguimiento de Lectura son DOS secciones con permisos propios: el
   // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
   { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencia', elemento: <AsistenciaPage /> },
-  { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <ReporteSemanalPage pestanaFija="rubrica" /> },
+  // La rúbrica SEMANAL ya no existe: desde la tanda 8 es una evaluación por
+  // alumno y MES, con su propia pantalla. No quedó nada de la grilla que
+  // compartía con Seguimiento de Lectura.
+  { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <RubricaPage /> },
   // La pantalla de Lectura ya no comparte grilla con Rúbrica: desde la tanda 7
   // su unidad es la TABLA SEMANAL, con su clase de referencia y su versión, y
   // no una fila por alumno. Rúbrica sigue en la pantalla compartida hasta que

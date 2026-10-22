@@ -1,9 +1,11 @@
-// Filtros de Seguimiento de Lectura (CU023), contra el contrato de la tanda 7.
+// Los filtros de un GRUPO: colegio, grado, sección, subprograma, año y mes.
 //
-// SIETE FILTROS, y todos obligatorios para que exista una tabla: colegio,
-// grado, sección, subprograma, año escolar, mes y semana. El subprograma ya no
-// es opcional como en Asistencia: aquí forma parte de la IDENTIDAD de la tabla,
-// porque Alfabetización y Comprensión Lectora se registran por separado.
+// Los comparten Seguimiento de Lectura (CU023, que añade la semana) y Rúbrica
+// mensual (CU029), porque en los dos la unidad de trabajo es la misma: un
+// grupo, un subprograma y un periodo. El subprograma NO es opcional como en
+// Asistencia —ahí es un filtro de la vista—: aquí forma parte de la IDENTIDAD
+// de lo que se registra, porque Alfabetización y Comprensión Lectora se
+// evalúan por separado y con escalas distintas.
 //
 // DE DÓNDE SALEN, que es lo que hacía fallar la pantalla antes: los colegios
 // del Docente vienen de `GET /me/asignaciones` y no del catálogo general —solo
@@ -14,14 +16,15 @@
 // Y EL MES VA ANTES QUE LA SEMANA. `GET /semanas` ya no es un catálogo del año:
 // devuelve solo las semanas con alguna clase de ESE grupo en ESE mes. Una
 // semana sin clase no tiene tabla ni obligación, así que ofrecerla sería mandar
-// al docente a una pantalla donde solo podía encontrarse un 422.
+// al docente a una pantalla donde solo podía encontrarse un 422. La Rúbrica no
+// pide semana, así que con `conSemana: false` no se pide esa lista.
 import { useCallback, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
-import { obtenerSemanas } from '../../api/resources/catalogos'
-import { useColegiosReales } from '../../hooks/useCatalogos'
-import { ahora } from '../../lib/relojServidor'
+import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
+import { obtenerSemanas } from '../api/resources/catalogos'
+import { useColegiosReales } from './useCatalogos'
+import { ahora } from '../lib/relojServidor'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -41,12 +44,12 @@ export const MESES = [
 ].map((nombre, i) => ({ value: i + 1, label: nombre[0].toUpperCase() + nombre.slice(1) }))
 
 /** La semana, dicha como la lee una persona: "Sem. 23 · 15/06 al 19/06". */
-export const etiquetaDeSemanaLectura = (s) => {
+export const etiquetaDeSemanaDeGrupo = (s) => {
   const corto = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '—')
   return `Sem. ${s.numero_semana ?? s.id_semana} · ${corto(s.fecha_inicio)} al ${corto(s.fecha_fin)}`
 }
 
-export default function useFiltrosLectura({ esDocente, idAnioEscolar }) {
+export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana = true }) {
   const [params, setParams] = useSearchParams()
 
   /**
@@ -139,7 +142,7 @@ export default function useFiltrosLectura({ esDocente, idAnioEscolar }) {
    * Las semanas DEL GRUPO Y DEL MES. Hacen falta los cinco datos: sin uno solo
    * la petición responde 422, así que ni se lanza.
    */
-  const semanasListas = Boolean(idAnioEscolar && mes && idColegio && idGrado && idSeccion)
+  const semanasListas = conSemana && Boolean(idAnioEscolar && mes && idColegio && idGrado && idSeccion)
   const { data: semanas = [] } = useQuery({
     queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion }],
     queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion }),

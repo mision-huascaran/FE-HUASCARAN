@@ -245,6 +245,56 @@ function filaDe(tabla, idAlumno) {
   }
 }
 
+// ── Rubrica mensual (CU029, CU030) ──────────────────────────────────────────
+//
+// UNA evaluacion por alumno y mes. Los codigos son numeros y el 0 ES UN VALOR
+// ("Pre-inicio"): `null` significa "sin evaluar", y confundirlos haria que un
+// alumno sin evaluar apareciera como el peor de la clase.
+const RUBRICAS_MOCK = {}
+let ultimoIdRubrica = 500
+const siguienteIdRubrica = () => ++ultimoIdRubrica
+
+const claveDeRubrica = (idAlumno, mes, idAnioEscolar) => `${idAlumno}|${mes}|${idAnioEscolar}`
+
+/**
+ * Lo que admite cada dimension, por subprograma.
+ *
+ * Alfabetizacion acepta 0 en Fluidez —hay alumnos que todavia no reconocen las
+ * letras— y Comprension empieza en 1 en los dos, porque quien ya esta en el
+ * subprograma lee algo por definicion.
+ */
+const ESCALA_MOCK = {
+  Alfabetizacion: { fluidez: [0, 1, 2, 3, 4], comprension: [1, 2, 3, 4] },
+  'Comprension Lectora': { fluidez: [1, 2, 3, 4], comprension: [1, 2, 3, 4] },
+}
+
+const sinTildesSimple = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+const escalaDeProgramaMock = (nombre) =>
+  ESCALA_MOCK[sinTildesSimple(nombre)] ?? { fluidez: [0, 1, 2, 3, 4], comprension: [1, 2, 3, 4] }
+
+/** El item del GET: estado y resultado SE CALCULAN, no se guardan. */
+function itemDeRubrica(alumno, guardada) {
+  const f = guardada?.fluidez ?? null
+  const c = guardada?.comprension ?? null
+  const puestas = [f, c].filter((v) => v != null).length
+
+  return {
+    id_alumno: alumno.id_alumno,
+    nombre: `${alumno.apellidos}, ${alumno.nombres}`,
+    inactivo: alumno.activo === false,
+    id_rubrica: guardada?.id ?? null,
+    fluidez: f,
+    comprension: c,
+    // Una sola dimension es `incompleta` y SE PUEDE GUARDAR: el docente no
+    // tiene por que evaluar las dos cosas en la misma sentada.
+    estado: puestas === 0 ? 'pendiente' : puestas === 1 ? 'incompleta' : 'completada',
+    // En DECIMAS: 4F + 6C, o sea F x 0,40 + C x 0,60. 26 es 2,6.
+    resultado_decimas: puestas === 2 ? 4 * f + 6 * c : null,
+    version: guardada?.version ?? null,
+  }
+}
+
 /** La tabla con sus filas ya armadas, que es como la devuelve el servidor. */
 function conFilas(tabla) {
   const clase = CLASES_MOCK[tabla.clave_clase]
@@ -1429,6 +1479,152 @@ export const handlers = {
     },
   },
 
+  /**
+   * Rubrica mensual (CU029, CU030), forma de la tanda 8.
+   *
+   * Lo que importa reproducir son las reglas que la pantalla ramifica:
+   *
+   *   · No se evaluan meses FUTUROS: 422 `mes_futuro`, que no es un fallo sino
+   *     un estado —no hay nada que corregir, solo otro mes que elegir—.
+   *   · La escala depende del subprograma, y el 0 solo se admite en Fluidez de
+   *     Alfabetizacion.
+   *   · Una sola dimension se guarda igual, y la fila queda `incompleta`.
+   *   · `version` detecta que otro docente la cambio entre medias.
+   */
+  rubricas: {
+    listar: async ({ idColegio, idPrograma, idGrado, idAnioEscolar, mes, pagina = 1 }) => {
+      const mesActual = Number(hoyLima().slice(5, 7))
+      if (Number(mes) > mesActual) {
+        throw errorMock(422, 'No es posible evaluar meses futuros.', 'mes_futuro')
+      }
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .filter((a) => Number(a.id_programa) === Number(idPrograma))
+        // Por apellidos, que es el orden que da el contrato.
+        .sort((a, b) => a.apellidos.localeCompare(b.apellidos, 'es'))
+
+      const porPagina = 40
+      const total = alumnos.length
+      const desde = (Number(pagina) - 1) * porPagina
+      const items = alumnos
+        .slice(desde, desde + porPagina)
+        .map((a) => itemDeRubrica(a, RUBRICAS_MOCK[claveDeRubrica(a.id_alumno, mes, idAnioEscolar)]))
+
+      // El CICLO sale de los dos catalogos: el grado trae `id_ciclo` y el
+      // nombre ("III", "IV", "V") vive en CICLOS. Es el que necesita la
+      // pantalla para pedir los descriptores pedagogicos.
+      const grado = db.GRADOS.find((g) => Number(g.id_grado) === Number(idGrado))
+      const ciclo = db.CICLOS.find((c) => c.id_ciclo === grado?.id_ciclo)
+      return responder({
+        items,
+        total,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(total / porPagina)),
+        ciclo: ciclo?.nombre ?? 'III',
+        id_periodo_academico: 2,
+        escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+        // Sin alumnos NO es un error: es un 200 que lo dice con palabras.
+        detail: total === 0 ? 'No hay alumnos que corresponda evaluar en este grupo y mes.' : null,
+      })
+    },
+
+    guardar: async (items = []) =>
+      responder(
+        items.map((it) => {
+          const rechazo = (motivo, detail, registro = null) => ({
+            id_operacion: it.id_operacion,
+            estado: 'rechazada',
+            motivo,
+            detail,
+            registro,
+          })
+
+          const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
+          if (!alumno) {
+            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el mes seleccionado.')
+          }
+
+          const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(it.id_programa))
+          const escala = escalaDeProgramaMock(programa?.nombre)
+          const clave = claveDeRubrica(it.id_alumno, it.mes, it.id_anio_escolar)
+          const guardada = RUBRICAS_MOCK[clave]
+
+          // La version que se leyo tiene que seguir siendo la vigente. Se
+          // devuelve el registro VIGENTE para poder adoptarlo sin recargar.
+          if (it.version != null && Number(it.version) !== Number(guardada?.version ?? 0)) {
+            return rechazo(
+              'modificacion_concurrente',
+              'Esta evaluacion fue modificada desde que la consultaste. Revisa la version actual antes de guardar nuevamente.',
+              itemDeRubrica(alumno, guardada),
+            )
+          }
+
+          // Una dimension en `null` BORRA; omitida no cambia. Y el 0 es un
+          // valor: comprobar `if (valor)` lo trataria como ausente.
+          for (const dimension of ['fluidez', 'comprension']) {
+            if (!(dimension in it) || it[dimension] == null) continue
+            if (!escala[dimension].includes(Number(it[dimension]))) {
+              return rechazo(
+                'valor_no_permitido',
+                'Selecciona una valoracion permitida para esta dimension.',
+                { campo: dimension },
+              )
+            }
+          }
+
+          RUBRICAS_MOCK[clave] = {
+            id: guardada?.id ?? siguienteIdRubrica(),
+            fluidez: 'fluidez' in it ? it.fluidez : (guardada?.fluidez ?? null),
+            comprension: 'comprension' in it ? it.comprension : (guardada?.comprension ?? null),
+            version: (guardada?.version ?? 0) + 1,
+          }
+
+          return {
+            id_operacion: it.id_operacion,
+            estado: 'aceptada',
+            motivo: null,
+            detail: null,
+            registro: itemDeRubrica(alumno, RUBRICAS_MOCK[clave]),
+          }
+        }),
+        RETARDO_ESCRITURA_MS,
+      ),
+
+    /**
+     * Los descriptores pedagogicos. NO se escriben en el codigo (RN-011): son
+     * material de Mision Huascaran y cambian sin que nadie toque el front.
+     * Alfabetizacion no se dicta en los ciclos IV y V, y ahi la lista es vacia.
+     */
+    criterios: async ({ idPrograma, idCiclo }) => {
+      const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(idPrograma))
+      const nombre = sinTildesSimple(programa?.nombre)
+      if (nombre === 'Alfabetizacion' && ['IV', 'V'].includes(String(idCiclo))) return responder([])
+
+      const escala = escalaDeProgramaMock(programa?.nombre)
+      const nombres = ['Pre-inicio', 'Inicio', 'En proceso', 'Logrado', 'Avanzado']
+      const descriptores = {
+        0: 'No puede leer porque le cuesta reconocer consonantes y vocales.',
+        1: 'Lee palabras sueltas con apoyo y se detiene con frecuencia.',
+        2: 'Lee oraciones completas, todavia con pausas y repeticiones.',
+        3: 'Lee con fluidez y respeta los signos de puntuacion.',
+        4: 'Lee con fluidez y entonacion, y sostiene el ritmo en textos largos.',
+      }
+
+      return responder(
+        ['Fluidez', 'Comprension'].flatMap((dimension) =>
+          escala[dimension === 'Fluidez' ? 'fluidez' : 'comprension'].map((valor) => ({
+            dimension,
+            valor,
+            nombre: nombres[valor],
+            descriptor: descriptores[valor],
+          })),
+        ),
+      )
+    },
+  },
+
 
   /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
   sesiones: {
@@ -2305,6 +2501,7 @@ export const handlers = {
 export function _reiniciarSimulador() {
   Object.keys(CLASES_MOCK).forEach((k) => delete CLASES_MOCK[k])
   Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
+  Object.keys(RUBRICAS_MOCK).forEach((k) => delete RUBRICAS_MOCK[k])
 }
 
 export default handlers

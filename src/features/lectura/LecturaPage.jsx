@@ -29,7 +29,7 @@ import Select from '../../components/ui/Select'
 import ModalObservacionLectura from './ModalObservacionLectura'
 import ModalNoRealizada from './ModalNoRealizada'
 import TablaLectura from './TablaLectura'
-import useFiltrosLectura, { MESES, etiquetaDeSemanaLectura } from './useFiltrosLectura'
+import useFiltrosDeGrupo, { MESES, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
@@ -61,7 +61,7 @@ export default function LecturaPage() {
   })
   const idAnioEscolar = useMemo(() => anioVigente(anios)?.id ?? null, [anios])
 
-  const { colegios, grados, secciones, programas, semanas, filtros, cambiar } = useFiltrosLectura({
+  const { colegios, grados, secciones, programas, semanas, filtros, cambiar } = useFiltrosDeGrupo({
     esDocente,
     idAnioEscolar,
   })
@@ -149,7 +149,7 @@ export default function LecturaPage() {
           value={filtros.idSemana}
           placeholder={semanas.length ? 'Seleccione' : 'Sin clases este mes'}
           onChange={(e) => cambiar('semana', e.target.value)}
-          options={semanas.map((s) => ({ value: s.id_semana, label: etiquetaDeSemanaLectura(s) }))}
+          options={semanas.map((s) => ({ value: s.id_semana, label: etiquetaDeSemanaDeGrupo(s) }))}
         />
       </FilterBar>
 
