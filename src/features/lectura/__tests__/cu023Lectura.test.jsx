@@ -77,6 +77,14 @@ function errorPorCrear(claseSugerida = CLASE) {
   return error
 }
 
+
+// "Cargar versión actual" descarta la operación rechazada (P4 §1).
+const descartarOperacion = vi.fn(async () => ({ estado: 'descartada' }))
+vi.mock('../../../api/resources/sincronizacion', async (importOriginal) => ({
+  ...(await importOriginal()),
+  descartarOperacion: (...a) => descartarOperacion(...a),
+}))
+
 const obtenerTabla = vi.fn()
 const crearTabla = vi.fn()
 const guardarFilas = vi.fn()
@@ -142,6 +150,7 @@ beforeEach(() => {
   crearTabla.mockReset()
   guardarFilas.mockReset()
   marcarNoRealizada.mockReset()
+  descartarOperacion.mockClear()
   marcarNoRealizada.mockImplementation(async () =>
     tabla({ estado: 'no_realizada', motivo_no_realizada: 'Paro de transportistas', version: 2 }),
   )
@@ -302,6 +311,35 @@ describe('Las filas de la tabla (CU024)', () => {
     fireEvent.blur(nota)
 
     await screen.findByText(/ingresa una nota entre 0 y ese máximo/i, {}, ESPERA)
+  })
+})
+
+describe('Choque de versiones (CU024)', () => {
+  it('no se adopta en silencio: avisa y "Cargar versión actual" descarta la operación', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    guardarFilas.mockResolvedValue([
+      {
+        id_operacion: 'op-1',
+        estado: 'rechazada',
+        motivo: 'modificacion_concurrente',
+        detail: 'Este registro de lectura fue modificado desde que lo consultaste. Revisa la versión actual antes de guardar nuevamente.',
+        registro: fila({ cantidad_lsl: 7, total_libros: 7, estado_fila: 'completada', version: 5 }),
+      },
+    ])
+
+    montar()
+    const lsl = await screen.findByLabelText(/libros de sala de lectura de Torres, Ana/i, {}, ESPERA)
+    fireEvent.change(lsl, { target: { value: '3' } })
+    fireEvent.blur(lsl)
+
+    const boton = await screen.findByRole('button', { name: 'Cargar versión actual' }, ESPERA)
+    expect(screen.getByText(/fue modificado desde que lo consultaste/i)).toBeInTheDocument()
+    expect(descartarOperacion).not.toHaveBeenCalled()
+
+    fireEvent.click(boton)
+    await waitFor(() => expect(descartarOperacion).toHaveBeenCalledWith('op-1'), ESPERA)
+    await waitFor(() => expect(screen.getByLabelText(/libros de sala de lectura de Torres, Ana/i)).toHaveValue(7), ESPERA)
+    expect(screen.queryByRole('button', { name: 'Cargar versión actual' })).not.toBeInTheDocument()
   })
 })
 

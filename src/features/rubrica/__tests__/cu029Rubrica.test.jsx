@@ -53,6 +53,13 @@ const pagina = (extra = {}) => ({
 const listarRubricas = vi.fn()
 const guardarRubricas = vi.fn()
 
+// "Cargar versión actual" descarta la operación rechazada (P4 §1).
+const descartarOperacion = vi.fn(async () => ({ estado: 'descartada' }))
+vi.mock('../../../api/resources/sincronizacion', async (importOriginal) => ({
+  ...(await importOriginal()),
+  descartarOperacion: (...a) => descartarOperacion(...a),
+}))
+
 vi.mock('../../../api/resources/rubricaMensual', async (importOriginal) => ({
   ...(await importOriginal()),
   listarRubricas: (...a) => listarRubricas(...a),
@@ -215,12 +222,13 @@ describe('Guardar una evaluación', () => {
     expect(screen.getByText('Completada')).toBeInTheDocument()
   })
 
-  it('un choque de versiones se adopta, no se reintenta', async () => {
+  it('un choque de versiones no se reintenta: "Cargar versión actual" adopta el vigente y descarta', async () => {
     /**
      * Otra persona la cambió mientras esta la miraba. Reintentar pisaría su
-     * cambio; dejar lo de la pantalla mostraría algo que el servidor no tiene.
-     * El rechazo trae el registro VIGENTE, y es lo que se adopta.
+     * cambio; adoptarlo en silencio ocultaría que el valor no se guardó. El
+     * rechazo trae el registro VIGENTE: se carga cuando el docente lo pide.
      */
+    descartarOperacion.mockClear()
     listarRubricas.mockResolvedValue(pagina({ items: [item({ version: 1 })] }))
     guardarRubricas.mockResolvedValue([
       {
@@ -234,6 +242,9 @@ describe('Guardar una evaluación', () => {
 
     montar()
     fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cargar versión actual' }, ESPERA))
+    await waitFor(() => expect(descartarOperacion).toHaveBeenCalledWith('op'), ESPERA)
 
     // Se ve lo del servidor, no lo que se acababa de elegir.
     await screen.findByText('4.0', {}, ESPERA)

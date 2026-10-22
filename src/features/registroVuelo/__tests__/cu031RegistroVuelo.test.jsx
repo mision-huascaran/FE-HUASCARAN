@@ -83,6 +83,13 @@ const respuesta = (extra = {}) => ({
 const listarRegistroVuelo = vi.fn()
 const guardarRegistroVuelo = vi.fn()
 
+// "Cargar versión actual" descarta la operación rechazada (P4 §1).
+const descartarOperacion = vi.fn(async () => ({ estado: 'descartada' }))
+vi.mock('../../../api/resources/sincronizacion', async (importOriginal) => ({
+  ...(await importOriginal()),
+  descartarOperacion: (...a) => descartarOperacion(...a),
+}))
+
 vi.mock('../../../api/resources/registroVueloAnual', async (importOriginal) => ({
   ...(await importOriginal()),
   listarRegistroVuelo: (...a) => listarRegistroVuelo(...a),
@@ -332,7 +339,8 @@ describe('Lo que decide el docente', () => {
     await screen.findByText(/no se puede quitar; selecciona otro nivel/i, {}, ESPERA)
   })
 
-  it('un choque de versiones se adopta, no se reintenta', async () => {
+  it('un choque de versiones no se reintenta: "Cargar versión actual" adopta el vigente y descarta', async () => {
+    descartarOperacion.mockClear()
     listarRegistroVuelo.mockResolvedValue(
       respuesta({ items: [alumno({ periodos: [periodo(1), periodo(2, { version: 1 })] })] }),
     )
@@ -353,6 +361,9 @@ describe('Lo que decide el docente', () => {
 
     montar()
     fireEvent.change(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA), { target: { value: '7' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cargar versión actual' }, ESPERA))
+    await waitFor(() => expect(descartarOperacion).toHaveBeenCalledWith('op'), ESPERA)
 
     // Se ve lo del servidor, no lo que se acababa de elegir.
     await waitFor(() => expect(screen.getByLabelText(/nivel colocado de/i)).toHaveValue('10'), ESPERA)

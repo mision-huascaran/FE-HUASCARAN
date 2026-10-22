@@ -17,6 +17,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BookMarked, Info } from 'lucide-react'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import AvisoModoConsulta from '../../components/layout/AvisoModoConsulta'
+import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FilterBar from '../../components/ui/FilterBar'
@@ -59,7 +60,8 @@ export default function RubricaPage() {
     conSemana: false,
   })
 
-  const { datos, cargando, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina })
+  const { datos, cargando, motivoDelMes, error, guardarFila, conflictos, cargarVersionActual, cargandoVersion } =
+    useRubricaMensual({ filtros, pagina })
 
   const listos = Boolean(
     filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.mes && idAnioEscolar,
@@ -100,6 +102,7 @@ export default function RubricaPage() {
       )}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
       {soloLectura && conActividad && escritura?.permitida && <AvisoModoConsulta />}
+      <AvisoConflictos conflictos={conflictos} cargando={cargandoVersion} onCargar={cargarVersionActual} />
 
       <FilterBar>
         <Select

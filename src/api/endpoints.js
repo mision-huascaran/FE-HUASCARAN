@@ -237,6 +237,8 @@ export const ENDPOINTS = {
   sincronizacion: {
     pendientes: '/sincronizacion/pendientes',
     operacion: (idOperacion) => `/sincronizacion/operaciones/${idOperacion}`,
+    // P4 §1: una operación propia `rechazada` pasa a `descartada`.
+    descartar: (idOperacion) => `/sincronizacion/operaciones/${idOperacion}/descartar`,
   },
 
   // PUBLICADO — Catálogos. Se piden una vez al entrar y se guardan en IndexedDB.

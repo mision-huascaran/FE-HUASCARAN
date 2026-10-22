@@ -66,6 +66,20 @@ export const consultarOperacion = (idOperacion) =>
  *
  * El texto bueno es el `detail` del servidor; estos son el respaldo.
  */
+/**
+ * `POST /sincronizacion/operaciones/{id}/descartar` — solo Docente, sin cuerpo.
+ *
+ * Es la otra mitad de "Cargar versión actual": la operación rechazada pasa a
+ * `descartada` y deja de contar como error en la actividad y en Seguimiento.
+ * 404 `operacion_no_encontrada`, 409 `operacion_no_rechazada`.
+ */
+export const descartarOperacion = (idOperacion) =>
+  resolver({
+    mock: () => handlers.sincronizacion.descartar(idOperacion),
+    real: () => api.post(ENDPOINTS.sincronizacion.descartar(idOperacion)),
+    forzarReal: adminContraApiReal,
+  })
+
 export const MOTIVO_OPERACION = {
   fuera_de_actividad: 'La operación se realizó fuera de una actividad de trabajo del docente.',
   actividad_requerida: 'Inicia una actividad de trabajo para registrar información.',

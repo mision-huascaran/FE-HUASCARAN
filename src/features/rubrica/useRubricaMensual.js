@@ -8,12 +8,14 @@
 // `modificacion_concurrente` manda el registro VIGENTE, y lo que se hace es
 // adoptarlo: reintentar pisaría el cambio de la otra persona, y dejar lo que
 // hay en pantalla mostraría algo que el servidor no tiene.
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { MOTIVO_RUBRICA, esMotivoDeMes, guardarRubricas, listarRubricas } from '../../api/resources/rubricaMensual'
 import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { ahora } from '../../lib/relojServidor'
+import useConflictos from '../../hooks/useConflictos'
 import useActividadStore from '../../store/actividadStore'
 
 const nuevaOperacion = () =>
@@ -29,6 +31,11 @@ export default function useRubricaMensual({ filtros, pagina }) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes)
   const clave = ['rubricas', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, pagina }]
+  const conflictos = useConflictos()
+  const { limpiar: limpiarConflictos } = conflictos
+  const claveTexto = JSON.stringify(clave)
+  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
+  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
 
   const rubrica = useQuery({
     queryKey: clave,
@@ -71,13 +78,20 @@ export default function useRubricaMensual({ filtros, pagina }) {
 
       if (uno.estado === 'rechazada') {
         /**
-         * `modificacion_concurrente` trae el registro vigente: se adopta. Los
+         * `modificacion_concurrente` trae el registro vigente: se ofrece
+         * "Cargar versión actual", que además descarta la operación. Los
          * demás rechazos no traen nada que adoptar, así que se recarga la
          * página para no dejar en pantalla un valor que no se guardó.
          */
         if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
-          aplicar(uno.registro)
-          toast.info('Otra persona ya la había cambiado', MOTIVO_RUBRICA.modificacion_concurrente)
+          conflictos.registrar({
+            clave: uno.registro.id_alumno,
+            nombre: uno.registro.nombre,
+            idOperacion: uno.id_operacion,
+            registro: uno.registro,
+            detail: uno.detail ?? MOTIVO_RUBRICA.modificacion_concurrente,
+            aplicar,
+          })
           return
         }
         queryClient.invalidateQueries({ queryKey: ['rubricas'] })
@@ -100,5 +114,8 @@ export default function useRubricaMensual({ filtros, pagina }) {
     error: rubrica.isError && !motivoDelMes ? rubrica.error : null,
     guardarFila: (fila, cambios) => guardar.mutate({ fila, cambios }),
     guardando: guardar.isPending,
+    conflictos: conflictos.conflictos,
+    cargarVersionActual: conflictos.cargarVersionActual,
+    cargandoVersion: conflictos.cargando,
   }
 }

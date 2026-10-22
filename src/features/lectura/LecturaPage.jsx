@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BookOpenCheck, CalendarPlus } from 'lucide-react'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import AvisoModoConsulta from '../../components/layout/AvisoModoConsulta'
+import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -66,8 +67,20 @@ export default function LecturaPage() {
     idAnioEscolar,
   })
 
-  const { tabla, cargando, error, porCrear, crear, creando, marcarNoRealizada, marcando, guardarFila } =
-    useTablaLectura(filtros)
+  const {
+    tabla,
+    cargando,
+    error,
+    porCrear,
+    crear,
+    creando,
+    marcarNoRealizada,
+    marcando,
+    guardarFila,
+    conflictos,
+    cargarVersionActual,
+    cargandoVersion,
+  } = useTablaLectura(filtros)
 
   const listos = Boolean(
     filtros.idColegio &&
@@ -108,6 +121,7 @@ export default function LecturaPage() {
       )}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
       {soloLectura && conActividad && escritura?.permitida && <AvisoModoConsulta />}
+      <AvisoConflictos conflictos={conflictos} cargando={cargandoVersion} onCargar={cargarVersionActual} />
 
       {/* El MES va antes que la semana: las semanas que se ofrecen son las que
           tienen clase de este grupo en ese mes, y no las del año entero. */}

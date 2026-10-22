@@ -1179,6 +1179,7 @@ export const handlers = {
     pendientes: async (operaciones = []) =>
       responder({ recibidos: operaciones.length, registrados: operaciones.length }),
     operacion: async (idOperacion) => responder({ id_operacion: idOperacion, estado: 'desconocida' }),
+    descartar: async () => responder({ estado: 'descartada', motivo: 'modificacion_concurrente', respuesta: null }),
   },
 
   permisos: {

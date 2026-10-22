@@ -9,10 +9,12 @@
 // Y LA TABLA NO SE CREA SOLA. CU023 lo pide así porque crearla CONGELA la lista
 // de alumnos de su clase de referencia —y crea la clase si no tenía fila—: eso
 // es una decisión del docente, no un efecto secundario de abrir una pantalla.
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import {
+  MOTIVO_FILA,
   crearTabla,
   datosParaCrear,
   esTablaPorCrear,
@@ -21,6 +23,7 @@ import {
   obtenerTabla,
 } from '../../api/resources/lectura'
 import { ahora } from '../../lib/relojServidor'
+import useConflictos from '../../hooks/useConflictos'
 import useActividadStore from '../../store/actividadStore'
 
 /** Un `id_operacion` nuevo por intento del usuario, estable en el reintento. */
@@ -37,6 +40,11 @@ export default function useTablaLectura(filtros) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
   const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }]
+  const conflictos = useConflictos()
+  const { limpiar: limpiarConflictos } = conflictos
+  const claveTexto = JSON.stringify(clave)
+  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
+  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
 
   const tabla = useQuery({
     queryKey: clave,
@@ -123,8 +131,19 @@ export default function useTablaLectura(filtros) {
       const uno = Array.isArray(resultados) ? resultados[0] : null
 
       if (uno?.estado === 'rechazada') {
-        // El registro vigente acompaña a `modificacion_concurrente`: se adopta
-        // en vez de dejar en pantalla algo que el servidor no tiene.
+        // Otra persona guardó antes: se ofrece "Cargar versión actual" en vez
+        // de reintentar (pisaría su cambio) o adoptar en silencio.
+        if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
+          conflictos.registrar({
+            clave: uno.registro.id_alumno,
+            nombre: uno.registro.nombre,
+            idOperacion: uno.id_operacion,
+            registro: uno.registro,
+            detail: uno.detail ?? MOTIVO_FILA.modificacion_concurrente,
+            aplicar: aplicarFila,
+          })
+          return
+        }
         if (uno.registro) aplicarFila(uno.registro)
         else refrescar()
         toast.error('No se guardó la lectura', uno.detail ?? 'Revise los datos e inténtelo de nuevo.')
@@ -157,5 +176,8 @@ export default function useTablaLectura(filtros) {
     marcando: noRealizada.isPending,
     guardarFila: guardarFila.mutate,
     guardando: guardarFila.isPending,
+    conflictos: conflictos.conflictos,
+    cargarVersionActual: conflictos.cargarVersionActual,
+    cargandoVersion: conflictos.cargando,
   }
 }

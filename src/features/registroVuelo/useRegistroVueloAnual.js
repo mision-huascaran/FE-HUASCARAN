@@ -6,6 +6,7 @@
 // viven en el mismo objeto del que salen el nivel colocado y la proyección, así
 // que un `...periodo` los mandaría sin que nadie lo notara hasta el error. De
 // ahí que el cuerpo se construya en `decision()`, que filtra lo permitido.
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError } from '../../api/client'
@@ -17,6 +18,7 @@ import {
 } from '../../api/resources/registroVueloAnual'
 import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { ahora } from '../../lib/relojServidor'
+import useConflictos from '../../hooks/useConflictos'
 import useActividadStore from '../../store/actividadStore'
 
 const nuevaOperacion = () =>
@@ -32,6 +34,11 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar)
   const clave = ['registro-vuelo', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, pagina }]
+  const conflictos = useConflictos()
+  const { limpiar: limpiarConflictos } = conflictos
+  const claveTexto = JSON.stringify(clave)
+  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
+  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
 
   const vuelo = useQuery({
     queryKey: clave,
@@ -81,11 +88,17 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
       if (!uno) return
 
       if (uno.estado === 'rechazada') {
-        // `modificacion_concurrente` trae el registro vigente: se adopta, que
-        // es lo contrario de reintentar. Reintentar pisaría la decisión ajena.
+        // `modificacion_concurrente` trae el registro vigente: se ofrece
+        // "Cargar versión actual". Reintentar pisaría la decisión ajena.
         if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
-          aplicar(alumno.id_alumno, uno.registro)
-          toast.info('Otra persona ya lo había cambiado', MOTIVO_VUELO.modificacion_concurrente)
+          conflictos.registrar({
+            clave: `${alumno.id_alumno}-${uno.registro.numero}`,
+            nombre: `${alumno.nombre} · PA${uno.registro.numero}`,
+            idOperacion: uno.id_operacion,
+            registro: uno.registro,
+            detail: uno.detail ?? MOTIVO_VUELO.modificacion_concurrente,
+            aplicar: (registro) => aplicar(alumno.id_alumno, registro),
+          })
           return
         }
         queryClient.invalidateQueries({ queryKey: ['registro-vuelo'] })
@@ -104,5 +117,8 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
     error: vuelo.isError ? vuelo.error : null,
     guardarDecision: (alumno, periodo, cambios) => guardar.mutate({ alumno, periodo, cambios }),
     guardando: guardar.isPending,
+    conflictos: conflictos.conflictos,
+    cargarVersionActual: conflictos.cargarVersionActual,
+    cargandoVersion: conflictos.cargando,
   }
 }
