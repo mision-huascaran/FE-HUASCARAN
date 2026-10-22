@@ -16,7 +16,7 @@ const ETIQUETA_CLASE = {
   adicional: 'Clase adicional',
 }
 
-export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObservar, onNoRealizada, marcando }) {
+export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObservar, onNoRealizada, marcando, sinConexion }) {
   const bloqueada = tabla.estado === 'no_realizada'
   const clase = tabla.clase_referencia ?? {}
   const pendientes = tabla.filas.filter((f) => f.estado_fila === 'pendiente').length
@@ -33,9 +33,13 @@ export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObse
          * se registró.
          */
         !soloLectura && !bloqueada ? (
-          <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando}>
-            Marcar como no realizada
-          </Button>
+          <span className="flex flex-col items-end gap-1">
+            <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando || sinConexion}>
+              Marcar como no realizada
+            </Button>
+            {/* No se encola: bloquea la semana entera y exige ver la versión vigente. */}
+            {sinConexion && <span className="text-xs text-ink-500">Esta acción requiere conexión</span>}
+          </span>
         ) : null
       }
     >

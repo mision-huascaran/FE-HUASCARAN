@@ -13,13 +13,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import RubricaPage from '../RubricaPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import { ROLES } from '../../../auth/roles'
+import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
+import useSyncStore from '../../../store/syncStore'
+import useRechazosStore from '../../../store/rechazosStore'
 
 const ESPERA = { timeout: 8000 }
 const ESCRITURA = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
@@ -110,6 +113,11 @@ function montar(idRol = ROLES.PROFESOR) {
 
 beforeEach(() => {
   localStorage.clear()
+  _reiniciarCola()
+  useRechazosStore.getState().limpiar()
+  conexion(true)
+  // Es global: un test que acabó sin red lo dejaría así para el siguiente.
+  onlineManager.setOnline(true)
   listarRubricas.mockReset()
   guardarRubricas.mockReset()
   listarRubricas.mockResolvedValue(pagina())
@@ -126,6 +134,19 @@ beforeEach(() => {
 })
 
 afterEach(() => useActividadStore.getState().limpiar())
+
+/** La conexión del navegador: la cola no envía sin ella. */
+function conexion(enLinea) {
+  Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+  // TanStack Query y `useConexion` se enteran por el evento, no por la propiedad.
+  window.dispatchEvent(new Event(enLinea ? 'online' : 'offline'))
+}
+
+/** Vuelve la conexión y se vacía la cola, como al reconectar. */
+async function reconectar() {
+  conexion(true)
+  await reintentarAhora()
+}
 
 describe('La escala de cada dimensión', () => {
   it('en Alfabetización ofrece Pre-inicio en Fluidez pero no en Comprensión', async () => {
@@ -268,6 +289,68 @@ describe('Guardar una evaluación', () => {
     fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
 
     await screen.findByText(/valoración permitida para esta dimensión/i, {}, ESPERA)
+  })
+})
+
+describe('Sin conexión (RNF-001)', () => {
+  it('la evaluación se encola y sale al reconectar con id_operacion, version, realizado_en e id_actividad', async () => {
+    montar()
+    const fluidez = await screen.findByLabelText(/fluidez de/i, {}, ESPERA)
+    conexion(false)
+    fireEvent.change(fluidez, { target: { value: '0' } })
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+    expect(guardarRubricas).not.toHaveBeenCalled()
+    // El 0 (Pre-inicio) se ve elegido mientras espera; no es "Sin evaluar".
+    expect(screen.getByLabelText(/fluidez de/i)).toHaveValue('0')
+
+    await reconectar()
+    await waitFor(() => expect(guardarRubricas).toHaveBeenCalledTimes(1), ESPERA)
+    const [enviado] = guardarRubricas.mock.calls[0][0]
+    ;['id_operacion', 'version', 'realizado_en', 'id_actividad'].forEach((campo) => expect(enviado).toHaveProperty(campo))
+    expect(enviado.fluidez).toBe(0)
+    expect(enviado.id_actividad).toBe(useActividadStore.getState().sesion.id)
+  })
+
+  it('un rechazo al sincronizar se muestra con su detail', async () => {
+    guardarRubricas.mockImplementation(async (items) => [
+      {
+        id_operacion: items[0].id_operacion,
+        estado: 'rechazada',
+        motivo: 'actividad_requerida',
+        detail: 'Debes iniciar una actividad de trabajo para registrar o modificar las rúbricas.',
+        registro: null,
+      },
+    ])
+    montar()
+    const fluidez = await screen.findByLabelText(/fluidez de/i, {}, ESPERA)
+    conexion(false)
+    fireEvent.change(fluidez, { target: { value: '2' } })
+    await reconectar()
+
+    expect(await screen.findByText(/iniciar una actividad de trabajo para registrar o modificar las rúbricas/i, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Descartar' })).toBeInTheDocument()
+  })
+
+  it('un choque de versión al sincronizar ofrece "Cargar versión actual"', async () => {
+    guardarRubricas.mockImplementation(async (items) => [
+      {
+        id_operacion: items[0].id_operacion,
+        estado: 'rechazada',
+        motivo: 'modificacion_concurrente',
+        detail: null,
+        registro: item({ fluidez: 3, version: 4 }),
+      },
+    ])
+    montar()
+    const fluidez = await screen.findByLabelText(/fluidez de/i, {}, ESPERA)
+    conexion(false)
+    fireEvent.change(fluidez, { target: { value: '2' } })
+    await reconectar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cargar versión actual' }, ESPERA))
+    await waitFor(() => expect(descartarOperacion).toHaveBeenCalled(), ESPERA)
+    await waitFor(() => expect(screen.getByLabelText(/fluidez de/i)).toHaveValue('3'), ESPERA)
   })
 })
 

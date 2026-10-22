@@ -72,8 +72,7 @@ export default function RegistroVueloAnualPage() {
   })
 
   const { data: niveles = [] } = useNivelesRazkids()
-  const { datos, cargando, error, guardarDecision, conflictos, cargarVersionActual, cargandoVersion } =
-    useRegistroVueloAnual({ filtros, pagina })
+  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina })
 
   const periodos = datos?.periodos ?? []
 
@@ -118,7 +117,7 @@ export default function RegistroVueloAnualPage() {
       )}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
       {soloLectura && conActividad && escritura?.permitida && <AvisoModoConsulta />}
-      <AvisoConflictos conflictos={conflictos} cargando={cargandoVersion} onCargar={cargarVersionActual} />
+      <AvisoConflictos modulo="vuelo" />
 
       <FilterBar>
         <Select

@@ -14,16 +14,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import {
-  MOTIVO_FILA,
   crearTabla,
   datosParaCrear,
   esTablaPorCrear,
-  guardarFilas,
   marcarNoRealizada,
   obtenerTabla,
 } from '../../api/resources/lectura'
 import { ahora } from '../../lib/relojServidor'
-import useConflictos from '../../hooks/useConflictos'
+import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 
 /** Un `id_operacion` nuevo por intento del usuario, estable en el reintento. */
@@ -31,6 +29,15 @@ const nuevaOperacion = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+/**
+ * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
+ * se dice. Un corte de red no es un error: el cambio sigue en la cola.
+ */
+const esDefinitivo = (error) => {
+  const estado = error?.response?.status
+  return estado != null && estado >= 400 && estado < 500
+}
 
 export default function useTablaLectura(filtros) {
   const toast = useToast()
@@ -40,11 +47,8 @@ export default function useTablaLectura(filtros) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
   const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }]
-  const conflictos = useConflictos()
-  const { limpiar: limpiarConflictos } = conflictos
-  const claveTexto = JSON.stringify(clave)
-  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
-  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
+  // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
+  useEffect(() => conectarConsultas(queryClient), [queryClient])
 
   const tabla = useQuery({
     queryKey: clave,
@@ -115,53 +119,28 @@ export default function useTablaLectura(filtros) {
    * Un campo omitido no se toca; uno en `null` se borra. Mandar la fila entera
    * con los campos intactos en null borraría datos que el docente no quiso
    * borrar, y es exactamente lo que haría un `...fila` descuidado.
+   *
+   * Va por la cola offline: sin conexión queda en el equipo y sale al volver.
+   * El resultado —aceptado, rechazado o choque de versión— lo procesa
+   * `registrosOffline`, porque puede llegar con esta pantalla ya cerrada.
    */
-  const guardarFila = useMutation({
-    mutationFn: ({ idAlumno, cambios, version }) =>
-      guardarFilas(tabla.data.id, [
-        {
-          id_operacion: nuevaOperacion(),
-          version,
-          realizado_en: ahora().toISOString(),
-          id_alumno: idAlumno,
-          ...cambios,
-        },
-      ]),
-    onSuccess: (resultados) => {
-      const uno = Array.isArray(resultados) ? resultados[0] : null
-
-      if (uno?.estado === 'rechazada') {
-        // Otra persona guardó antes: se ofrece "Cargar versión actual" en vez
-        // de reintentar (pisaría su cambio) o adoptar en silencio.
-        if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
-          conflictos.registrar({
-            clave: uno.registro.id_alumno,
-            nombre: uno.registro.nombre,
-            idOperacion: uno.id_operacion,
-            registro: uno.registro,
-            detail: uno.detail ?? MOTIVO_FILA.modificacion_concurrente,
-            aplicar: aplicarFila,
-          })
-          return
-        }
-        if (uno.registro) aplicarFila(uno.registro)
-        else refrescar()
-        toast.error('No se guardó la lectura', uno.detail ?? 'Revise los datos e inténtelo de nuevo.')
-        return
-      }
-
-      if (uno?.registro) aplicarFila(uno.registro)
-    },
-    onError: (error) => toast.error('No se guardó la lectura', mensajeDeError(error)),
-  })
-
-  /** Sustituye UNA fila en la caché, sin volver a pedir la tabla entera. */
-  function aplicarFila(fila) {
-    queryClient.setQueryData(clave, (previa) =>
-      previa
-        ? { ...previa, filas: previa.filas.map((f) => (f.id_alumno === fila.id_alumno ? fila : f)) }
-        : previa,
-    )
+  const guardarFila = ({ idAlumno, cambios, version }) => {
+    const fila = tabla.data?.filas?.find((f) => f.id_alumno === idAlumno)
+    guardarRegistro('lectura', {
+      clave: `${tabla.data.id}-${idAlumno}`,
+      envio: {
+        idTabla: tabla.data.id,
+        nombre: fila?.nombre ?? null,
+        item: { version, realizado_en: ahora().toISOString(), id_actividad: idActividad, id_alumno: idAlumno, ...cambios },
+      },
+      local: cambios,
+      descripcion: `Lectura · ${fila?.nombre ?? `alumno ${idAlumno}`}`,
+      idActividad,
+    }).catch((error) => {
+      if (!esDefinitivo(error)) return
+      refrescar()
+      toast.error('No se guardó la lectura', mensajeDeError(error))
+    })
   }
 
   return {
@@ -174,10 +153,6 @@ export default function useTablaLectura(filtros) {
     creando: crear.isPending,
     marcarNoRealizada: noRealizada.mutate,
     marcando: noRealizada.isPending,
-    guardarFila: guardarFila.mutate,
-    guardando: guardarFila.isPending,
-    conflictos: conflictos.conflictos,
-    cargarVersionActual: conflictos.cargarVersionActual,
-    cargandoVersion: conflictos.cargando,
+    guardarFila,
   }
 }

@@ -7,24 +7,25 @@
 // que un `...periodo` los mandaría sin que nadie lo notara hasta el error. De
 // ahí que el cuerpo se construya en `decision()`, que filtra lo permitido.
 import { useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError } from '../../api/client'
 import {
-  MOTIVO_VUELO,
   decision,
-  guardarRegistroVuelo,
   listarRegistroVuelo,
 } from '../../api/resources/registroVueloAnual'
-import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { ahora } from '../../lib/relojServidor'
-import useConflictos from '../../hooks/useConflictos'
+import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 
-const nuevaOperacion = () =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+/**
+ * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
+ * se dice. Un corte de red no es un error: el cambio sigue en la cola.
+ */
+const esDefinitivo = (error) => {
+  const estado = error?.response?.status
+  return estado != null && estado >= 400 && estado < 500
+}
 
 export default function useRegistroVueloAnual({ filtros, pagina }) {
   const toast = useToast()
@@ -34,11 +35,8 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar)
   const clave = ['registro-vuelo', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, pagina }]
-  const conflictos = useConflictos()
-  const { limpiar: limpiarConflictos } = conflictos
-  const claveTexto = JSON.stringify(clave)
-  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
-  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
+  // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
+  useEffect(() => conectarConsultas(queryClient), [queryClient])
 
   const vuelo = useQuery({
     queryKey: clave,
@@ -46,79 +44,53 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
     enabled: listos,
   })
 
+  /** La letra de un nivel, del catálogo ya descargado (para pintar mientras espera). */
+  const nivelLocal = (id) => {
+    if (id == null) return null
+    const niveles = queryClient.getQueryData(['catalogo', 'niveles-razkids']) ?? []
+    const nivel = niveles.find((n) => n.id_nivel_razkids === id)
+    return { id, letra: nivel?.letra ?? null }
+  }
+
   /**
-   * Sustituye UN periodo de UN alumno en la caché.
-   *
-   * El avance anual se recalcula al vuelo: es el número de PA con nivel
-   * colocado, y si no se actualizara, decidir el cuarto periodo dejaría el
-   * avance en 75 % hasta que alguien recargara.
+   * Una decisión es una operación de la cola offline. Mientras espera se ve el
+   * nivel elegido, pero la entrada, la sugerencia y el nivel del programa
+   * siguen como en la última descarga: los calcula el servidor al sincronizar.
    */
-  const aplicar = (idAlumno, registro) =>
-    queryClient.setQueryData(clave, (previa) => {
-      if (!previa) return previa
-      return {
-        ...previa,
-        items: previa.items.map((a) => {
-          if (a.id_alumno !== idAlumno) return a
-          const periodos = a.periodos.map((p) => (p.numero === registro.numero ? registro : p))
-          return { ...a, periodos, avance_anual: periodos.filter((p) => p.nivel_colocado).length * 25 }
-        }),
-      }
+  const guardarDecision = (alumno, periodo, cambios) => {
+    const local = {}
+    if ('id_nivel_colocado' in cambios) local.nivel_colocado = nivelLocal(cambios.id_nivel_colocado)
+    if ('id_nivel_proyeccion' in cambios) local.proyeccion = nivelLocal(cambios.id_nivel_proyeccion)
+    if ('observacion' in cambios) local.observacion = cambios.observacion
+    const { id_operacion: _sinId, ...item } = decision({
+      version: periodo.version,
+      realizadoEn: ahora().toISOString(),
+      idActividad,
+      idAlumno: alumno.id_alumno,
+      idPeriodoAcademico: periodo.id_periodo_academico,
+      idColegio,
+      idGrado,
+      idSeccion,
+      idPrograma,
+      cambios,
     })
-
-  const guardar = useMutation({
-    mutationFn: ({ alumno, periodo, cambios }) =>
-      guardarRegistroVuelo([
-        decision({
-          idOperacion: nuevaOperacion(),
-          version: periodo.version,
-          realizadoEn: ahora().toISOString(),
-          idActividad,
-          idAlumno: alumno.id_alumno,
-          idPeriodoAcademico: periodo.id_periodo_academico,
-          idColegio,
-          idGrado,
-          idSeccion,
-          idPrograma,
-          cambios,
-        }),
-      ]),
-    onSuccess: (resultados, { alumno }) => {
-      const uno = Array.isArray(resultados) ? resultados[0] : null
-      if (!uno) return
-
-      if (uno.estado === 'rechazada') {
-        // `modificacion_concurrente` trae el registro vigente: se ofrece
-        // "Cargar versión actual". Reintentar pisaría la decisión ajena.
-        if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
-          conflictos.registrar({
-            clave: `${alumno.id_alumno}-${uno.registro.numero}`,
-            nombre: `${alumno.nombre} · PA${uno.registro.numero}`,
-            idOperacion: uno.id_operacion,
-            registro: uno.registro,
-            detail: uno.detail ?? MOTIVO_VUELO.modificacion_concurrente,
-            aplicar: (registro) => aplicar(alumno.id_alumno, registro),
-          })
-          return
-        }
-        queryClient.invalidateQueries({ queryKey: ['registro-vuelo'] })
-        toast.error('No se guardó la decisión', textoDeRechazo(uno, MOTIVO_VUELO) ?? 'Revise los datos.')
-        return
-      }
-
-      if (uno.registro) aplicar(alumno.id_alumno, uno.registro)
-    },
-    onError: (error) => toast.error('No se guardó la decisión', mensajeDeError(error)),
-  })
+    guardarRegistro('vuelo', {
+      clave: [idColegio, idGrado, idSeccion, idPrograma, alumno.id_alumno, periodo.id_periodo_academico].join('-'),
+      envio: { item, numero: periodo.numero, nombre: `${alumno.nombre} · PA${periodo.numero}` },
+      local,
+      descripcion: `Registro de Vuelo · ${alumno.nombre} · PA${periodo.numero}`,
+      idActividad,
+    }).catch((error) => {
+      if (!esDefinitivo(error)) return
+      queryClient.invalidateQueries({ queryKey: ['registro-vuelo'] })
+      toast.error('No se guardó la decisión', mensajeDeError(error))
+    })
+  }
 
   return {
     datos: vuelo.data ?? null,
     cargando: vuelo.isLoading,
     error: vuelo.isError ? vuelo.error : null,
-    guardarDecision: (alumno, periodo, cambios) => guardar.mutate({ alumno, periodo, cambios }),
-    guardando: guardar.isPending,
-    conflictos: conflictos.conflictos,
-    cargarVersionActual: conflictos.cargarVersionActual,
-    cargandoVersion: conflictos.cargando,
+    guardarDecision,
   }
 }

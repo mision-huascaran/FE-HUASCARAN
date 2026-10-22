@@ -3,6 +3,7 @@ import LimiteDeError from './LimiteDeError'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import useOfflineQueue from '../../hooks/useOfflineQueue'
+import useRegistrosOffline from '../../hooks/useRegistrosOffline'
 import Topbar from './Topbar'
 
 /**
@@ -16,6 +17,8 @@ export default function AppShell() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   // Carga la cola guardada en IndexedDB y reanuda los envíos pendientes (RNF-001).
   useOfflineQueue()
+  // Lectura, Rúbrica y Vuelo: lo que vuelve de la cola se escribe en pantalla.
+  useRegistrosOffline()
   const { pathname } = useLocation()
 
   return (

@@ -60,8 +60,7 @@ export default function RubricaPage() {
     conSemana: false,
   })
 
-  const { datos, cargando, motivoDelMes, error, guardarFila, conflictos, cargarVersionActual, cargandoVersion } =
-    useRubricaMensual({ filtros, pagina })
+  const { datos, cargando, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina })
 
   const listos = Boolean(
     filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.mes && idAnioEscolar,
@@ -102,7 +101,7 @@ export default function RubricaPage() {
       )}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
       {soloLectura && conActividad && escritura?.permitida && <AvisoModoConsulta />}
-      <AvisoConflictos conflictos={conflictos} cargando={cargandoVersion} onCargar={cargarVersionActual} />
+      <AvisoConflictos modulo="rubrica" />
 
       <FilterBar>
         <Select

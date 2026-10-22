@@ -39,12 +39,15 @@ const enviadores = new Map()
  * interrumpe el envío, así que nadie se enteraría.
  */
 const modulos = new Map()
+/** Promesa de cada envío, por `idOperacion` (dos de la misma clave pueden convivir). */
 const promesas = new Map()
 
 let cola = []
 let iniciada = false
 let procesando = false
 let temporizador = null
+/** La operación que se está mandando ahora mismo: no se reemplaza ni se toca. */
+let enVuelo = null
 
 /**
  * Cada tipo de envío declara cómo se manda al servidor.
@@ -59,7 +62,7 @@ export function registrarEnviador(tipo, enviar, { modulo } = {}) {
 
 function publicarEstado() {
   useSyncStore.getState().setPendientes(
-    cola.map(({ clave, tipo, descripcion, intentos, error }) => ({ clave, tipo, descripcion, intentos, error })),
+    cola.map(({ clave, idOperacion, tipo, descripcion, intentos, error }) => ({ clave, idOperacion, tipo, descripcion, intentos, error })),
   )
 }
 
@@ -83,14 +86,14 @@ const errorDePersistencia = () => {
   return error
 }
 
-function resolverPromesa(clave, valor) {
-  promesas.get(clave)?.resolve(valor)
-  promesas.delete(clave)
+function resolverPromesa(idOperacion, valor) {
+  promesas.get(idOperacion)?.resolve(valor)
+  promesas.delete(idOperacion)
 }
 
-function rechazarPromesa(clave, error) {
-  promesas.get(clave)?.reject(error)
-  promesas.delete(clave)
+function rechazarPromesa(idOperacion, error) {
+  promesas.get(idOperacion)?.reject(error)
+  promesas.delete(idOperacion)
 }
 
 /** Un 4xx no se arregla reintentando; un corte de red o un 5xx, sí. */
@@ -112,7 +115,7 @@ function descartarDependientes(clave, error) {
   dependientes.forEach((item) => {
     const i = cola.indexOf(item)
     if (i >= 0) cola.splice(i, 1)
-    rechazarPromesa(item.clave, error)
+    rechazarPromesa(item.idOperacion, error)
     descartarDependientes(item.clave, error)
   })
 }
@@ -233,7 +236,7 @@ async function procesar() {
       if (!enviar) {
         // Tipo desconocido: se descarta para no dejar la cola trabada.
         cola.shift()
-        rechazarPromesa(item.clave, new Error(`Sin enviador para "${item.tipo}"`))
+        rechazarPromesa(item.idOperacion, new Error(`Sin enviador para "${item.tipo}"`))
         await persistir()
         continue
       }
@@ -253,13 +256,14 @@ async function procesar() {
             const error = new Error(conocida.motivo ?? 'rechazada')
             error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
             descartarDependientes(item.clave, error)
-            rechazarPromesa(item.clave, error)
+            rechazarPromesa(item.idOperacion, error)
           } else {
-            resolverPromesa(item.clave, conocida.respuesta ?? conocida)
+            resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
           }
           continue
         }
 
+        enVuelo = item.idOperacion
         const respuesta = await enviar({
           ...item.payload,
           id_operacion: item.idOperacion,
@@ -267,10 +271,12 @@ async function procesar() {
           // actualizado todavía lo esperan, y mandar uno de más no estorba.
           idempotency_key: item.clave,
         })
-        cola.shift()
+        enVuelo = null
+        cola.splice(cola.indexOf(item), 1)
         await persistir()
-        resolverPromesa(item.clave, respuesta)
+        resolverPromesa(item.idOperacion, respuesta)
       } catch (error) {
+        enVuelo = null
         const mensaje = mensajeDeError(error, error?.message ?? 'Error de envío')
         // Si no hubo respuesta, el próximo intento preguntará antes de mandar.
         item.verificar = sinRespuesta(error)
@@ -281,7 +287,7 @@ async function procesar() {
           // daría otro error y ensuciaría la cola con fallos encadenados.
           descartarDependientes(item.clave, error)
           await persistir()
-          rechazarPromesa(item.clave, error)
+          rechazarPromesa(item.idOperacion, error)
           continue
         }
 
@@ -293,7 +299,7 @@ async function procesar() {
           // Se agotaron los tres intentos: queda en la cola, visible en el
           // SyncBadge, esperando el "Reintentar ahora" del docente.
           useSyncStore.getState().terminarSincronizacion(mensaje)
-          rechazarPromesa(item.clave, error)
+          rechazarPromesa(item.idOperacion, error)
           return
         }
 
@@ -323,6 +329,10 @@ async function procesar() {
  *   IndexedDB. Lo pide CU022: la asistencia se marca sin botón de guardar, así
  *   que si el apunte local falla hay que decirlo y deshacer el clic, o el
  *   docente creería registrada una asistencia que solo existe en la pantalla.
+ * @param fusionar `(payloadPendiente, payloadNuevo) => payload`. Para los
+ *   módulos que mandan SOLO lo que cambió (Lectura, Rúbrica, Vuelo): si la
+ *   fila ya tenía un envío esperando, el nuevo lo sustituye sumándole los
+ *   campos del anterior, o el primer cambio se perdería.
  */
 export function encolar({
   clave,
@@ -332,12 +342,14 @@ export function encolar({
   dependeDe = null,
   exigePersistencia = false,
   idActividad = null,
+  fusionar = null,
 }) {
-  const anterior = cola.findIndex((item) => item.clave === clave)
+  // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
+  const anterior = cola.findIndex((item) => item.clave === clave && item.idOperacion !== enVuelo)
   const item = {
     clave,
     tipo,
-    payload,
+    payload: anterior >= 0 && fusionar ? fusionar(cola[anterior].payload, payload) : payload,
     descripcion,
     dependeDe,
     /**
@@ -358,20 +370,20 @@ export function encolar({
   if (anterior >= 0) {
     // La edición más reciente reemplaza a la pendiente: nunca dos envíos de la
     // misma fila-semana en la cola.
+    resolverPromesa(cola[anterior].idOperacion, { reemplazado: true })
     cola[anterior] = item
-    resolverPromesa(clave, { reemplazado: true })
   } else {
     cola.push(item)
   }
 
-  const promesa = new Promise((resolve, reject) => promesas.set(clave, { resolve, reject }))
+  const promesa = new Promise((resolve, reject) => promesas.set(item.idOperacion, { resolve, reject }))
   persistir().then((guardado) => {
     if (!guardado && exigePersistencia) {
       // Fuera de la cola: dejarlo ahí prometería un reintento que no
       // sobrevivirá a cerrar la pestaña.
-      cola = cola.filter((item) => item.clave !== clave)
+      cola = cola.filter((pendiente) => pendiente.idOperacion !== item.idOperacion)
       publicarEstado()
-      rechazarPromesa(clave, errorDePersistencia())
+      rechazarPromesa(item.idOperacion, errorDePersistencia())
       return
     }
     procesar()
@@ -413,6 +425,18 @@ export function resultadoDeLote(respuesta, idOperacion) {
  * y la pantalla tiene que recargar y decirlo.
  */
 export const esModificacionConcurrente = (error) => motivoDe(error) === 'modificacion_concurrente'
+
+/**
+ * Corrige los envíos que esperan (no el que está saliendo).
+ *
+ * Lo usa el control de versión: si una edición de la fila se aceptó y subió
+ * la versión, la siguiente edición de esa misma fila, ya encolada con la
+ * versión vieja, chocaría contra el propio cambio del docente.
+ */
+export function ajustarPendientes(transformar) {
+  cola = cola.map((item) => (item.idOperacion === enVuelo ? item : transformar(item)))
+  return persistir()
+}
 
 /** Reintento manual desde el panel del SyncBadge. */
 export function reintentarAhora() {
@@ -483,6 +507,7 @@ export function _reiniciarCola() {
   promesas.clear()
   iniciada = false
   procesando = false
+  enVuelo = null
   clearTimeout(temporizador)
   publicarEstado()
 }

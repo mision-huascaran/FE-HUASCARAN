@@ -2,7 +2,7 @@
 // se duplica. Aquí se comprueba lo que decide si el trabajo del docente se
 // pierde o no: qué se reintenta, qué se descarta y qué se le devuelve a la fila.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { _reiniciarCola, encolar, iniciarCola, registrarEnviador } from '../colaOffline'
+import { _reiniciarCola, encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../colaOffline'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 
@@ -15,6 +15,7 @@ const fila = (clave, extra = {}) => ({
 
 beforeEach(() => {
   _reiniciarCola()
+  Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
   // Precondición: hay una sesión iniciada. Sin ella la cola no envía (CP09).
   useSessionStore.setState({ token: 'mock.1.2026' })
 })
@@ -54,18 +55,65 @@ describe('cola de envíos', () => {
   })
 
   it('la edición más reciente reemplaza a la pendiente de la misma fila', async () => {
-    let liberar
-    registrarEnviador('fila-semanal', () => new Promise((resolver) => { liberar = resolver }))
+    // Sin conexión nada sale: las dos ediciones esperan y la segunda sustituye
+    // a la primera, que se da por reemplazada.
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    const enviados = []
+    registrarEnviador('fila-semanal', async (payload) => {
+      enviados.push(payload)
+      return { id_registro: 9 }
+    })
 
     const primera = encolar(fila('alumno-4-semana-12', { lsl: 1 }))
-    await Promise.resolve()
+    const segunda = encolar(fila('alumno-4-semana-12', { lsl: 5 }))
+    await expect(primera).resolves.toEqual({ reemplazado: true })
+    expect(useSyncStore.getState().pendientes).toBe(1)
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    await reintentarAhora()
+    await expect(segunda).resolves.toEqual({ id_registro: 9 })
+    expect(enviados.map((e) => e.lsl)).toEqual([5])
+  })
+
+  it('una edición de la fila que YA SE ESTÁ ENVIANDO no la reemplaza: sale después', async () => {
+    // Antes la sustituía en la cola y, al llegar la respuesta del envío en
+    // vuelo, se borraba la nueva: el segundo cambio se daba por guardado sin
+    // haber salido nunca.
+    const liberar = []
+    const enviados = []
+    registrarEnviador('fila-semanal', (payload) => {
+      enviados.push(payload)
+      return new Promise((resolver) => liberar.push(resolver))
+    })
+
+    const primera = encolar(fila('alumno-4-semana-12', { lsl: 1 }))
+    await new Promise((listo) => setTimeout(listo, 0))
     const segunda = encolar(fila('alumno-4-semana-12', { lsl: 5 }))
 
-    // La primera no se pierde ni se duplica: se da por reemplazada.
-    await expect(primera).resolves.toEqual({ reemplazado: true })
+    liberar[0]({ id_registro: 9 })
+    await expect(primera).resolves.toEqual({ id_registro: 9 })
+    await new Promise((listo) => setTimeout(listo, 0))
+    liberar[1]({ id_registro: 10 })
+    await expect(segunda).resolves.toEqual({ id_registro: 10 })
+    expect(enviados.map((e) => e.lsl)).toEqual([1, 5])
+  })
 
-    liberar({ id_registro: 9 })
-    await expect(segunda).resolves.toEqual({ id_registro: 9 })
+  it('fusionar suma los campos de la edición pendiente a la nueva', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    const enviados = []
+    registrarEnviador('fila-semanal', async (payload) => {
+      enviados.push(payload)
+      return {}
+    })
+    const fusionar = (anterior, nuevo) => ({ ...anterior, ...nuevo })
+    encolar({ ...fila('alumno-4-semana-12', { lsl: 1 }), fusionar })
+    encolar({ ...fila('alumno-4-semana-12', { observacion: 'Bien' }), fusionar })
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    await reintentarAhora()
+    await new Promise((listo) => setTimeout(listo, 0))
+    expect(enviados).toHaveLength(1)
+    expect(enviados[0]).toEqual(expect.objectContaining({ lsl: 1, observacion: 'Bien' }))
   })
 
   it('sin sesión no envía nada; lo manda al iniciar sesión (CP09, D05)', async () => {

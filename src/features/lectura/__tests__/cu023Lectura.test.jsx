@@ -13,13 +13,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import LecturaPage from '../LecturaPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import { ROLES } from '../../../auth/roles'
+import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
+import useSyncStore from '../../../store/syncStore'
+import useRechazosStore from '../../../store/rechazosStore'
 
 const ESPERA = { timeout: 8000 }
 
@@ -146,6 +149,11 @@ function montar(idRol = ROLES.PROFESOR) {
 
 beforeEach(() => {
   localStorage.clear()
+  _reiniciarCola()
+  useRechazosStore.getState().limpiar()
+  conexion(true)
+  // Es global: un test que acabó sin red lo dejaría así para el siguiente.
+  onlineManager.setOnline(true)
   obtenerTabla.mockReset()
   crearTabla.mockReset()
   guardarFilas.mockReset()
@@ -167,6 +175,19 @@ beforeEach(() => {
 })
 
 afterEach(() => useActividadStore.getState().limpiar())
+
+/** La conexión del navegador: la cola no envía sin ella. */
+function conexion(enLinea) {
+  Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+  // TanStack Query y `useConexion` se enteran por el evento, no por la propiedad.
+  window.dispatchEvent(new Event(enLinea ? 'online' : 'offline'))
+}
+
+/** Vuelve la conexión y se vacía la cola, como al reconectar. */
+async function reconectar() {
+  conexion(true)
+  await reintentarAhora()
+}
 
 describe('La tabla que todavía no existe (CU023)', () => {
   it('no se trata como un error: se ofrece crearla y se dice sobre qué clase', async () => {
@@ -246,7 +267,7 @@ describe('Las filas de la tabla (CU024)', () => {
     await waitFor(() => expect(guardarFilas).toHaveBeenCalled(), ESPERA)
     const [, filas] = guardarFilas.mock.calls[0]
     expect(Object.keys(filas[0]).sort()).toEqual(
-      ['cantidad_lsl', 'id_alumno', 'id_operacion', 'realizado_en', 'version'].sort(),
+      ['cantidad_lsl', 'id_actividad', 'id_alumno', 'id_operacion', 'realizado_en', 'version'].sort(),
     )
     expect(filas[0].cantidad_lsl).toBe(3)
     // La versión que se leyó: es con lo que el servidor detecta que otro
@@ -340,6 +361,84 @@ describe('Choque de versiones (CU024)', () => {
     await waitFor(() => expect(descartarOperacion).toHaveBeenCalledWith('op-1'), ESPERA)
     await waitFor(() => expect(screen.getByLabelText(/libros de sala de lectura de Torres, Ana/i)).toHaveValue(7), ESPERA)
     expect(screen.queryByRole('button', { name: 'Cargar versión actual' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Sin conexión (RNF-001)', () => {
+  const LSL = /libros de sala de lectura de Torres, Ana/i
+  const editarLsl = (valor) => {
+    const lsl = screen.getByLabelText(LSL)
+    fireEvent.change(lsl, { target: { value: valor } })
+    fireEvent.blur(lsl)
+  }
+  /** Se corta la red con la tabla ya descargada, como en el aula. */
+  const montarYCortar = async () => {
+    montar()
+    await screen.findByLabelText(LSL, {}, ESPERA)
+    conexion(false)
+  }
+
+  it('la fila se encola y sale al reconectar con id_operacion, version, realizado_en e id_actividad', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    await montarYCortar()
+    editarLsl('3')
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+    expect(guardarFilas).not.toHaveBeenCalled()
+    // Mientras espera, la fila muestra lo que escribió el docente.
+    expect(screen.getByLabelText(LSL)).toHaveValue(3)
+
+    await reconectar()
+    await waitFor(() => expect(guardarFilas).toHaveBeenCalledTimes(1), ESPERA)
+    const [idTabla, [enviado]] = guardarFilas.mock.calls[0]
+    expect(idTabla).toBe(7)
+    ;['id_operacion', 'version', 'realizado_en', 'id_actividad'].forEach((campo) => expect(enviado).toHaveProperty(campo))
+    expect(enviado.version).toBe(1)
+    expect(enviado.id_actividad).toBe(useActividadStore.getState().sesion.id)
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+  })
+
+  it('dos cambios de la misma fila sin conexión salen en UN envío, con los dos campos', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    await montarYCortar()
+    editarLsl('3')
+    const titulo = screen.getByLabelText(/título del LSN de Torres, Ana/i)
+    fireEvent.change(titulo, { target: { value: 'El zorro' } })
+    fireEvent.blur(titulo)
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+
+    await reconectar()
+    await waitFor(() => expect(guardarFilas).toHaveBeenCalledTimes(1), ESPERA)
+    expect(guardarFilas.mock.calls[0][1][0]).toEqual(expect.objectContaining({ cantidad_lsl: 3, lsn_titulo: 'El zorro', version: 1 }))
+  })
+
+  it('un rechazo al sincronizar se muestra con su detail y se puede descartar', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    guardarFilas.mockImplementation(async (_id, filas) => [
+      {
+        id_operacion: filas[0].id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: 'No tienes una habilitación vigente para registrar o corregir la lectura de esta semana.',
+        registro: null,
+      },
+    ])
+    await montarYCortar()
+    editarLsl('3')
+    await reconectar()
+
+    expect(await screen.findByText(/No tienes una habilitación vigente/i, {}, ESPERA)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    await waitFor(() => expect(descartarOperacion).toHaveBeenCalledWith(guardarFilas.mock.calls[0][1][0].id_operacion), ESPERA)
+  })
+
+  it('crear la tabla requiere conexión', async () => {
+    obtenerTabla.mockRejectedValue(errorPorCrear())
+    montar()
+    const crear = await screen.findByRole('button', { name: /crear la tabla/i }, ESPERA)
+    conexion(false)
+    await waitFor(() => expect(crear).toBeDisabled(), ESPERA)
+    expect(screen.getByText('Esta acción requiere conexión')).toBeInTheDocument()
   })
 })
 

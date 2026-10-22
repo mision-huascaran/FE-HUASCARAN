@@ -13,13 +13,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import RegistroVueloAnualPage from '../RegistroVueloAnualPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import { ROLES } from '../../../auth/roles'
+import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
+import useSyncStore from '../../../store/syncStore'
+import useRechazosStore from '../../../store/rechazosStore'
 
 const ESPERA = { timeout: 8000 }
 
@@ -149,6 +152,11 @@ function montar(idRol = ROLES.PROFESOR) {
 
 beforeEach(() => {
   localStorage.clear()
+  _reiniciarCola()
+  useRechazosStore.getState().limpiar()
+  conexion(true)
+  // Es global: un test que acabó sin red lo dejaría así para el siguiente.
+  onlineManager.setOnline(true)
   listarRegistroVuelo.mockReset()
   guardarRegistroVuelo.mockReset()
   listarRegistroVuelo.mockResolvedValue(respuesta())
@@ -170,6 +178,19 @@ beforeEach(() => {
 })
 
 afterEach(() => useActividadStore.getState().limpiar())
+
+/** La conexión del navegador: la cola no envía sin ella. */
+function conexion(enLinea) {
+  Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+  // TanStack Query y `useConexion` se enteran por el evento, no por la propiedad.
+  window.dispatchEvent(new Event(enLinea ? 'online' : 'offline'))
+}
+
+/** Vuelve la conexión y se vacía la cola, como al reconectar. */
+async function reconectar() {
+  conexion(true)
+  await reintentarAhora()
+}
 
 describe('Lo que calcula el servidor', () => {
   it('la entrada y la sugerencia se muestran, no se editan', async () => {
@@ -304,6 +325,15 @@ describe('Lo que decide el docente', () => {
   it('el avance anual se actualiza al decidir, sin recargar', async () => {
     // Son 25 puntos por cada PA con nivel colocado. Sin recalcularlo, decidir
     // el cuarto periodo dejaría el avance en 75 % hasta que alguien recargara.
+    // Tras aceptar se vuelve a pedir la lista (la entrada del PA siguiente
+    // depende de esta decisión): el servidor ya la tiene.
+    const decidido = periodo(2, { nivel_colocado: { id: 7, letra: 'F' }, version: 1, incompleto: false })
+    guardarRegistroVuelo.mockImplementation(async (items) => {
+      listarRegistroVuelo.mockResolvedValue(
+        respuesta({ items: [alumno({ avance_anual: 25, periodos: [periodo(1), decidido] })] }),
+      )
+      return items.map((it) => ({ id_operacion: it.id_operacion, estado: 'aceptada', motivo: null, detail: null, registro: decidido }))
+    })
     montar()
 
     expect(await screen.findByText('0%', {}, ESPERA)).toBeInTheDocument()
@@ -395,6 +425,50 @@ describe('Lo que decide el docente', () => {
 
     montar()
     await screen.findByText(/la entrada de este periodo cambió después de registrar/i, {}, ESPERA)
+  })
+})
+
+describe('Sin conexión (RNF-001)', () => {
+  it('la decisión se encola y sale al reconectar con id_operacion, version, realizado_en e id_actividad', async () => {
+    montar()
+    const nivel = await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)
+    conexion(false)
+    fireEvent.change(nivel, { target: { value: '7' } })
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+    expect(guardarRegistroVuelo).not.toHaveBeenCalled()
+    // Se ve el nivel elegido; la sugerencia sigue siendo la de la descarga.
+    expect(screen.getByLabelText(/nivel colocado de/i)).toHaveValue('7')
+    expect(screen.getByText('Subir nivel')).toBeInTheDocument()
+
+    await reconectar()
+    await waitFor(() => expect(guardarRegistroVuelo).toHaveBeenCalledTimes(1), ESPERA)
+    const [enviado] = guardarRegistroVuelo.mock.calls[0][0]
+    ;['id_operacion', 'version', 'realizado_en', 'id_actividad'].forEach((campo) => expect(enviado).toHaveProperty(campo))
+    expect(enviado.id_nivel_colocado).toBe(7)
+    // Nada de lo que calcula el servidor viaja en la operación.
+    ;['entrada', 'sugerencia', 'nivel_programa'].forEach((campo) => expect(enviado).not.toHaveProperty(campo))
+    // Al aceptarla se vuelve a pedir la lista para recalcular entrada y sugerencia.
+    await waitFor(() => expect(listarRegistroVuelo.mock.calls.length).toBeGreaterThan(1), ESPERA)
+  })
+
+  it('un rechazo al sincronizar se muestra con su detail', async () => {
+    guardarRegistroVuelo.mockImplementation(async (items) => [
+      {
+        id_operacion: items[0].id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: 'No tienes autorización vigente para registrar o modificar este periodo.',
+        registro: null,
+      },
+    ])
+    montar()
+    const nivel = await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)
+    conexion(false)
+    fireEvent.change(nivel, { target: { value: '7' } })
+    await reconectar()
+
+    expect(await screen.findByText(/No tienes autorización vigente para registrar o modificar este periodo/i, {}, ESPERA)).toBeInTheDocument()
   })
 })
 

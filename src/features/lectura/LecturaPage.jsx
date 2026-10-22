@@ -38,6 +38,10 @@ import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
+import useConexion from '../../hooks/useConexion'
+
+/** Crear la tabla y marcarla no realizada no se encolan: congelan listas. */
+export const REQUIERE_CONEXION = 'Esta acción requiere conexión'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -77,9 +81,6 @@ export default function LecturaPage() {
     marcarNoRealizada,
     marcando,
     guardarFila,
-    conflictos,
-    cargarVersionActual,
-    cargandoVersion,
   } = useTablaLectura(filtros)
 
   const listos = Boolean(
@@ -101,6 +102,7 @@ export default function LecturaPage() {
   const puedeEscribir = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !puedeEscribir
 
+  const enLinea = useConexion()
   const guardar = (fila, cambios) =>
     guardarFila({ idAlumno: fila.id_alumno, cambios, version: fila.version })
 
@@ -121,7 +123,7 @@ export default function LecturaPage() {
       )}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
       {soloLectura && conActividad && escritura?.permitida && <AvisoModoConsulta />}
-      <AvisoConflictos conflictos={conflictos} cargando={cargandoVersion} onCargar={cargarVersionActual} />
+      <AvisoConflictos modulo="lectura" />
 
       {/* El MES va antes que la semana: las semanas que se ofrecen son las que
           tienen clase de este grupo en ese mes, y no las del año entero. */}
@@ -205,9 +207,12 @@ export default function LecturaPage() {
             }
             action={
               puedeEscribir && porCrear.claseSugerida ? (
-                <Button iconLeft={CalendarPlus} loading={creando} onClick={() => crear({})}>
-                  Crear la tabla de esta semana
-                </Button>
+                <div className="flex flex-col items-center gap-1">
+                  <Button iconLeft={CalendarPlus} loading={creando} disabled={!enLinea} onClick={() => crear({})}>
+                    Crear la tabla de esta semana
+                  </Button>
+                  {!enLinea && <p className="text-xs text-ink-500">{REQUIERE_CONEXION}</p>}
+                </div>
               ) : null
             }
           />
@@ -225,6 +230,7 @@ export default function LecturaPage() {
           tabla={tabla}
           soloLectura={soloLectura}
           marcando={marcando}
+          sinConexion={!enLinea}
           onGuardarFila={guardar}
           onObservar={setObservando}
           onNoRealizada={() => setJustificando(true)}

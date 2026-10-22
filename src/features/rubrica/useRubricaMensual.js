@@ -5,23 +5,26 @@
 // son dos desplegables, y obligar a confirmar dos listas sería trabajo de más.
 //
 // EL CHOQUE DE VERSIONES NO SE RESUELVE SOLO. Cuando el servidor responde
-// `modificacion_concurrente` manda el registro VIGENTE, y lo que se hace es
-// adoptarlo: reintentar pisaría el cambio de la otra persona, y dejar lo que
-// hay en pantalla mostraría algo que el servidor no tiene.
+// `modificacion_concurrente` manda el registro VIGENTE: queda como rechazo con
+// "Cargar versión actual" (ver `lib/registrosOffline`). Reintentar pisaría el
+// cambio de la otra persona.
 import { useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
-import { MOTIVO_RUBRICA, esMotivoDeMes, guardarRubricas, listarRubricas } from '../../api/resources/rubricaMensual'
-import { textoDeRechazo } from '../../api/resources/sincronizacion'
+import { esMotivoDeMes, listarRubricas } from '../../api/resources/rubricaMensual'
 import { ahora } from '../../lib/relojServidor'
-import useConflictos from '../../hooks/useConflictos'
+import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 
-const nuevaOperacion = () =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+/**
+ * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
+ * se dice. Un corte de red no es un error: el cambio sigue en la cola.
+ */
+const esDefinitivo = (error) => {
+  const estado = error?.response?.status
+  return estado != null && estado >= 400 && estado < 500
+}
 
 export default function useRubricaMensual({ filtros, pagina }) {
   const toast = useToast()
@@ -31,11 +34,8 @@ export default function useRubricaMensual({ filtros, pagina }) {
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes)
   const clave = ['rubricas', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, pagina }]
-  const conflictos = useConflictos()
-  const { limpiar: limpiarConflictos } = conflictos
-  const claveTexto = JSON.stringify(clave)
-  // Otro grupo u otro mes: los avisos de la vista anterior ya no aplican.
-  useEffect(() => limpiarConflictos(), [claveTexto, limpiarConflictos])
+  // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
+  useEffect(() => conectarConsultas(queryClient), [queryClient])
 
   const rubrica = useQuery({
     queryKey: clave,
@@ -46,19 +46,17 @@ export default function useRubricaMensual({ filtros, pagina }) {
     retry: (intentos, error) => !esMotivoDeMes(motivoDe(error)) && intentos < 2,
   })
 
-  /** Sustituye UNA fila en la caché, sin volver a pedir la página entera. */
-  const aplicar = (registro) =>
-    queryClient.setQueryData(clave, (previa) =>
-      previa
-        ? { ...previa, items: previa.items.map((i) => (i.id_alumno === registro.id_alumno ? registro : i)) }
-        : previa,
-    )
-
-  const guardar = useMutation({
-    mutationFn: ({ fila, cambios }) =>
-      guardarRubricas([
-        {
-          id_operacion: nuevaOperacion(),
+  /**
+   * Cada cambio de un desplegable es una operación de la cola offline. La
+   * `version` es la que mostró el GET (`null` si el alumno no tenía
+   * evaluación); 0 y `null` son distintos y viajan tal cual.
+   */
+  const guardarFila = (fila, cambios) =>
+    guardarRegistro('rubrica', {
+      clave: [idColegio, idGrado, idSeccion, idPrograma, idAnioEscolar, mes, fila.id_alumno].join('-'),
+      envio: {
+        nombre: fila.nombre,
+        item: {
           version: fila.version,
           realizado_en: ahora().toISOString(),
           id_actividad: idActividad,
@@ -71,38 +69,15 @@ export default function useRubricaMensual({ filtros, pagina }) {
           mes: Number(mes),
           ...cambios,
         },
-      ]),
-    onSuccess: (resultados) => {
-      const uno = Array.isArray(resultados) ? resultados[0] : null
-      if (!uno) return
-
-      if (uno.estado === 'rechazada') {
-        /**
-         * `modificacion_concurrente` trae el registro vigente: se ofrece
-         * "Cargar versión actual", que además descarta la operación. Los
-         * demás rechazos no traen nada que adoptar, así que se recarga la
-         * página para no dejar en pantalla un valor que no se guardó.
-         */
-        if (uno.motivo === 'modificacion_concurrente' && uno.registro) {
-          conflictos.registrar({
-            clave: uno.registro.id_alumno,
-            nombre: uno.registro.nombre,
-            idOperacion: uno.id_operacion,
-            registro: uno.registro,
-            detail: uno.detail ?? MOTIVO_RUBRICA.modificacion_concurrente,
-            aplicar,
-          })
-          return
-        }
-        queryClient.invalidateQueries({ queryKey: ['rubricas'] })
-        toast.error('No se guardó la evaluación', textoDeRechazo(uno, MOTIVO_RUBRICA) ?? 'Revise los datos.')
-        return
-      }
-
-      if (uno.registro) aplicar(uno.registro)
-    },
-    onError: (error) => toast.error('No se guardó la evaluación', mensajeDeError(error)),
-  })
+      },
+      local: cambios,
+      descripcion: `Rúbrica · ${fila.nombre}`,
+      idActividad,
+    }).catch((error) => {
+      if (!esDefinitivo(error)) return
+      queryClient.invalidateQueries({ queryKey: ['rubricas'] })
+      toast.error('No se guardó la evaluación', mensajeDeError(error))
+    })
 
   const motivoDelMes = esMotivoDeMes(motivoDe(rubrica.error)) ? motivoDe(rubrica.error) : null
 
@@ -112,10 +87,6 @@ export default function useRubricaMensual({ filtros, pagina }) {
     motivoDelMes,
     // Un error de verdad: ni el mes futuro ni el mes sin días lectivos.
     error: rubrica.isError && !motivoDelMes ? rubrica.error : null,
-    guardarFila: (fila, cambios) => guardar.mutate({ fila, cambios }),
-    guardando: guardar.isPending,
-    conflictos: conflictos.conflictos,
-    cargarVersionActual: conflictos.cargarVersionActual,
-    cargandoVersion: conflictos.cargando,
+    guardarFila,
   }
 }
