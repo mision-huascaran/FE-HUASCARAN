@@ -73,9 +73,11 @@ export function AuthProvider({ children }) {
   const entrar = useCallback(
     async ({ correo, password }) => {
       const { access_token: accessToken } = await iniciarSesion({ correo, password })
+      // Antes de `setToken`: si no, el efecto de arriba ve un token sin perfil
+      // y pide un segundo /me que puede llegar tarde y pisar al usuario.
+      perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
-      perfilPedidoPara.current = accessToken
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -93,9 +95,9 @@ export function AuthProvider({ children }) {
    */
   const entrarConToken = useCallback(
     async (accessToken) => {
+      perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
-      perfilPedidoPara.current = accessToken
       setUsuario(perfil)
       setCargando(false)
       return perfil
