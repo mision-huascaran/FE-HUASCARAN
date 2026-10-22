@@ -23,8 +23,7 @@ import LoginPage from './features/login/LoginPage'
 import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
 import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
 import ReportesPage from './features/reportes/ReportesPage'
-import NuevaEvaluacionPage from './features/registroVuelo/NuevaEvaluacionPage'
-import RegistroVueloPage from './features/registroVuelo/RegistroVueloPage'
+import RegistroVueloAnualPage from './features/registroVuelo/RegistroVueloAnualPage'
 import LecturaPage from './features/lectura/LecturaPage'
 import RubricaPage from './features/rubrica/RubricaPage'
 import UiKitPage from './features/uiKit/UiKitPage'
@@ -59,8 +58,13 @@ export const RUTAS_PROTEGIDAS = [
   // no una fila por alumno. Rúbrica sigue en la pantalla compartida hasta que
   // se rehaga como evaluación MENSUAL (tanda 8).
   { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <LecturaPage /> },
-  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloPage /> },
-  { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
+  // El ASISTENTE DESAPARECE (tanda 9). Ya no se aplica una prueba ni se
+  // cuentan aciertos sobre un total: hay una decisión por alumno y periodo, y
+  // la sugerencia la calcula el servidor sobre la rúbrica mensual. La ruta
+  // `/registro-vuelo/nuevo` se queda redirigiendo, porque el panel del docente
+  // y los atajos todavía la enlazan.
+  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloAnualPage /> },
+  { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registro de Vuelo', elemento: <Navigate to="/registro-vuelo" replace /> },
   // CU017 a CU019: solo el Docente, y solo sus propias sesiones.
   { path: '/sesiones', allow: [PROFESOR], titulo: 'Sesiones', elemento: <SesionesPage /> },
   // CU020 y CU021: lo que el Supervisor usa en su lugar.

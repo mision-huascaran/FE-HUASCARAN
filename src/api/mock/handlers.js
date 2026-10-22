@@ -245,6 +245,169 @@ function filaDe(tabla, idAlumno) {
   }
 }
 
+// ── Registro de Vuelo (CU031, CU032) ───────────────────────────────────────
+//
+// Una decision por alumno y PERIODO ACADEMICO del ano. El reparto de
+// responsabilidades es lo que hay que reproducir bien: el SERVIDOR calcula la
+// entrada, la sugerencia y el nivel del programa; el DOCENTE registra el nivel
+// colocado, la proyeccion y la observacion.
+const DECISIONES_MOCK = {}
+
+const claveDeDecision = (idAlumno, idPeriodo) => `${idAlumno}|${idPeriodo}`
+
+/** Los cuatro PA del ano, con su estado segun la fecha de hoy. */
+function periodosDelAnio() {
+  const anio = db.ANIO_LECTIVO
+  const tramos = [
+    { numero: 1, inicio: `${anio}-03-02`, fin: `${anio}-05-15` },
+    { numero: 2, inicio: `${anio}-05-18`, fin: `${anio}-07-17` },
+    { numero: 3, inicio: `${anio}-08-03`, fin: `${anio}-10-02` },
+    { numero: 4, inicio: `${anio}-10-05`, fin: `${anio}-12-18` },
+  ]
+  const hoy = hoyLima()
+  return tramos.map((t) => ({
+    numero: t.numero,
+    id_periodo_academico: 4 + t.numero,
+    nombre: `PA${t.numero}`,
+    fecha_inicio: t.inicio,
+    fecha_fin: t.fin,
+    estado: hoy < t.inicio ? 'futuro' : hoy > t.fin ? 'culminado' : 'en_curso',
+  }))
+}
+
+/** La letra con la que entra cada grado en PA1 (1.o aa, 2.o C, 3.o F...). */
+const LETRA_POR_GRADO = { 1: 'aa', 2: 'C', 3: 'F', 4: 'J', 5: 'M', 6: 'Q' }
+
+const nivelPorLetra = (letra) => {
+  const n = db.NIVELES_RAZKIDS.find((x) => x.letra === letra)
+  return n ? { id: n.id_nivel_razkids, letra: n.letra } : null
+}
+
+const nivelPorId = (id) => {
+  const n = db.NIVELES_RAZKIDS.find((x) => x.id_nivel_razkids === Number(id))
+  return n ? { id: n.id_nivel_razkids, letra: n.letra } : null
+}
+
+/**
+ * La ENTRADA de un periodo.
+ *
+ * PA1 entra por la letra del grado. PA2 a PA4 entran por el nivel COLOCADO del
+ * periodo anterior, y si ese no existe todavia la entrada queda PENDIENTE: no
+ * se cae a la letra del grado, porque daria por buena una entrada inventada y
+ * arrastraria el error a todos los periodos siguientes.
+ */
+function entradaDe(alumno, numero, periodos) {
+  if (numero === 1) {
+    return {
+      nivel: nivelPorLetra(LETRA_POR_GRADO[alumno.id_grado] ?? 'aa'),
+      origen: 'grado',
+      texto: 'Nivel inicial segun el grado del alumno.',
+    }
+  }
+  const anterior = periodos.find((p) => p.numero === numero - 1)
+  const decision = DECISIONES_MOCK[claveDeDecision(alumno.id_alumno, anterior?.id_periodo_academico)]
+  if (!decision?.id_nivel_colocado) {
+    return { nivel: null, origen: 'pendiente_periodo_anterior', texto: 'Pendiente del periodo anterior' }
+  }
+  return {
+    nivel: nivelPorId(decision.id_nivel_colocado),
+    origen: 'periodo_anterior',
+    texto: 'Proviene del nivel colocado en el periodo anterior.',
+  }
+}
+
+/** El nivel del programa segun el grado y el nivel colocado. */
+function nivelDePrograma(alumno, idNivelColocado) {
+  if (!idNivelColocado) return null
+  const colocado = db.NIVELES_RAZKIDS.find((n) => n.id_nivel_razkids === Number(idNivelColocado))
+  const esperado = db.NIVELES_RAZKIDS.find((n) => n.letra === (LETRA_POR_GRADO[alumno.id_grado] ?? 'aa'))
+  const diferencia = (colocado?.orden ?? 0) - (esperado?.orden ?? 0)
+  if (diferencia < 0) return 'Inicio'
+  if (diferencia < 3) return 'En proceso'
+  if (diferencia < 6) return 'Logrado'
+  return 'Avanzado'
+}
+
+/**
+ * La SUGERENCIA del motor, sobre la ultima rubrica completa del alumno.
+ *
+ * Sin rubrica completa o sin entrada no hay sugerencia: "Pendiente de
+ * evaluar". Inventar una sobre datos incompletos seria peor que no darla,
+ * porque el docente la leeria como una recomendacion fundada.
+ */
+function sugerenciaDe(alumno, entrada) {
+  const rubricas = Object.entries(RUBRICAS_MOCK)
+    .filter(([clave]) => clave.startsWith(`${alumno.id_alumno}|`))
+    .map(([clave, valor]) => ({ mes: Number(clave.split('|')[1]), ...valor }))
+    .filter((r) => r.fluidez != null && r.comprension != null)
+    .sort((a, b) => b.mes - a.mes)
+
+  const ultima = rubricas[0]
+  if (!ultima || !entrada.nivel) {
+    return { accion: null, nivel: null, texto: 'Pendiente de evaluar', resultado_decimas: null, excepcion: null, rubrica: null }
+  }
+
+  const decimas = 4 * ultima.fluidez + 6 * ultima.comprension
+  const accion = decimas >= 28 ? 'subir' : decimas >= 16 ? 'mantener' : 'bajar'
+  const salto = accion === 'subir' ? 1 : accion === 'bajar' ? -1 : 0
+
+  // Las excepciones de los extremos: por debajo de aa y por encima de Z no hay
+  // nada, asi que la sugerencia se queda donde esta y lo dice.
+  const orden = db.NIVELES_RAZKIDS.find((n) => n.id_nivel_razkids === entrada.nivel.id)?.orden ?? 1
+  const destino = orden + salto
+  const fuera = destino < 1 || destino > db.NIVELES_RAZKIDS.length
+  const nivel = fuera ? entrada.nivel : nivelPorId(db.NIVELES_RAZKIDS.find((n) => n.orden === destino)?.id_nivel_razkids)
+
+  return {
+    accion: fuera ? 'mantener' : accion,
+    nivel,
+    texto: fuera ? 'Mantener nivel' : { subir: 'Subir nivel', mantener: 'Mantener nivel', bajar: 'Bajar nivel' }[accion],
+    resultado_decimas: decimas,
+    excepcion: fuera ? (destino < 1 ? 'aa' : 'Z') : null,
+    rubrica: {
+      id: ultima.id,
+      mes: `${db.ANIO_LECTIVO}-${String(ultima.mes).padStart(2, '0')}`,
+      fluidez: NOMBRES_RUBRICA[ultima.fluidez],
+      comprension: NOMBRES_RUBRICA[ultima.comprension],
+      resultado_decimas: decimas,
+    },
+  }
+}
+
+const NOMBRES_RUBRICA = ['Pre-inicio', 'Inicio', 'En proceso', 'Logrado', 'Avanzado']
+
+/** El periodo de un alumno, ya resuelto: lo calculado y lo decidido. */
+function periodoDeAlumno(alumno, periodo, periodos) {
+  const decision = DECISIONES_MOCK[claveDeDecision(alumno.id_alumno, periodo.id_periodo_academico)]
+  const entrada = entradaDe(alumno, periodo.numero, periodos)
+  const colocado = decision?.id_nivel_colocado ? nivelPorId(decision.id_nivel_colocado) : null
+
+  // Si ya hay decision y la entrada de hoy no es la que habia al decidir,
+  // alguien corrigio el PA anterior. Se avisa en vez de recalcular: la
+  // decision del docente no se toca sola.
+  const cambio = Boolean(colocado && decision.id_nivel_entrada && decision.id_nivel_entrada !== (entrada.nivel?.id ?? null))
+
+  return {
+    numero: periodo.numero,
+    id_periodo_academico: periodo.id_periodo_academico,
+    id_registro: decision?.id ?? null,
+    version: decision?.version ?? null,
+    entrada,
+    sugerencia: sugerenciaDe(alumno, entrada),
+    nivel_colocado: colocado,
+    nivel_programa: nivelDePrograma(alumno, decision?.id_nivel_colocado),
+    proyeccion: decision?.id_nivel_proyeccion ? nivelPorId(decision.id_nivel_proyeccion) : null,
+    observacion: decision?.observacion ?? null,
+    aviso_entrada_cambio: cambio,
+    aviso: cambio
+      ? 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
+      : null,
+    // Lo que falta es el NIVEL COLOCADO: la proyeccion y la observacion son
+    // opcionales, asi que no dejan el periodo incompleto.
+    incompleto: !colocado,
+  }
+}
+
 // ── Rubrica mensual (CU029, CU030) ──────────────────────────────────────────
 //
 // UNA evaluacion por alumno y mes. Los codigos son numeros y el 0 ES UN VALOR
@@ -1625,6 +1788,150 @@ export const handlers = {
     },
   },
 
+  /**
+   * Registro de Vuelo (CU031, CU032), forma de la tanda 9.
+   *
+   * Lo que importa reproducir:
+   *
+   *   · El servidor CALCULA entrada, sugerencia y nivel del programa. El
+   *     cliente que los mande se lleva un 422 del lote entero, no un campo
+   *     ignorado: es la unica forma de que el error se vea pronto.
+   *   · `escritura` va una vez POR PERIODO, no por alumno: la habilitacion es
+   *     de cada PA, y tenerla en PA2 no habilita PA3.
+   *   · El nivel colocado no se puede volver a null.
+   */
+  registroVuelo: {
+    listar: async ({ idColegio, idPrograma, idGrado, pagina = 1 }) => {
+      const periodos = periodosDelAnio()
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .filter((a) => Number(a.id_programa) === Number(idPrograma))
+        .sort((a, b) => a.apellidos.localeCompare(b.apellidos, 'es'))
+
+      const porPagina = 40
+      const desde = (Number(pagina) - 1) * porPagina
+      const items = alumnos.slice(desde, desde + porPagina).map((a) => {
+        const suyos = periodos.map((p) => periodoDeAlumno(a, p, periodos))
+        return {
+          id_alumno: a.id_alumno,
+          nombre: `${a.apellidos}, ${a.nombres}`,
+          id_programa: a.id_programa,
+          inactivo: a.activo === false,
+          // 25 por cada PA con nivel colocado.
+          avance_anual: suyos.filter((p) => p.nivel_colocado).length * 25,
+          periodos: suyos,
+        }
+      })
+
+      return responder({
+        items,
+        total: alumnos.length,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(alumnos.length / porPagina)),
+        periodos: periodos.map((p) => ({
+          ...p,
+          escritura:
+            p.estado === 'futuro'
+              ? {
+                  permitida: false,
+                  motivo: 'No se puede registrar un periodo academico que todavia no empieza.',
+                  id_permiso: null,
+                  aviso_permiso: null,
+                }
+              : { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+        })),
+        aviso: alumnos.length === 0 ? 'No hay alumnos que correspondan a este grupo en el ano seleccionado.' : null,
+      })
+    },
+
+    guardar: async (items = []) => {
+      const periodos = periodosDelAnio()
+
+      // Un campo calculado en el cuerpo tira el LOTE COMPLETO, no solo su item.
+      const PROHIBIDOS = ['entrada', 'sugerencia', 'nivel_programa', 'nivel_colocado', 'proyeccion', 'avance_anual']
+      const intruso = items.flatMap((it) => Object.keys(it)).find((c) => PROHIBIDOS.includes(c))
+      if (intruso) {
+        const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
+        error.response.data.errores = [{ campo: intruso, mensaje: 'Este campo lo calcula el servidor.' }]
+        throw error
+      }
+
+      return responder(
+        items.map((it) => {
+          const rechazo = (motivo, detail, registro = null) => ({
+            id_operacion: it.id_operacion,
+            estado: 'rechazada',
+            motivo,
+            detail,
+            registro,
+          })
+
+          const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
+          if (!alumno) {
+            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el periodo seleccionado.')
+          }
+
+          const periodo = periodos.find((p) => p.id_periodo_academico === Number(it.id_periodo_academico))
+          if (!periodo) return rechazo('periodo_inexistente', 'El periodo academico no existe.')
+          if (periodo.estado === 'futuro') {
+            return rechazo('periodo_futuro', 'No se puede registrar un periodo academico que todavia no empieza.')
+          }
+
+          const clave = claveDeDecision(it.id_alumno, periodo.id_periodo_academico)
+          const previa = DECISIONES_MOCK[clave]
+
+          if (it.version != null && Number(it.version) !== Number(previa?.version ?? 0)) {
+            return rechazo(
+              'modificacion_concurrente',
+              'El registro de este alumno y periodo fue modificado desde que lo consultaste. Revisa la version actual antes de guardar nuevamente.',
+              periodoDeAlumno(alumno, periodo, periodos),
+            )
+          }
+
+          // El nivel colocado NO se puede volver a null: la fila del PA
+          // siguiente se construye sobre el.
+          if ('id_nivel_colocado' in it && it.id_nivel_colocado == null && previa?.id_nivel_colocado) {
+            return rechazo(
+              'nivel_colocado_obligatorio',
+              'El nivel colocado ya registrado no se puede quitar; selecciona otro nivel.',
+            )
+          }
+
+          for (const campo of ['id_nivel_colocado', 'id_nivel_proyeccion']) {
+            if (!(campo in it) || it[campo] == null) continue
+            if (!nivelPorId(it[campo])) {
+              return rechazo('nivel_invalido', 'Selecciona un nivel valido entre aa y Z.', { campo })
+            }
+          }
+
+          const entrada = entradaDe(alumno, periodo.numero, periodos)
+          DECISIONES_MOCK[clave] = {
+            id: previa?.id ?? Number(`${it.id_alumno}${periodo.numero}`),
+            id_nivel_colocado:
+              'id_nivel_colocado' in it ? it.id_nivel_colocado : (previa?.id_nivel_colocado ?? null),
+            id_nivel_proyeccion:
+              'id_nivel_proyeccion' in it ? it.id_nivel_proyeccion : (previa?.id_nivel_proyeccion ?? null),
+            observacion: 'observacion' in it ? it.observacion : (previa?.observacion ?? null),
+            // La entrada QUE HABIA AL DECIDIR: con ella se detecta despues que
+            // alguien corrigio el PA anterior.
+            id_nivel_entrada: previa?.id_nivel_entrada ?? entrada.nivel?.id ?? null,
+            version: (previa?.version ?? 0) + 1,
+          }
+
+          return {
+            id_operacion: it.id_operacion,
+            estado: 'aceptada',
+            motivo: null,
+            detail: null,
+            registro: periodoDeAlumno(alumno, periodo, periodos),
+          }
+        }),
+        RETARDO_ESCRITURA_MS,
+      )
+    },
+  },
+
 
   /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
   sesiones: {
@@ -2502,6 +2809,7 @@ export function _reiniciarSimulador() {
   Object.keys(CLASES_MOCK).forEach((k) => delete CLASES_MOCK[k])
   Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
   Object.keys(RUBRICAS_MOCK).forEach((k) => delete RUBRICAS_MOCK[k])
+  Object.keys(DECISIONES_MOCK).forEach((k) => delete DECISIONES_MOCK[k])
 }
 
 export default handlers
