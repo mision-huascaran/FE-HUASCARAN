@@ -2,8 +2,10 @@
 //
 // YA NO ES UNA DEMO: el backend publica `GET /asistencias` y `PUT /asistencias`.
 //
-// Una CLASE es fecha + colegio + grado + subprograma, y nada más: la sección no
-// está en el contrato y ya no se pide.
+// Una CLASE es colegio + grado + SECCIÓN + fecha. El subprograma NO entra: una
+// clase reúne a los alumnos de Alfabetización y a los de Comprensión Lectora que
+// estén en esa aula, y cada uno trae el suyo. El filtro de subprograma de esta
+// pantalla es visual, y cambiarlo no puede perder marcas ya puestas.
 //
 // DE DÓNDE SALEN LOS DESPLEGABLES, que es lo que hacía fallar la pantalla:
 //
@@ -27,9 +29,11 @@
 //     clase nueva nace entera sin marcar, que no es lo mismo que todos ausentes.
 //   · La lista va con Virtual Scrolling: está pensada para un móvil en el aula
 //     y un colegio grande pasa de los sesenta alumnos.
-//   · Quién puede escribir lo decide el SERVIDOR con `editable`, no esta
-//     pantalla: es `true` solo para el Docente en un día lectivo del periodo
-//     vigente. El Supervisor lo recibe siempre en `false` (CU021).
+//   · Quién puede escribir lo decide el SERVIDOR, no esta pantalla. Desde la
+//     tanda 6 ya no es un `editable` suelto sino un bloque `escritura` que
+//     además dice POR QUÉ no se puede —sin habilitación, sin actividad, o
+//     porque es el Supervisor, que siempre consulta en solo lectura— y si lo
+//     que habilita es un permiso excepcional.
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCheck, CalendarX2, Ban } from 'lucide-react'
@@ -43,7 +47,7 @@ import ModalObservacion from './ModalObservacion'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
-import { obtenerClase } from '../../api/resources/asistencia'
+import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
@@ -127,6 +131,18 @@ export default function AsistenciaPage() {
   }, [colegio, esDocente, asignacion])
 
   /**
+   * Las secciones del grado elegido, que solo trae el detalle del colegio.
+   *
+   * `colegio.seccion` desapareció con T3: ahora cada grado tiene las suyas, y
+   * `GET /asistencias` recibe `id_seccion` porque la clase es colegio × grado
+   * × sección, sin subprograma —el subprograma es del alumno—.
+   */
+  const secciones = useMemo(
+    () => grados.find((g) => String(g.id_grado) === String(filtros.idGrado))?.secciones ?? [],
+    [grados, filtros.idGrado],
+  )
+
+  /**
    * Los subprogramas que esta aula tiene DE VERDAD.
    *
    * El colegio los da con id; la asignación, solo los nombres de los que tienen
@@ -173,17 +189,52 @@ export default function AsistenciaPage() {
     cambiar('grado', String(grados[0].id_grado))
   }, [grados, filtros.idGrado, cambiar])
 
+  /**
+   * El subprograma ya NO se elige solo.
+   *
+   * Antes era obligatorio para armar la clase, así que había que proponer uno.
+   * Ahora es un filtro: su valor por defecto es "todos", que es lo que de
+   * verdad tiene el aula. Lo único que se hace es limpiarlo si deja de ser
+   * válido al cambiar de colegio.
+   */
   useEffect(() => {
-    if (!programas.length) return
+    if (!filtros.idPrograma || !programas.length) return
     if (programas.some((p) => String(p.id_programa) === String(filtros.idPrograma))) return
-    cambiar('subprograma', String(programas[0].id_programa))
+    cambiar('subprograma', '')
   }, [programas, filtros.idPrograma, cambiar])
 
-  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idPrograma && filtros.fecha)
+  /**
+   * Con UNA sección se elige sola; con varias se deja vacía a propósito.
+   *
+   * Es la misma regla que CU023 da para Lectura: adivinar el aula haría
+   * registrar la asistencia de la clase equivocada, y son clases distintas.
+   */
+  useEffect(() => {
+    if (!secciones.length) return
+    if (secciones.some((x) => String(x.id) === String(filtros.idSeccion))) return
+    cambiar('seccion', secciones.length === 1 ? String(secciones[0].id) : '')
+  }, [secciones, filtros.idSeccion, cambiar])
+
+  /**
+   * La clase se arma SIN subprograma: colegio, grado, sección y fecha.
+   *
+   * El subprograma es un filtro de la vista —delimita a quién se ve— y no
+   * forma parte de la identidad de la clase (CU022). Exigirlo aquí dejaría la
+   * pantalla sin cargar mientras no se eligiera uno, para una clase que ya
+   * está completamente determinada.
+   */
+  const listos = Boolean(filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.fecha)
 
   const claveClase = useMemo(
-    () => ['asistencia', 'clase', filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
-    [filtros.idColegio, filtros.idGrado, filtros.idPrograma, filtros.fecha],
+    () => [
+      'asistencia',
+      'clase',
+      filtros.idColegio,
+      filtros.idGrado,
+      filtros.idSeccion,
+      filtros.fecha,
+    ],
+    [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
   )
 
   const clase = useQuery({
@@ -192,7 +243,7 @@ export default function AsistenciaPage() {
       obtenerClase({
         idColegio: filtros.idColegio,
         idGrado: filtros.idGrado,
-        idPrograma: filtros.idPrograma,
+        idSeccion: filtros.idSeccion,
         fecha: filtros.fecha,
       }),
     enabled: listos,
@@ -209,25 +260,51 @@ export default function AsistenciaPage() {
     staleTime: 0,
   })
 
-  const alumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
-  // El día lectivo lo decide el SERVIDOR (CU022, Restricciones): llega como un
-  // 422 con `motivo: 'fecha_no_lectiva'`.
-  const motivo = motivoDe(clase.error)
-  const diaNoLectivo = motivo === 'fecha_no_lectiva'
-  const rechazo = clase.isError && !diaNoLectivo ? (RECHAZO[motivo] ?? {}) : null
+  const todosLosAlumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
 
   /**
-   * Quién escribe lo dice el servidor con `editable`, y encima tiene que haber
-   * una actividad abierta. Son dos condiciones distintas: `editable` cubre el
-   * rol y la fecha; la actividad, el requisito de CU010.
+   * El filtro Subprograma recorta LO QUE SE VE, no lo que se pide.
+   *
+   * La clase trae a los alumnos de Alfabetización y de Comprensión Lectora que
+   * estén en esa aula, porque es una sola clase. Elegir un subprograma deja ver
+   * solo a unos, pero las marcas de los demás siguen ahí: CU022 pide
+   * expresamente que cambiar el filtro conserve las asistencias registradas.
    */
-  const autoguardado = Boolean(clase.data?.editable) && puedeEditar && conActividad
+  const alumnos = useMemo(
+    () =>
+      filtros.idPrograma
+        ? todosLosAlumnos.filter((a) => String(a.id_programa) === String(filtros.idPrograma))
+        : todosLosAlumnos,
+    [todosLosAlumnos, filtros.idPrograma],
+  )
+  /**
+   * Quién escribe lo dice el servidor en `escritura.permitida`, que ya cubre
+   * el rol, la fecha y la habilitación. La actividad abierta se comprueba
+   * también aquí porque es del cliente: el servidor no sabe si hay una hasta
+   * que llega la escritura, y para entonces el docente ya rellenó la pantalla.
+   */
+  const datosClase = clase.data?.clase
+  const escritura = clase.data?.escritura
+  const autoguardado = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !autoguardado
+
+  /**
+   * La fecha la sigue rechazando el SERVIDOR con un 422, como antes; lo que
+   * cambió es que ya no es un motivo sino CUATRO, y cada uno se dice distinto.
+   * No es un fallo: es un estado de la pantalla, así que no pasa por `RECHAZO`.
+   */
+  const motivo = motivoDe(clase.error)
+  const fechaRechazada = esMotivoDeFecha(motivo)
+  const rechazo = clase.isError && !fechaRechazada ? (RECHAZO[motivo] ?? {}) : null
 
   const { marcaDe, marcar, observar, marcarTodosPresentes, sinMarcar } = useAutoguardado({
     alumnos,
     fecha: filtros.fecha,
-    idPrograma: filtros.idPrograma,
+    // La clase entera: el servidor la identifica por su clave cuando todavía
+    // no tiene `id_clase`, porque una habitual puede no tener fila aún.
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    idSeccion: filtros.idSeccion,
     activo: autoguardado,
     claveClase,
   })
@@ -246,7 +323,7 @@ export default function AsistenciaPage() {
     await observar(alumno, texto)
   }
 
-  const hayLista = listos && !diaNoLectivo && alumnos.length > 0
+  const hayLista = listos && !fechaRechazada && alumnos.length > 0
 
   return (
     <div className="flex flex-col gap-5">
@@ -259,13 +336,30 @@ export default function AsistenciaPage() {
 
       {puedeEditar && !conActividad && <AvisoActividades mensaje={SIN_ACTIVIDAD} />}
 
+      {/*
+        El servidor dice POR QUÉ no se puede escribir, con el texto ya
+        redactado: sin habilitación vigente, o que el Supervisor consulta en
+        solo lectura. Sin pintarlo, la pantalla se quedaba muda en solo lectura
+        y el docente no sabía si era su permiso, la fecha o un fallo.
+
+        Si la actividad ya se avisó arriba no se repite: es el mismo motivo
+        dicho dos veces.
+      */}
+      {escritura?.permitida === false && escritura.motivo && conActividad && (
+        <AvisoActividades mensaje={escritura.motivo} />
+      )}
+
+      {/* Una corrección excepcional SÍ hay que anunciarla: el docente está
+          escribiendo en un periodo cerrado y con fecha de caducidad. */}
+      {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
+
       <FiltrosAsistencia
         filtros={filtros}
         cambiar={cambiar}
         colegios={colegios}
         grados={grados}
         programas={programas}
-        seccion={colegio?.seccion}
+        secciones={secciones}
         docentes={docentes}
         eligeDocente={!puedeEditar}
       />
@@ -274,14 +368,36 @@ export default function AsistenciaPage() {
         <Card>
           <EmptyState
             title="Complete los filtros"
-            description="La clase se arma con colegio, grado, subprograma y fecha."
+            description="La clase se arma con colegio, grado, sección y fecha."
           />
         </Card>
       )}
 
-      {listos && diaNoLectivo && (
+      {/*
+        La clase se nombra sola. El servidor manda la `etiqueta` —"Clase
+        programada", "Clase reprogramada", "Clase adicional"— y un `aviso` ya
+        redactado cuando hay algo que explicar: que la clase de ese dia se
+        trasladó a otro, o que registrar una adicional NO completa la
+        asistencia de la trasladada. Eso último es justo lo que un docente
+        daría por supuesto al contrario, así que se dice.
+      */}
+      {datosClase?.etiqueta && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">{datosClase.etiqueta}</span>
+          {datosClase.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
+        </div>
+      )}
+
+      {listos && fechaRechazada && (
         <Card>
-          <EmptyState icon={CalendarX2} title="Día no lectivo" description={NO_LECTIVO} />
+          <EmptyState
+            icon={CalendarX2}
+            title="No se puede registrar en esta fecha"
+            // El `detail` del servidor primero: el de `fecha_no_lectiva` lleva
+            // dentro el motivo concreto —fin de semana, feriado, suspensión—
+            // que aquí no hay forma de saber.
+            description={mensajeDeError(clase.error, MOTIVO_FECHA[motivo] ?? NO_LECTIVO)}
+          />
         </Card>
       )}
 

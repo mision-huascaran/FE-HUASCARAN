@@ -1,25 +1,25 @@
-import { ArrowRight, ClipboardCheck, ClipboardList, Plane } from 'lucide-react'
+import { ArrowRight, BookOpenCheck, ClipboardCheck, Plane } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-/** Los tres accesos que el docente usa todas las semanas (P3). */
+/** Los tres módulos de registro del docente (CU023, CU029, CU031). */
 const ACCESOS = [
   {
-    to: '/reporte-semanal',
-    icon: ClipboardList,
-    titulo: 'Reporte semanal',
-    descripcion: 'Asistencia, libros y observación de la semana en curso.',
+    to: '/seguimiento-lectura',
+    icon: BookOpenCheck,
+    titulo: 'Seguimiento de Lectura',
+    descripcion: 'La tabla semanal de su grupo: LSN, LSL y observaciones.',
+  },
+  {
+    to: '/rubrica',
+    icon: ClipboardCheck,
+    titulo: 'Rúbrica',
+    descripcion: 'Fluidez y comprensión de cada alumno, una vez al mes.',
   },
   {
     to: '/registro-vuelo',
     icon: Plane,
-    titulo: 'Registro de vuelo',
-    descripcion: 'Evaluaciones diagnósticas de abril, julio, octubre y diciembre.',
-  },
-  {
-    to: '/nivel-final',
-    icon: ClipboardCheck,
-    titulo: 'Nivel final',
-    descripcion: 'Revisar el nivel calculado del mes y ajustarlo con justificación.',
+    titulo: 'Registro de Vuelo',
+    descripcion: 'El nivel colocado de cada alumno en cada periodo académico.',
   },
 ]
 

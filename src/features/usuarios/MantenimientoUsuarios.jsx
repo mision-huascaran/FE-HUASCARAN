@@ -6,12 +6,13 @@
 // Los campos del popup dependen del rol elegido: una cuenta de Docente lleva
 // además sus colegios y secciones, porque esas asignaciones son las que definen
 // su alcance. Las de Supervisor y Directivo no tienen alcance que definir.
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Badge from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from '../administracion/ModalCredencialDocente'
+import DetalleDocente from './DetalleDocente'
 import {
   activarUsuario,
   actualizarUsuario,
@@ -20,12 +21,15 @@ import {
   filtrarUsuariosPorColegio,
   listarAuditoria,
   listarColegiosAdmin,
+  listarEstadoCalendario,
+  opcionesDeInicio,
+  recesoDelColegio,
   listarGradosAdmin,
   listarUsuariosAdmin,
   obtenerUsuario,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
-import { etiquetaDe } from '../../lib/format'
+import { etiquetaDe, formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
 
@@ -44,6 +48,8 @@ const ROLES_CREABLES = [
 
 export default function MantenimientoUsuarios() {
   const toast = useToast()
+  // El Docente cuyo detalle se está viendo, o `null` en el listado.
+  const [docenteAbierto, setDocenteAbierto] = useState(null)
   const queryClient = useQueryClient()
   const enLinea = useConexion()
   const [filtros, setFiltros] = useState({ estado: 'activo' })
@@ -60,6 +66,22 @@ export default function MantenimientoUsuarios() {
     queryFn: listarGradosAdmin,
     staleTime: Infinity,
   })
+
+  /**
+   * En qué periodo está HOY cada colegio.
+   *
+   * Solo se usa para una pregunta del formulario —si el colegio está en receso
+   * hay que decir si la asignación es retroactiva o próxima—, pero no se puede
+   * deducir de otra cosa: cada colegio tiene su propio calendario desde CU027.
+   */
+  const { data: estadoCalendario = [] } = useQuery({
+    queryKey: ['admin', 'colegios', 'estado-calendario'],
+    queryFn: () => listarEstadoCalendario(),
+    staleTime: Infinity,
+  })
+
+  /** El receso de ese colegio, o `null` si está en un PA o no tiene calendario. */
+  const recesoDe = useCallback((idColegio) => recesoDelColegio(estadoCalendario, idColegio), [estadoCalendario])
 
   const consultaServidor = useQuery({
     queryKey: ['admin', 'usuarios', filtros],
@@ -209,9 +231,54 @@ export default function MantenimientoUsuarios() {
         ayuda: 'Un aula (colegio y grado) solo puede tener un docente',
         visible: esDocente,
       },
+      /**
+       * DESDE QUÉ PERIODO, pero SOLO si ese colegio está hoy en receso.
+       *
+       * Es la pregunta que no se puede evitar: durante un PR, asignar a un
+       * docente puede significar dos cosas muy distintas —que entre a
+       * regularizar el periodo que acaba de terminar, o que empiece en el que
+       * viene— y el backend responde 422 si no se dice cuál.
+       *
+       * En un PA no aparece: ahí no hay ambigüedad y el servidor lo ignora.
+       * Cada colegio tiene su propio calendario, así que esto depende del
+       * colegio elegido, no de una fecha global.
+       */
+      {
+        nombre: 'inicio_asignacion',
+        etiqueta: 'Desde qué periodo',
+        tipo: 'select',
+        ancho: 'completo',
+        requerido: true,
+        visible: (valores) => esDocente(valores) && Boolean(recesoDe(valores.id_colegio)),
+        opciones: (valores) => opcionesDeInicio(recesoDe(valores.id_colegio)),
+        ayuda: (valores) => {
+          const receso = recesoDe(valores.id_colegio)
+          if (!receso) return undefined
+          const hasta = receso.fecha_fin ? ` hasta el ${formatearFecha(receso.fecha_fin)}` : ''
+          return receso.es_pr4
+            ? `Este colegio está en receso (PR${receso.numero})${hasta}. Para asignarlo al año siguiente, cambia el año escolar.`
+            : `Este colegio está en receso (PR${receso.numero})${hasta}.`
+        },
+      },
     ],
-    [colegios, grados],
+    [colegios, grados, recesoDe],
   )
+
+  /**
+   * El detalle del Docente reemplaza el listado en el área principal, sin
+   * navegar: así "Volver a Usuarios" devuelve con los filtros y la página
+   * intactos, que es lo que pide CU016. Si fuera una ruta habría que
+   * reconstruirlos al volver.
+   */
+  if (docenteAbierto) {
+    return (
+      <DetalleDocente
+        docente={docenteAbierto}
+        colegios={colegios}
+        onVolver={() => setDocenteAbierto(null)}
+      />
+    )
+  }
 
   return (
     <>
@@ -219,6 +286,20 @@ export default function MantenimientoUsuarios() {
         seccion="usuarios"
         entidad="cuenta"
         titulo="Usuarios"
+        /**
+         * Solo en las filas de Docente: Supervisores y Directivos no tienen
+         * permisos de corrección ni nada más que enseñar. En sus filas el
+         * hueco se reserva, para que la columna de acciones no baile.
+         *
+         * Dice "Otorgar permisos" y no "Ver detalle" porque es lo que se va a
+         * hacer ahí, y porque junto al "Ver" de al lado eran dos ojos seguidos
+         * que no se distinguían y llevaban a sitios distintos.
+         */
+        verDetalle={{
+          abrir: setDocenteAbierto,
+          aplicaA: esDocente,
+          etiqueta: 'Otorgar permisos',
+        }}
         consulta={consulta}
         campos={campos}
         guardando={guardado.isPending}

@@ -30,13 +30,13 @@ describe('LevelChip', () => {
   it('colorea la letra Raz-Kids por `orden` y no por la letra (RN-012)', () => {
     render(
       <>
-        <LevelChip letra="aa" orden={1} totalNiveles={29} />
-        <LevelChip letra="Z2" orden={28} totalNiveles={29} />
+        <LevelChip letra="aa" orden={1} totalNiveles={27} />
+        <LevelChip letra="Z" orden={27} totalNiveles={27} />
       </>,
     )
-    // "aa" ordena después de "Z2" como texto, pero su `orden` es menor.
+    // "aa" ordena después de "Z" como texto, pero su `orden` es menor.
     expect(screen.getByText('aa').className).toContain('text-lvl-preinicio')
-    expect(screen.getByText('Z2').className).toContain('text-lvl-destacado')
+    expect(screen.getByText('Z').className).toContain('text-lvl-destacado')
   })
 })
 

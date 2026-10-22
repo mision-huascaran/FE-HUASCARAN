@@ -14,31 +14,55 @@
 // La cola vive en IndexedDB para sobrevivir a un cierre del navegador en pleno
 // corte de conexión. Si IndexedDB no está disponible, sigue funcionando en
 // memoria: el objetivo es no perder el trabajo del docente, no la persistencia.
-import { mensajeDeError } from '../api/client'
+import { mensajeDeError, motivoDe } from '../api/client'
 import { del, get, set } from 'idb-keyval'
+import { avisarPendientes, consultarOperacion } from '../api/resources/sincronizacion'
+import { idDeDispositivo } from './dispositivo'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
 const ESPERAS_MS = [1000, 4000, 9000]
+/** Tope del contrato para `POST /sincronizacion/pendientes`. */
+const MAX_AVISOS_POR_LOTE = 500
 export const MAX_INTENTOS = ESPERAS_MS.length
 
 const enviadores = new Map()
+/**
+ * El MÓDULO del contrato al que pertenece cada tipo de envío.
+ *
+ * No se puede usar `item.tipo` tal cual: los nombres de aquí son los de la
+ * interfaz —"asistencia", "actividad-cierre"— y el contrato tiene su propia
+ * lista cerrada: `asistencias`, `lectura`, `rubrica`, `registro_vuelo`,
+ * `alumnos`, `actividad`. Mandar el nombre de casa haría que el servidor
+ * descartara el aviso por un valor inválido, y en silencio: el aviso no
+ * interrumpe el envío, así que nadie se enteraría.
+ */
+const modulos = new Map()
+/** Promesa de cada envío, por `idOperacion` (dos de la misma clave pueden convivir). */
 const promesas = new Map()
 
 let cola = []
 let iniciada = false
 let procesando = false
 let temporizador = null
+/** La operación que se está mandando ahora mismo: no se reemplaza ni se toca. */
+let enVuelo = null
 
-/** Cada tipo de envío declara cómo se manda al servidor. */
-export function registrarEnviador(tipo, enviar) {
+/**
+ * Cada tipo de envío declara cómo se manda al servidor.
+ *
+ * @param modulo el del contrato, para el aviso de pendientes. Se declara aquí,
+ *   junto al enviador, porque es la única parte que sabe a qué endpoint va.
+ */
+export function registrarEnviador(tipo, enviar, { modulo } = {}) {
   enviadores.set(tipo, enviar)
+  if (modulo) modulos.set(tipo, modulo)
 }
 
 function publicarEstado() {
   useSyncStore.getState().setPendientes(
-    cola.map(({ clave, tipo, descripcion, intentos, error }) => ({ clave, tipo, descripcion, intentos, error })),
+    cola.map(({ clave, idOperacion, tipo, descripcion, intentos, error }) => ({ clave, idOperacion, tipo, descripcion, intentos, error })),
   )
 }
 
@@ -62,14 +86,14 @@ const errorDePersistencia = () => {
   return error
 }
 
-function resolverPromesa(clave, valor) {
-  promesas.get(clave)?.resolve(valor)
-  promesas.delete(clave)
+function resolverPromesa(idOperacion, valor) {
+  promesas.get(idOperacion)?.resolve(valor)
+  promesas.delete(idOperacion)
 }
 
-function rechazarPromesa(clave, error) {
-  promesas.get(clave)?.reject(error)
-  promesas.delete(clave)
+function rechazarPromesa(idOperacion, error) {
+  promesas.get(idOperacion)?.reject(error)
+  promesas.delete(idOperacion)
 }
 
 /** Un 4xx no se arregla reintentando; un corte de red o un 5xx, sí. */
@@ -91,9 +115,87 @@ function descartarDependientes(clave, error) {
   dependientes.forEach((item) => {
     const i = cola.indexOf(item)
     if (i >= 0) cola.splice(i, 1)
-    rechazarPromesa(item.clave, error)
+    rechazarPromesa(item.idOperacion, error)
     descartarDependientes(item.clave, error)
   })
+}
+
+/**
+ * El identificador de la operación, que el servidor usa para no duplicarla.
+ *
+ * Se genera UNA vez, al encolar, y viaja igual en cada reintento: esa es toda
+ * su gracia. Si se generara al enviar, dos intentos del mismo cambio serían
+ * dos operaciones distintas para el servidor y se aplicarían las dos.
+ *
+ * `crypto.randomUUID` no existe en navegadores viejos ni en algunos jsdom.
+ */
+function nuevoIdOperacion() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
+/**
+ * Un error sin respuesta: se mandó, pero no se supo si llegó.
+ *
+ * Es distinto de un 500: ahí el servidor contestó que falló. Aquí no contestó,
+ * y la operación puede haberse aplicado igual. Por eso estos son los únicos
+ * que vale la pena verificar antes de reintentar.
+ */
+const sinRespuesta = (error) => !error?.response
+
+/**
+ * Avisa al servidor de qué hay pendiente ANTES de mandarlo.
+ *
+ * Cierra el agujero de "el trabajo offline que nadie ve": mientras no se avisa,
+ * un Docente que trabajó sin señal es invisible para el Supervisor. Nunca
+ * interrumpe el envío: si el aviso falla, se manda el contenido igual, porque
+ * perder el trabajo por no poder avisar sería absurdo.
+ */
+async function avisarDeLoPendiente() {
+  const aviso = cola
+    // Sin módulo del contrato no se avisa de esa operación: el servidor
+    // rechazaría el lote entero por un valor que no está en su lista, y con él
+    // el aviso de todas las demás.
+    .filter((item) => modulos.has(item.tipo))
+    .map((item) => ({
+      id_operacion: item.idOperacion,
+      id_dispositivo: idDeDispositivo(),
+      modulo: modulos.get(item.tipo),
+      realizado_en: item.creado,
+      ...(item.idActividad ? { id_actividad: item.idActividad } : {}),
+    }))
+    // El contrato admite 500 por lote. Es muchísimo más de lo que cabe en una
+    // jornada, pero si alguna vez se pasara, el recorte deja pasar el aviso de
+    // las 500 primeras en vez de perder el lote completo por exceder el límite.
+    .slice(0, MAX_AVISOS_POR_LOTE)
+
+  if (aviso.length === 0) return
+  try {
+    await avisarPendientes(aviso)
+  } catch {
+    // El aviso es un extra. Lo que no puede fallar es el envío.
+  }
+}
+
+/**
+ * ¿Hace falta reintentar este envío, o ya llegó?
+ *
+ * Solo se pregunta cuando el intento anterior se quedó sin respuesta. Si el
+ * servidor dice que la vio, se da por resuelta: reintentar no duplicaría
+ * —para eso está `id_operacion`— pero sí mentiría sobre lo que pasó.
+ */
+async function yaLlego(item) {
+  if (!item.verificar) return null
+  try {
+    const resultado = await consultarOperacion(item.idOperacion)
+    return resultado?.estado && resultado.estado !== 'desconocida' ? resultado : null
+  } catch {
+    // Si no se puede verificar, se reintenta: es lo que se hacía antes.
+    return null
+  }
 }
 
 function programar(ms) {
@@ -116,6 +218,16 @@ async function procesar() {
   procesando = true
   useSyncStore.getState().iniciarSincronizacion()
 
+  /**
+   * El aviso sale YA, sin esperarlo.
+   *
+   * Importa que salga cuanto antes, pero no que llegue antes: su valor está en
+   * las operaciones que NO consigan subir. Una que sí sube deja al servidor
+   * enterado igual, así que bloquear la cola detrás de este aviso solo
+   * retrasaría el envío de verdad —y si el aviso fallara, lo pararía—.
+   */
+  avisarDeLoPendiente()
+
   try {
     while (cola.length > 0) {
       const item = cola[0]
@@ -124,18 +236,50 @@ async function procesar() {
       if (!enviar) {
         // Tipo desconocido: se descarta para no dejar la cola trabada.
         cola.shift()
-        rechazarPromesa(item.clave, new Error(`Sin enviador para "${item.tipo}"`))
+        rechazarPromesa(item.idOperacion, new Error(`Sin enviador para "${item.tipo}"`))
         await persistir()
         continue
       }
 
       try {
-        const respuesta = await enviar({ ...item.payload, idempotency_key: item.clave })
-        cola.shift()
+        /**
+         * Antes de reintentar algo que se quedó sin respuesta, se pregunta si
+         * ya llegó. Evita un reintento inútil y, sobre todo, permite
+         * distinguir "no llegó" de "llegó y fue rechazado".
+         */
+        const conocida = await yaLlego(item)
+        if (conocida) {
+          cola.shift()
+          item.verificar = false
+          await persistir()
+          if (conocida.estado === 'rechazada') {
+            const error = new Error(conocida.motivo ?? 'rechazada')
+            error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
+            descartarDependientes(item.clave, error)
+            rechazarPromesa(item.idOperacion, error)
+          } else {
+            resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
+          }
+          continue
+        }
+
+        enVuelo = item.idOperacion
+        const respuesta = await enviar({
+          ...item.payload,
+          id_operacion: item.idOperacion,
+          // El nombre antiguo sigue yendo: los endpoints que no se han
+          // actualizado todavía lo esperan, y mandar uno de más no estorba.
+          idempotency_key: item.clave,
+        })
+        enVuelo = null
+        cola.splice(cola.indexOf(item), 1)
         await persistir()
-        resolverPromesa(item.clave, respuesta)
+        resolverPromesa(item.idOperacion, respuesta)
       } catch (error) {
+        enVuelo = null
         const mensaje = mensajeDeError(error, error?.message ?? 'Error de envío')
+        // Si no hubo respuesta, el próximo intento preguntará antes de mandar.
+        item.verificar = sinRespuesta(error)
 
         if (!esReintentable(error)) {
           cola.shift()
@@ -143,7 +287,7 @@ async function procesar() {
           // daría otro error y ensuciaría la cola con fallos encadenados.
           descartarDependientes(item.clave, error)
           await persistir()
-          rechazarPromesa(item.clave, error)
+          rechazarPromesa(item.idOperacion, error)
           continue
         }
 
@@ -155,7 +299,7 @@ async function procesar() {
           // Se agotaron los tres intentos: queda en la cola, visible en el
           // SyncBadge, esperando el "Reintentar ahora" del docente.
           useSyncStore.getState().terminarSincronizacion(mensaje)
-          rechazarPromesa(item.clave, error)
+          rechazarPromesa(item.idOperacion, error)
           return
         }
 
@@ -185,42 +329,113 @@ async function procesar() {
  *   IndexedDB. Lo pide CU022: la asistencia se marca sin botón de guardar, así
  *   que si el apunte local falla hay que decirlo y deshacer el clic, o el
  *   docente creería registrada una asistencia que solo existe en la pantalla.
+ * @param fusionar `(payloadPendiente, payloadNuevo) => payload`. Para los
+ *   módulos que mandan SOLO lo que cambió (Lectura, Rúbrica, Vuelo): si la
+ *   fila ya tenía un envío esperando, el nuevo lo sustituye sumándole los
+ *   campos del anterior, o el primer cambio se perdería.
  */
-export function encolar({ clave, tipo, payload, descripcion, dependeDe = null, exigePersistencia = false }) {
-  const anterior = cola.findIndex((item) => item.clave === clave)
+export function encolar({
+  clave,
+  tipo,
+  payload,
+  descripcion,
+  dependeDe = null,
+  exigePersistencia = false,
+  idActividad = null,
+  fusionar = null,
+}) {
+  // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
+  const anterior = cola.findIndex((item) => item.clave === clave && item.idOperacion !== enVuelo)
   const item = {
     clave,
     tipo,
-    payload,
+    payload: anterior >= 0 && fusionar ? fusionar(cola[anterior].payload, payload) : payload,
     descripcion,
     dependeDe,
+    /**
+     * Una edición que reemplaza a otra pendiente es una operación NUEVA, con
+     * su propio id. Reutilizar el de la anterior haría que el servidor
+     * descartara la corrección por idempotente, que es justo lo contrario de
+     * lo que quiere quien acaba de corregir.
+     */
+    idOperacion: nuevoIdOperacion(),
+    // A qué actividad de trabajo pertenece, para el aviso de pendientes.
+    idActividad,
     intentos: 0,
     error: null,
+    verificar: false,
     creado: new Date().toISOString(),
   }
 
   if (anterior >= 0) {
     // La edición más reciente reemplaza a la pendiente: nunca dos envíos de la
     // misma fila-semana en la cola.
+    resolverPromesa(cola[anterior].idOperacion, { reemplazado: true })
     cola[anterior] = item
-    resolverPromesa(clave, { reemplazado: true })
   } else {
     cola.push(item)
   }
 
-  const promesa = new Promise((resolve, reject) => promesas.set(clave, { resolve, reject }))
+  const promesa = new Promise((resolve, reject) => promesas.set(item.idOperacion, { resolve, reject }))
   persistir().then((guardado) => {
     if (!guardado && exigePersistencia) {
       // Fuera de la cola: dejarlo ahí prometería un reintento que no
       // sobrevivirá a cerrar la pestaña.
-      cola = cola.filter((item) => item.clave !== clave)
+      cola = cola.filter((pendiente) => pendiente.idOperacion !== item.idOperacion)
       publicarEstado()
-      rechazarPromesa(clave, errorDePersistencia())
+      rechazarPromesa(item.idOperacion, errorDePersistencia())
       return
     }
     procesar()
   })
   return promesa
+}
+
+/**
+ * Qué pasó con MI operación dentro de un lote.
+ *
+ * Las escrituras de los cuatro módulos responden por ítem —`{id_operacion,
+ * estado, motivo, detail, registro}`— y un mismo lote puede traer aceptados y
+ * rechazados a la vez. Así que un 200 no significa "todo bien": hay que mirar
+ * el ítem propio. Esto lo lee igual en los cuatro módulos, en vez de que cada
+ * uno lo interprete a su manera.
+ *
+ * Si la respuesta no trae `registros` —un endpoint que todavía no se ha
+ * actualizado—, se da por aceptada: era lo que significaba un 200 hasta ahora.
+ */
+export function resultadoDeLote(respuesta, idOperacion) {
+  const registros = respuesta?.registros
+  if (!Array.isArray(registros)) return { estado: 'aceptada', registro: respuesta }
+
+  const mio = registros.find((r) => r.id_operacion === idOperacion) ?? registros[0]
+  if (!mio) return { estado: 'aceptada', registro: respuesta }
+  return {
+    estado: mio.estado ?? 'aceptada',
+    motivo: mio.motivo ?? null,
+    detail: mio.detail ?? null,
+    registro: mio.registro ?? mio,
+  }
+}
+
+/**
+ * ¿Es un choque de versiones?
+ *
+ * No es un fallo de red ni del servidor: alguien cambió ese registro mientras
+ * esta persona lo miraba. No se reintenta —reintentar pisaría el cambio ajeno—
+ * y la pantalla tiene que recargar y decirlo.
+ */
+export const esModificacionConcurrente = (error) => motivoDe(error) === 'modificacion_concurrente'
+
+/**
+ * Corrige los envíos que esperan (no el que está saliendo).
+ *
+ * Lo usa el control de versión: si una edición de la fila se aceptó y subió
+ * la versión, la siguiente edición de esa misma fila, ya encolada con la
+ * versión vieja, chocaría contra el propio cambio del docente.
+ */
+export function ajustarPendientes(transformar) {
+  cola = cola.map((item) => (item.idOperacion === enVuelo ? item : transformar(item)))
+  return persistir()
 }
 
 /** Reintento manual desde el panel del SyncBadge. */
@@ -292,6 +507,7 @@ export function _reiniciarCola() {
   promesas.clear()
   iniciada = false
   procesando = false
+  enVuelo = null
   clearTimeout(temporizador)
   publicarEstado()
 }

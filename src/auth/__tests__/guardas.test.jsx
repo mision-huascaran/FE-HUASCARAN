@@ -29,6 +29,13 @@ vi.mock('../../hooks/useCatalogos', () => {
     useNivelGeneral: vacio,
     useEsperadoPorGrado: vacio,
     useNivelesRubrica: vacio,
+    // Los "reales" van contra la API de administración y son los que usan
+    // Asistencia y los mantenimientos. Sin ellos en el doble, esas pantallas
+    // reventaban al montarse y el test seguía pasando: comprobaba que la ruta
+    // dejara entrar, no que lo que hay detrás se pinte.
+    useColegiosReales: vacio,
+    useGradosReales: vacio,
+    useProgramasReales: vacio,
     agruparNivelesRubrica: () => ({}),
   }
 })
@@ -93,7 +100,7 @@ describe('guardas de rol (RNF-004)', () => {
   })
 
   it('sin sesión, cualquier ruta protegida lleva al login', async () => {
-    renderRuta('/dashboard', null)
+    renderRuta('/seguimiento', null)
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
   })
 

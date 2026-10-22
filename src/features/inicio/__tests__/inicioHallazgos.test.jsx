@@ -1,6 +1,6 @@
 // Regresiones de la ejecución del 09/10/2026 en el Módulo de Inicio:
 //
-//   D01 — Directivo: Salud del Sistema. La tarjeta se RETIRÓ (ver abajo).
+//   D01 — Directivo: Salud del Sistema en `null` → "Sin datos disponibles".
 //   D12 — Docente: "Mis asignaciones" muestra el ciclo EBR.
 //   D15 — Supervisor: "Con actividad en curso" lee `docentes_con_actividad_activa`.
 //   D16 — Supervisor: la alerta no repite "Atención: Atención:".
@@ -44,21 +44,22 @@ function montar(componente, idRol) {
 beforeEach(() => localStorage.clear())
 
 describe('Inicio — hallazgos del 09/10/2026', () => {
-  it('D01: "Salud del sistema" ya no se muestra, y las otras dos siguen', async () => {
-    /**
-     * D01 se arregló pintando "Sin datos disponibles" cuando `salud_sistema`
-     * llegaba en `null`. Pero llega SIEMPRE en null —depende de la
-     * sincronización offline, que el backend no tiene—, así que la tarjeta
-     * nunca enseñó un dato. Se retiró entera: ocupaba sitio y hacía dudar de
-     * las dos que sí valen. Vuelve el día que haya algo que poner en ella.
-     */
+  it('D01: Salud del Sistema sin datos dice "Sin datos disponibles"', async () => {
     directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: null })
     montar(<InicioDirectivo />, ROLES.DIRECTIVO)
 
-    expect(await screen.findByText('Total de beneficiarios activos', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.getByText('Total de colegios operando')).toBeInTheDocument()
-    expect(screen.queryByText(/salud del sistema/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('Sin datos disponibles')).not.toBeInTheDocument()
+    expect(await screen.findByText('Sin datos disponibles', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('No disponible')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sin información de sincronización/)).not.toBeInTheDocument()
+  })
+
+  it('CU012: el porcentaje de Salud del Sistema va redondeado al entero', async () => {
+    // El caso de uso lo ejemplifica tal cual: "98 %, no 97.6 %".
+    directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: 97.6 })
+    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
+
+    expect(await screen.findByText('98%', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('97.6%')).not.toBeInTheDocument()
   })
 
   it('D15: cuenta los docentes con actividad y pinta la alerta tal como llega', async () => {

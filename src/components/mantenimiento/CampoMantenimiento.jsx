@@ -1,5 +1,10 @@
 // Un campo del popup de mantenimiento, según su tipo.
 //
+// Los tipos que no son `select`, `multiple` ni `textarea` acaban en un
+// `<input>`, y `TIPO_HTML` dice con cuál. `fecha` entró con T3: el historial
+// de pertenencia del alumno se sostiene sobre fechas efectivas, no sobre la
+// fecha del clic.
+//
 // En modo "ver" TODOS los campos van bloqueados (S3), y en "editar" solo los
 // que la sección declare `soloLectura`. El bloqueo se decide aquí y no en cada
 // pantalla, para que los tres modos se comporten igual en Alumnos, Usuarios y
@@ -7,6 +12,8 @@
 import Input from '../ui/Input'
 import Select from '../ui/Select'
 import Textarea from '../ui/Textarea'
+
+const TIPO_HTML = { numero: 'number', email: 'email', fecha: 'date' }
 
 export default function CampoMantenimiento({ campo, valor, onCambio, modo, error }) {
   // Una sección puede traer su propio componente cuando el dato no cabe en un
@@ -17,6 +24,7 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
   }
 
   const bloqueado = modo === 'ver' || campo.soloLectura || (modo === 'editar' && campo.soloAlCrear)
+
   const comun = {
     label: campo.etiqueta,
     required: campo.requerido && modo !== 'ver',
@@ -57,7 +65,11 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
   return (
     <Input
       {...comun}
-      type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'email' ? 'email' : 'text'}
+      type={TIPO_HTML[campo.tipo] ?? 'text'}
+      // Tope de una fecha: lo fija quien declara el campo con la hora del
+      // SERVIDOR, para que no se pueda elegir un día que el backend rechaza.
+      max={campo.max}
+      min={campo.min}
       value={valor ?? ''}
       onChange={(e) => onCambio(campo.nombre, e.target.value)}
     />

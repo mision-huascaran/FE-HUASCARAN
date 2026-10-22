@@ -1,30 +1,43 @@
 // Punto de entrada de la cola offline para los componentes (RNF-001).
 // Registra qué recurso atiende cada tipo de envío y expone el estado que pintan
-// el SyncBadge y las filas del reporte semanal.
+// el SyncBadge y las filas de Asistencia.
 import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
-import { guardarReporteSemanal } from '../api/resources/semanal'
-import { guardarRubricaSemanal } from '../api/resources/rubrica'
 import { guardarAsistencia } from '../api/resources/asistencia'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
 import useSyncStore from '../store/syncStore'
 
 export const TIPOS_ENVIO = {
-  REPORTE_SEMANAL: 'reporte-semanal',
-  RUBRICA_SEMANAL: 'rubrica-semanal',
   ACTIVIDAD_INICIO: 'actividad-inicio',
   ACTIVIDAD_CIERRE: 'actividad-cierre',
   ASISTENCIA: 'asistencia',
 }
 
-registrarEnviador(TIPOS_ENVIO.REPORTE_SEMANAL, guardarReporteSemanal)
-registrarEnviador(TIPOS_ENVIO.RUBRICA_SEMANAL, guardarRubricaSemanal)
-// CU022: cada micro-paquete del Auto-save. La clave es alumno-fecha-programa,
-// la misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
+/**
+ * El segundo argumento es el MÓDULO del contrato, para el aviso de pendientes.
+ * Los nombres de aquí son los de la interfaz y los de allí son una lista
+ * cerrada —`asistencias`, `lectura`, `rubrica`, `registro_vuelo`, `alumnos`,
+ * `actividad`—, así que la traducción se declara donde se sabe a qué endpoint
+ * va cada envío: aquí mismo.
+ */
+// CU022: cada micro-paquete del Auto-save. La clave es LA CLASE y el alumno, la
+// misma unicidad que garantiza la base, así que marcar y desmarcar al mismo
 // alumno dos veces deja UN solo envío en la cola y no dos contradictorios.
-registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ fecha, registros, fechaRegistro }) =>
-  guardarAsistencia({ fecha, registros, fechaRegistro }),
+/**
+ * La asistencia va por clase, no por fecha suelta: colegio, grado, sección y
+ * fecha. `id_operacion` lo pone la cola y viaja DENTRO de cada registro,
+ * porque el contrato trata cada fila como una operación independiente.
+ */
+registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ idColegio, idGrado, idSeccion, fecha, registros, id_operacion: idOperacion }) =>
+  guardarAsistencia({
+    idColegio,
+    idGrado,
+    idSeccion,
+    fecha,
+    registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
+  }),
+  { modulo: 'asistencias' },
 )
 
 /**
@@ -55,23 +68,38 @@ registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ fecha, registros, fechaRegistro }) 
  * Va SOLO aquí. En `/finalizar` no hace falta: el servidor usa la sesión que la
  * actividad ya tiene.
  */
-registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_INICIO, ({ id, inicio, id_sesion: idSesion }) =>
-  iniciarActividad({ id, inicio, id_sesion: idSesion }),
+registrarEnviador(
+  TIPOS_ENVIO.ACTIVIDAD_INICIO,
+  ({ id, inicio, id_sesion: idSesion }) => iniciarActividad({ id, inicio, id_sesion: idSesion }),
+  { modulo: 'actividad' },
 )
-registrarEnviador(TIPOS_ENVIO.ACTIVIDAD_CIERRE, async ({ id, fin }) => {
-  const respuesta = await finalizarActividad(id, { fin })
-  // Ya cerrada en el servidor: que una respuesta anterior de Inicio no la
-  // vuelva a dar por abierta en este navegador.
-  useActividadStore.getState().marcarCerrada(id)
-  return respuesta
-})
+registrarEnviador(
+  TIPOS_ENVIO.ACTIVIDAD_CIERRE,
+  async ({ id, fin }) => {
+    const respuesta = await finalizarActividad(id, { fin })
+    // Ya cerrada en el servidor: que una respuesta anterior de Inicio no la
+    // vuelva a dar por abierta en este navegador.
+    useActividadStore.getState().marcarCerrada(id)
+    return respuesta
+  },
+  { modulo: 'actividad' },
+)
 
 /** Clave de idempotencia de una fila de captura: `alumno-semana` (RNF-001). */
 export const claveDeFila = (tipo, idAlumno, idSemana) => `${tipo}:${idAlumno}-${idSemana}`
 
 /** Clave de una marca de asistencia: alumno, fecha y subprograma (CU022). */
-export const claveDeMarca = (idAlumno, fecha, idPrograma) =>
-  `${TIPOS_ENVIO.ASISTENCIA}:${idAlumno}-${fecha}-${idPrograma}`
+/**
+ * La clave de una marca de asistencia: LA CLASE y el alumno.
+ *
+ * El subprograma NO entra. Un alumno tiene un único registro de asistencia por
+ * clase (CU022): estuvo o no estuvo, y eso no depende de qué está leyendo. Si
+ * el subprograma formara parte de la clave, cambiar ese filtro generaría un
+ * segundo envío para la misma persona y el mismo día, y el servidor acabaría
+ * con dos asistencias contradictorias de un alumno que solo estuvo una vez.
+ */
+export const claveDeMarca = (idAlumno, fecha, idSeccion) =>
+  `${TIPOS_ENVIO.ASISTENCIA}:${idAlumno}-${fecha}-${idSeccion}`
 
 export default function useOfflineQueue() {
   const pendientes = useSyncStore((s) => s.pendientes)

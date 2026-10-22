@@ -48,8 +48,14 @@ export const GRADOS = [1, 2, 3, 4, 5, 6].map((n) => ({
   id_ciclo: CICLOS.find((c) => c.grados.includes(n)).id_ciclo,
 }))
 
-/** Escala Raz-Kids: aa, A…Z, Z1, Z2 (29 niveles). Se compara por `orden` (RN-012). */
-export const NIVELES_RAZKIDS = ['aa', ...Array.from({ length: 26 }, (_, i) => String.fromCodePoint(65 + i)), 'Z1', 'Z2'].map(
+/**
+ * Escala Raz-Kids: aa y de la A a la Z. VEINTISIETE niveles.
+ *
+ * Z1 y Z2 ya no existen (tanda 9): eran dos niveles por encima de la Z que el
+ * programa dejo de usar. Se comparan por `orden` y nunca por la letra como
+ * texto, porque "Z" > "aa" no es cierto en ASCII (RN-012).
+ */
+export const NIVELES_RAZKIDS = ['aa', ...Array.from({ length: 26 }, (_, i) => String.fromCodePoint(65 + i))].map(
   (letra, i) => ({ id_nivel_razkids: i + 1, letra, orden: i + 1 }),
 )
 

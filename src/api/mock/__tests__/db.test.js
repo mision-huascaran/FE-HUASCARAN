@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest'
 import * as db from '../db'
 
 describe('catálogos del mock (§9)', () => {
-  it('tiene la escala Raz-Kids completa, de aa a Z2', () => {
-    expect(db.NIVELES_RAZKIDS).toHaveLength(29)
+  it('tiene la escala Raz-Kids completa, de aa a Z', () => {
+    // VEINTISIETE niveles. Z1 y Z2 dejaron de existir en la tanda 9: eran dos
+    // niveles por encima de la Z que el programa ya no usa.
+    expect(db.NIVELES_RAZKIDS).toHaveLength(27)
     expect(db.NIVELES_RAZKIDS[0]).toMatchObject({ letra: 'aa', orden: 1 })
-    expect(db.NIVELES_RAZKIDS.at(-1)).toMatchObject({ letra: 'Z2', orden: 29 })
+    expect(db.NIVELES_RAZKIDS.at(-1)).toMatchObject({ letra: 'Z', orden: 27 })
   })
 
   it('tiene las 17 filas de nivel_rubrica, con Pre Inicio solo en Alfabetización', () => {

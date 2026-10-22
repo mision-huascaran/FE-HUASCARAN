@@ -10,12 +10,12 @@ import ListaAsistencia from '../ListaAsistencia'
 
 const ALTO_FILA = 56
 
+// Forma de la tanda 6: `nombre` entero e `inactivo`. Ya no hay `nombres` y
+// `apellidos` por separado, ni `activo`/`en_aula`.
 const alumnos = Array.from({ length: 400 }, (_, i) => ({
   id_alumno: i + 1,
-  nombres: `Alumno ${i + 1}`,
-  apellidos: 'Prueba',
-  activo: true,
-  en_aula: true,
+  nombre: `Prueba, Alumno ${i + 1}`,
+  inactivo: false,
   estado: null,
   observacion: null,
 }))
@@ -53,9 +53,9 @@ describe('Virtual Scrolling de la lista', () => {
   })
 
   it('al desplazarse aparecen los alumnos de más abajo', () => {
-    // El nombre va partido en dos `span` ("Apellidos" y ", Nombres") para poder
-    // dar más peso al apellido, que es por donde ordena el servidor.
-    const enPantalla = (nombre) => screen.queryByText(`, ${nombre}`)
+    // El nombre llega entero y se pinta entero: el servidor ya lo manda
+    // ordenado y compuesto, así que la fila no lo parte.
+    const enPantalla = (nombre) => screen.queryByText(`Prueba, ${nombre}`)
 
     const { container } = montar()
     expect(enPantalla('Alumno 200')).not.toBeInTheDocument()
@@ -68,7 +68,7 @@ describe('Virtual Scrolling de la lista', () => {
   })
 
   it('marca a los alumnos dados de baja que constan ese día', () => {
-    montar({ alumnos: [{ ...alumnos[0], activo: false }] })
+    montar({ alumnos: [{ ...alumnos[0], inactivo: true }] })
     expect(screen.getByText('Inactivo')).toBeInTheDocument()
   })
 })

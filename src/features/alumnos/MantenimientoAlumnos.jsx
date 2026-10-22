@@ -6,8 +6,9 @@
 //
 // Al crear un alumno el backend crea su expediente en la misma transacción, así
 // que aquí no hay una segunda llamada que pudiera quedarse a medias.
-import { useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useMemo } from 'react'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import { useToast } from '../../components/ui/Toast'
 import {
@@ -21,9 +22,13 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
   listarProgramasAdmin,
+  cambiaDeGrupo,
+  obtenerAlumno,
+  obtenerColegio,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
+import { hoy } from '../../lib/relojServidor'
 import useConexion from '../../hooks/useConexion'
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import usePrecarga from '../../hooks/usePrecarga'
@@ -59,6 +64,7 @@ const CICLOS = [
  */
 const idDeAlumno = (alumno) => alumno?.id_alumno ?? alumno?.id
 
+
 export default function MantenimientoAlumnos() {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -90,6 +96,42 @@ export default function MantenimientoAlumnos() {
   const asignaciones = useMemo(
     () => asignacionesEnLinea ?? precarga?.asignaciones ?? [],
     [asignacionesEnLinea, precarga],
+  )
+
+  /**
+   * Las SECCIONES de cada grado, que solo trae el detalle del colegio.
+   *
+   * El listado (`ColegioItem`) no las tiene, y desde T3 `colegio.seccion`
+   * desapareció: cada grado tiene las suyas. Se piden los detalles de los
+   * colegios que esta persona puede elegir —uno o dos para un Docente, los
+   * nueve para el Supervisor— y se cachean para siempre, porque cambian
+   * cuando el Supervisor añade una sección y no más.
+   */
+  const detalles = useQueries({
+    queries: colegios.map((c) => ({
+      queryKey: ['colegio', 'detalle', c.id_colegio],
+      queryFn: () => obtenerColegio(c.id_colegio),
+      enabled: enLinea,
+      ...SIEMPRE,
+    })),
+  })
+
+  const seccionesPorGrado = useMemo(() => {
+    const mapa = {}
+    for (const { data } of detalles) {
+      if (!data) continue
+      for (const g of data.grados ?? []) {
+        mapa[`${data.id_colegio}|${g.id_grado}`] = g.secciones ?? []
+      }
+    }
+    return mapa
+  // `detalles` es un array nuevo en cada render; lo que importa es su contenido.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalles.map((d) => d.data?.id_colegio).join(), detalles.filter((d) => d.data).length])
+
+  const seccionesDe = useCallback(
+    (valores) => seccionesPorGrado[`${valores?.id_colegio}|${valores?.id_grado}`] ?? [],
+    [seccionesPorGrado],
   )
 
   /**
@@ -142,11 +184,25 @@ export default function MantenimientoAlumnos() {
         requerido: true,
         opciones: opciones(permitidos.grados, 'id_grado'),
       },
+      /**
+       * LA SECCIÓN SE ELIGE. Dejó de ser un atributo heredado del colegio
+       * cuando T3 la convirtió en entidad por grado: un grado nace con
+       * "Única", pero el Supervisor puede añadir más.
+       *
+       * Con una sola, el desplegable la deja puesta y no hay nada que decidir.
+       * Con varias es obligatoria, y si no se manda el servidor responde 422.
+       */
       {
-        nombre: 'seccion',
+        nombre: 'id_seccion',
         etiqueta: 'Sección',
-        soloLectura: true,
-        ayuda: 'La hereda del colegio: no se elige',
+        tipo: 'select',
+        // Obligatoria solo cuando hay de dónde elegir: con una sola, el
+        // servidor la asigna igual aunque no se mande.
+        requerido: false,
+        unicaPorDefecto: true,
+        opciones: (valores) =>
+          seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
+        ayuda: 'Las del colegio y grado elegidos',
       },
       {
         nombre: 'ciclo',
@@ -161,9 +217,52 @@ export default function MantenimientoAlumnos() {
         requerido: true,
         opciones: opciones(programas, 'id_programa'),
       },
+      /**
+       * DESDE CUÁNDO pertenece al grupo. Es lo que sostiene el historial de
+       * pertenencia: sin esa fecha no se puede saber quién estaba en un aula
+       * el día de una clase, y de eso dependen las tablas históricas de
+       * Lectura, Rúbrica y Registro de Vuelo.
+       *
+       * El tope es hoy según el reloj del SERVIDOR, no el del equipo: una
+       * fecha futura la rechaza el backend con "Selecciona la fecha de hoy o
+       * una fecha anterior."
+       */
+      {
+        nombre: 'pertenece_desde',
+        etiqueta: 'Pertenece al grupo desde',
+        tipo: 'fecha',
+        requerido: true,
+        max: hoy(),
+        soloEn: 'nuevo',
+        ayuda: 'Desde qué día está en este colegio, grado y sección',
+      },
+      /**
+       * MOVER DE GRUPO exige decir desde cuándo; corregir una tilde, no.
+       *
+       * Por eso el campo no está siempre: aparece solo cuando alguno de los
+       * cuatro campos que forman el grupo —colegio, grado, sección,
+       * subprograma— es distinto del que tenía el alumno al abrir. Si se pone
+       * siempre, se acaba rellenando con hoy por inercia y el historial queda
+       * con fechas que no pasaron.
+       *
+       * El mínimo es el inicio de su grupo actual, que llega en el detalle: el
+       * backend rechaza una fecha anterior con "ese día empezó su grupo
+       * actual". Si el detalle aún no cargó, se deja al servidor validarlo.
+       */
+      {
+        nombre: 'cambio_grupo_desde',
+        etiqueta: 'Cambia de grupo desde',
+        tipo: 'fecha',
+        requerido: true,
+        soloEn: 'editar',
+        max: hoy(),
+        min: (valores) => valores?.pertenece_desde || undefined,
+        visible: (valores, { registro } = {}) => cambiaDeGrupo(registro, valores),
+        ayuda: 'Desde qué día pertenece a su nuevo grupo',
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [permitidos.colegios, permitidos.grados, programas],
+    [permitidos.colegios, permitidos.grados, programas, seccionesDe],
   )
 
   const consulta = useQuery({
@@ -200,7 +299,8 @@ export default function MantenimientoAlumnos() {
   const estado = useMutation({
     // La baja lógica tiene ruta propia (`/desactivar`, `/activar`), como en
     // Colegios: un PATCH con `{activo}` no cambia el estado.
-    mutationFn: ({ alumno, activo }) => cambiarEstadoAlumno(idDeAlumno(alumno), activo),
+    mutationFn: ({ alumno, activo, fecha }) =>
+      cambiarEstadoAlumno(idDeAlumno(alumno), activo, { aplicarDesde: fecha }),
     onSuccess: (_d, { activo }) => {
       refrescar()
       toast.success(activo ? 'Alumno activado' : 'Alumno inactivado', 'Su historial académico se conserva.')
@@ -225,7 +325,20 @@ export default function MantenimientoAlumnos() {
       // `mutateAsync` y no `mutate`: la plantilla cierra el popup solo si la
       // promesa se resuelve, y lo deja abierto con los datos si falla.
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
-      onCambiarEstado={(alumno, activo) => estado.mutate({ alumno, activo })}
+      // El detalle trae `pertenece_desde`, que es el mínimo de la fecha de
+      // cambio de grupo. El popup lo pide al abrirse.
+      cargarDetalle={obtenerAlumno}
+      onCambiarEstado={(alumno, activo, fecha) => estado.mutate({ alumno, activo, fecha })}
+      /**
+       * Alumnos es la única sección que pregunta DESDE CUÁNDO. El backend lo
+       * exige —sin cuerpo responde 422— porque de esa fecha depende el
+       * historial de pertenencia, y de él, quién aparece en cada tabla
+       * histórica de Lectura, Rúbrica y Registro de Vuelo.
+       */
+      fechaEfectiva={{
+        etiqueta: 'Fecha efectiva',
+        ayuda: 'Desde qué día aplica el cambio, que puede no ser hoy',
+      }}
       filtros={[
         { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
         { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
@@ -274,6 +387,21 @@ export default function MantenimientoAlumnos() {
           sortable: true,
           sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
           render: (a) => etiquetaDe(a.programa ?? a.subprograma),
+        },
+        // CU015: el detalle del alumno (resumen, lectura, rúbrica y vuelo).
+        {
+          key: 'detalle',
+          header: 'Detalle',
+          align: 'center',
+          render: (a) => (
+            <Link
+              to={`/estudiantes/${idDeAlumno(a)}`}
+              className="text-sm font-semibold text-brand-700 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Ver detalle
+            </Link>
+          ),
         },
       ]}
     />

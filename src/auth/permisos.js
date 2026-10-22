@@ -151,23 +151,6 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
-  dashboard: {
-    ruta: '/dashboard',
-    etiqueta: 'Dashboard',
-    conectividad: CONECTIVIDAD.SOLO_ONLINE,
-    [DOCENTE]: null,
-    [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
-    /**
-     * EL DIRECTIVO NO ENTRA AL DASHBOARD (CU012, RN-033/RN-034).
-     *
-     * Lo tenía, y con el buscador "Estudiante (nombre o código)" dentro: un rol
-     * que por contrato NO debe ver datos de alumnos podía buscarlos por nombre.
-     * CU012 es explícito: su Inicio son TRES tarjetas y nada más; cualquier
-     * gráfico o desagregación "corresponde exclusivamente al módulo Dashboard",
-     * que no es suyo.
-     */
-    [DIRECTIVO]: null,
-  },
 }
 
 /** Lo que un rol puede hacer en una sección, o `null` si no entra. */

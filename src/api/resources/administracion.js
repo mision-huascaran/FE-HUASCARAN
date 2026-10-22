@@ -17,6 +17,7 @@ import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 import { comoGradosConDia } from '../../lib/gradosColegio'
+import { hoy } from '../../lib/relojServidor'
 
 const { alumnos, colegios, usuarios, auth } = ENDPOINTS
 
@@ -207,10 +208,18 @@ export const listarUbicaciones = () =>
  */
 function cuerpoDeColegio(colegio = {}) {
   const cuerpo = { ...colegio }
+  /**
+   * Los grados viajan con su día de clase y sus SECCIONES por nombre.
+   *
+   * El backend solo agrega: las que no vienen se conservan, y "A", "a" y " a "
+   * son la misma. Se mandan todas —las que ya existen y las nuevas— porque así
+   * la petición es idempotente: repetirla no crea nada de más ni borra nada.
+   */
   if ('grados' in cuerpo) {
-    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase }) => ({
+    cuerpo.grados = comoGradosConDia(cuerpo.grados).map(({ id_grado, dia_clase, secciones }) => ({
       id_grado: Number(id_grado),
       dia_clase: Number(dia_clase),
+      ...(secciones?.length ? { secciones: secciones.map((x) => x.nombre) } : {}),
     }))
   }
   // `programas: list[int]`, obligatorio. El multi-select los da como strings.
@@ -258,8 +267,10 @@ export const obtenerColegio = async (idColegio) => {
       id_programa: Number(p.id_programa ?? p.id),
       nombre: p.nombre,
     })),
-    // Un colegio tiene UNA sección y el alumno la hereda; por defecto, "Única".
-    seccion: colegio.seccion || 'Única',
+    /**
+     * `colegio.seccion` DESAPARECIÓ del contrato con T3. Las secciones son
+     * ahora de cada grado y vienen dentro de `grados[].secciones`.
+     */
   }
 }
 
@@ -317,7 +328,12 @@ export function normalizarAlumno(a) {
     id_colegio: a.id_colegio ?? idDe(a.colegio),
     id_grado: a.id_grado ?? idDe(a.grado),
     id_programa: a.id_programa ?? a.id_programa_actual ?? idDe(a.programa ?? a.subprograma),
-    // Solo lectura en el formulario: se muestran como texto, no como objeto.
+    /**
+     * La sección pasó de texto a objeto `{id, nombre}` cuando T3 la convirtió
+     * en entidad. Se guardan las dos caras: el id para mandarlo al servidor y
+     * el nombre para pintarlo.
+     */
+    id_seccion: a.id_seccion ?? idDe(a.seccion),
     seccion: etiquetaDeCampo(a.seccion),
     ciclo: etiquetaDeCampo(a.ciclo),
     anonimo: !nombre,
@@ -390,13 +406,40 @@ function cicloComoTexto(valor) {
  * `POST /alumnos`.
  *
  * NO se manda el ciclo: lo calcula el backend (Alfabetización → III;
- * Comprensión Lectora → 2.º III, 3.º y 4.º IV, 5.º y 6.º V). Tampoco la
- * sección, que el alumno hereda del colegio. 1.º grado solo admite
- * Alfabetización, y el colegio debe ofrecer ese grado y ese subprograma.
+ * Comprensión Lectora → 2.º III, 3.º y 4.º IV, 5.º y 6.º V). 1.º grado solo
+ * admite Alfabetización, y el colegio debe ofrecer ese grado y ese
+ * subprograma.
+ *
+ * DOS CAMPOS NUEVOS desde T3, y los dos obligatorios en la práctica:
+ *
+ *   · `pertenece_desde` — desde cuándo el alumno está en ese grupo. Es lo que
+ *     sostiene todo el historial de pertenencia: sin esa fecha no se puede
+ *     saber quién estaba en un aula el día de una clase, que es de lo que
+ *     dependen las tablas históricas de Lectura, Rúbrica y Registro de Vuelo.
+ *     No puede ser futura.
+ *   · `id_seccion` — se puede omitir si el grado tiene UNA sola sección, pero
+ *     con varias el servidor responde 422. Se manda siempre que se tenga.
  */
-export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }) =>
+export const crearAlumno = ({
+  nombres,
+  apellidos,
+  id_colegio: idColegio,
+  id_grado: idGrado,
+  id_programa: idPrograma,
+  id_seccion: idSeccion,
+  pertenece_desde: perteneceDesde,
+}) =>
   resolver({
-    mock: () => handlers.administracion.crearAlumno({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma }),
+    mock: () =>
+      handlers.administracion.crearAlumno({
+        nombres,
+        apellidos,
+        id_colegio: idColegio,
+        id_grado: idGrado,
+        id_programa: idPrograma,
+        id_seccion: idSeccion,
+        pertenece_desde: perteneceDesde,
+      }),
     real: () =>
       api.post(alumnos.crear, {
         nombres,
@@ -406,9 +449,31 @@ export const crearAlumno = ({ nombres, apellidos, id_colegio: idColegio, id_grad
         // `AlumnoCrear` pide `id_programa` (no `id_programa_actual`): con el
         // nombre viejo el alta respondía 422 por falta de un campo obligatorio.
         id_programa: Number(idPrograma),
+        ...(idSeccion ? { id_seccion: Number(idSeccion) } : {}),
+        ...(perteneceDesde ? { pertenece_desde: perteneceDesde } : {}),
       }),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * `GET /alumnos/{id}` — el alumno completo.
+ *
+ * Hace falta por un campo concreto: `pertenece_desde`, el inicio de su grupo
+ * actual. El backend lo añadió "para validar `cambio_grupo_desde` en el
+ * front", y es el mínimo de esa fecha: mover a alguien a un grupo nuevo desde
+ * antes de que empezara el anterior no significa nada.
+ *
+ * Llega en `null` si el alumno está inactivo, porque entonces no tiene grupo
+ * en curso.
+ */
+export const obtenerAlumno = async (idAlumno) => {
+  const alumno = await resolver({
+    mock: () => handlers.administracion.alumno(idAlumno),
+    real: () => api.get(alumnos.detalle(idAlumno)),
+    forzarReal: adminContraApiReal,
+  })
+  return alumno ? normalizarAlumno(alumno) : alumno
+}
 
 /**
  * `PATCH /alumnos/{id}` — solo los campos editables, con los nombres del
@@ -428,17 +493,59 @@ function cuerpoDeAlumno(cambios) {
   if (cambios.apellidos !== undefined) cuerpo.apellidos = cambios.apellidos
   if (cambios.id_colegio) cuerpo.id_colegio = Number(cambios.id_colegio)
   if (cambios.id_grado) cuerpo.id_grado = Number(cambios.id_grado)
+  if (cambios.id_seccion) cuerpo.id_seccion = Number(cambios.id_seccion)
   const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
   if (idPrograma) cuerpo.id_programa = Number(idPrograma)
+  /**
+   * Cambiar de GRUPO —colegio, grado, sección o subprograma— exige decir desde
+   * cuándo. Corregir solo el nombre, no: por eso viaja aparte y solo cuando la
+   * pantalla lo manda.
+   */
+  if (cambios.cambio_grupo_desde) cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
   return cuerpo
 }
 
-export const cambiarEstadoAlumno = (idAlumno, activo) =>
-  resolver({
-    mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo }),
-    real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno)),
+/** Los campos que, al cambiar, convierten una edición en un cambio de grupo. */
+export const CAMPOS_DE_GRUPO = ['id_colegio', 'id_grado', 'id_seccion', 'id_programa']
+/**
+ * ¿La edición mueve al alumno de grupo?
+ *
+ * El grupo son cuatro campos: colegio, grado, sección y subprograma. Tocar
+ * cualquiera de ellos abre un intervalo nuevo en su historial de pertenencia y
+ * el backend pide la fecha efectiva. Se comparan como texto porque el
+ * formulario devuelve cadenas donde el registro trae números.
+ */
+export const cambiaDeGrupo = (antes, ahora) =>
+  Boolean(antes) &&
+  CAMPOS_DE_GRUPO.some((campo) => {
+    const previo = antes[campo]
+    const nuevo = ahora?.[campo]
+    // Un campo que el formulario todavía no tocó no cuenta como cambio.
+    if (nuevo === undefined || nuevo === null || nuevo === '') return false
+    return String(previo ?? '') !== String(nuevo)
+  })
+
+
+/**
+ * Activar o inactivar a un alumno. AHORA LLEVA CUERPO, y es obligatorio.
+ *
+ * `aplicar_desde` es la fecha efectiva de la baja o el alta, no la del clic.
+ * Importa para el historial: un alumno que se fue el día 3 pero se inactiva el
+ * día 20 no estuvo en el aula esas dos semanas, y las tablas de esas fechas
+ * tienen que reflejarlo.
+ *
+ * Se envía la fecha de HOY según el reloj del servidor cuando la pantalla no
+ * da otra. Es el caso corriente y evita que la operación falle con un 422,
+ * pero no sustituye al selector de fecha efectiva, que es trabajo pendiente.
+ */
+export const cambiarEstadoAlumno = (idAlumno, activo, { aplicarDesde } = {}) => {
+  const cuerpo = { aplicar_desde: aplicarDesde || hoy() }
+  return resolver({
+    mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo, ...cuerpo }),
+    real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno), cuerpo),
     forzarReal: adminContraApiReal,
   })
+}
 
 /**
  * Historial del alumno (CU015), construido a partir de la auditoría.
@@ -545,11 +652,30 @@ const ID_ROL_POR_NOMBRE = { Docente: 1, Supervisor: 2, Directivo: 3 }
  * Sin año, el vigente. El catálogo es `GET /anios-escolares` →
  * `[{id, nombre, vigente}]`.
  */
+/**
+ * `GET /anios-escolares` — los años con los que trabaja el programa.
+ *
+ * Traía `api.get` a pelo, sin `resolver`, así que contra el simulador reventaba
+ * en vez de devolver nada. Ahora pasa por el mismo camino que todo lo demás.
+ *
+ * El vigente viene marcado con `vigente: true`: es el que los formularios
+ * proponen por defecto, porque es el año en el que casi siempre se trabaja.
+ */
+export const listarAniosEscolares = () =>
+  resolver({
+    mock: () => handlers.anios(),
+    real: () => api.get(ENDPOINTS.catalogos.anios),
+    forzarReal: adminContraApiReal,
+  })
+
+/** El año vigente de una lista, o el primero si ninguno lo está. */
+export const anioVigente = (anios = []) => anios.find((a) => a.vigente) ?? anios[0] ?? null
+
 async function idAnioEscolar(anio) {
-  const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
+  const anios = (await listarAniosEscolares()) ?? []
   const texto = String(anio ?? '').trim()
-  const elegido = texto ? anios.find((a) => String(a.nombre).includes(texto)) : anios.find((a) => a.vigente)
-  return elegido?.id ?? anios.find((a) => a.vigente)?.id ?? null
+  const elegido = texto ? anios.find((a) => String(a.nombre).includes(texto)) : anioVigente(anios)
+  return elegido?.id ?? anioVigente(anios)?.id ?? null
 }
 
 /** `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde. */
@@ -565,8 +691,71 @@ async function asignacionDe(datos, { obligatoria }) {
   // ofrece el colegio. `grados: null` responde 422 ("no puede ser nulo") y
   // `grados: []` también ("al menos un elemento"), aunque openapi diga otra cosa.
   if (grados.length) asignacion.grados = grados
+  /**
+   * DESDE QUÉ PERIODO empieza la asignación, solo si ese colegio está HOY en
+   * receso (T4).
+   *
+   * En un PA o en un año que todavía no ha empezado el backend lo ignora, así
+   * que no se manda: el formulario tampoco lo pregunta. Pero si el colegio
+   * está en PR y falta, responde 422 `inicio_asignacion_requerido`.
+   *
+   *   · `retroactivo` — crea además la fila del PA recién culminado, para
+   *     regularizarlo. Solo habilita escribir mientras dure ese receso.
+   *   · `proximo` — desde el PA siguiente. En el PR4 no existe un PA
+   *     siguiente, y el backend lo rechaza diciendo que hay que elegir el año
+   *     escolar que viene.
+   */
+  if (datos.inicio_asignacion) asignacion.inicio_asignacion = datos.inicio_asignacion
   return asignacion
 }
+
+/**
+ * `GET /colegios/estado-calendario` — en qué periodo está HOY cada colegio.
+ *
+ * Hace falta para una sola pregunta del formulario de Usuarios: si el colegio
+ * elegido está en receso, hay que preguntar si la asignación es retroactiva o
+ * empieza en el próximo periodo. Cada colegio tiene su propio calendario, así
+ * que no se puede deducir de un periodo global —ya no existe—.
+ *
+ * `estado_calendario` llega en `null` cuando ese colegio no tiene calendario
+ * configurado para el año.
+ */
+/**
+ * ¿Ese colegio está HOY en receso? Devuelve el PR, o `null`.
+ *
+ * Es la única pregunta que decide si el formulario de Usuarios tiene que pedir
+ * "desde qué periodo": en un PA no hay ambigüedad y el backend ignora el
+ * campo, y sin calendario configurado tampoco hay nada que preguntar.
+ */
+export function recesoDelColegio(estados = [], idColegio) {
+  const estado = estados.find((c) => String(c.id) === String(idColegio))?.estado_calendario
+  return estado?.tipo === 'PR' ? estado : null
+}
+
+/**
+ * Las opciones de "desde qué periodo" para un receso.
+ *
+ * En el PR4 NO se ofrece "Próximo": no existe un PA siguiente dentro de ese
+ * año escolar y el backend lo rechaza pidiendo que se elija el año que viene.
+ * Ofrecerlo sería invitar al error.
+ */
+export const opcionesDeInicio = (receso) =>
+  receso
+    ? [
+        { value: 'retroactivo', label: `Retroactivo: regularizar el PA${receso.numero ?? ''} que acaba de terminar` },
+        ...(receso.es_pr4 ? [] : [{ value: 'proximo', label: 'Próximo: empezar en el siguiente periodo' }]),
+      ]
+    : []
+
+export const listarEstadoCalendario = (idAnioEscolar) =>
+  resolver({
+    mock: () => handlers.administracion.estadoCalendario(idAnioEscolar),
+    real: () =>
+      api.get(colegios.estadoCalendario, {
+        params: idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {},
+      }),
+    forzarReal: adminContraApiReal,
+  })
 
 /**
  * Filtro por colegio de Usuarios, en el cliente: `GET /usuarios` no lo admite.

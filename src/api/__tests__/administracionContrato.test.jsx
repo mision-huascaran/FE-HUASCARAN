@@ -81,7 +81,10 @@ describe('Contrato de listados', () => {
 
   it('reactivar un alumno usa su ruta /activar', async () => {
     await cambiarEstadoAlumno(8, true)
-    expect(patch).toHaveBeenCalledWith(expect.stringMatching(/\/alumnos\/8\/activar$/))
+    expect(patch).toHaveBeenCalledWith(expect.stringMatching(/\/alumnos\/8\/activar$/), {
+      // El cuerpo es obligatorio desde T3; sin él, 422.
+      aplicar_desde: expect.any(String),
+    })
   })
 })
 

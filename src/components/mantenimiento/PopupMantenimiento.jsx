@@ -12,6 +12,7 @@ import Skeleton from '../ui/Skeleton'
 import Tabs from '../ui/Tabs'
 import CampoMantenimiento from './CampoMantenimiento'
 import PestanaAuditoria from './PestanaAuditoria'
+import { MOSTRAR_AUDITORIA } from '../../config/funcionalidades'
 import VistaDetalle from './VistaDetalle'
 
 const TITULO = { nuevo: 'Nuevo', editar: 'Editar', ver: 'Visualizar' }
@@ -28,7 +29,52 @@ const tituloDe = (modo, entidad, genero) =>
  * Docente, y pedírselos a un Supervisor confundía (se mostraban con la ayuda
  * "Solo para Docente" y aun así se podían rellenar).
  */
-const visiblesEn = (campos, valores) => campos.filter((c) => !c.visible || c.visible(valores))
+/**
+ * Qué campos se ven.
+ *
+ * `visible(valores)` depende de lo escrito —los grados solo si el rol es
+ * Docente—; `soloEn` depende del MODO. La fecha de pertenencia del alumno, por
+ * ejemplo, se pide al crear y no al editar: para moverlo de grupo hay otro
+ * campo, con otra regla.
+ */
+/** Lo que es función se resuelve con lo escrito; lo demás pasa tal cual. */
+const resolver = (valor, valores, contexto) =>
+  typeof valor === 'function' ? valor(valores, contexto) : valor
+
+const visiblesEn = (campos, valores, modo, registro) => {
+  const contexto = { modo, registro }
+  return (
+    campos
+      /**
+       * `visible` recibe TAMBIÉN el registro original.
+       *
+       * Sin él no se puede preguntar "¿ha cambiado esto?", que es justo lo que
+       * decide si hay que pedir la fecha de cambio de grupo: mover a un alumno
+       * de aula la exige, corregirle una tilde al apellido no.
+       */
+      .filter(
+        (c) =>
+          (!c.visible || c.visible(valores, contexto)) && (!c.soloEn || c.soloEn === modo),
+      )
+      /**
+       * `opciones`, `min` y `max` pueden ser FUNCIONES de lo escrito hasta ahora.
+       *
+       * Hacen falta para lo que depende de otro campo: las secciones son las
+       * del colegio y grado elegidos, y el tope de una fecha puede depender de
+       * cuándo empezó el grupo actual. Se resuelve aquí, que es donde viven
+       * los valores.
+       */
+      .map((c) => ({
+        ...c,
+        opciones: resolver(c.opciones, valores, contexto),
+        min: resolver(c.min, valores, contexto),
+        max: resolver(c.max, valores, contexto),
+        // La ayuda también: "este colegio está en receso (PR3) hasta el 08/11"
+        // depende del colegio que se acabe de elegir.
+        ayuda: resolver(c.ayuda, valores, contexto),
+      }))
+  )
+}
 
 /**
  * Lo escrito en un campo que luego se ocultó no se envía.
@@ -37,14 +83,37 @@ const visiblesEn = (campos, valores) => campos.filter((c) => !c.visible || c.vis
  * Supervisor, esos grados siguen en el estado aunque ya no se vean: hay que
  * devolverlos a vacío o se mandarían al servidor.
  */
-function sinLosOcultos(campos, valores) {
+/**
+ * "Oculto" es lo que `visiblesEn` deja fuera, con el MISMO criterio: `visible`
+ * con el contexto `{ modo, registro }` y también `soloEn`. Llamar aquí a
+ * `visible(valores)` a secas reventaba el alta de alumnos —el campo de cambio
+ * de grupo lee `registro` del segundo argumento— antes de llegar a `onGuardar`.
+ */
+function sinLosOcultos(campos, visibles, valores) {
+  const seVen = new Set(visibles.map((c) => c.nombre))
   const limpio = { ...valores }
   for (const campo of campos) {
-    if (campo.visible && !campo.visible(valores)) {
+    if (!seVen.has(campo.nombre)) {
       limpio[campo.nombre] = campo.tipo === 'multiple' ? [] : ''
     }
   }
   return limpio
+}
+
+/**
+ * Los desplegables con `unicaPorDefecto` que tienen UNA sola opción y no la
+ * llevan puesta: la sección de un grado que solo tiene "Única", por ejemplo.
+ * Un valor que sigue siendo una opción válida no se toca.
+ */
+function unicasSinElegir(campos, valores, editable) {
+  const pendientes = {}
+  if (!editable) return pendientes
+  for (const campo of campos) {
+    if (campo.tipo !== 'select' || !campo.unicaPorDefecto || campo.opciones?.length !== 1) continue
+    const unica = String(campo.opciones[0].value)
+    if (String(valores[campo.nombre] ?? '') !== unica) pendientes[campo.nombre] = unica
+  }
+  return pendientes
 }
 
 /** E1: obligatorios y formato, antes de molestar al servidor. */
@@ -134,17 +203,26 @@ export default function PopupMantenimiento({
 
   // Lo que se ve y, por tanto, lo que se valida: exigir un campo escondido
   // dejaría el popup sin guardar y sin decir por qué.
-  const camposVisibles = visiblesEn(campos, valores)
+  const camposVisibles = visiblesEn(campos, valores, modo, registro)
+
+  // Con una sola opción no hay nada que decidir: se deja puesta. Va por clave
+  // de texto porque `camposVisibles` es un array nuevo en cada render.
+  const unicas = JSON.stringify(unicasSinElegir(camposVisibles, valores, abierto && modo !== 'ver'))
+  useEffect(() => {
+    const pendientes = JSON.parse(unicas)
+    if (Object.keys(pendientes).length) setValores((v) => ({ ...v, ...pendientes }))
+  }, [unicas])
 
   const enviar = () => {
     const problemas = validar(camposVisibles, valores, modo)
     setErrores(problemas)
     if (Object.keys(problemas).some((k) => problemas[k])) return
-    onGuardar(sinLosOcultos(campos, valores))
+    onGuardar(sinLosOcultos(campos, camposVisibles, valores))
   }
 
-  // La auditoría solo tiene sentido sobre un registro que ya existe.
-  const conAuditoria = puedeVerAuditoria && modo !== 'nuevo' && Boolean(registro)
+  // La auditoría solo tiene sentido sobre un registro que ya existe. Con el
+  // interruptor apagado no hay pestañas ni margen: solo los datos.
+  const conAuditoria = MOSTRAR_AUDITORIA && puedeVerAuditoria && modo !== 'nuevo' && Boolean(registro)
 
   return (
     <Modal
