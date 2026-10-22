@@ -7,12 +7,18 @@ import useFiltrosStore from '../../../store/filtrosStore'
 import useSessionStore from '../../../store/sessionStore'
 import { PERIODO_VIGENTE } from '../../../api/mock/db'
 import { ROLES } from '../../../auth/roles'
+import { SIN_HABILITACIONES } from '../useActividad'
 import { jwtDePrueba } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 
 const estado = vi.hoisted(() => ({ resumen: {}, actividad: {} }))
 vi.mock('../useResumenDocente', () => ({ default: () => estado.resumen }))
-vi.mock('../useActividad', () => ({ default: () => estado.actividad }))
+// Mock PARCIAL: el hook se sustituye, pero el literal de respaldo de CU010 es
+// una constante del módulo y la pantalla lo importa de ahí.
+vi.mock('../useActividad', async (importOriginal) => ({
+  ...(await importOriginal()),
+  default: () => estado.actividad,
+}))
 // Los Resúmenes de Acción tienen su propia prueba (resumenesAccion.test.jsx).
 vi.mock('../ResumenesAccion', () => ({ default: () => null }))
 
@@ -102,10 +108,27 @@ describe('Semana y actividad', () => {
     expect(await screen.findByText(/La sesión finaliza a las 17:00/)).toBeInTheDocument()
   })
 
-  it('sin asignaciones explica por qué no puede iniciar una actividad', async () => {
+  it('prefiere el motivo REDACTADO por el servidor', async () => {
+    /**
+     * Desde T4 el servidor manda `motivo_no_puede` ya escrito, porque el
+     * mensaje depende del calendario de CADA colegio y de los permisos
+     * vigentes: eso no se puede deducir en el cliente. Si el front lo
+     * reescribiera, un día dejarían de coincidir.
+     */
+    estado.actividad = {
+      sesion: null,
+      sinAsignaciones: true,
+      motivoNoPuedeIniciar: 'sin_asignaciones',
+      textoNoPuedeIniciar: 'El Colegio Andino está en receso (PR2) hasta el 09/08.',
+    }
+    montar()
+    expect(await screen.findByText('El Colegio Andino está en receso (PR2) hasta el 09/08.')).toBeInTheDocument()
+  })
+
+  it('sin texto del servidor, cae al literal de CU010', async () => {
     estado.actividad = { sesion: null, sinAsignaciones: true }
     montar()
-    expect(await screen.findByText('No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.')).toBeInTheDocument()
+    expect(await screen.findByText(SIN_HABILITACIONES)).toBeInTheDocument()
   })
 })
 

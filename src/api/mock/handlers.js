@@ -501,6 +501,15 @@ export const handlers = {
       return responder({
         actividad_activa: null,
         puede_iniciar_actividad: asignaciones.length > 0,
+        motivo_no_puede_iniciar: asignaciones.length > 0 ? null : 'sin_asignaciones',
+        // El texto lo redacta el servidor (T4): depende del calendario de cada
+        // colegio y de los permisos, que el cliente no puede deducir.
+        motivo_no_puede:
+          asignaciones.length > 0
+            ? null
+            : 'No puedes iniciar una actividad porque no tienes asignaciones habilitadas ni permisos excepcionales vigentes.',
+        // Vacío a propósito: un permiso es la excepción, no el caso corriente.
+        permisos_vigentes: [],
         sesion_expira: null,
         asignaciones: idsColegio.map((id) => ({
           colegio: { id, nombre: db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre },
