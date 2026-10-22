@@ -4,7 +4,9 @@
 // estado y deja auditoría (D5 — se descarta "Eliminar" de todas las secciones).
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarDays } from 'lucide-react'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
+import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import {
   actualizarColegio,
@@ -19,6 +21,7 @@ import {
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import CalendarioAcademico from './CalendarioAcademico'
 import GradosConDiaDeClase from './GradosConDiaDeClase'
 import { comoGradosConDia, sinDiaDeClase } from '../../lib/gradosColegio'
 
@@ -29,6 +32,8 @@ export default function MantenimientoColegios() {
   const queryClient = useQueryClient()
   const enLinea = useConexion()
   const [filtros, setFiltros] = useState({ estado: 'activo' })
+  // El calendario académico se ve en vez del listado, sin cambiar de ruta.
+  const [verCalendario, setVerCalendario] = useState(false)
 
   const { data: grados = [] } = useQuery({
     queryKey: ['admin', 'catalogo', 'grados'],
@@ -128,9 +133,23 @@ export default function MantenimientoColegios() {
     onError: (error) => toast.error('No se pudo cambiar el estado', mensajeDeError(error)),
   })
 
+  /**
+   * El calendario reemplaza el listado en el area principal, sin navegar: así
+   * "Volver a Colegios" devuelve con los filtros y la página intactos, que es
+   * lo que pide CU027.
+   */
+  if (verCalendario) {
+    return <CalendarioAcademico colegios={consulta.data ?? []} onVolver={() => setVerCalendario(false)} />
+  }
+
   return (
     <Mantenimiento
       seccion="colegios"
+      accionesExtra={
+        <Button variant="outline" iconLeft={CalendarDays} onClick={() => setVerCalendario(true)}>
+          Calendario académico
+        </Button>
+      }
       entidad="colegio"
       titulo="Colegios"
       consulta={consulta}

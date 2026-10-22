@@ -72,6 +72,11 @@ export default function Mantenimiento({
    * para no desalinear la columna.
    */
   verDetalle = null,
+  /**
+   * Botones propios de la sección, junto a "Agregar". Hoy solo lo usa
+   * Colegios, para entrar al calendario académico (CU027).
+   */
+  accionesExtra = null,
   guardando = false,
   soloOnline = false,
   sinConexion = false,
@@ -285,16 +290,22 @@ export default function Mantenimiento({
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        {puedeCrear && (
-          <Button
-            iconLeft={Plus}
-            disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
-            title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
-            onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
-          >
-            Agregar
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {puedeCrear && (
+            <Button
+              iconLeft={Plus}
+              disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
+              title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
+              onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
+            >
+              Agregar
+            </Button>
+          )}
+          {/* CU013 pide el acceso al calendario académico JUNTO al botón de
+              crear, en la fila de acciones sobre los filtros. Va aquí y no en
+              la pantalla porque la cabecera la monta la plantilla. */}
+          {accionesExtra}
+        </div>
       </header>
 
       {motivoNuevo && puedeCrear && (

@@ -14,6 +14,22 @@ const RETARDO_MS = 300
 const PERMISOS_MOCK = {}
 
 /**
+ * Calendarios por `${anio}|general` o `${anio}|${idColegio}` (CU027).
+ *
+ * El año 2 —el vigente— arranca con su general ya configurado, que es el caso
+ * normal. Los demás no tienen ninguno, para poder ver el 404 que la pantalla
+ * traduce en "hay que crearlo".
+ */
+const CALENDARIOS_MOCK = {}
+
+let ultimoIdCalendario = 1
+const siguienteIdCalendario = () => (ultimoIdCalendario += 1)
+
+/** El id de un PA se deduce de su número; el de un PR, del PA anterior. */
+const conIdDePeriodo = (periodos = []) =>
+  periodos.map((p) => ({ ...p, id_periodo_academico: p.id_periodo_academico ?? 30 + Number(p.numero) }))
+
+/**
  * El estado de un permiso NO se guarda: se calcula con la hora.
  *
  * Por eso un permiso caduca solo, sin que nadie refresque nada, y por eso la
@@ -50,9 +66,26 @@ const CALENDARIO_MOCK = {
     { tipo: 'PR', numero: 4, id_periodo_academico: 94, fecha_inicio: '2026-12-01', fecha_fin: '2026-12-15' },
   ],
   dias_no_lectivos: [
-    { id: 1, motivo: 'Día de la Independencia', fecha_inicio: '2026-07-28', fecha_fin: '2026-07-29', origen: 'general' },
-    { id: 2, motivo: 'Feriado', fecha_inicio: '2026-10-08', fecha_fin: '2026-10-08', origen: 'general' },
+    { id: 1, motivo: 'Día de la Independencia', fecha_inicio: '2026-07-28', fecha_fin: '2026-07-29', origen: 'automatico' },
+    { id: 2, motivo: 'Feriado', fecha_inicio: '2026-10-08', fecha_fin: '2026-10-08', origen: 'automatico' },
   ],
+}
+
+/**
+ * El año vigente arranca con su calendario general ya configurado, que es el
+ * caso normal. Los demás años no tienen ninguno, para poder ver el 404 que la
+ * pantalla traduce en "hay que crearlo" —que no es un error, es un estado—.
+ *
+ * Se siembra aquí y no en la declaración de `CALENDARIOS_MOCK` porque esa va
+ * antes en el archivo y leer `CALENDARIO_MOCK` desde ahí reventaría al cargar.
+ */
+CALENDARIOS_MOCK['2|general'] = {
+  id_calendario: 1,
+  id_anio_escolar: 2,
+  origen: 'general',
+  version: 1,
+  periodos: CALENDARIO_MOCK.periodos,
+  dias_no_lectivos: CALENDARIO_MOCK.dias_no_lectivos,
 }
 
 function copiar(datos) {
@@ -646,6 +679,124 @@ export const handlers = {
       { id: 2, nombre: String(db.ANIO_LECTIVO), vigente: true },
       { id: 3, nombre: String(db.ANIO_LECTIVO + 1), vigente: false },
     ]),
+
+  /**
+   * Calendario académico (CU027).
+   *
+   * Guarda los calendarios por (año, colegio) en memoria. Lo que importa
+   * reproducir no son las fechas sino las REGLAS que la pantalla ramifica: el
+   * general frente al particular, la versión para detectar ediciones
+   * simultáneas, y el 404 cuando el año todavía no tiene calendario —que no es
+   * un error, es el estado "hay que crearlo"—.
+   */
+  calendarios: {
+    obtener: async ({ idAnioEscolar, idColegio } = {}) => {
+      const anio = Number(idAnioEscolar ?? 2)
+      const particular = idColegio ? CALENDARIOS_MOCK[`${anio}|${idColegio}`] : null
+      const general = CALENDARIOS_MOCK[`${anio}|general`]
+      const elegido = particular ?? general
+      if (!elegido) {
+        throw errorMock(
+          404,
+          'No hay un calendario académico configurado para este año escolar.',
+          'calendario_no_configurado',
+        )
+      }
+      const colegio = idColegio ? db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio)) : null
+      return responder({
+        ...elegido,
+        colegio: colegio ? { id: colegio.id_colegio, nombre: colegio.nombre } : null,
+        periodo_actual:
+          elegido.periodos.find((p) => {
+            const hoy = hoyLima()
+            return hoy >= p.fecha_inicio && hoy <= p.fecha_fin
+          }) ?? null,
+        fecha_referencia: hoyLima(),
+      })
+    },
+
+    crearGeneral: async ({ id_anio_escolar: idAnio, periodos, dias_no_lectivos: dias }) => {
+      const anio = Number(idAnio)
+      if (CALENDARIOS_MOCK[`${anio}|general`]) {
+        throw errorMock(409, 'Ya existe un calendario general para este año escolar.', 'calendario_existente')
+      }
+      CALENDARIOS_MOCK[`${anio}|general`] = {
+        id_calendario: siguienteIdCalendario(),
+        id_anio_escolar: anio,
+        origen: 'general',
+        version: 1,
+        periodos: conIdDePeriodo(periodos),
+        dias_no_lectivos: dias ?? [],
+      }
+      return responder(CALENDARIOS_MOCK[`${anio}|general`], RETARDO_ESCRITURA_MS)
+    },
+
+    crearParticular: async ({ id_colegio: idColegio, id_anio_escolar: idAnio, periodos, dias_no_lectivos: dias }) => {
+      const anio = Number(idAnio)
+      if (!CALENDARIOS_MOCK[`${anio}|general`]) {
+        throw errorMock(
+          409,
+          'Primero debes configurar el calendario general para poder definir fechas particulares de este colegio.',
+          'calendario_general_requerido',
+        )
+      }
+      const clave = `${anio}|${idColegio}`
+      if (CALENDARIOS_MOCK[clave]) {
+        throw errorMock(
+          409,
+          'El colegio ya tiene un calendario con fechas particulares para este año escolar.',
+          'calendario_particular_existente',
+        )
+      }
+      CALENDARIOS_MOCK[clave] = {
+        id_calendario: siguienteIdCalendario(),
+        id_anio_escolar: anio,
+        id_colegio: Number(idColegio),
+        origen: 'particular',
+        version: 1,
+        periodos: conIdDePeriodo(periodos),
+        // Omitirlos copia los del general; mandarlos, aunque sea vacío, manda.
+        dias_no_lectivos: dias ?? CALENDARIOS_MOCK[`${anio}|general`].dias_no_lectivos,
+      }
+      return responder(CALENDARIOS_MOCK[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    actualizar: async (idCalendario, { version, periodos, dias_no_lectivos: dias }) => {
+      const clave = Object.keys(CALENDARIOS_MOCK).find(
+        (k) => String(CALENDARIOS_MOCK[k].id_calendario) === String(idCalendario),
+      )
+      if (!clave) throw errorMock(404, 'El calendario no existe.', 'calendario_no_encontrado')
+
+      const actual = CALENDARIOS_MOCK[clave]
+      if (version != null && Number(version) !== actual.version) {
+        throw errorMock(
+          409,
+          'El calendario fue modificado por otro Supervisor. Consulta la versión actual antes de volver a guardar.',
+          'modificacion_concurrente',
+        )
+      }
+      CALENDARIOS_MOCK[clave] = {
+        ...actual,
+        version: actual.version + 1,
+        periodos: conIdDePeriodo(periodos),
+        dias_no_lectivos: dias ?? [],
+      }
+      return responder(CALENDARIOS_MOCK[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    usarGeneral: async (idCalendario) => {
+      const clave = Object.keys(CALENDARIOS_MOCK).find(
+        (k) => String(CALENDARIOS_MOCK[k].id_calendario) === String(idCalendario),
+      )
+      if (!clave) throw errorMock(404, 'El calendario no existe.', 'calendario_no_encontrado')
+      if (CALENDARIOS_MOCK[clave].origen === 'general') {
+        throw errorMock(409, 'El calendario general no se puede desactivar.', 'calendario_es_general')
+      }
+      const anio = CALENDARIOS_MOCK[clave].id_anio_escolar
+      delete CALENDARIOS_MOCK[clave]
+      return responder(CALENDARIOS_MOCK[`${anio}|general`], RETARDO_ESCRITURA_MS)
+    },
+  },
 
   /**
    * Sincronización (T5). El simulador acepta el aviso y no sabe de ninguna
