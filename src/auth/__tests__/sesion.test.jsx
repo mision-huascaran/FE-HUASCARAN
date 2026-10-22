@@ -81,9 +81,23 @@ describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRo
      * corriente, y la comprobación salía inestable según lo que hubiera
      * escrito el resto de la aplicación en ese momento.
      */
-    const claves = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-    expect(claves.some((c) => /token|password|contrasena|correo|sesion/i.test(c))).toBe(false)
-    expect(claves.map((c) => localStorage.getItem(c))).not.toContain(useSessionStore.getState().token)
+    /**
+     * Lo que prohíbe RNF-003 es guardar CREDENCIALES, así que se comprueban
+     * los valores y no los nombres de las claves. La versión anterior buscaba
+     * palabras en los nombres y fallaba a ratos con `sicedu.filtros.sesiones`,
+     * que casaba con "sesion" y es un filtro, no una credencial.
+     *
+     * localStorage sí se usa, y los casos de uso lo mandan: el ancla del reloj
+     * (CU010), las selecciones de filtros (CU023, CU029, CU031) y el último
+     * resumen institucional (CU012).
+     */
+    const token = useSessionStore.getState().token
+    const enLocal = Array.from({ length: localStorage.length }, (_, i) =>
+      localStorage.getItem(localStorage.key(i)),
+    ).join('|')
+
+    expect(enLocal).not.toContain(token)
+    expect(enLocal).not.toContain(CLAVE_DEMO)
   })
 })
 

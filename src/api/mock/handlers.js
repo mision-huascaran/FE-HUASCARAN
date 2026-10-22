@@ -646,6 +646,16 @@ export const handlers = {
       { id: 3, nombre: String(db.ANIO_LECTIVO + 1), vigente: false },
     ]),
 
+  /**
+   * Sincronización (T5). El simulador acepta el aviso y no sabe de ninguna
+   * operación previa: devuelve `desconocida`, que es lo honesto —no la ha
+   * visto— y lo que hace que la cola reintente.
+   */
+  sincronizacion: {
+    pendientes: async (operaciones = []) => responder({ recibidas: operaciones.length }),
+    operacion: async (idOperacion) => responder({ id_operacion: idOperacion, estado: 'desconocida' }),
+  },
+
   permisos: {
     listar: async (idUsuario, filtros = {}) => {
       const mios = Object.values(PERMISOS_MOCK)
