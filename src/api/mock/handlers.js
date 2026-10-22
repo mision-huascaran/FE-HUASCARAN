@@ -632,6 +632,20 @@ export const handlers = {
    * no son los datos sino los ESTADOS, que se calculan con la hora —programado,
    * vigente, vencido, revocado— y son lo que la pantalla ramifica.
    */
+  /**
+   * `GET /anios-escolares`.
+   *
+   * Tres años: el anterior, el vigente y el siguiente. El vigente va marcado,
+   * que es lo que usan los formularios para proponerlo por defecto. No se
+   * inventan más: un año escolar lo crea el Supervisor, no el simulador.
+   */
+  anios: async () =>
+    responder([
+      { id: 1, nombre: String(db.ANIO_LECTIVO - 1), vigente: false },
+      { id: 2, nombre: String(db.ANIO_LECTIVO), vigente: true },
+      { id: 3, nombre: String(db.ANIO_LECTIVO + 1), vigente: false },
+    ]),
+
   permisos: {
     listar: async (idUsuario, filtros = {}) => {
       const mios = Object.values(PERMISOS_MOCK)

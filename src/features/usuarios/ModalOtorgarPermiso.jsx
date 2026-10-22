@@ -20,9 +20,11 @@ import Switch from '../../components/ui/Switch'
 import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/Toast'
 import { MODULOS_PERMISO, opcionesDePermiso, otorgarPermiso } from '../../api/resources/permisos'
+import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 
 const VACIO = {
+  id_anio_escolar: '',
   id_colegio: '',
   id_grado: '',
   id_periodo_academico: '',
@@ -37,9 +39,26 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
   const toast = useToast()
   const [datos, setDatos] = useState(VACIO)
 
+  /**
+   * Los años escolares, para elegir a cuál pertenece el periodo.
+   *
+   * NO es un campo de texto ni un DatePicker: un año escolar es una entidad
+   * con id —el backend la pide así— y no siempre coincide con el año
+   * calendario, porque el receso posterior a PA4 puede cruzar diciembre. Un
+   * selector de los que existen es lo único que no se puede teclear mal.
+   */
+  const { data: anios = [] } = useQuery({
+    queryKey: ['catalogo', 'anios-escolares'],
+    queryFn: listarAniosEscolares,
+    staleTime: Infinity,
+  })
+
   useEffect(() => {
-    if (abierto) setDatos(VACIO)
-  }, [abierto])
+    if (!abierto) return
+    // Se propone el año en curso, que es con el que se trabaja casi siempre,
+    // pero se deja cambiar: un permiso puede ser para regularizar el anterior.
+    setDatos({ ...VACIO, id_anio_escolar: String(anioVigente(anios)?.id ?? '') })
+  }, [abierto, anios])
 
   /**
    * Los periodos y grados que ese colegio admite.
@@ -48,13 +67,13 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
    * cerrado en un colegio y seguir abierto en otro.
    */
   const { data: opciones } = useQuery({
-    queryKey: ['permisos', 'opciones', datos.id_colegio],
-    queryFn: () => opcionesDePermiso({ idColegio: datos.id_colegio }),
+    queryKey: ['permisos', 'opciones', datos.id_colegio, datos.id_anio_escolar],
+    queryFn: () => opcionesDePermiso({ idColegio: datos.id_colegio, idAnioEscolar: datos.id_anio_escolar }),
     enabled: Boolean(abierto && datos.id_colegio),
   })
 
   const otorgar = useMutation({
-    mutationFn: () => otorgarPermiso(idUsuario, { ...datos, id_anio_escolar: datos.id_anio_escolar ?? 1 }),
+    mutationFn: () => otorgarPermiso(idUsuario, datos),
     onSuccess: onOtorgado,
     onError: (error) => toast.error('No se pudo otorgar el permiso', mensajeDeError(error)),
   })
@@ -62,11 +81,13 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
   const cambiar = (campo, valor) =>
     setDatos((d) => {
       const siguiente = { ...d, [campo]: valor }
-      // Cambiar de colegio invalida periodo y grado: son suyos.
+      // Cambiar de colegio invalida periodo y grado: son suyos. Y cambiar de
+      // año invalida el periodo, que pertenece a un año concreto.
       if (campo === 'id_colegio') {
         siguiente.id_periodo_academico = ''
         siguiente.id_grado = ''
       }
+      if (campo === 'id_anio_escolar') siguiente.id_periodo_academico = ''
       return siguiente
     })
 
@@ -74,6 +95,7 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
   const grados = opciones?.grados ?? []
 
   const completo =
+    datos.id_anio_escolar &&
     datos.id_colegio &&
     datos.id_grado &&
     datos.id_periodo_academico &&
@@ -100,6 +122,14 @@ export default function ModalOtorgarPermiso({ abierto, idUsuario, colegios = [],
       }
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Select
+          label="Año escolar"
+          required
+          value={datos.id_anio_escolar}
+          options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
+          hint="Por defecto, el año en curso"
+          onChange={(e) => cambiar('id_anio_escolar', e.target.value)}
+        />
         <Select
           label="Colegio"
           required

@@ -33,11 +33,12 @@ import {
   listarPermisos,
   revocarPermiso,
 } from '../../api/resources/permisos'
+import { listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
-const SIN_FILTROS = { id_colegio: '', id_periodo_academico: '', modulo: '', estado: '' }
+const SIN_FILTROS = { id_anio_escolar: '', id_colegio: '', id_periodo_academico: '', modulo: '', estado: '' }
 
 /** El backend manda `{id, nombre}` donde la tabla quiere un texto. */
 const texto = (valor) => (valor != null && typeof valor === 'object' ? (valor.nombre ?? '—') : (valor ?? '—'))
@@ -53,6 +54,12 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
   const [otorgando, setOtorgando] = useState(false)
 
   const idUsuario = docente?.id_usuario ?? docente?.id
+
+  const { data: anios = [] } = useQuery({
+    queryKey: ['catalogo', 'anios-escolares'],
+    queryFn: listarAniosEscolares,
+    staleTime: Infinity,
+  })
 
   const consulta = useQuery({
     queryKey: ['permisos', idUsuario, filtros],
@@ -111,6 +118,15 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
 
       <Card padded={false}>
         <BarraDeFiltros onFiltrar={() => setFiltros(borrador)} onLimpiar={limpiar}>
+          <CeldaFiltro>
+            <Select
+              label="Año escolar"
+              placeholder="Todos"
+              value={borrador.id_anio_escolar}
+              options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
+              onChange={(e) => cambiar('id_anio_escolar', e.target.value)}
+            />
+          </CeldaFiltro>
           <CeldaFiltro>
             <Select
               label="Colegio"

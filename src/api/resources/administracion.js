@@ -652,11 +652,30 @@ const ID_ROL_POR_NOMBRE = { Docente: 1, Supervisor: 2, Directivo: 3 }
  * Sin año, el vigente. El catálogo es `GET /anios-escolares` →
  * `[{id, nombre, vigente}]`.
  */
+/**
+ * `GET /anios-escolares` — los años con los que trabaja el programa.
+ *
+ * Traía `api.get` a pelo, sin `resolver`, así que contra el simulador reventaba
+ * en vez de devolver nada. Ahora pasa por el mismo camino que todo lo demás.
+ *
+ * El vigente viene marcado con `vigente: true`: es el que los formularios
+ * proponen por defecto, porque es el año en el que casi siempre se trabaja.
+ */
+export const listarAniosEscolares = () =>
+  resolver({
+    mock: () => handlers.anios(),
+    real: () => api.get(ENDPOINTS.catalogos.anios),
+    forzarReal: adminContraApiReal,
+  })
+
+/** El año vigente de una lista, o el primero si ninguno lo está. */
+export const anioVigente = (anios = []) => anios.find((a) => a.vigente) ?? anios[0] ?? null
+
 async function idAnioEscolar(anio) {
-  const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
+  const anios = (await listarAniosEscolares()) ?? []
   const texto = String(anio ?? '').trim()
-  const elegido = texto ? anios.find((a) => String(a.nombre).includes(texto)) : anios.find((a) => a.vigente)
-  return elegido?.id ?? anios.find((a) => a.vigente)?.id ?? null
+  const elegido = texto ? anios.find((a) => String(a.nombre).includes(texto)) : anioVigente(anios)
+  return elegido?.id ?? anioVigente(anios)?.id ?? null
 }
 
 /** `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde. */
