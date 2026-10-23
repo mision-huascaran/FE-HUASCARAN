@@ -1,6 +1,6 @@
 // F5 — Indicadores del Directivo (CU012, RN-033, RN-034).
 //
-// El Directivo ve exactamente tres indicadores institucionales y ningún dato
+// El Directivo ve exactamente dos indicadores institucionales y ningún dato
 // personal de alumnos: ni el nombre del alumno que registró F3, ni la sección
 // Alumnos en su menú.
 import { expect, test } from '@playwright/test'
@@ -13,10 +13,17 @@ test('F5 · Indicadores del Directivo: 3 tarjetas y ningún dato de alumnos (CU0
   await iniciarSesion(page, 'directivo')
 
   await test.step('Exactamente 3 tarjetas, cada una con su valor (CU012)', async () => {
+    /**
+     * TRES tarjetas. La retirada de "Salud del sistema" se revirtió: CU012 la
+     * enumera, trae su fórmula y hasta su caso vacío —"Sin datos disponibles"
+     * cuando el servidor no puede calcularla—. Que hoy llegue siempre en
+     * `null` no es un fallo: es ese flujo alternativo. Desmontarla obligaría a
+     * volver a construirla en cuanto el backend reporte la cola offline.
+     */
     await expect(tarjetas(page)).toHaveCount(3)
     await expect(valorDeTarjeta(page, 'Total de beneficiarios activos')).toHaveText(/^\d+$/)
     await expect(valorDeTarjeta(page, 'Total de colegios operando')).toHaveText(/^\d+$/)
-    // CU012: sin sincronización offline en el backend, «Sin datos disponibles» es válido.
+    // Un porcentaje entero, o el literal del caso vacío de CU012.
     await expect(valorDeTarjeta(page, 'Salud del sistema')).toHaveText(/^(\d+%|Sin datos disponibles)$/)
     await evidencia(page, 'directivo-tres-tarjetas')
   })

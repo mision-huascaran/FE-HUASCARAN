@@ -54,15 +54,25 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     exigirDiaDeClase(candidatos)
     await irPorMenu(page, 'Asistencia', '/asistencia')
     // Un feriado lo dice el servidor (422 `fecha_no_lectiva`): se prueba el
-    // siguiente candidato, más antiguo.
+    // siguiente candidato, más antiguo. Tampoco sirve una clase que ya tiene
+    // asistencia registrada (de otra corrida del mismo día): el servidor la
+    // lista con los alumnos que ya tienen marca y no suma los nuevos.
     for (const candidato of candidatos) {
-      if ((await elegirClase(page, candidato)) !== 'no_lectivo') return candidato
-      test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} no es lectivo: se probó el anterior` })
+      const estado = await elegirClase(page, candidato)
+      if (estado === 'no_lectivo') {
+        test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} no es lectivo: se probó el anterior` })
+        continue
+      }
+      if (estado === 'lista' && (await page.locator(`[${PRESIONADO}="true"]`).count()) > 0) {
+        test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} ya tiene asistencia registrada: se probó el anterior` })
+        continue
+      }
+      return candidato
     }
     return null
   })
-  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy resultaron no lectivos (feriados), así que no hay clase en la que registrar.
-  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo (CU022)')
+  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy son no lectivos o ya tienen asistencia de otra corrida, así que no hay clase limpia en la que registrar.
+  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo y sin asistencia registrada (CU022)')
   test.info().annotations.push({ type: 'clase', description: `${clase.fecha} · ${clase.grado} · ${SUBPROGRAMA}` })
 
   const marca = Date.now()
@@ -79,13 +89,17 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     await filtrarAlumnos(page, PREFIJO)
     const restos = activas(page, page.getByRole('row').filter({ hasText: PREFIJO }))
     const cantidad = await restos.count()
+    // Las fechas importan: de ellas depende quién aparece en la clase de
+    // `clase.fecha`, que puede ser de un día anterior.
     for (let i = 0; i < cantidad; i += 1) {
-      await inactivarAlumno(page, restos.first())
+      await inactivarAlumno(page, restos.first(), { desde: clase.fecha })
       await expect(restos).toHaveCount(cantidad - i - 1)
     }
     test.info().annotations.push({ type: 'limpieza', description: `${cantidad} alumno(s) ${PREFIJO} inactivado(s) antes de empezar` })
 
-    for (const alumno of alumnos) await crearAlumno(page, { ...alumno, grado: clase.grado, subprograma: SUBPROGRAMA })
+    for (const alumno of alumnos) {
+      await crearAlumno(page, { ...alumno, grado: clase.grado, subprograma: SUBPROGRAMA, desde: clase.fecha })
+    }
     await finalizarActividad(page)
   })
 

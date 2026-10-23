@@ -11,13 +11,12 @@ import { ROLES } from '../roles'
 
 describe('rolPuedeEntrar', () => {
   it('reconoce las rutas de cada rol', () => {
-    expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(true)
-    expect(rolPuedeEntrar('/dashboard', ROLES.DOCENTE)).toBe(false)
+    expect(rolPuedeEntrar('/seguimiento', ROLES.SUPERVISOR)).toBe(true)
+    expect(rolPuedeEntrar('/seguimiento', ROLES.DOCENTE)).toBe(false)
+    // El Dashboard del mockup se retiró: su CU011 lo cubre el Inicio.
+    expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(false)
     expect(rolPuedeEntrar('/inicio', ROLES.DOCENTE)).toBe(true)
-    // CU012: el Dashboard tampoco es suyo. Llevaba un buscador de estudiantes
-    // por nombre, y RN-033/RN-034 le prohíben ver datos de alumnos. Ocultarlo
-    // del menú no bastaba: escribiendo la URL se entraba igual.
-    expect(rolPuedeEntrar('/dashboard', ROLES.DIRECTIVO)).toBe(false)
+    expect(rolPuedeEntrar('/seguimiento', ROLES.DIRECTIVO)).toBe(false)
     // El Directivo ya no gestiona cuentas (D2 del sprint de cierre).
     expect(rolPuedeEntrar('/usuarios', ROLES.DIRECTIVO)).toBe(false)
   })
@@ -36,15 +35,15 @@ describe('rolPuedeEntrar', () => {
 
 describe('destinoTrasLogin', () => {
   it('manda al inicio de su rol cuando la ruta anterior era de otro rol', () => {
-    // Supervisor cierra sesión en /dashboard y entra un Docente.
-    expect(destinoTrasLogin('/dashboard', ROLES.DOCENTE)).toBe('/inicio')
+    // Supervisor cierra sesión en /seguimiento y entra un Docente.
+    expect(destinoTrasLogin('/seguimiento', ROLES.DOCENTE)).toBe('/inicio')
     // Docente cierra sesión en /rubrica y entra un Directivo.
     expect(destinoTrasLogin('/rubrica', ROLES.DIRECTIVO)).toBe('/inicio')
   })
 
   it('respeta la ruta pedida cuando el rol sí puede entrar', () => {
     expect(destinoTrasLogin('/estudiantes', ROLES.DOCENTE)).toBe('/estudiantes')
-    expect(destinoTrasLogin('/consolidados', ROLES.SUPERVISOR)).toBe('/consolidados')
+    expect(destinoTrasLogin('/seguimiento', ROLES.SUPERVISOR)).toBe('/seguimiento')
   })
 
   it('sin ruta previa los tres roles aterrizan en Inicio', () => {

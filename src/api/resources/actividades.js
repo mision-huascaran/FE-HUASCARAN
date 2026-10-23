@@ -130,9 +130,48 @@ export const etiquetaTipoCierre = (valor) => {
 
 /** Etiquetas de los estados, que viajan en `snake_case` (§1.5 del contrato). */
 export const ETIQUETA_ESTADO = { en_curso: 'En curso', finalizada: 'Finalizada' }
+/**
+ * Estados de sincronización. Son CUATRO, no dos.
+ *
+ * `sin_informacion` es el que faltaba y el que más importa: significa que el
+ * servidor NO SABE, no que todo esté bien. Antes no existía y quien nunca se
+ * había conectado caía en "al día" por descarte: un docente que trabajó una
+ * semana sin señal se veía en verde, con el trabajo entero en su tablet y
+ * nadie enterado de que estaba en riesgo.
+ *
+ * Hoy TODOS llegan en `sin_informacion`, porque el servidor todavía no recibe
+ * la cola offline. Desde T5 empieza a haber valores reales.
+ */
 export const ETIQUETA_SINCRONIZACION = {
   sincronizada: 'Sincronizada',
   pendiente: 'Pendiente',
   error: 'Error',
   al_dia: 'Al día',
+  sin_informacion: 'Sin información',
+}
+
+/**
+ * El color de cada estado. `sin_informacion` va en NEUTRO, no en verde: no es
+ * una buena noticia ni una mala, es la ausencia de noticia, y pintarla de
+ * cualquiera de los dos colores sería afirmar algo que no se sabe.
+ */
+export const TONO_SINCRONIZACION = {
+  sincronizada: 'success',
+  al_dia: 'success',
+  pendiente: 'warning',
+  error: 'danger',
+  sin_informacion: 'neutral',
+}
+
+/**
+ * Lo que explica el estado al pasar el cursor.
+ *
+ * El verde se malinterpreta solo: "al día" quiere decir "sin pendientes QUE EL
+ * SERVIDOR CONOZCA", que no es lo mismo que "sin trabajo en riesgo".
+ */
+export const AYUDA_SINCRONIZACION = {
+  al_dia: 'Sin registros pendientes informados al servidor.',
+  pendiente: 'Tiene registros informados que aún no se han guardado.',
+  error: 'Un envío fue rechazado y necesita revisión.',
+  sin_informacion: 'El servidor no ha recibido información de sincronización de este docente.',
 }

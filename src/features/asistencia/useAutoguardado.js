@@ -9,22 +9,35 @@
 // De ahí que se guarde `previo` antes de tocar nada: sin él, "deshacer" sería
 // adivinar, y al tercer clic seguido ya no habría a qué volver.
 //
-// Hay un tercer desenlace que no es un error: `aplicado: false`. Significa que
-// OTRO dispositivo guardó algo más reciente para ese alumno. No se revierte al
-// valor anterior —sería volver a algo aún más viejo—, se adopta lo que manda el
-// servidor, que es quien tiene la verdad.
+// Hay un tercer desenlace que no es un error, y en la tanda 6 cambió de forma:
+// el ítem vuelve ACEPTADA con `motivo: "registro_mas_reciente"`. Significa que
+// otro dispositivo guardó algo posterior para ese alumno. Antes llegaba como
+// `aplicado: false`, que se leía como un fallo y no lo es: la operación se
+// procesó, solo que ganó la otra. No se revierte al valor anterior —sería
+// volver a algo aún más viejo—, se adopta el registro que devuelve el servidor.
 //
-// La cola offline hace el resto. Su clave es alumno-fecha-programa, así que un
+// Y hay un CUARTO: un lote puede responder 200 con ítems RECHAZADOS dentro.
+// Eso sí deshace el clic, porque ese registro no se aplicó.
+//
+// La cola offline hace el resto. Su clave es LA CLASE y el alumno, así que un
 // alumno nunca tiene dos envíos contradictorios esperando: el último sustituye
 // al anterior. Es también lo que hace que una ráfaga de clics sobre el mismo
 // alumno cuente como UN cambio en la métrica de productividad (CU021).
+//
+// OJO CON EL SUBPROGRAMA: no forma parte de la clave. Un alumno tiene UN solo
+// registro de asistencia por clase (CU022), no uno por subprograma. Si entrara
+// en la clave, cambiar el filtro de Subprograma generaría un segundo envío
+// para la misma persona y el mismo día.
 import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { encolar } from '../../lib/colaOffline'
 import { motivoDe } from '../../api/client'
+import { MOTIVO_REGISTRO } from '../../api/resources/asistencia'
+import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
-import { ahora } from '../../lib/relojServidor'
+import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../../lib/relojServidor'
+import useConexion from '../../hooks/useConexion'
 
 // Literales de CU022. Se escriben tal cual porque el caso de uso los da como
 // "el mensaje exacto" y el probador los comprueba palabra por palabra.
@@ -63,14 +76,22 @@ const conAlumno = (clase, idAlumno, marca) =>
  * @param claveClase la queryKey de la clase: lo que el servidor confirma se
  *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activo, claveClase }) {
+export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrado, idSeccion, activo, claveClase }) {
   const toast = useToast()
+  const enLinea = useConexion()
   const queryClient = useQueryClient()
 
-  // Lo que este navegador ha cambiado por encima de lo que vino del servidor,
-  // atado a SU clase: cambiar de fecha o de subprograma no puede arrastrar las
-  // marcas de la anterior, porque los ids de alumno se repiten entre clases.
-  const clase = `${fecha}|${idPrograma}`
+  /**
+   * Lo que este navegador ha cambiado por encima de lo que vino del servidor,
+   * atado a SU clase: cambiar de fecha o de aula no puede arrastrar las marcas
+   * de la anterior.
+   *
+   * El subprograma NO entra: es un filtro de la vista, no otra clase. Si
+   * entrara, cambiar el filtro borraría de la pantalla lo que se acaba de
+   * marcar, que es justo lo que CU022 prohíbe ("cambiar el filtro conserva las
+   * asistencias ya registradas").
+   */
+  const clase = `${fecha}|${idSeccion}`
   const [cambios, setCambios] = useState({ clase, locales: {} })
   const locales = useMemo(() => (cambios.clase === clase ? cambios.locales : {}), [cambios, clase])
 
@@ -99,43 +120,76 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
     async (alumno, campos) => {
       if (!activo) return null
 
+      /**
+       * CU010: sin referencia temporal verificable no se habilitan nuevas
+       * escrituras. Solo aplica SIN CONEXIÓN: con red, la propia petición
+       * reancla el reloj, así que bloquear por adelantado no protegería de
+       * nada y estorbaría. El caso real es recargar la página en el aula, sin
+       * señal y con el reloj del equipo cambiado: ahí no hay forma de saber
+       * qué hora es, y una marca con fecha inventada es peor que no marcar.
+       *
+       * La cola de pendientes NO se toca: esos registros se crearon cuando la
+       * referencia sí valía y el backend revalida sus fechas al sincronizar.
+       */
+      if (!enLinea && !hayContinuidad()) {
+        toast.error('No se puede registrar la asistencia', SIN_REFERENCIA_TEMPORAL)
+        return new Error('sin_referencia_temporal')
+      }
+
       const previo = marcaDe(alumno)
       const siguiente = { ...previo, ...campos }
       escribir(alumno.id_alumno, siguiente)
 
       try {
         const respuesta = await encolar({
-          clave: claveDeMarca(alumno.id_alumno, fecha, idPrograma),
+          clave: claveDeMarca(alumno.id_alumno, fecha, idSeccion),
           tipo: TIPOS_ENVIO.ASISTENCIA,
           payload: {
+            idColegio,
+            idGrado,
+            idSeccion,
             fecha,
-            registros: [{ id_alumno: alumno.id_alumno, id_programa: Number(idPrograma), ...campos }],
-            fechaRegistro: momentoDelClic(),
+            /**
+             * Un registro es una OPERACIÓN. La cola le pone su `id_operacion`
+             * al enviar; `realizado_en` es la hora REAL del clic, no la de la
+             * sincronización, y el servidor evalúa la habilitación A ESA HORA:
+             * un permiso que venció hoy pero estaba vigente entonces acepta.
+             */
+            registros: [{ id_alumno: alumno.id_alumno, realizado_en: momentoDelClic(), ...campos }],
           },
-          descripcion: `Asistencia de ${alumno.nombres} ${alumno.apellidos}`,
+          descripcion: `Asistencia de ${alumno.nombre}`,
           // Sin botón de guardar, un apunte local que no queda escrito es un
           // dato perdido en silencio.
           exigePersistencia: true,
         })
 
         /**
-         * `aplicado: false` — otro dispositivo ganó la carrera.
-         *
-         * No es un error ni se revierte: se adopta lo que devuelve el servidor,
-         * porque volver al valor anterior sería retroceder aún más.
+         * El lote responde `resultados`, uno por OPERACIÓN, y puede mezclar
+         * aceptados con rechazados. Lo que importa aquí es el de este alumno.
          */
-        const guardado = respuesta?.registros?.find((r) => r.id_alumno === alumno.id_alumno)
+        const mio = respuesta?.resultados?.find((r) => r.registro?.id_alumno === alumno.id_alumno)
+        const guardado = mio?.registro
+
         // Solo lo que el SERVIDOR confirmó: lo encolado offline no resuelve aún.
         if (guardado && claveClase) {
           const confirmado = confirmadoPor(guardado, siguiente)
           queryClient.setQueryData(claveClase, (previa) => conAlumno(previa, alumno.id_alumno, confirmado))
         }
-        if (guardado?.aplicado === false) {
-          escribir(alumno.id_alumno, { estado: guardado.estado ?? null, observacion: guardado.observacion ?? null })
-          toast.info(
-            'Otro dispositivo lo registró antes',
-            `Se conserva lo último guardado para ${alumno.nombres} ${alumno.apellidos}.`,
-          )
+
+        if (mio?.estado === 'rechazada') {
+          // 200 con un ítem rechazado dentro: no es un fallo de red, es que
+          // ESE registro no se pudo aplicar. El control vuelve atrás.
+          escribir(alumno.id_alumno, previo)
+          toast.error('No se registró la asistencia', textoDeRechazo(mio, MOTIVO_REGISTRO) ?? ERROR_SERVIDOR)
+          return new Error(mio.motivo ?? 'rechazada')
+        }
+
+        if (mio?.motivo === 'registro_mas_reciente') {
+          escribir(alumno.id_alumno, {
+            estado: guardado?.estado ?? null,
+            observacion: guardado?.observacion ?? null,
+          })
+          toast.info('Otro dispositivo lo registró después', `Se conserva lo último guardado para ${alumno.nombre}.`)
         }
         return null
       } catch (error) {
@@ -151,7 +205,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idPrograma, activ
         return error
       }
     },
-    [activo, marcaDe, escribir, fecha, idPrograma, toast, claveClase, queryClient],
+    [activo, enLinea, marcaDe, escribir, fecha, idColegio, idGrado, idSeccion, toast, claveClase, queryClient],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])

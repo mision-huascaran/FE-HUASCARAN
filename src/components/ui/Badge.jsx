@@ -8,9 +8,10 @@ const TONOS = {
   danger: 'bg-danger-100 text-danger-600 border-danger-600/20',
 }
 
-export default function Badge({ tone = 'neutral', icon: Icon, className, children }) {
+export default function Badge({ tone = 'neutral', icon: Icon, className, title, children }) {
   return (
     <span
+      title={title}
       className={cn(
         'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
         TONOS[tone],

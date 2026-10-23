@@ -2,7 +2,8 @@
 //
 // Qué se borra y qué no, según el contrato (§3.3 y §11):
 //
-//   · BORRA la precarga de IndexedDB (alumnos, colegios, catálogos): es una
+//   · BORRA la precarga de IndexedDB (alumnos, colegios, catálogos) y la
+//     copia de las pantallas de registro (`cacheConsultas`): es una
 //     copia descargada, se vuelve a bajar en el siguiente inicio de sesión, y
 //     si se queda, la siguiente persona que use el navegador —por ejemplo un
 //     Directivo— tiene en su IndexedDB los nombres de los alumnos del Docente
@@ -18,6 +19,8 @@
 //     lo prohíbe expresamente ("prohibido vaciar IndexedDB durante el cierre si
 //     existen registros pendientes").
 import { borrarPrecarga } from './precarga'
+import { borrarCacheConsultas } from './cacheConsultas'
+import useRechazosStore from '../store/rechazosStore'
 
 /**
  * Lo único que SOBREVIVE al cierre de sesión.
@@ -49,5 +52,6 @@ export function limpiarLocalStorageDeSesion() {
 
 export async function limpiarDatosLocalesDeSesion() {
   limpiarLocalStorageDeSesion()
-  await borrarPrecarga()
+  useRechazosStore.getState().limpiar()
+  await Promise.all([borrarPrecarga(), borrarCacheConsultas()])
 }

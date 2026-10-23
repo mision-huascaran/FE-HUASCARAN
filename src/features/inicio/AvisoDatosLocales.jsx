@@ -3,16 +3,44 @@
 // Sin conexión se muestra el último resumen guardado, pero hay que decir que
 // puede estar desactualizado: tomar una decisión con números viejos creyéndolos
 // de hoy es peor que no verlos.
-import { WifiOff } from 'lucide-react'
+//
+// Y cuando NO hay nada que mostrar, la causa importa: no es igual estar sin
+// conexión que estar conectado y que el servidor no conteste. Los dos casos
+// tienen texto propio, y además distinto por rol, porque CU011 y CU012 los
+// dan literales y no coinciden entre sí.
+import { ServerCrash, WifiOff } from 'lucide-react'
 import EmptyState from '../../components/ui/EmptyState'
 
-export default function AvisoDatosLocales({ sinDatos = false }) {
+const LITERALES = {
+  supervisor: {
+    sinConexion: 'No existe información operativa disponible sin conexión.',
+    sinServidor: 'No hay conexión con el servidor ni un resumen local guardado. Intente más tarde.',
+  },
+  directivo: {
+    sinConexion: 'No existe información institucional disponible sin conexión.',
+    sinServidor: 'No se pudieron cargar los indicadores y no hay datos locales. Intente más tarde.',
+  },
+}
+
+/**
+ * @param rol      'supervisor' | 'directivo'; elige el literal del caso de uso.
+ * @param sinDatos no hay nada que pintar, ni del servidor ni de la copia local.
+ * @param enLinea  con `sinDatos`, distingue el fallo del servidor del corte.
+ */
+export default function AvisoDatosLocales({ rol = 'directivo', sinDatos = false, enLinea = false }) {
   if (sinDatos) {
-    return (
+    const textos = LITERALES[rol] ?? LITERALES.directivo
+    return enLinea ? (
+      <EmptyState
+        icon={ServerCrash}
+        title="No se pudieron cargar los indicadores"
+        description={textos.sinServidor}
+      />
+    ) : (
       <EmptyState
         icon={WifiOff}
-        title="No hay información disponible sin conexión"
-        description="Todavía no se ha guardado ningún resumen en este dispositivo. Conéctese para verlo por primera vez."
+        title="Sin información para mostrar"
+        description={textos.sinConexion}
       />
     )
   }

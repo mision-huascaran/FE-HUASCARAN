@@ -16,7 +16,7 @@ import {
   listarColegiosAdmin,
   listarGradosAdmin,
 } from '../../api/resources/administracion'
-import { obtenerNivelesRazkids, obtenerNivelesRubrica, obtenerSemanas } from '../../api/resources/catalogos'
+import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
@@ -34,7 +34,6 @@ function fuentesDe(idRol) {
   const catalogos = {
     colegios: async () => (await listarColegiosAdmin()).items,
     grados: () => listarGradosAdmin(),
-    semanas: () => obtenerSemanas(),
   }
 
   if (idRol === ROLES.DOCENTE) {

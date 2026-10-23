@@ -7,7 +7,7 @@
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
 import { useMemo, useState } from 'react'
-import { Ban, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { Ban, ClipboardList, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -27,6 +27,7 @@ import { ROLES } from '../../auth/roles'
 
 /** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
 const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'usuarios' }
+const VER_DETALLE = 'Ver detalle'
 
 export const avisoSinConexion = (seccion) =>
   `Acción no disponible sin conexión. Conéctate a internet para gestionar ${GESTIONADO[seccion] ?? seccion}.`
@@ -55,6 +56,28 @@ export default function Mantenimiento({
   cargarAuditoria,
   // Cómo pedir el registro completo al abrir Ver/Editar (ver el popup).
   cargarDetalle = null,
+  /**
+   * `{etiqueta, ayuda}` si al activar o inactivar hay que preguntar DESDE
+   * CUÁNDO. Solo Alumnos la necesita: su backend la exige porque de ella
+   * depende el historial de pertenencia.
+   */
+  fechaEfectiva = null,
+  /**
+   * `{abrir, aplicaA?, etiqueta?, icono?}` para ofrecer el acceso a la vista
+   * de detalle en la fila.
+   *
+   * `etiqueta` e `icono` se pasan porque cada sección va a un sitio distinto y
+   * conviene que el botón lo diga: en Usuarios lleva al registro de permisos
+   * del Docente, no a "un detalle". `aplicaA` decide en qué filas aparece —en
+   * Usuarios solo los Docentes lo tienen— y en las demás el hueco se reserva
+   * para no desalinear la columna.
+   */
+  verDetalle = null,
+  /**
+   * Botones propios de la sección, junto a "Agregar". Hoy solo lo usa
+   * Colegios, para entrar al calendario académico (CU027).
+   */
+  accionesExtra = null,
   guardando = false,
   soloOnline = false,
   sinConexion = false,
@@ -164,6 +187,36 @@ export default function Mantenimiento({
       align: 'center',
       render: (fila) => (
         <div className="flex items-center justify-center gap-1">
+          {/* Abre una VISTA dentro de la SPA, no el popup: es lo que piden
+              CU013 y CU016 para el detalle del colegio y el del docente.
+
+              NO DICE "Ver detalle" NI LLEVA UN OJO. Quedaba junto al "Ver" de
+              al lado, con el mismo icono y casi el mismo texto: dos ojos
+              seguidos que no se distinguían y que llevaban a sitios distintos.
+              Ahora el texto dice a qué se va y el icono lo acompaña. Es una
+              libreta y no un "+" porque el botón abre el registro de permisos
+              —donde se consulta, se otorga y se revoca—, no un formulario de
+              alta: un "+" prometería que se abre el modal de golpe.
+
+              Los CU todavía lo llaman "Ver detalle"; los analistas lo
+              corregirán. Solo se ofrece donde hay detalle que ver, y en las
+              demás filas se reserva el hueco para que la columna no baile. */}
+          {verDetalle &&
+            (verDetalle.aplicaA?.(fila) ?? true ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                iconLeft={verDetalle.icono ?? ClipboardList}
+                title={verDetalle.etiqueta ?? VER_DETALLE}
+                aria-label={`${verDetalle.etiqueta ?? VER_DETALLE} de ${fila.nombre ?? entidad}`}
+                onClick={() => verDetalle.abrir(fila)}
+              >
+                {verDetalle.etiqueta ?? VER_DETALLE}
+              </Button>
+            ) : (
+              // El hueco se mide por el texto más largo que puede ocupar.
+              <span aria-hidden="true" className="inline-block w-[9.5rem]" />
+            ))}
           <Button
             size="sm"
             variant="ghost"
@@ -219,7 +272,7 @@ export default function Mantenimiento({
     }
 
     return [...columnas, estado, acciones]
-  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso])
+  }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso, verDetalle])
 
   if (sinPantalla) {
     return (
@@ -238,16 +291,22 @@ export default function Mantenimiento({
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        {puedeCrear && (
-          <Button
-            iconLeft={Plus}
-            disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
-            title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
-            onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
-          >
-            Agregar
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {puedeCrear && (
+            <Button
+              iconLeft={Plus}
+              disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
+              title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
+              onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
+            >
+              Agregar
+            </Button>
+          )}
+          {/* CU013 pide el acceso al calendario académico JUNTO al botón de
+              crear, en la fila de acciones sobre los filtros. Va aquí y no en
+              la pantalla porque la cabecera la monta la plantilla. */}
+          {accionesExtra}
+        </div>
       </header>
 
       {motivoNuevo && puedeCrear && (
@@ -261,8 +320,8 @@ export default function Mantenimiento({
           filtros={filtros}
           valores={valoresFiltro}
           onCambio={onFiltro}
-          // Se aplican todos de golpe al pulsar "Filtrar": así la lista se
-          // consulta una vez y no una por cada campo que se toca.
+          // Todos de golpe, no uno por campo: la barra espera a que se deje
+          // de escribir y manda el conjunto entero en una sola consulta.
           onAplicar={(nuevos) => Object.entries(nuevos).forEach(([n, v]) => onFiltro?.(n, v))}
         />
 
@@ -273,7 +332,7 @@ export default function Mantenimiento({
             loading={consulta.isLoading}
             rows={consulta.data ?? []}
             getRowId={(f) => f.id ?? f[`id_${seccion.replace(/s$/, '')}`] ?? f.id_usuario}
-            initialPageSize={10}
+            initialPageSize={40}
             columns={columnasConAcciones}
           />
         )}
@@ -290,9 +349,13 @@ export default function Mantenimiento({
       <ConfirmarEstado
         peticion={confirmando}
         entidad={entidad}
+        fechaEfectiva={fechaEfectiva}
         onCancelar={() => setConfirmando(null)}
-        onConfirmar={() => {
-          onCambiarEstado(confirmando.fila, confirmando.activo)
+        onConfirmar={(fecha) => {
+          // La fecha solo viaja si la sección la pidió. Colegios y Usuarios no
+          // la usan y su backend no acepta cuerpo: mandarla sería ruido.
+          if (fechaEfectiva) onCambiarEstado(confirmando.fila, confirmando.activo, fecha)
+          else onCambiarEstado(confirmando.fila, confirmando.activo)
           setConfirmando(null)
         }}
       />

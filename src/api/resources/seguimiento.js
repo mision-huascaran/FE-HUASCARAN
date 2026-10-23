@@ -68,3 +68,40 @@ export const listarActividadesDe = async (idDocente, filtros = {}) => {
   })
   return normalizarPaginado(datos)
 }
+
+/**
+ * Los módulos que un atajo de CU021 puede abrir, con su etiqueta.
+ *
+ * Es una lista cerrada del contrato: un valor que no esté aquí responde 422
+ * `validacion`, así que la pantalla no puede dejar elegir otro.
+ */
+export const MODULOS_DE_ACTIVIDAD = [
+  { clave: 'asistencias', etiqueta: 'Asistencias' },
+  { clave: 'lectura', etiqueta: 'Seguimiento de Lectura' },
+  { clave: 'rubrica', etiqueta: 'Rúbrica' },
+  { clave: 'registro_vuelo', etiqueta: 'Registro de Vuelo' },
+  { clave: 'alumnos', etiqueta: 'Alumnos' },
+]
+
+/**
+ * `GET /seguimiento/docentes/{id}/actividades/{id}/registros` — qué tocó una actividad.
+ *
+ * SALE DE LA AUDITORÍA DE LA ACTIVIDAD, NO DE LA FECHA, y esa es toda la
+ * diferencia: dos actividades del mismo día tocaron cosas distintas, y
+ * filtrar por fecha mezclaría el trabajo de una con el de la otra. Es lo que
+ * hace que los atajos de CU021 —"Ver Asistencias", "Ver Alumnos"— enseñen lo
+ * que esa jornada hizo y no lo que pasó ese día.
+ *
+ * Solo el Supervisor: el Docente y el Directivo reciben 403.
+ */
+export const listarRegistrosDeActividad = async (idDocente, idActividad, { modulo, pagina } = {}) => {
+  const datos = await resolver({
+    mock: () => handlers.sesiones.registrosDeActividad(idDocente, idActividad, { modulo, pagina }),
+    real: () =>
+      api.get(seguimiento.registrosDe(idDocente, idActividad), {
+        params: { modulo, page: pagina || undefined },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+  return normalizarPaginado(datos)
+}

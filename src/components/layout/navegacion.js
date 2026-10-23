@@ -11,7 +11,6 @@ import {
   GraduationCap,
   History,
   Home,
-  LayoutDashboard,
   Plane,
   School,
   Users,
@@ -28,7 +27,6 @@ const ICONOS = {
   lectura: BookOpenCheck,
   vuelo: Plane,
   sesiones: History,
-  dashboard: LayoutDashboard,
 }
 
 export const navegacionDe = (idRol) =>
@@ -51,16 +49,9 @@ export const ETIQUETAS_RUTA = {
   rubrica: 'Rúbrica',
   'seguimiento-lectura': 'Seguimiento de Lectura',
   'registro-vuelo': 'Registro de Vuelo',
-  nuevo: 'Nueva evaluación',
   sesiones: 'Sesiones',
-  dashboard: 'Dashboard',
+  seguimiento: 'Seguimiento',
   estudiantes: 'Alumnos',
-  'nivel-final': 'Nivel final mensual',
-  'consulta-colegios': 'Consulta de colegios',
-  consolidados: 'Consolidados',
-  alertas: 'Alertas',
-  ranking: 'Ranking de colegios',
-  reportes: 'Reportes',
   403: 'Sin permisos',
 }
 

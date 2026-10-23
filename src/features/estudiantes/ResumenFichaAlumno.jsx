@@ -10,9 +10,9 @@
 // es "Logrado" en 3.º y apenas "Inicio" en 5.º—, así que aquí no se traduce: se
 // muestra lo que manda.
 //
-// Y ya no llegan en `null`: libros y asistencia son 0 cuando no hay datos. Un 0
-// se puede pintar; lo que no se podía era inventar un 0 cuando el servidor
-// decía "no lo sé".
+// Los libros llegan en 0 cuando no hay datos. La asistencia es un OBJETO
+// `{porcentaje, asistidas, contabilizadas}` desde T6, y su `porcentaje` sí puede
+// ser `null`: "Sin datos de asistencia", que no es lo mismo que un 0 %.
 import { useQuery } from '@tanstack/react-query'
 import { BookOpen, CalendarCheck, GraduationCap } from 'lucide-react'
 import Skeleton from '../../components/ui/Skeleton'
@@ -34,6 +34,7 @@ export default function ResumenFicha({ ficha, cargando, idAlumno }) {
 
   const resumen = consulta.data ?? {}
   const nivel = resumen.nivel_colocado ?? null
+  const asistencia = resumen.asistencia ?? {}
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,9 +53,13 @@ export default function ResumenFicha({ ficha, cargando, idAlumno }) {
         <StatCard
           icon={CalendarCheck}
           label="Asistencia"
-          value={`${Math.round(resumen.asistencia_porcentaje ?? 0)}%`}
+          value={asistencia.porcentaje == null ? '-' : `${asistencia.porcentaje}%`}
           // CU022 §3.4: la TARDANZA cuenta como asistencia.
-          hint="Presentes y tardanzas sobre las clases dictadas"
+          hint={
+            asistencia.porcentaje == null
+              ? 'Sin datos de asistencia'
+              : `${asistencia.asistidas} de ${asistencia.contabilizadas} clases (presente o tardanza)`
+          }
         />
       </div>
 

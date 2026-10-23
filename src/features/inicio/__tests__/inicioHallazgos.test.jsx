@@ -53,6 +53,15 @@ describe('Inicio — hallazgos del 09/10/2026', () => {
     expect(screen.queryByText(/Sin información de sincronización/)).not.toBeInTheDocument()
   })
 
+  it('CU012: el porcentaje de Salud del Sistema va redondeado al entero', async () => {
+    // El caso de uso lo ejemplifica tal cual: "98 %, no 97.6 %".
+    directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: 97.6 })
+    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
+
+    expect(await screen.findByText('98%', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('97.6%')).not.toBeInTheDocument()
+  })
+
   it('D15: cuenta los docentes con actividad y pinta la alerta tal como llega', async () => {
     // El contrato manda `{tipo, mensaje, critica}` con el mensaje YA redactado
     // ("Inactividad Operativa - …"). La pantalla no le añade un encabezado

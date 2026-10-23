@@ -1,9 +1,9 @@
-// El reloj de referencia (CU022, Restricciones).
+// El reloj de referencia (CU010 y CU022, Restricciones).
 //
 // Importa porque es la defensa contra algo muy fácil de hacer: cambiar la hora
 // del portátil para registrar asistencia en un día que el backend rechazaría.
-// Sin conexión no hay a quién preguntar, así que el frontend tira del desfase
-// que guardó la última vez que sí la hubo.
+// Sin conexión no hay a quién preguntar, así que el frontend tira de un ANCLA
+// monotónica, y si no la tiene, del desfase que guardó la última vez.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const UN_DIA_MS = 24 * 60 * 60 * 1000
@@ -38,6 +38,26 @@ describe('Reloj de referencia del servidor', () => {
     expect(esFutura('2026-10-13')).toBe(false)
   })
 
+  it('cambiar el reloj DESPUÉS de sincronizar no mueve la hora', async () => {
+    /**
+     * Esto es lo que un desfase no podía hacer. Con `Date.now() + offset`, un
+     * reloj adelantado después del anclaje adelantaba la hora con él: el
+     * offset corrige el error que había al anclar, no los posteriores. El
+     * contador monotónico sí es inmune.
+     */
+    const real = new Date('2026-10-13T15:00:00Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(real)
+
+    const { sincronizarReloj, hoy } = await import('../relojServidor')
+    sincronizarReloj(real.toISOString())
+    expect(hoy()).toBe('2026-10-13')
+
+    // Alguien adelanta el reloj del equipo tres días. La hora no se mueve.
+    vi.setSystemTime(new Date(real.getTime() + 3 * UN_DIA_MS))
+    expect(hoy()).toBe('2026-10-13')
+  })
+
   it('el desfase sobrevive al cierre del navegador', async () => {
     const real = new Date('2026-10-13T15:00:00Z')
     vi.useFakeTimers()
@@ -50,6 +70,34 @@ describe('Reloj de referencia del servidor', () => {
     vi.resetModules()
     const segunda = await import('../relojServidor')
     expect(segunda.hoy()).toBe('2026-10-13')
+  })
+
+  it('sin hablar con el servidor NO hay continuidad temporal', async () => {
+    // CU010: sin referencia verificable no se habilitan nuevas escrituras.
+    const { hayContinuidad } = await import('../relojServidor')
+    expect(hayContinuidad()).toBe(false)
+  })
+
+  it('la continuidad se gana al sincronizar y se pierde al recargar', async () => {
+    const real = new Date('2026-10-13T15:00:00Z')
+
+    const primera = await import('../relojServidor')
+    primera.sincronizarReloj(real.toISOString())
+    expect(primera.hayContinuidad()).toBe(true)
+
+    /**
+     * Otra carga de la página: `performance.now()` vuelve a cero, así que el
+     * ancla anterior ya no sirve. Se puede seguir CONSULTANDO con el desfase
+     * guardado, pero no escribir hasta que el servidor conteste otra vez.
+     */
+    vi.resetModules()
+    const segunda = await import('../relojServidor')
+    expect(segunda.hayContinuidad()).toBe(false)
+    expect(segunda.hoy()).toBe('2026-10-13')
+
+    // Y la primera respuesta del servidor la restablece sola.
+    segunda.sincronizarReloj(real.toISOString())
+    expect(segunda.hayContinuidad()).toBe(true)
   })
 
   it('una fecha que no se entiende no toca el desfase', async () => {

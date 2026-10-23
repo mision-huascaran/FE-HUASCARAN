@@ -6,20 +6,115 @@
 import * as db from './db'
 import * as agregados from './consolidados'
 import { esCorreoValido } from '../../lib/validacion'
+import { sincronizarReloj } from '../../lib/relojServidor'
 
 const RETARDO_MS = 300
+
+// Textos que se repiten en varias respuestas del simulador.
+const CLASE_PROGRAMADA = 'Clase programada'
+const ALUMNO_NO_EXISTE = 'El alumno no existe'
+const CORREO_REGISTRADO = 'Ese correo ya está registrado'
+
+/** Permisos otorgados durante la sesión (CU028). Viven aquí, no en `db`. */
+const PERMISOS_MOCK = {}
+
+/**
+ * Calendarios por `${anio}|general` o `${anio}|${idColegio}` (CU027).
+ *
+ * El año 2 —el vigente— arranca con su general ya configurado, que es el caso
+ * normal. Los demás no tienen ninguno, para poder ver el 404 que la pantalla
+ * traduce en "hay que crearlo".
+ */
+const CALENDARIOS_MOCK = {}
+
+let ultimoIdCalendario = 1
+const siguienteIdCalendario = () => (ultimoIdCalendario += 1)
+
+/** El id de un PA se deduce de su número; el de un PR, del PA anterior. */
+const conIdDePeriodo = (periodos = []) =>
+  periodos.map((p) => ({ ...p, id_periodo_academico: p.id_periodo_academico ?? 30 + Number(p.numero) }))
+
+/**
+ * El estado de un permiso NO se guarda: se calcula con la hora.
+ *
+ * Por eso un permiso caduca solo, sin que nadie refresque nada, y por eso la
+ * pantalla no puede fiarse de un campo guardado.
+ */
+function conEstado(permiso) {
+  const ahora = Date.now()
+  let estado = 'vigente'
+  if (permiso.revocado_en) estado = 'revocado'
+  else if (Date.parse(permiso.inicio) > ahora) estado = 'programado'
+  else if (Date.parse(permiso.fin) <= ahora) estado = 'vencido'
+  return { ...permiso, estado }
+}
+
+/**
+ * Calendario del año lectivo del simulador (CU027): cuatro PA con su receso.
+ *
+ * Los ocho periodos van seguidos y sin huecos dentro del año, como en un
+ * calendario real. Diciembre queda fuera a propósito, para tener a mano una
+ * fecha "fuera de todo periodo" con la que probar ese borde.
+ */
+const CALENDARIO_MOCK = {
+  id_calendario: 1,
+  origen: 'general',
+  version: 1,
+  periodos: [
+    { tipo: 'PA', numero: 1, id_periodo_academico: 31, fecha_inicio: '2026-03-02', fecha_fin: '2026-05-15' },
+    { tipo: 'PR', numero: 1, id_periodo_academico: 91, fecha_inicio: '2026-05-16', fecha_fin: '2026-05-31' },
+    { tipo: 'PA', numero: 2, id_periodo_academico: 32, fecha_inicio: '2026-06-01', fecha_fin: '2026-07-31' },
+    { tipo: 'PR', numero: 2, id_periodo_academico: 92, fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15' },
+    { tipo: 'PA', numero: 3, id_periodo_academico: 33, fecha_inicio: '2026-08-16', fecha_fin: '2026-10-31' },
+    { tipo: 'PR', numero: 3, id_periodo_academico: 93, fecha_inicio: '2026-11-01', fecha_fin: '2026-11-08' },
+    { tipo: 'PA', numero: 4, id_periodo_academico: 34, fecha_inicio: '2026-11-09', fecha_fin: '2026-11-30' },
+    { tipo: 'PR', numero: 4, id_periodo_academico: 94, fecha_inicio: '2026-12-01', fecha_fin: '2026-12-15' },
+  ],
+  dias_no_lectivos: [
+    { id: 1, motivo: 'Día de la Independencia', fecha_inicio: '2026-07-28', fecha_fin: '2026-07-29', origen: 'automatico' },
+    { id: 2, motivo: 'Feriado', fecha_inicio: '2026-10-08', fecha_fin: '2026-10-08', origen: 'automatico' },
+  ],
+}
+
+/**
+ * El año vigente arranca con su calendario general ya configurado, que es el
+ * caso normal. Los demás años no tienen ninguno, para poder ver el 404 que la
+ * pantalla traduce en "hay que crearlo" —que no es un error, es un estado—.
+ *
+ * Se siembra aquí y no en la declaración de `CALENDARIOS_MOCK` porque esa va
+ * antes en el archivo y leer `CALENDARIO_MOCK` desde ahí reventaría al cargar.
+ */
+CALENDARIOS_MOCK['2|general'] = {
+  id_calendario: 1,
+  id_anio_escolar: 2,
+  origen: 'general',
+  version: 1,
+  periodos: CALENDARIO_MOCK.periodos,
+  dias_no_lectivos: CALENDARIO_MOCK.dias_no_lectivos,
+}
 
 function copiar(datos) {
   return structuredClone(datos)
 }
 
+/**
+ * Toda respuesta del simulador ancla el reloj, igual que la cabecera `Date` de
+ * una respuesta real (ver `api/client.js`).
+ *
+ * No es un detalle de pruebas: sin esto, trabajar contra el simulador dejaría
+ * la referencia temporal sin verificar para siempre y CU010 bloquearía todas
+ * las escrituras. El simulador hace de servidor, y un servidor dice qué hora
+ * es.
+ */
 function responder(datos, ms = RETARDO_MS) {
-  return new Promise((resolver) => setTimeout(() => resolver(copiar(datos)), ms))
+  return new Promise((resolver) =>
+    setTimeout(() => {
+      sincronizarReloj(new Date().toISOString())
+      resolver(copiar(datos))
+    }, ms),
+  )
 }
 
-// Marcas de asistencia tomadas durante la sesión (CU022). Viven aquí y no en
-// `db`, que se importa de solo lectura. La clave reproduce la unicidad que el
-// caso de uso exige en la base: UN registro por alumno, fecha y subprograma.
 /**
  * Error con la MISMA forma que el de axios, para que las pantallas puedan
  * ramificar por `motivo` igual que contra el backend real.
@@ -31,11 +126,422 @@ function errorMock(status, detail, motivo) {
 }
 
 const ACTIVIDADES_MOCK = {}
-const ASISTENCIAS = {}
-const claveMarca = (idAlumno, fecha, idPrograma) => `${idAlumno}|${fecha}|${idPrograma}`
 
-/** Subprograma por defecto cuando el registro no lo trae (lo fija la pantalla). */
-const ASISTENCIA_PROGRAMA = 1
+// Marcas de asistencia tomadas durante la sesion (CU022). Viven aqui y no en
+// `db`, que se importa de solo lectura. Y viven POR CLASE, no por alumno: desde
+// la tanda 6 la unicidad es (clase, alumno), no (alumno, fecha, subprograma).
+/** Una clase: colegio, grado, seccion y fecha. El subprograma no entra. */
+const claveDeClase = (idColegio, idGrado, idSeccion, fecha) => `${idColegio}|${idGrado}|${idSeccion}|${fecha}`
+
+/** Clases creadas durante la sesion, con su lista congelada y sus marcas. */
+const CLASES_MOCK = {}
+
+// ── Tablas de lectura semanal (CU023 a CU026) ───────────────────────────────
+//
+// La tabla es grupo x subprograma x semana, y su MES es el de su clase de
+// referencia: una semana partida entre dos meses va entera en el mes de su
+// clase. Por eso el mes forma parte de la clave y no se deduce de la semana.
+const TABLAS_LECTURA = {}
+let ultimoIdTabla = 300
+const siguienteIdTabla = () => ++ultimoIdTabla
+
+const claveDeTabla = ({ idColegio, idPrograma, idGrado, idSeccion, mes, idSemana }) =>
+  `${idColegio}|${idGrado}|${idSeccion}|${idPrograma}|${mes}|${idSemana}`
+
+const porIdDeTabla = (id) => {
+  const tabla = Object.values(TABLAS_LECTURA).find((t) => Number(t.id) === Number(id))
+  if (!tabla) throw errorMock(404, 'La tabla de lectura no se encuentra disponible.', 'tabla_no_encontrada')
+  return tabla
+}
+
+/**
+ * La version que se leyo tiene que seguir siendo la vigente.
+ *
+ * Sin esto, dos docentes editando la misma tabla se pisaban sin enterarse: el
+ * segundo guardaba encima y el primero nunca sabia que su cambio se perdio.
+ */
+function exigirVersionDeTabla(tabla, version) {
+  if (version != null && Number(version) !== Number(tabla.version)) {
+    throw errorMock(
+      409,
+      'La tabla fue modificada por otro usuario. Vuelve a consultarla e intentalo de nuevo.',
+      'modificacion_concurrente',
+    )
+  }
+}
+
+/** Datos de LECTURA. Una observacion NO cuenta: el contrato lo dice aparte. */
+const conDatosDeLectura = (d) =>
+  d != null && [d.lsn_titulo, d.lsn_nota, d.lsn_maximo, d.cantidad_lsl].some((v) => v != null)
+
+/** Un envio que solo BORRA (todo en null): se admite incluso con ausente. */
+const soloBorra = (f) =>
+  ['lsn_titulo', 'lsn_nota', 'lsn_maximo', 'cantidad_lsl'].every((c) => !(c in f) || f[c] === null)
+
+/**
+ * La clase de referencia que se propone para una semana.
+ *
+ * La habitual o reprogramada; `null` si la semana solo tiene adicionales, y
+ * entonces el docente tiene que elegir una. En el simulador se toma el lunes,
+ * que es la habitual, y se marca `id_clase: null` si todavia no tiene fila:
+ * para elegirla se usa su fecha.
+ */
+function claseSugeridaDe(semana) {
+  if (!esDiaLectivo(semana.inicio)) return null
+  const claveDelLunes = Object.keys(CLASES_MOCK).find((k) => k.endsWith(`|${semana.inicio}`))
+  return {
+    id_clase: CLASES_MOCK[claveDelLunes]?.id_clase ?? null,
+    fecha: semana.inicio,
+    tipo: 'habitual',
+    reprogramada: false,
+  }
+}
+
+/** La asistencia de un alumno en la clase de referencia de la tabla. */
+const asistenciaEnReferencia = (tabla, idAlumno) =>
+  CLASES_MOCK[tabla.clave_clase]?.marcas?.[idAlumno]?.estado ?? null
+
+const asistioALaReferencia = (tabla, idAlumno) =>
+  ['presente', 'tardanza'].includes(asistenciaEnReferencia(tabla, idAlumno))
+
+/**
+ * Una fila de la tabla: el alumno, su asistencia y sus libros.
+ *
+ * `total_libros` se CALCULA —(1 si hay LSN) + los LSL— y no es editable: es un
+ * dato derivado, y dejar que el cliente lo mandara seria admitir que cuadre
+ * mal. `cantidad_lsl: null` NO es cero: es "no registrado", y de ahi que la
+ * fila siga pendiente en vez de darse por completada con cero libros.
+ */
+function filaDe(tabla, idAlumno) {
+  const clase = CLASES_MOCK[tabla.clave_clase]
+  const alumno = (clase?.lista ?? []).find(
+    (a) => Number(a.id_alumno) === Number(idAlumno) && Number(a.id_programa) === Number(tabla.id_programa),
+  )
+  if (!alumno) return null
+
+  const d = tabla.datos[idAlumno] ?? {}
+  const asistencia = asistenciaEnReferencia(tabla, idAlumno)
+  const presente = ['presente', 'tardanza'].includes(asistencia)
+  const hayLsn = d.lsn_titulo != null
+  const lsl = d.cantidad_lsl ?? null
+
+  const noAplica = tabla.estado === 'no_realizada' || asistencia === 'ausente'
+  let estadoFila = 'pendiente'
+  if (noAplica) estadoFila = 'no_aplica'
+  else if (presente && lsl != null) estadoFila = 'completada'
+
+  return {
+    id_alumno: alumno.id_alumno,
+    nombre: `${alumno.apellidos}, ${alumno.nombres}`,
+    inactivo: alumno.activo === false,
+    asistencia,
+    // El nivel academico lo completa el Registro de Vuelo (tanda 9).
+    nivel_academico: null,
+    lsn_titulo: d.lsn_titulo ?? null,
+    lsn_nota: d.lsn_nota ?? null,
+    lsn_maximo: d.lsn_maximo ?? null,
+    cantidad_lsl: lsl,
+    total_libros: (hayLsn ? 1 : 0) + (lsl ?? 0),
+    observacion: d.observacion ?? null,
+    estado_fila: estadoFila,
+    // Tiene libros guardados pero HOY consta ausente: alguien corrigio la
+    // asistencia despues. No se borra nada solo; se avisa para que el docente
+    // decida, que es lo que pide CU024.
+    revisar_asistencia: Boolean(conDatosDeLectura(d) && asistencia === 'ausente'),
+    version: d.version ?? null,
+  }
+}
+
+// ── Registro de Vuelo (CU031, CU032) ───────────────────────────────────────
+//
+// Una decision por alumno y PERIODO ACADEMICO del ano. El reparto de
+// responsabilidades es lo que hay que reproducir bien: el SERVIDOR calcula la
+// entrada, la sugerencia y el nivel del programa; el DOCENTE registra el nivel
+// colocado, la proyeccion y la observacion.
+const DECISIONES_MOCK = {}
+
+const claveDeDecision = (idAlumno, idPeriodo) => `${idAlumno}|${idPeriodo}`
+
+/** Los modulos que un atajo de CU021 puede abrir. Lista CERRADA del contrato. */
+const MODULOS_DE_ACTIVIDAD_MOCK = new Set(['asistencias', 'lectura', 'rubrica', 'registro_vuelo', 'alumnos'])
+
+/** `futuro`, `en_curso` o `culminado` según la fecha de hoy. */
+function estadoDelTramo(hoy, { inicio, fin }) {
+  if (hoy < inicio) return 'futuro'
+  return hoy > fin ? 'culminado' : 'en_curso'
+}
+
+/** La regla de avance de la rúbrica: desde 28 décimas sube, desde 16 mantiene y debajo baja. */
+function accionDeRubrica(decimas) {
+  if (decimas >= 28) return 'subir'
+  return decimas >= 16 ? 'mantener' : 'bajar'
+}
+
+/** Por debajo de aa o por encima de Z no hay a dónde ir: se queda en el extremo. */
+function excepcionDeExtremo(fuera, destino) {
+  if (!fuera) return null
+  return destino < 1 ? 'aa' : 'Z'
+}
+
+/** El resultado `rechazada` de un item de un lote. */
+const rechazoDeItem = (item) => (motivo, detail, registro = null) => ({
+  id_operacion: item.id_operacion,
+  estado: 'rechazada',
+  motivo,
+  detail,
+  registro,
+})
+
+/** Un LSN va completo (título, nota y máximo) y con la nota entre 0 y el máximo (5 o 10). */
+function rechazoDeLsn(titulo, nota, maximo) {
+  const partes = [titulo, nota, maximo]
+  if (partes.some((v) => v != null) && partes.some((v) => v == null)) {
+    return ['lsn_incompleto', 'Para registrar un LSN, completa el titulo, la nota obtenida y el puntaje maximo.']
+  }
+  const fueraDeRango = ![5, 10].includes(Number(maximo)) || nota < 0 || nota > Number(maximo)
+  if (partes.every((v) => v != null) && fueraDeRango) {
+    return ['lsn_invalido', 'Selecciona un maximo de 5 o 10 e ingresa una nota entre 0 y ese maximo.']
+  }
+  return null
+}
+
+/** Los cuatro PA del ano, con su estado segun la fecha de hoy. */
+function periodosDelAnio() {
+  const anio = db.ANIO_LECTIVO
+  const tramos = [
+    { numero: 1, inicio: `${anio}-03-02`, fin: `${anio}-05-15` },
+    { numero: 2, inicio: `${anio}-05-18`, fin: `${anio}-07-17` },
+    { numero: 3, inicio: `${anio}-08-03`, fin: `${anio}-10-02` },
+    { numero: 4, inicio: `${anio}-10-05`, fin: `${anio}-12-18` },
+  ]
+  const hoy = hoyLima()
+  return tramos.map((t) => ({
+    numero: t.numero,
+    id_periodo_academico: 4 + t.numero,
+    nombre: `PA${t.numero}`,
+    fecha_inicio: t.inicio,
+    fecha_fin: t.fin,
+    estado: estadoDelTramo(hoy, t),
+  }))
+}
+
+/** La letra con la que entra cada grado en PA1 (1.o aa, 2.o C, 3.o F...). */
+const LETRA_POR_GRADO = { 1: 'aa', 2: 'C', 3: 'F', 4: 'J', 5: 'M', 6: 'Q' }
+
+const nivelPorLetra = (letra) => {
+  const n = db.NIVELES_RAZKIDS.find((x) => x.letra === letra)
+  return n ? { id: n.id_nivel_razkids, letra: n.letra } : null
+}
+
+const nivelPorId = (id) => {
+  const n = db.NIVELES_RAZKIDS.find((x) => x.id_nivel_razkids === Number(id))
+  return n ? { id: n.id_nivel_razkids, letra: n.letra } : null
+}
+
+/**
+ * La ENTRADA de un periodo.
+ *
+ * PA1 entra por la letra del grado. PA2 a PA4 entran por el nivel COLOCADO del
+ * periodo anterior, y si ese no existe todavia la entrada queda PENDIENTE: no
+ * se cae a la letra del grado, porque daria por buena una entrada inventada y
+ * arrastraria el error a todos los periodos siguientes.
+ */
+function entradaDe(alumno, numero, periodos) {
+  if (numero === 1) {
+    return {
+      nivel: nivelPorLetra(LETRA_POR_GRADO[alumno.id_grado] ?? 'aa'),
+      origen: 'grado',
+      texto: 'Nivel inicial segun el grado del alumno.',
+    }
+  }
+  const anterior = periodos.find((p) => p.numero === numero - 1)
+  const decision = DECISIONES_MOCK[claveDeDecision(alumno.id_alumno, anterior?.id_periodo_academico)]
+  if (!decision?.id_nivel_colocado) {
+    return { nivel: null, origen: 'pendiente_periodo_anterior', texto: 'Pendiente del periodo anterior' }
+  }
+  return {
+    nivel: nivelPorId(decision.id_nivel_colocado),
+    origen: 'periodo_anterior',
+    texto: 'Proviene del nivel colocado en el periodo anterior.',
+  }
+}
+
+/** El nivel del programa segun el grado y el nivel colocado. */
+function nivelDePrograma(alumno, idNivelColocado) {
+  if (!idNivelColocado) return null
+  const colocado = db.NIVELES_RAZKIDS.find((n) => n.id_nivel_razkids === Number(idNivelColocado))
+  const esperado = db.NIVELES_RAZKIDS.find((n) => n.letra === (LETRA_POR_GRADO[alumno.id_grado] ?? 'aa'))
+  const diferencia = (colocado?.orden ?? 0) - (esperado?.orden ?? 0)
+  if (diferencia < 0) return 'Inicio'
+  if (diferencia < 3) return 'En proceso'
+  if (diferencia < 6) return 'Logrado'
+  return 'Avanzado'
+}
+
+/**
+ * La SUGERENCIA del motor, sobre la ultima rubrica completa del alumno.
+ *
+ * Sin rubrica completa o sin entrada no hay sugerencia: "Pendiente de
+ * evaluar". Inventar una sobre datos incompletos seria peor que no darla,
+ * porque el docente la leeria como una recomendacion fundada.
+ */
+function sugerenciaDe(alumno, entrada) {
+  const rubricas = Object.entries(RUBRICAS_MOCK)
+    .filter(([clave]) => clave.startsWith(`${alumno.id_alumno}|`))
+    .map(([clave, valor]) => ({ mes: Number(clave.split('|')[1]), ...valor }))
+    .filter((r) => r.fluidez != null && r.comprension != null)
+    .sort((a, b) => b.mes - a.mes)
+
+  const ultima = rubricas[0]
+  if (!ultima || !entrada.nivel) {
+    return { accion: null, nivel: null, texto: 'Pendiente de evaluar', resultado_decimas: null, excepcion: null, rubrica: null }
+  }
+
+  const decimas = 4 * ultima.fluidez + 6 * ultima.comprension
+  const accion = accionDeRubrica(decimas)
+  const salto = { subir: 1, mantener: 0, bajar: -1 }[accion]
+
+  // Las excepciones de los extremos: por debajo de aa y por encima de Z no hay
+  // nada, asi que la sugerencia se queda donde esta y lo dice.
+  const orden = db.NIVELES_RAZKIDS.find((n) => n.id_nivel_razkids === entrada.nivel.id)?.orden ?? 1
+  const destino = orden + salto
+  const fuera = destino < 1 || destino > db.NIVELES_RAZKIDS.length
+  const nivel = fuera ? entrada.nivel : nivelPorId(db.NIVELES_RAZKIDS.find((n) => n.orden === destino)?.id_nivel_razkids)
+
+  return {
+    accion: fuera ? 'mantener' : accion,
+    nivel,
+    texto: fuera ? 'Mantener nivel' : { subir: 'Subir nivel', mantener: 'Mantener nivel', bajar: 'Bajar nivel' }[accion],
+    resultado_decimas: decimas,
+    excepcion: excepcionDeExtremo(fuera, destino),
+    rubrica: {
+      id: ultima.id,
+      mes: `${db.ANIO_LECTIVO}-${String(ultima.mes).padStart(2, '0')}`,
+      fluidez: NOMBRES_RUBRICA[ultima.fluidez],
+      comprension: NOMBRES_RUBRICA[ultima.comprension],
+      resultado_decimas: decimas,
+    },
+  }
+}
+
+const NOMBRES_RUBRICA = ['Pre-inicio', 'Inicio', 'En proceso', 'Logrado', 'Avanzado']
+
+/** El periodo de un alumno, ya resuelto: lo calculado y lo decidido. */
+function periodoDeAlumno(alumno, periodo, periodos) {
+  const decision = DECISIONES_MOCK[claveDeDecision(alumno.id_alumno, periodo.id_periodo_academico)]
+  const entrada = entradaDe(alumno, periodo.numero, periodos)
+  const colocado = decision?.id_nivel_colocado ? nivelPorId(decision.id_nivel_colocado) : null
+
+  // Si ya hay decision y la entrada de hoy no es la que habia al decidir,
+  // alguien corrigio el PA anterior. Se avisa en vez de recalcular: la
+  // decision del docente no se toca sola.
+  const cambio = Boolean(colocado && decision.id_nivel_entrada && decision.id_nivel_entrada !== (entrada.nivel?.id ?? null))
+
+  return {
+    numero: periodo.numero,
+    id_periodo_academico: periodo.id_periodo_academico,
+    id_registro: decision?.id ?? null,
+    version: decision?.version ?? null,
+    entrada,
+    sugerencia: sugerenciaDe(alumno, entrada),
+    nivel_colocado: colocado,
+    nivel_programa: nivelDePrograma(alumno, decision?.id_nivel_colocado),
+    proyeccion: decision?.id_nivel_proyeccion ? nivelPorId(decision.id_nivel_proyeccion) : null,
+    observacion: decision?.observacion ?? null,
+    aviso_entrada_cambio: cambio,
+    aviso: cambio
+      ? 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
+      : null,
+    // Lo que falta es el NIVEL COLOCADO: la proyeccion y la observacion son
+    // opcionales, asi que no dejan el periodo incompleto.
+    incompleto: !colocado,
+  }
+}
+
+// ── Rubrica mensual (CU029, CU030) ──────────────────────────────────────────
+//
+// UNA evaluacion por alumno y mes. Los codigos son numeros y el 0 ES UN VALOR
+// ("Pre-inicio"): `null` significa "sin evaluar", y confundirlos haria que un
+// alumno sin evaluar apareciera como el peor de la clase.
+const RUBRICAS_MOCK = {}
+let ultimoIdRubrica = 500
+const siguienteIdRubrica = () => ++ultimoIdRubrica
+
+const claveDeRubrica = (idAlumno, mes, idAnioEscolar) => `${idAlumno}|${mes}|${idAnioEscolar}`
+
+/**
+ * Lo que admite cada dimension, por subprograma.
+ *
+ * Alfabetizacion acepta 0 en Fluidez —hay alumnos que todavia no reconocen las
+ * letras— y Comprension empieza en 1 en los dos, porque quien ya esta en el
+ * subprograma lee algo por definicion.
+ */
+const ESCALA_MOCK = {
+  Alfabetizacion: { fluidez: [0, 1, 2, 3, 4], comprension: [1, 2, 3, 4] },
+  'Comprension Lectora': { fluidez: [1, 2, 3, 4], comprension: [1, 2, 3, 4] },
+}
+
+const sinTildesSimple = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+const escalaDeProgramaMock = (nombre) =>
+  ESCALA_MOCK[sinTildesSimple(nombre)] ?? { fluidez: [0, 1, 2, 3, 4], comprension: [1, 2, 3, 4] }
+
+/** El item del GET: estado y resultado SE CALCULAN, no se guardan. */
+function itemDeRubrica(alumno, guardada) {
+  const f = guardada?.fluidez ?? null
+  const c = guardada?.comprension ?? null
+  const puestas = [f, c].filter((v) => v != null).length
+
+  return {
+    id_alumno: alumno.id_alumno,
+    nombre: `${alumno.apellidos}, ${alumno.nombres}`,
+    inactivo: alumno.activo === false,
+    id_rubrica: guardada?.id ?? null,
+    fluidez: f,
+    comprension: c,
+    // Una sola dimension es `incompleta` y SE PUEDE GUARDAR: el docente no
+    // tiene por que evaluar las dos cosas en la misma sentada.
+    estado: ['pendiente', 'incompleta', 'completada'][puestas],
+    // En DECIMAS: 4F + 6C, o sea F x 0,40 + C x 0,60. 26 es 2,6.
+    resultado_decimas: puestas === 2 ? 4 * f + 6 * c : null,
+    version: guardada?.version ?? null,
+  }
+}
+
+/** La tabla con sus filas ya armadas, que es como la devuelve el servidor. */
+function conFilas(tabla) {
+  const clase = CLASES_MOCK[tabla.clave_clase]
+  const filas = (clase?.lista ?? [])
+    .filter((a) => Number(a.id_programa) === Number(tabla.id_programa))
+    .map((a) => filaDe(tabla, a.id_alumno))
+    .filter(Boolean)
+
+  return {
+    id: tabla.id,
+    version: tabla.version,
+    estado: tabla.estado,
+    motivo_no_realizada: tabla.motivo_no_realizada,
+    id_colegio: tabla.id_colegio,
+    id_grado: tabla.id_grado,
+    id_seccion: tabla.id_seccion,
+    id_programa: tabla.id_programa,
+    id_anio_escolar: tabla.id_anio_escolar,
+    mes: tabla.mes,
+    id_semana: tabla.id_semana,
+    clase_referencia: {
+      id_clase: clase?.id_clase ?? null,
+      fecha: tabla.clave_clase.split('|').at(-1),
+      tipo: clase?.tipo ?? 'habitual',
+      reprogramada: false,
+    },
+    filas,
+    escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+  }
+}
+
+let ultimoIdClase = 10
+const siguienteIdClase = () => (ultimoIdClase += 1)
+
 
 /** Hoy en Lima, que es la zona en la que se cuentan los días lectivos. */
 const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
@@ -399,9 +905,11 @@ export const handlers = {
      * que no es lo mismo que que todos asistieran.
      */
     ausentes: async () => {
-      const ids = Object.values(ASISTENCIAS)
-        .filter((m) => m.estado === 'ausente')
-        .map((m) => m.id_alumno)
+      const ids = Object.values(CLASES_MOCK).flatMap((clase) =>
+        Object.entries(clase.marcas)
+          .filter(([, marca]) => marca.estado === 'ausente')
+          .map(([idAlumno]) => Number(idAlumno)),
+      )
       return responder([...new Set(ids)])
     },
   },
@@ -426,6 +934,11 @@ export const handlers = {
         docentes_con_actividad_activa: 1,
         registros_vencidos: 3,
         registros_incompletos: 1,
+        // El desglose de la tanda 10. Suma lo mismo que el total: si no
+        // cuadrara, la pantalla ensenaria dos verdades distintas del mismo
+        // dato y nadie sabria cual creer.
+        vencidos_por_modulo: { asistencias: 1, lectura: 0, rubrica: 2, registro_vuelo: 0 },
+        incompletos_por_modulo: { asistencias: 1, lectura: 0, rubrica: 0, registro_vuelo: 0 },
         // Los umbrales (3 días, 4 días hábiles) los decide el servidor: las
         // alertas llegan ya redactadas para no codificar reglas de negocio en
         // la interfaz.
@@ -459,6 +972,15 @@ export const handlers = {
       return responder({
         actividad_activa: null,
         puede_iniciar_actividad: asignaciones.length > 0,
+        motivo_no_puede_iniciar: asignaciones.length > 0 ? null : 'sin_asignaciones',
+        // El texto lo redacta el servidor (T4): depende del calendario de cada
+        // colegio y de los permisos, que el cliente no puede deducir.
+        motivo_no_puede:
+          asignaciones.length > 0
+            ? null
+            : 'No puedes iniciar una actividad porque no tienes asignaciones habilitadas ni permisos excepcionales vigentes.',
+        // Vacío a propósito: un permiso es la excepción, no el caso corriente.
+        permisos_vigentes: [],
         sesion_expira: null,
         asignaciones: idsColegio.map((id) => ({
           colegio: { id, nombre: db.COLEGIOS.find((c) => c.id_colegio === id)?.nombre },
@@ -490,93 +1012,959 @@ export const handlers = {
    *   · Unicidad por alumno, fecha y subprograma.
    *   · `aplicado: false` cuando otro dispositivo guardó algo más reciente.
    */
-  asistencia: {
-    /** Las secciones (aulas) que ese colegio y grado tienen de verdad. */
-    secciones: async ({ idColegio, idGrado }) => {
-      const aulas = db
-        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
-        .map((a) => a.aula)
-      return responder([...new Set(aulas)].sort((a, b) => String(a).localeCompare(String(b))))
+  /**
+   * Habilitaciones y calendario (CU027, CU028), con la forma del contrato de
+   * la semana 11.
+   *
+   * El simulador monta un calendario de cuatro PA con sus recesos para el año
+   * lectivo y le da al docente una asignación ordinaria en cada uno de sus
+   * colegios. Sirve para desarrollar las pantallas y, sobre todo, para que las
+   * pruebas puedan ejercitar los bordes: permiso vencido, fecha fuera de
+   * periodo, colegio sin calendario descargado.
+   */
+  habilitaciones: {
+    mias: async () => {
+      const idDocente = 1
+      const idsColegio = [...new Set(db.ASIGNACIONES.filter((a) => a.id_docente === idDocente).map((a) => a.id_colegio))]
+
+      return responder({
+        generado_en: new Date().toISOString(),
+        asignaciones: idsColegio.flatMap((idColegio) =>
+          db.GRADOS.flatMap((g) =>
+            CALENDARIO_MOCK.periodos
+              .filter((p) => p.tipo === 'PA')
+              .map((p) => ({
+                id_colegio: idColegio,
+                id_grado: g.id_grado,
+                id_periodo_academico: p.id_periodo_academico,
+                // La retroactiva la otorga el Supervisor caso por caso: el
+                // simulador no la inventa, para que se vea la diferencia.
+                retroactiva: false,
+              })),
+          ),
+        ),
+        permisos: [],
+        calendarios: idsColegio.map((idColegio) => ({ ...CALENDARIO_MOCK, id_colegio: idColegio })),
+      })
     },
 
-    clase: async ({ idColegio, idGrado, idPrograma, fecha }) => {
-      if (!esDiaLectivo(fecha)) {
+    periodo: async ({ idColegio, fecha }) => {
+      const periodo = CALENDARIO_MOCK.periodos.find((p) => fecha >= p.fecha_inicio && fecha <= p.fecha_fin)
+      if (!periodo) {
+        return responder({
+          fecha,
+          tipo: null,
+          numero: null,
+          id_periodo_academico: null,
+          es_lectivo: false,
+          motivo_no_lectivo: 'fuera_de_periodo',
+        })
+      }
+      const noLectivo = CALENDARIO_MOCK.dias_no_lectivos.find((d) => fecha >= d.fecha_inicio && fecha <= d.fecha_fin)
+      const finDeSemana = [0, 6].includes(new Date(`${fecha}T12:00:00`).getDay())
+      const motivoFinDeSemana = finDeSemana ? 'fin_de_semana' : null
+      return responder({
+        fecha,
+        id_colegio: Number(idColegio),
+        tipo: periodo.tipo,
+        numero: periodo.numero,
+        id_periodo_academico: periodo.id_periodo_academico,
+        fecha_inicio: periodo.fecha_inicio,
+        fecha_fin: periodo.fecha_fin,
+        es_lectivo: periodo.tipo === 'PA' && !noLectivo && !finDeSemana,
+        motivo_no_lectivo: periodo.tipo === 'PR'
+          ? 'receso'
+          : (noLectivo?.motivo ?? motivoFinDeSemana),
+      })
+    },
+  },
+
+  /**
+   * Permisos excepcionales de corrección (CU028).
+   *
+   * Viven en memoria, como las asistencias: lo que importa del simulador aquí
+   * no son los datos sino los ESTADOS, que se calculan con la hora —programado,
+   * vigente, vencido, revocado— y son lo que la pantalla ramifica.
+   */
+  /**
+   * `GET /anios-escolares`.
+   *
+   * Tres años: el anterior, el vigente y el siguiente. El vigente va marcado,
+   * que es lo que usan los formularios para proponerlo por defecto. No se
+   * inventan más: un año escolar lo crea el Supervisor, no el simulador.
+   */
+  anios: async () =>
+    responder([
+      { id: 1, nombre: String(db.ANIO_LECTIVO - 1), vigente: false },
+      { id: 2, nombre: String(db.ANIO_LECTIVO), vigente: true },
+      { id: 3, nombre: String(db.ANIO_LECTIVO + 1), vigente: false },
+    ]),
+
+  /**
+   * Calendario académico (CU027).
+   *
+   * Guarda los calendarios por (año, colegio) en memoria. Lo que importa
+   * reproducir no son las fechas sino las REGLAS que la pantalla ramifica: el
+   * general frente al particular, la versión para detectar ediciones
+   * simultáneas, y el 404 cuando el año todavía no tiene calendario —que no es
+   * un error, es el estado "hay que crearlo"—.
+   */
+  calendarios: {
+    obtener: async ({ idAnioEscolar, idColegio } = {}) => {
+      const anio = Number(idAnioEscolar ?? 2)
+      const particular = idColegio ? CALENDARIOS_MOCK[`${anio}|${idColegio}`] : null
+      const general = CALENDARIOS_MOCK[`${anio}|general`]
+      const elegido = particular ?? general
+      if (!elegido) {
         throw errorMock(
-          422,
-          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
-          'fecha_no_lectiva',
+          404,
+          'No hay un calendario académico configurado para este año escolar.',
+          'calendario_no_configurado',
         )
       }
+      const colegio = idColegio ? db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio)) : null
+      return responder({
+        ...elegido,
+        colegio: colegio ? { id: colegio.id_colegio, nombre: colegio.nombre } : null,
+        periodo_actual:
+          elegido.periodos.find((p) => {
+            const hoy = hoyLima()
+            return hoy >= p.fecha_inicio && hoy <= p.fecha_fin
+          }) ?? null,
+        fecha_referencia: hoyLima(),
+      })
+    },
 
-      const marcas = Object.values(ASISTENCIAS).filter(
-        (m) => m.fecha === fecha && String(m.id_programa) === String(idPrograma),
+    crearGeneral: async ({ id_anio_escolar: idAnio, periodos, dias_no_lectivos: dias }) => {
+      const anio = Number(idAnio)
+      if (CALENDARIOS_MOCK[`${anio}|general`]) {
+        throw errorMock(409, 'Ya existe un calendario general para este año escolar.', 'calendario_existente')
+      }
+      CALENDARIOS_MOCK[`${anio}|general`] = {
+        id_calendario: siguienteIdCalendario(),
+        id_anio_escolar: anio,
+        origen: 'general',
+        version: 1,
+        periodos: conIdDePeriodo(periodos),
+        dias_no_lectivos: dias ?? [],
+      }
+      return responder(CALENDARIOS_MOCK[`${anio}|general`], RETARDO_ESCRITURA_MS)
+    },
+
+    crearParticular: async ({ id_colegio: idColegio, id_anio_escolar: idAnio, periodos, dias_no_lectivos: dias }) => {
+      const anio = Number(idAnio)
+      if (!CALENDARIOS_MOCK[`${anio}|general`]) {
+        throw errorMock(
+          409,
+          'Primero debes configurar el calendario general para poder definir fechas particulares de este colegio.',
+          'calendario_general_requerido',
+        )
+      }
+      const clave = `${anio}|${idColegio}`
+      if (CALENDARIOS_MOCK[clave]) {
+        throw errorMock(
+          409,
+          'El colegio ya tiene un calendario con fechas particulares para este año escolar.',
+          'calendario_particular_existente',
+        )
+      }
+      CALENDARIOS_MOCK[clave] = {
+        id_calendario: siguienteIdCalendario(),
+        id_anio_escolar: anio,
+        id_colegio: Number(idColegio),
+        origen: 'particular',
+        version: 1,
+        periodos: conIdDePeriodo(periodos),
+        // Omitirlos copia los del general; mandarlos, aunque sea vacío, manda.
+        dias_no_lectivos: dias ?? CALENDARIOS_MOCK[`${anio}|general`].dias_no_lectivos,
+      }
+      return responder(CALENDARIOS_MOCK[clave], RETARDO_ESCRITURA_MS)
+    },
+
+    actualizar: async (idCalendario, { version, periodos, dias_no_lectivos: dias }) => {
+      const clave = Object.keys(CALENDARIOS_MOCK).find(
+        (k) => String(CALENDARIOS_MOCK[k].id_calendario) === String(idCalendario),
       )
-      const conRegistro = new Set(marcas.map((m) => m.id_alumno))
+      if (!clave) throw errorMock(404, 'El calendario no existe.', 'calendario_no_encontrado')
 
-      const alumnos = db
-        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado), programa: Number(idPrograma) })
-        // Los activos siempre. Los inactivos SOLO si ya constan en esa fecha:
-        // CU022 pide no perderlos de vista al consultar un día pasado.
-        .filter((a) => a.activo || conRegistro.has(a.id_alumno))
-        .map((a) => {
-          const marca = ASISTENCIAS[claveMarca(a.id_alumno, fecha, idPrograma)]
-          return {
-            id_alumno: a.id_alumno,
-            nombres: a.nombres,
-            apellidos: a.apellidos,
-            activo: a.activo,
-            // `en_aula: false` = tuvo registro aquí pero hoy está en otra aula.
-            en_aula: true,
-            // `null` es "sin marcar", que no es lo mismo que ausente.
-            estado: marca?.estado ?? null,
-            observacion: marca?.observacion ?? null,
-          }
-        })
-        .sort((a, b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`))
+      const actual = CALENDARIOS_MOCK[clave]
+      if (version != null && Number(version) !== actual.version) {
+        throw errorMock(
+          409,
+          'El calendario fue modificado por otro Supervisor. Consulta la versión actual antes de volver a guardar.',
+          'modificacion_concurrente',
+        )
+      }
+      CALENDARIOS_MOCK[clave] = {
+        ...actual,
+        version: actual.version + 1,
+        periodos: conIdDePeriodo(periodos),
+        dias_no_lectivos: dias ?? [],
+      }
+      return responder(CALENDARIOS_MOCK[clave], RETARDO_ESCRITURA_MS)
+    },
 
-      return responder({ fecha, editable: fecha <= hoyLima(), alumnos })
+    usarGeneral: async (idCalendario) => {
+      const clave = Object.keys(CALENDARIOS_MOCK).find(
+        (k) => String(CALENDARIOS_MOCK[k].id_calendario) === String(idCalendario),
+      )
+      if (!clave) throw errorMock(404, 'El calendario no existe.', 'calendario_no_encontrado')
+      if (CALENDARIOS_MOCK[clave].origen === 'general') {
+        throw errorMock(409, 'El calendario general no se puede desactivar.', 'calendario_es_general')
+      }
+      const anio = CALENDARIOS_MOCK[clave].id_anio_escolar
+      delete CALENDARIOS_MOCK[clave]
+      return responder(CALENDARIOS_MOCK[`${anio}|general`], RETARDO_ESCRITURA_MS)
+    },
+  },
+
+  /**
+   * Sincronización (T5). El simulador acepta el aviso y no sabe de ninguna
+   * operación previa: devuelve `desconocida`, que es lo honesto —no la ha
+   * visto— y lo que hace que la cola reintente.
+   */
+  sincronizacion: {
+    pendientes: async (operaciones = []) =>
+      responder({ recibidos: operaciones.length, registrados: operaciones.length }),
+    operacion: async (idOperacion) => responder({ id_operacion: idOperacion, estado: 'desconocida' }),
+    descartar: async () => responder({ estado: 'descartada', motivo: 'modificacion_concurrente', respuesta: null }),
+  },
+
+  permisos: {
+    listar: async (idUsuario, filtros = {}) => {
+      const mios = Object.values(PERMISOS_MOCK)
+        .filter((p) => String(p.id_usuario) === String(idUsuario))
+        .map(conEstado)
+        .filter((p) => !filtros.modulo || p.modulo === filtros.modulo)
+        .filter((p) => !filtros.estado || p.estado === filtros.estado)
+        .filter((p) => !filtros.id_colegio || String(p.colegio.id) === String(filtros.id_colegio))
+        // Del más recientemente otorgado al más antiguo.
+        .sort((a, b) => String(b.otorgado_en).localeCompare(String(a.otorgado_en)))
+      return responder({ items: mios, total: mios.length, page: 1, page_size: 40, total_pages: 1 })
+    },
+
+    detalle: async (idUsuario, idPermiso) => {
+      const permiso = PERMISOS_MOCK[idPermiso]
+      if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')
+      return responder(conEstado(permiso))
+    },
+
+    otorgar: async (idUsuario, datos) => {
+      const id = Math.max(0, ...Object.keys(PERMISOS_MOCK).map(Number)) + 1
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(datos.id_colegio))
+      const grado = db.GRADOS.find((g) => g.id_grado === Number(datos.id_grado))
+      PERMISOS_MOCK[id] = {
+        id,
+        id_usuario: Number(idUsuario),
+        anio_escolar: { id: Number(datos.id_anio_escolar), nombre: String(db.ANIO_LECTIVO) },
+        colegio: { id: colegio?.id_colegio ?? Number(datos.id_colegio), nombre: colegio?.nombre ?? '—' },
+        grado: { id: grado?.id_grado ?? Number(datos.id_grado), nombre: grado?.nombre ?? '—' },
+        periodo: { id: Number(datos.id_periodo_academico), nombre: `PA${datos.id_periodo_academico}` },
+        modulo: datos.modulo,
+        inicio: datos.desde_ahora ? new Date().toISOString() : datos.inicio,
+        fin: datos.fin,
+        motivo: datos.motivo,
+        otorgado_en: new Date().toISOString(),
+        otorgado_por: { id: 2, nombre: 'Jefa de Prueba' },
+        revocado_por: null,
+        revocado_en: null,
+        motivo_revocacion: null,
+      }
+      return responder(conEstado(PERMISOS_MOCK[id]), RETARDO_ESCRITURA_MS)
+    },
+
+    revocar: async (idUsuario, idPermiso, motivo) => {
+      const permiso = PERMISOS_MOCK[idPermiso]
+      if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')
+      if (permiso.revocado_en) {
+        throw errorMock(409, 'El permiso ya fue revocado. Se actualizó su información.', 'permiso_revocado')
+      }
+      if (conEstado(permiso).estado === 'vencido') {
+        throw errorMock(409, 'El permiso ya venció y no requiere revocación.', 'permiso_vencido')
+      }
+      permiso.revocado_en = new Date().toISOString()
+      permiso.revocado_por = { id: 2, nombre: 'Jefa de Prueba' }
+      permiso.motivo_revocacion = motivo
+      return responder(conEstado(permiso), RETARDO_ESCRITURA_MS)
     },
 
     /**
-     * `PUT /asistencias` — uno o varios registros de la misma fecha.
-     *
-     * Un campo omitido NO se cambia: así la observación no borra el estado ni
-     * al revés. `estado: null` se rechaza, porque una marca puesta no se puede
-     * quitar, solo cambiar.
+     * Los PA cuyo plazo ordinario YA terminó, que son los únicos que admiten
+     * un permiso. El simulador ofrece los anteriores al actual.
      */
-    guardar: async ({ fecha, registros = [], fecha_registro: fechaRegistro }) => {
-      if (!esDiaLectivo(fecha) || fecha > hoyLima()) {
+    opciones: async ({ idColegio }) => {
+      const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
+      return responder({
+        periodos: CALENDARIO_MOCK.periodos
+          .filter((p) => p.tipo === 'PA' && p.numero < 3)
+          .map((p) => ({ id: p.id_periodo_academico, nombre: `PA${p.numero}` })),
+        grados: db.GRADOS.map((g) => ({ id: g.id_grado, nombre: g.nombre })),
+        colegio: colegio ? { id: colegio.id_colegio, nombre: colegio.nombre } : null,
+      })
+    },
+  },
+
+  /**
+   * Asistencias (CU022), con la forma de la tanda 6.
+   *
+   * Reproduce las reglas que la pantalla ramifica, que son las que importan:
+   *
+   *   · La clase es colegio x grado x seccion x fecha. El subprograma NO entra:
+   *     una clase reune a los de ambos y cada alumno trae el suyo.
+   *   · La primera escritura CREA la clase y CONGELA su lista de alumnos. A
+   *     partir de ahi, quien entro sigue en la tabla aunque cambie de aula o
+   *     lo den de baja.
+   *   · `escritura` sustituye a `editable`, y dice por que no se puede.
+   *   · Gana la captura mas reciente, pero el item vuelve ACEPTADA con
+   *     `motivo: "registro_mas_reciente"`: la operacion se proceso, solo que
+   *     gano la otra.
+   */
+  asistencia: {
+    clase: async ({ idColegio, idGrado, idSeccion, fecha }) => {
+      const clave = claveDeClase(idColegio, idGrado, idSeccion, fecha)
+      const guardada = CLASES_MOCK[clave]
+
+      // La fecha se rechaza con un 422, no dentro de `escritura`: eso es lo
+      // que hace el servidor, y la pantalla lo ramifica por ahi.
+      const lectiva = esDiaLectivo(fecha)
+      if (fecha > hoyLima()) {
+        throw errorMock(422, 'No se pueden registrar asistencias para fechas futuras.', 'fecha_futura')
+      }
+      if (!lectiva) {
         throw errorMock(
           422,
-          'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.',
+          'Dia no lectivo: fin de semana o feriado. No se permite registrar asistencias para esta fecha.',
           'fecha_no_lectiva',
         )
       }
 
-      const momento = fechaRegistro ?? new Date().toISOString()
-      const guardados = registros.map((registro) => {
-        const clave = claveMarca(registro.id_alumno, fecha, registro.id_programa ?? ASISTENCIA_PROGRAMA)
-        const anterior = ASISTENCIAS[clave]
-        // "Prevalecerá la modificación con la marca de tiempo más reciente": si
-        // otro dispositivo escribió después, la suya se conserva y se avisa.
-        if (anterior && anterior.actualizado > momento) {
-          return { id_alumno: registro.id_alumno, aplicado: false, estado: anterior.estado, observacion: anterior.observacion }
+      // La lista CONGELADA si la clase ya existe; si no, quienes pertenecen hoy.
+      const alumnos = (
+        guardada?.lista ?? db.alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+      ).map((a) => {
+        const marca = guardada?.marcas?.[a.id_alumno]
+        return {
+          id_alumno: a.id_alumno,
+          nombre: `${a.apellidos}, ${a.nombres}`,
+          id_programa: a.id_programa,
+          inactivo: a.activo === false,
+          estado: marca?.estado ?? null,
+          observacion: marca?.observacion ?? null,
+          version: marca?.version ?? null,
         }
-        const marca = {
-          id_alumno: registro.id_alumno,
-          fecha,
-          id_programa: registro.id_programa ?? ASISTENCIA_PROGRAMA,
-          estado: registro.estado ?? anterior?.estado ?? null,
-          observacion: 'observacion' in registro ? registro.observacion : (anterior?.observacion ?? null),
-          actualizado: momento,
-        }
-        ASISTENCIAS[clave] = marca
-        return { id_alumno: marca.id_alumno, aplicado: true, estado: marca.estado, observacion: marca.observacion }
       })
 
-      return responder({ fecha, registros: guardados }, RETARDO_ESCRITURA_MS)
+      return responder({
+        clase: guardada
+          ? {
+              id_clase: guardada.id_clase,
+              tipo: guardada.tipo,
+              etiqueta: guardada.tipo === 'adicional' ? 'Clase adicional' : CLASE_PROGRAMADA,
+              fecha_original: fecha,
+              fecha,
+              aviso: null,
+            }
+          : {
+              id_clase: null,
+              tipo: lectiva ? 'habitual' : null,
+              etiqueta: lectiva ? CLASE_PROGRAMADA : null,
+              fecha_original: fecha,
+              fecha,
+              aviso: lectiva ? null : 'No hay una clase programada para esta fecha.',
+            },
+        alumnos,
+        // `escritura` ya solo habla de QUIEN escribe, no de la fecha.
+        escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+      })
+    },
+
+    // `idClase` lo acepta el contrato, pero aqui la clase se resuelve siempre
+    // por su clave: el simulador no necesita el atajo.
+    guardar: async ({ idColegio, idGrado, idSeccion, fecha, adicional, registros = [] }) => {
+      const clave = claveDeClase(idColegio, idGrado, idSeccion, fecha)
+      let clase = CLASES_MOCK[clave]
+
+      if (!clase) {
+        if (!esDiaLectivo(fecha) && !adicional) {
+          throw errorMock(
+            422,
+            'No hay una clase programada para esta fecha.',
+            'sin_clase_programada',
+          )
+        }
+        // La primera escritura crea la clase y CONGELA su lista.
+        clase = {
+          id_clase: siguienteIdClase(),
+          tipo: esDiaLectivo(fecha) ? 'habitual' : 'adicional',
+          lista: db.alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) }),
+          marcas: {},
+        }
+        CLASES_MOCK[clave] = clase
+      }
+
+      const resultados = registros.map((r) => {
+        const enLaClase = clase.lista.some((a) => a.id_alumno === r.id_alumno)
+        if (!enLaClase) {
+          return {
+            id_operacion: r.id_operacion,
+            estado: 'rechazada',
+            motivo: 'alumno_fuera_de_la_clase',
+            detail: 'El alumno no pertenece a esta clase.',
+            registro: null,
+          }
+        }
+
+        const previa = clase.marcas[r.id_alumno]
+        const momento = r.realizado_en ?? new Date().toISOString()
+
+        // Gana la captura mas reciente. El item se ACEPTA igual: la operacion
+        // se proceso, solo que no se aplico porque habia algo posterior.
+        if (previa && previa.fecha_registro > momento) {
+          return {
+            id_operacion: r.id_operacion,
+            estado: 'aceptada',
+            motivo: 'registro_mas_reciente',
+            detail: null,
+            registro: { id_clase: clase.id_clase, id_alumno: r.id_alumno, ...previa },
+          }
+        }
+
+        const marca = {
+          estado: r.estado ?? previa?.estado ?? null,
+          observacion: r.observacion !== undefined ? r.observacion : (previa?.observacion ?? null),
+          version: (previa?.version ?? 0) + 1,
+          fecha_registro: momento,
+        }
+        clase.marcas[r.id_alumno] = marca
+        return {
+          id_operacion: r.id_operacion,
+          estado: 'aceptada',
+          motivo: null,
+          detail: null,
+          registro: { id_clase: clase.id_clase, id_alumno: r.id_alumno, ...marca },
+        }
+      })
+
+      return responder(
+        {
+          clase: {
+            id_clase: clase.id_clase,
+            tipo: clase.tipo,
+            etiqueta: clase.tipo === 'adicional' ? 'Clase adicional' : CLASE_PROGRAMADA,
+            fecha_original: fecha,
+            fecha,
+            aviso: null,
+          },
+          resultados,
+        },
+        RETARDO_ESCRITURA_MS,
+      )
     },
   },
+
+  /**
+   * Seguimiento de Lectura (CU023 a CU026), forma de la tanda 7.
+   *
+   * Reproduce lo que de verdad ramifica la pantalla:
+   *
+   *   · La tabla NO EXISTE hasta que alguien la crea. El 404 con
+   *     `tabla_no_existe` es la respuesta normal, no un fallo, y trae la clase
+   *     sugerida para poder crearla.
+   *   · Las filas son la lista de la clase de referencia filtrada por el
+   *     subprograma de la tabla.
+   *   · Sin presente o tardanza no se registran libros, pero la observacion
+   *     si se admite: justificar la falta es justo lo que hace falta ahi.
+   *   · "No realizada" bloquea TAMBIEN las observaciones y pone todas las
+   *     filas en `no_aplica`.
+   */
+  lectura: {
+    tabla: async ({ idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }) => {
+      const clave = claveDeTabla({ idColegio, idPrograma, idGrado, idSeccion, mes, idSemana })
+      const guardada = TABLAS_LECTURA[clave]
+      if (guardada) return responder(conFilas(guardada))
+
+      const semana = db.SEMANAS.find((s) => Number(s.id_semana) === Number(idSemana))
+      if (!semana) throw errorMock(404, 'La semana seleccionada no existe.', 'semana_no_encontrada')
+
+      const error = errorMock(
+        404,
+        'No existe una tabla de lectura semanal para los filtros seleccionados.',
+        'tabla_no_existe',
+      )
+      error.response.data.clase_referencia_sugerida = claseSugeridaDe(semana)
+      error.response.data.escritura = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
+      error.response.data.id_anio_escolar = Number(idAnioEscolar)
+      throw error
+    },
+
+    crear: async (cuerpo) => {
+      const clave = claveDeTabla({
+        idColegio: cuerpo.id_colegio,
+        idPrograma: cuerpo.id_programa,
+        idGrado: cuerpo.id_grado,
+        idSeccion: cuerpo.id_seccion,
+        mes: cuerpo.mes,
+        idSemana: cuerpo.id_semana,
+      })
+      // Idempotente por `id_operacion`: un reintento devuelve LA MISMA tabla.
+      const existente = TABLAS_LECTURA[clave]
+      if (existente) {
+        if (existente.id_operacion === cuerpo.id_operacion) return responder(conFilas(existente))
+        const choque = errorMock(
+          409,
+          'Ya existe una tabla de lectura semanal para los filtros seleccionados.',
+          'tabla_existente',
+        )
+        choque.response.data.id = existente.id
+        throw choque
+      }
+
+      const semana = db.SEMANAS.find((s) => Number(s.id_semana) === Number(cuerpo.id_semana))
+      if (!semana) throw errorMock(404, 'La semana seleccionada no existe.', 'semana_no_encontrada')
+      if (semana.inicio > hoyLima()) {
+        throw errorMock(
+          422,
+          'No es posible adelantar registros. Seleccione la semana actual o una anterior.',
+          'semana_futura',
+        )
+      }
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(cuerpo.id_colegio), grado: Number(cuerpo.id_grado) })
+        .filter((a) => Number(a.id_programa) === Number(cuerpo.id_programa))
+      if (alumnos.length === 0) {
+        throw errorMock(
+          422,
+          'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.',
+          'sin_alumnos',
+        )
+      }
+
+      const porId = cuerpo.id_clase_referencia
+        ? Object.keys(CLASES_MOCK).find((k) => CLASES_MOCK[k].id_clase === Number(cuerpo.id_clase_referencia))
+        : null
+      const fecha =
+        porId?.split('|').at(-1) ?? cuerpo.fecha_clase_referencia ?? claseSugeridaDe(semana)?.fecha ?? semana.inicio
+      // Crear la tabla CONGELA la lista de la clase, y crea la clase si no
+      // tenia fila: es lo que hace el servidor en la misma transaccion.
+      const claveClase = claveDeClase(cuerpo.id_colegio, cuerpo.id_grado, cuerpo.id_seccion, fecha)
+      if (!CLASES_MOCK[claveClase]) {
+        CLASES_MOCK[claveClase] = {
+          id_clase: siguienteIdClase(),
+          tipo: 'habitual',
+          lista: db.alumnosDe({ colegio: Number(cuerpo.id_colegio), grado: Number(cuerpo.id_grado) }),
+          marcas: {},
+        }
+      }
+
+      TABLAS_LECTURA[clave] = {
+        id: siguienteIdTabla(),
+        id_operacion: cuerpo.id_operacion,
+        version: 1,
+        estado: 'normal',
+        motivo_no_realizada: null,
+        id_colegio: Number(cuerpo.id_colegio),
+        id_grado: Number(cuerpo.id_grado),
+        id_seccion: Number(cuerpo.id_seccion),
+        id_programa: Number(cuerpo.id_programa),
+        id_anio_escolar: Number(cuerpo.id_anio_escolar),
+        mes: Number(cuerpo.mes),
+        id_semana: Number(cuerpo.id_semana),
+        clave_clase: claveClase,
+        datos: {},
+      }
+      return responder(conFilas(TABLAS_LECTURA[clave]), RETARDO_ESCRITURA_MS)
+    },
+
+    claseReferencia: async (idTabla, { version, idClase, fecha }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (tabla.estado === 'no_realizada') {
+        throw errorMock(409, 'La lectura semanal de esta tabla fue marcada como no realizada.', 'lectura_no_realizada')
+      }
+      if (Object.values(tabla.datos).some(conDatosDeLectura)) {
+        throw errorMock(
+          409,
+          'No es posible cambiar la clase de referencia porque ya existen registros de lectura guardados para esta tabla.',
+          'tabla_con_datos',
+        )
+      }
+      const nueva = fecha
+        ? claveDeClase(tabla.id_colegio, tabla.id_grado, tabla.id_seccion, fecha)
+        : Object.keys(CLASES_MOCK).find((k) => CLASES_MOCK[k].id_clase === Number(idClase))
+      if (!nueva) {
+        throw errorMock(422, 'La clase seleccionada no es de este grupo o de esta semana.', 'clase_fuera_de_la_semana')
+      }
+      tabla.clave_clase = nueva
+      tabla.version += 1
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+
+    guardarFilas: async (idTabla, filas = []) => {
+      const tabla = porIdDeTabla(idTabla)
+
+      const resultados = filas.map((f) => {
+        const rechazo = rechazoDeItem(f)
+
+        if (tabla.estado === 'no_realizada') {
+          return rechazo('lectura_no_realizada', 'La lectura semanal de esta tabla fue marcada como no realizada.')
+        }
+
+        if (!filaDe(tabla, f.id_alumno)) {
+          return rechazo(
+            'alumno_fuera_de_la_tabla',
+            'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
+          )
+        }
+
+        // Un titulo con SOLO ESPACIOS cuenta como vacio.
+        const titulo = typeof f.lsn_titulo === 'string' ? f.lsn_titulo.trim() || null : f.lsn_titulo
+        const tocaLibros = ['lsn_titulo', 'lsn_nota', 'lsn_maximo', 'cantidad_lsl'].some((c) => c in f)
+
+        // Sin presente o tardanza no hay libros; la observacion si pasa, y
+        // BORRAR tambien: es como se resuelve un `revisar_asistencia`.
+        if (tocaLibros && !soloBorra(f) && !asistioALaReferencia(tabla, f.id_alumno)) {
+          return rechazo(
+            'sin_asistencia',
+            'El estudiante debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
+          )
+        }
+
+        const guardado = tabla.datos[f.id_alumno] ?? {}
+        const nota = 'lsn_nota' in f ? f.lsn_nota : guardado.lsn_nota
+        const maximo = 'lsn_maximo' in f ? f.lsn_maximo : guardado.lsn_maximo
+        const tituloFinal = 'lsn_titulo' in f ? titulo : guardado.lsn_titulo
+        const lsn = rechazoDeLsn(tituloFinal, nota, maximo)
+        if (lsn) return rechazo(...lsn)
+
+        tabla.datos[f.id_alumno] = {
+          ...guardado,
+          ...('lsn_titulo' in f ? { lsn_titulo: titulo } : {}),
+          ...('lsn_nota' in f ? { lsn_nota: f.lsn_nota } : {}),
+          ...('lsn_maximo' in f ? { lsn_maximo: f.lsn_maximo } : {}),
+          ...('cantidad_lsl' in f ? { cantidad_lsl: f.cantidad_lsl } : {}),
+          ...('observacion' in f ? { observacion: f.observacion } : {}),
+          version: (guardado.version ?? 0) + 1,
+        }
+
+        return {
+          id_operacion: f.id_operacion,
+          estado: 'aceptada',
+          motivo: null,
+          detail: null,
+          registro: filaDe(tabla, f.id_alumno),
+        }
+      })
+
+      return responder(resultados, RETARDO_ESCRITURA_MS)
+    },
+
+    noRealizada: async (idTabla, { version, motivo }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (!motivo || !String(motivo).trim()) {
+        throw errorMock(
+          422,
+          'Es obligatorio registrar una justificacion para indicar por que no se realizo la lectura semanal.',
+          'validacion',
+        )
+      }
+      // Las observaciones NO cuentan como datos de lectura.
+      if (Object.values(tabla.datos).some(conDatosDeLectura)) {
+        throw errorMock(
+          409,
+          'No es posible marcar la lectura semanal como no realizada porque ya existen registros de lectura guardados para esta tabla.',
+          'tabla_con_datos',
+        )
+      }
+      tabla.estado = 'no_realizada'
+      tabla.motivo_no_realizada = String(motivo).trim()
+      tabla.version += 1
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+  },
+
+  /**
+   * Rubrica mensual (CU029, CU030), forma de la tanda 8.
+   *
+   * Lo que importa reproducir son las reglas que la pantalla ramifica:
+   *
+   *   · No se evaluan meses FUTUROS: 422 `mes_futuro`, que no es un fallo sino
+   *     un estado —no hay nada que corregir, solo otro mes que elegir—.
+   *   · La escala depende del subprograma, y el 0 solo se admite en Fluidez de
+   *     Alfabetizacion.
+   *   · Una sola dimension se guarda igual, y la fila queda `incompleta`.
+   *   · `version` detecta que otro docente la cambio entre medias.
+   */
+  rubricas: {
+    listar: async ({ idColegio, idPrograma, idGrado, idAnioEscolar, mes, pagina = 1 }) => {
+      const mesActual = Number(hoyLima().slice(5, 7))
+      if (Number(mes) > mesActual) {
+        throw errorMock(422, 'No es posible evaluar meses futuros.', 'mes_futuro')
+      }
+
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .filter((a) => Number(a.id_programa) === Number(idPrograma))
+        // Por apellidos, que es el orden que da el contrato.
+        .sort((a, b) => a.apellidos.localeCompare(b.apellidos, 'es'))
+
+      const porPagina = 40
+      const total = alumnos.length
+      const desde = (Number(pagina) - 1) * porPagina
+      const items = alumnos
+        .slice(desde, desde + porPagina)
+        .map((a) => itemDeRubrica(a, RUBRICAS_MOCK[claveDeRubrica(a.id_alumno, mes, idAnioEscolar)]))
+
+      // El CICLO sale de los dos catalogos: el grado trae `id_ciclo` y el
+      // nombre ("III", "IV", "V") vive en CICLOS. Es el que necesita la
+      // pantalla para pedir los descriptores pedagogicos.
+      const grado = db.GRADOS.find((g) => Number(g.id_grado) === Number(idGrado))
+      const ciclo = db.CICLOS.find((c) => c.id_ciclo === grado?.id_ciclo)
+      return responder({
+        items,
+        total,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(total / porPagina)),
+        ciclo: ciclo?.nombre ?? 'III',
+        id_ciclo: ciclo?.id_ciclo ?? 1,
+        id_periodo_academico: 2,
+        escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+        // Sin alumnos NO es un error: es un 200 que lo dice con palabras.
+        detail: total === 0 ? 'No hay alumnos que corresponda evaluar en este grupo y mes.' : null,
+      })
+    },
+
+    guardar: async (items = []) =>
+      responder(
+        items.map((it) => {
+          const rechazo = rechazoDeItem(it)
+
+          const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
+          if (!alumno) {
+            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el mes seleccionado.')
+          }
+
+          const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(it.id_programa))
+          const escala = escalaDeProgramaMock(programa?.nombre)
+          const clave = claveDeRubrica(it.id_alumno, it.mes, it.id_anio_escolar)
+          const guardada = RUBRICAS_MOCK[clave]
+
+          // La version que se leyo tiene que seguir siendo la vigente. Se
+          // devuelve el registro VIGENTE para poder adoptarlo sin recargar.
+          if (it.version != null && Number(it.version) !== Number(guardada?.version ?? 0)) {
+            return rechazo(
+              'modificacion_concurrente',
+              'Esta evaluacion fue modificada desde que la consultaste. Revisa la version actual antes de guardar nuevamente.',
+              itemDeRubrica(alumno, guardada),
+            )
+          }
+
+          // Una dimension en `null` BORRA; omitida no cambia. Y el 0 es un
+          // valor: comprobar `if (valor)` lo trataria como ausente.
+          for (const dimension of ['fluidez', 'comprension']) {
+            if (!(dimension in it) || it[dimension] == null) continue
+            if (!escala[dimension].includes(Number(it[dimension]))) {
+              return rechazo(
+                'valor_no_permitido',
+                'Selecciona una valoracion permitida para esta dimension.',
+                { campo: dimension },
+              )
+            }
+          }
+
+          RUBRICAS_MOCK[clave] = {
+            id: guardada?.id ?? siguienteIdRubrica(),
+            fluidez: 'fluidez' in it ? it.fluidez : (guardada?.fluidez ?? null),
+            comprension: 'comprension' in it ? it.comprension : (guardada?.comprension ?? null),
+            version: (guardada?.version ?? 0) + 1,
+          }
+
+          return {
+            id_operacion: it.id_operacion,
+            estado: 'aceptada',
+            motivo: null,
+            detail: null,
+            registro: itemDeRubrica(alumno, RUBRICAS_MOCK[clave]),
+          }
+        }),
+        RETARDO_ESCRITURA_MS,
+      ),
+
+    /**
+     * Los descriptores pedagogicos. NO se escriben en el codigo (RN-011): son
+     * material de Mision Huascaran y cambian sin que nadie toque el front.
+     * Alfabetizacion no se dicta en los ciclos IV y V, y ahi la lista es vacia.
+     */
+    criterios: async ({ idPrograma, idCiclo }) => {
+      const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(idPrograma))
+      const nombre = sinTildesSimple(programa?.nombre)
+      // `id_ciclo` es el entero del catálogo, como en el backend (no "III").
+      const ciclo = db.CICLOS.find((c) => c.id_ciclo === Number(idCiclo))
+      if (nombre === 'Alfabetizacion' && ['IV', 'V'].includes(ciclo?.nombre)) return responder([])
+
+      const escala = escalaDeProgramaMock(programa?.nombre)
+      const nombres = ['Pre-inicio', 'Inicio', 'En proceso', 'Logrado', 'Avanzado']
+      const descriptores = {
+        0: 'No puede leer porque le cuesta reconocer consonantes y vocales.',
+        1: 'Lee palabras sueltas con apoyo y se detiene con frecuencia.',
+        2: 'Lee oraciones completas, todavia con pausas y repeticiones.',
+        3: 'Lee con fluidez y respeta los signos de puntuacion.',
+        4: 'Lee con fluidez y entonacion, y sostiene el ritmo en textos largos.',
+      }
+
+      return responder(
+        ['Fluidez', 'Comprension'].flatMap((dimension) =>
+          escala[dimension === 'Fluidez' ? 'fluidez' : 'comprension'].map((valor) => ({
+            dimension,
+            valor,
+            nombre: nombres[valor],
+            descriptor: descriptores[valor],
+          })),
+        ),
+      )
+    },
+  },
+
+  /**
+   * Registro de Vuelo (CU031, CU032), forma de la tanda 9.
+   *
+   * Lo que importa reproducir:
+   *
+   *   · El servidor CALCULA entrada, sugerencia y nivel del programa. El
+   *     cliente que los mande se lleva un 422 del lote entero, no un campo
+   *     ignorado: es la unica forma de que el error se vea pronto.
+   *   · `escritura` va una vez POR PERIODO, no por alumno: la habilitacion es
+   *     de cada PA, y tenerla en PA2 no habilita PA3.
+   *   · El nivel colocado no se puede volver a null.
+   */
+  registroVuelo: {
+    listar: async ({ idColegio, idPrograma, idGrado, pagina = 1 }) => {
+      const periodos = periodosDelAnio()
+      const alumnos = db
+        .alumnosDe({ colegio: Number(idColegio), grado: Number(idGrado) })
+        .filter((a) => Number(a.id_programa) === Number(idPrograma))
+        .sort((a, b) => a.apellidos.localeCompare(b.apellidos, 'es'))
+
+      const porPagina = 40
+      const desde = (Number(pagina) - 1) * porPagina
+      const items = alumnos.slice(desde, desde + porPagina).map((a) => {
+        const suyos = periodos.map((p) => periodoDeAlumno(a, p, periodos))
+        return {
+          id_alumno: a.id_alumno,
+          nombre: `${a.apellidos}, ${a.nombres}`,
+          id_programa: a.id_programa,
+          inactivo: a.activo === false,
+          // 25 por cada PA con nivel colocado.
+          avance_anual: suyos.filter((p) => p.nivel_colocado).length * 25,
+          periodos: suyos,
+        }
+      })
+
+      return responder({
+        items,
+        total: alumnos.length,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(alumnos.length / porPagina)),
+        periodos: periodos.map((p) => ({
+          ...p,
+          escritura:
+            p.estado === 'futuro'
+              ? {
+                  permitida: false,
+                  motivo: 'No se puede registrar un periodo academico que todavia no empieza.',
+                  id_permiso: null,
+                  aviso_permiso: null,
+                }
+              : { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
+        })),
+        aviso: alumnos.length === 0 ? 'No hay alumnos que correspondan a este grupo en el ano seleccionado.' : null,
+      })
+    },
+
+    guardar: async (items = []) => {
+      const periodos = periodosDelAnio()
+
+      // Un campo calculado en el cuerpo tira el LOTE COMPLETO, no solo su item.
+      const PROHIBIDOS = new Set(['entrada', 'sugerencia', 'nivel_programa', 'nivel_colocado', 'proyeccion', 'avance_anual'])
+      const intruso = items.flatMap((it) => Object.keys(it)).find((c) => PROHIBIDOS.has(c))
+      if (intruso) {
+        const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
+        error.response.data.errores = [{ campo: intruso, mensaje: 'Este campo lo calcula el servidor.' }]
+        throw error
+      }
+
+      return responder(
+        items.map((it) => {
+          const rechazo = rechazoDeItem(it)
+
+          const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
+          if (!alumno) {
+            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el periodo seleccionado.')
+          }
+
+          const periodo = periodos.find((p) => p.id_periodo_academico === Number(it.id_periodo_academico))
+          if (!periodo) return rechazo('periodo_inexistente', 'El periodo academico no existe.')
+          if (periodo.estado === 'futuro') {
+            return rechazo('periodo_futuro', 'No se puede registrar un periodo academico que todavia no empieza.')
+          }
+
+          const clave = claveDeDecision(it.id_alumno, periodo.id_periodo_academico)
+          const previa = DECISIONES_MOCK[clave]
+
+          if (it.version != null && Number(it.version) !== Number(previa?.version ?? 0)) {
+            return rechazo(
+              'modificacion_concurrente',
+              'El registro de este alumno y periodo fue modificado desde que lo consultaste. Revisa la version actual antes de guardar nuevamente.',
+              periodoDeAlumno(alumno, periodo, periodos),
+            )
+          }
+
+          // El nivel colocado NO se puede volver a null: la fila del PA
+          // siguiente se construye sobre el.
+          if ('id_nivel_colocado' in it && it.id_nivel_colocado == null && previa?.id_nivel_colocado) {
+            return rechazo(
+              'nivel_colocado_obligatorio',
+              'El nivel colocado ya registrado no se puede quitar; selecciona otro nivel.',
+            )
+          }
+
+          for (const campo of ['id_nivel_colocado', 'id_nivel_proyeccion']) {
+            if (!(campo in it) || it[campo] == null) continue
+            if (!nivelPorId(it[campo])) {
+              return rechazo('nivel_invalido', 'Selecciona un nivel valido entre aa y Z.', { campo })
+            }
+          }
+
+          const entrada = entradaDe(alumno, periodo.numero, periodos)
+          DECISIONES_MOCK[clave] = {
+            id: previa?.id ?? Number(`${it.id_alumno}${periodo.numero}`),
+            id_nivel_colocado:
+              'id_nivel_colocado' in it ? it.id_nivel_colocado : (previa?.id_nivel_colocado ?? null),
+            id_nivel_proyeccion:
+              'id_nivel_proyeccion' in it ? it.id_nivel_proyeccion : (previa?.id_nivel_proyeccion ?? null),
+            observacion: 'observacion' in it ? it.observacion : (previa?.observacion ?? null),
+            // La entrada QUE HABIA AL DECIDIR: con ella se detecta despues que
+            // alguien corrigio el PA anterior.
+            id_nivel_entrada: previa?.id_nivel_entrada ?? entrada.nivel?.id ?? null,
+            version: (previa?.version ?? 0) + 1,
+          }
+
+          return {
+            id_operacion: it.id_operacion,
+            estado: 'aceptada',
+            motivo: null,
+            detail: null,
+            registro: periodoDeAlumno(alumno, periodo, periodos),
+          }
+        }),
+        RETARDO_ESCRITURA_MS,
+      )
+    },
+  },
+
 
   /** Sesiones de ACTIVIDADES (el botón del docente), no las de autenticación. */
   sesiones: {
@@ -644,6 +2032,104 @@ export const handlers = {
     },
 
     actividadesDe: () => responder({ items: [], total: 0, pagina: 1, paginas: 1, por_pagina: 10 }),
+
+    /**
+     * Los registros que una actividad TOCO (CU021, tanda 10).
+     *
+     * Sale de la AUDITORIA de la actividad y no de la fecha: dos actividades
+     * del mismo dia tocaron cosas distintas, y filtrar por fecha mezclaria el
+     * trabajo de una con el de la otra.
+     *
+     * Cada modulo trae su propia unidad, y por eso las columnas que sobran van
+     * en null en vez de omitirse: una fila de rubrica no tiene fecha porque su
+     * unidad es el MES, no porque falte el dato.
+     */
+    registrosDeActividad: async (idDocente, idActividad, { modulo, pagina = 1 } = {}) => {
+      if (!MODULOS_DE_ACTIVIDAD_MOCK.has(modulo)) {
+        const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
+        error.response.data.errores = [{ campo: 'modulo', mensaje: 'El modulo indicado no existe.' }]
+        throw error
+      }
+
+      const colegio = db.COLEGIOS[0]
+      const grado = db.GRADOS[1]
+      const programa = db.PROGRAMAS[1]
+      const alumno = db.ALUMNOS[0]
+      const semana = db.SEMANAS.at(-1)
+
+      const comun = {
+        modulo,
+        colegio: { id: colegio.id_colegio, nombre: colegio.nombre },
+        grado: { id: grado.id_grado, nombre: grado.nombre },
+        seccion: { id: 2, nombre: 'Unica' },
+        programa: null,
+        alumno: null,
+        fecha: null,
+        id_semana: null,
+        semana_inicio: null,
+        mes: null,
+        id_anio_escolar: 2,
+        id_periodo_academico: null,
+        cambios: 1,
+      }
+
+      const porModulo = {
+        // Una fila por CLASE: `cambios` son los alumnos con cambios.
+        asistencias: [{ ...comun, id: 12, fecha: semana.inicio, cambios: 23 }],
+        // Una fila por TABLA SEMANAL.
+        lectura: [
+          {
+            ...comun,
+            id: 7,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            id_semana: semana.id_semana,
+            semana_inicio: semana.inicio,
+            mes: semana.mes,
+            cambios: 5,
+          },
+        ],
+        // Una fila por ALUMNO y MES.
+        rubrica: [
+          {
+            ...comun,
+            id: 12,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            mes: semana.mes,
+            cambios: 2,
+          },
+        ],
+        // Una fila por ALUMNO y PERIODO ACADEMICO.
+        registro_vuelo: [
+          {
+            ...comun,
+            id: 8,
+            programa: { id: programa.id_programa, nombre: programa.nombre },
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            id_periodo_academico: 6,
+            cambios: 1,
+          },
+        ],
+        // Una fila por ALUMNO.
+        alumnos: [
+          {
+            ...comun,
+            id: alumno.id_alumno,
+            alumno: { id: alumno.id_alumno, nombre: `${alumno.apellidos}, ${alumno.nombres}` },
+            cambios: 1,
+          },
+        ],
+      }
+
+      const items = porModulo[modulo] ?? []
+      return responder({
+        items,
+        total: items.length,
+        page: Number(pagina),
+        page_size: 40,
+        total_pages: 1,
+      })
+    },
 
     listar: async ({ todas = false, idDocente, idColegio, fecha } = {}) => {
       const base = [
@@ -787,19 +2273,53 @@ export const handlers = {
     nivelGeneral: () => responder(db.NIVEL_GENERAL),
     esperadoPorGrado: () => responder(db.NIVEL_ESPERADO_POR_GRADO),
     periodos: () => responder(db.PERIODOS),
-    semanas: () => responder(db.SEMANAS),
+    /**
+     * `GET /semanas` — solo las semanas con ALGUNA CLASE del grupo en ese mes.
+     *
+     * Antes devolvia el ano entero. Una semana sin clase no tiene tabla de
+     * lectura ni obligacion de registrarla, asi que ofrecerla en el
+     * desplegable era mandar al docente a una pantalla donde lo unico que
+     * podia encontrarse era un 422.
+     *
+     * DEUDA CONOCIDA, y conviene no perderla de vista: el simulador sigue
+     * mandando `numero`, `inicio`, `fin`, `mes` y `anio` ademas de los campos
+     * del contrato. No es por compatibilidad bonita, es que CUATRO pantallas
+     * anteriores a esta tanda —Nivel final, Consolidados, el detalle del
+     * alumno y el resumen del Inicio— usan esta llamada SIN FILTROS como si
+     * fuera el catalogo de semanas del ano, y de ahi sacan su lista de meses y
+     * "la semana actual". Contra el backend real esa llamada sin los cinco
+     * filtros responde 422, asi que esas cuatro se rompen el dia que se
+     * conecten: necesitan otra fuente para los meses, no esta.
+     */
+    semanas: ({ mes } = {}) =>
+      responder(
+        db.SEMANAS.filter((s) => !mes || Number(s.mes) === Number(mes)).map((s) => ({
+          id: s.id_semana,
+          id_semana: s.id_semana,
+          numero_semana: s.numero,
+          fecha_inicio: s.inicio,
+          fecha_fin: s.fin,
+          cerrada: false,
+          // Lo que esperan las cuatro pantallas de antes de la tanda 7.
+          numero: s.numero,
+          inicio: s.inicio,
+          fin: s.fin,
+          mes: s.mes,
+          anio: s.anio,
+        })),
+      ),
   },
 
   alumnos: {
     listar: (filtros = {}) => responder(db.alumnosDe(filtros).map(fichaDeListado)),
     detalle: (id) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       return responder(fichaDeAlumno(alumno))
     },
     historial: (id) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       return responder(historialDeAlumno(alumno))
     },
   },
@@ -811,7 +2331,7 @@ export const handlers = {
 
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(payload.id_alumno))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
 
       const periodo = db.PERIODOS.find((p) => p.id_periodo === Number(payload.id_periodo))
       if (!periodo) throw errorHttp(422, 'El periodo de evaluación no existe')
@@ -876,7 +2396,7 @@ export const handlers = {
     },
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === payload.id_alumno)
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       const guardada = db.guardarReporteSemanal(normalizarReporte(payload))
       return responder(filaSemanal(alumno, guardada, payload.id_semana), RETARDO_ESCRITURA_MS)
     },
@@ -891,7 +2411,7 @@ export const handlers = {
     },
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === payload.id_alumno)
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       // RN-008: Fluidez y Comprensión viajan siempre juntas.
       if (!payload.id_nivel_fluidez || !payload.id_nivel_comprension) {
         throw errorHttp(422, 'Ambas dimensiones son obligatorias')
@@ -949,6 +2469,25 @@ export const handlers = {
   // ── Fase 7 ──────────────────────────────────────────────────────────────────
 
   administracion: {
+    /**
+     * `GET /colegios/estado-calendario` — el periodo de HOY en cada colegio.
+     *
+     * El simulador pone a uno en receso a propósito: es el único caso en que
+     * el formulario pregunta si la asignación es retroactiva o próxima, y sin
+     * un colegio así no habría forma de verlo.
+     */
+    estadoCalendario: async () =>
+      responder(
+        db.COLEGIOS.map((c, i) => ({
+          id: c.id_colegio,
+          nombre: c.nombre,
+          estado_calendario:
+            i === 1
+              ? { tipo: 'PR', numero: 3, es_pr4: false, fecha_fin: '2026-11-08' }
+              : { tipo: 'PA', numero: 3, es_pr4: false, fecha_fin: '2026-10-31' },
+        })),
+      ),
+
     /** Valores existentes para los desplegables de filtro de colegios. */
     ubicaciones: () =>
       responder({
@@ -997,10 +2536,20 @@ export const handlers = {
       return responder({
         ...colegio,
         id: colegio.id_colegio,
+        /**
+         * Cada grado con su día y sus SECCIONES (T3).
+         *
+         * Una por grado, "Única", que es con lo que nace un grado y el caso
+         * corriente de todos los colegios de hoy. El caso de varias secciones
+         * se ejercita en las pruebas que lo necesitan, montando su propio
+         * detalle: ponerlo aquí obligaría a elegir sección en cada prueba de
+         * Asistencia, que no es de lo que van.
+         */
         grados: db.GRADOS.map((g, i) => ({
           id: g.id_grado,
           nombre: g.nombre,
           dia_clase: i === 0 ? null : ((i % 5) + 1),
+          secciones: [{ id: 100 + g.id_grado, nombre: 'Única' }],
         })),
         programas: db.PROGRAMAS.map((p) => ({ id: p.id_programa, nombre: p.nombre })),
       })
@@ -1013,6 +2562,21 @@ export const handlers = {
      * "J" es "Logrado" en 3.º y apenas "Inicio" en 5.º. El simulador devuelve
      * uno coherente en vez de inventarse la tabla entera.
      */
+    /**
+     * `GET /alumnos/{id}` — el alumno con el inicio de su grupo actual.
+     *
+     * `pertenece_desde` es `null` cuando está inactivo: sin grupo en curso no
+     * hay fecha de inicio que dar.
+     */
+    alumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      return responder({
+        ...alumno,
+        pertenece_desde: alumno.activo ? db.ANIO_ESCOLAR_INICIO ?? '2026-03-02' : null,
+      })
+    },
+
     resumenAlumno: async (idAlumno) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
       if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
@@ -1024,8 +2588,60 @@ export const handlers = {
           ? null
           : { letra: 'J', id_nivel_rk: 10, numero_periodo: 3, nivel_descriptivo: 'Logrado' },
         libros_leidos_anio: sinEvaluar ? 0 : 7,
-        asistencia_porcentaje: sinEvaluar ? 0 : 92.5,
+        asistencia: sinEvaluar
+          ? { porcentaje: null, asistidas: 0, contabilizadas: 0 }
+          : { porcentaje: 92.5, asistidas: 37, contabilizadas: 40 },
       })
+    },
+
+    lecturaAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      if (alumno.id_alumno % 5 === 0) return responder([])
+      return responder([
+        { semana: 23, fecha_inicio: '2026-06-15', fecha_fin: '2026-06-19', mes: 6, id_programa: alumno.id_programa,
+          estado_tabla: 'normal', motivo_no_realizada: null, asistencia: 'presente',
+          lsn_titulo: 'El zorro', lsn_nota: 0, lsn_maximo: 5, cantidad_lsl: 3, total_libros: 4,
+          observacion: null, estado_fila: 'completada' },
+        { semana: 22, fecha_inicio: '2026-06-08', fecha_fin: '2026-06-12', mes: 6, id_programa: alumno.id_programa,
+          estado_tabla: 'no_realizada', motivo_no_realizada: 'Paro de transportistas', asistencia: null,
+          lsn_titulo: null, lsn_nota: null, lsn_maximo: null, cantidad_lsl: null, total_libros: 0,
+          observacion: null, estado_fila: 'no_aplica' },
+      ])
+    },
+
+    rubricaAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      if (alumno.id_alumno % 5 === 0) return responder({ evaluaciones: [] })
+      return responder({
+        evaluaciones: [
+          { mes: 6, fluidez: 'Logrado', comprension: null, estado: 'incompleta', resultado_decimas: null },
+          { mes: 5, fluidez: 'Inicio', comprension: 'En proceso', estado: 'completada', resultado_decimas: 16 },
+        ],
+      })
+    },
+
+    registroVueloAlumno: async (idAlumno) => {
+      const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
+      if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      const conDecision = alumno.id_alumno % 5 !== 0
+      return responder([1, 2, 3, 4].map((numero) => {
+        const decidido = conDecision && numero <= 2
+        let origen = 'pendiente_periodo_anterior'
+        if (numero === 1) origen = 'grado'
+        else if (conDecision && numero <= 3) origen = 'periodo_anterior'
+        return {
+          numero,
+          id_periodo_academico: numero,
+          entrada: origen === 'pendiente_periodo_anterior' ? null : ['E', 'F', 'G'][numero - 1],
+          origen_entrada: origen,
+          nivel_colocado: decidido ? ['F', 'G'][numero - 1] : null,
+          id_nivel_colocado: decidido ? [7, 8][numero - 1] : null,
+          proyeccion: decidido ? ['G', 'H'][numero - 1] : null,
+          nivel_programa: decidido ? 'En proceso' : null,
+        }
+      }))
     },
 
     alumnos: () =>
@@ -1041,6 +2657,12 @@ export const handlers = {
             colegio: colegio?.nombre ?? '—',
             grado: grado?.nombre ?? a.id_grado,
             programa: programa?.nombre ?? '—',
+            // Desde T3 todo alumno pertenece a una sección: la "Única" de su
+            // grado, la misma que da el detalle del colegio (100 + id_grado).
+            // Sin ella, editar a cualquiera rellenaba la sección y el
+            // formulario lo tomaba por un cambio de grupo.
+            id_seccion: a.id_seccion ?? 100 + a.id_grado,
+            seccion: a.seccion ?? 'Única',
           }
         }),
       ),
@@ -1209,7 +2831,7 @@ export const handlers = {
       if (!nombre || !apellido || !email) throw errorHttp(422, 'Completa nombres, apellidos y correo')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
       // El backend responde 409 cuando el correo ya está tomado.
-      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, CORREO_REGISTRADO)
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
       const idDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
@@ -1244,7 +2866,7 @@ export const handlers = {
       // Ya NO se rechaza el rol Docente: `/profesores` desapareció y este es
       // el único alta de los tres roles. Con id_rol de Docente, el backend crea
       // además su ficha y sus asignaciones en la misma transacción.
-      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, CORREO_REGISTRADO)
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
       const nuevo = { id_usuario: idUsuario, id_rol: rol, correo: email, id_docente: null, nombres: nombre, apellidos: apellido, activo: true }
@@ -1262,7 +2884,7 @@ export const handlers = {
       const rol = Number(idRol ?? usuario.id_rol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los campos del usuario')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
-      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, CORREO_REGISTRADO)
 
       const anteriorRol = usuario.id_rol
       usuario.nombres = nombre
@@ -1363,6 +2985,20 @@ export const handlers = {
       return responder({ ok: true }, RETARDO_ESCRITURA_MS)
     },
   },
+}
+
+/**
+ * Vacia el estado que el simulador acumula durante la sesion.
+ *
+ * Solo para las pruebas. Las clases y las tablas de lectura viven en modulo, y
+ * sin esto una prueba hereda lo que creo la anterior: crear la misma tabla dos
+ * veces responde 409 con razon, pero el fallo aparece en la prueba equivocada.
+ */
+export function _reiniciarSimulador() {
+  Object.keys(CLASES_MOCK).forEach((k) => delete CLASES_MOCK[k])
+  Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
+  Object.keys(RUBRICAS_MOCK).forEach((k) => delete RUBRICAS_MOCK[k])
+  Object.keys(DECISIONES_MOCK).forEach((k) => delete DECISIONES_MOCK[k])
 }
 
 export default handlers

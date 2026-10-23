@@ -11,6 +11,7 @@ import { ToastProvider } from '../../ui'
 import Mantenimiento from '../Mantenimiento'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
+import { MOSTRAR_AUDITORIA } from '../../../config/funcionalidades'
 
 const FILAS = [
   { id_colegio: 1, nombre: 'I.E. 86021 Ranrahirca', zona: 'Yungay', activo: true },
@@ -128,6 +129,101 @@ describe('Plantilla de mantenimiento', () => {
     expect(within(dialogo).queryAllByRole('combobox')).toHaveLength(0)
     expect(within(dialogo).queryAllByRole('checkbox')).toHaveLength(0)
     expect(within(dialogo).queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  it('con MOSTRAR_AUDITORIA en false, Ver no ofrece la pestaña Auditoría ni deja pestañas sueltas', async () => {
+    // El Supervisor SÍ tiene permiso de auditoría en Colegios: lo que la oculta
+    // es el interruptor, no la matriz.
+    expect(MOSTRAR_AUDITORIA).toBe(false)
+    const cargarAuditoria = vi.fn(async () => [])
+    montar(ROLES.SUPERVISOR, { cargarAuditoria })
+    fireEvent.click(screen.getByRole('button', { name: /^visualizar I\.E\. 86021/i }))
+
+    const dialogo = screen.getByRole('dialog')
+    await waitFor(() => expect(within(dialogo).getByText('Nombre del colegio')).toBeInTheDocument())
+    expect(within(dialogo).queryByRole('tab', { name: 'Auditoría' })).not.toBeInTheDocument()
+    expect(within(dialogo).queryByRole('tablist')).not.toBeInTheDocument()
+    expect(cargarAuditoria).not.toHaveBeenCalled()
+  })
+
+  it('busca mientras se escribe, sin pulsar "Filtrar" y sin una consulta por tecla', async () => {
+    /**
+     * Antes había que escribir el nombre entero a ciegas y pulsar "Filtrar"
+     * para ver el primer resultado. Ahora la barra espera a que se deje de
+     * escribir: "Ran" son tres pulsaciones y UNA sola consulta, no tres.
+     */
+    const { onFiltro } = montar(ROLES.SUPERVISOR, {
+      filtros: [{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }],
+      valoresFiltro: { q: '', estado: 'activo' },
+    })
+    const buscar = screen.getByLabelText('Buscar')
+
+    fireEvent.change(buscar, { target: { value: 'R' } })
+    fireEvent.change(buscar, { target: { value: 'Ra' } })
+    fireEvent.change(buscar, { target: { value: 'Ran' } })
+
+    // Nada todavía: el dedo sigue en el teclado.
+    expect(onFiltro).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(onFiltro).toHaveBeenCalledWith('q', 'Ran'), { timeout: 3000 })
+    expect(onFiltro.mock.calls.filter(([nombre]) => nombre === 'q')).toHaveLength(1)
+  })
+
+  it('con fecha efectiva, el diálogo la pregunta y la manda', async () => {
+    /**
+     * No es la fecha del clic: es desde cuándo vale la baja. Un alumno que se
+     * fue el día 3 y se inactiva el 20 no estuvo en el aula esas dos semanas,
+     * y las tablas históricas de esas fechas tienen que poder decirlo.
+     */
+    const { onCambiarEstado } = montar(ROLES.SUPERVISOR, {
+      fechaEfectiva: { etiqueta: 'Fecha efectiva' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+
+    const fecha = await screen.findByLabelText('Fecha efectiva')
+    fireEvent.change(fecha, { target: { value: '2026-10-03' } })
+    fireEvent.click(screen.getByRole('button', { name: /^inactivar$/i }))
+
+    expect(onCambiarEstado).toHaveBeenCalledWith(expect.anything(), false, '2026-10-03')
+  })
+
+  it('sin fecha efectiva, el diálogo no la pregunta ni la manda', () => {
+    // Colegios y Usuarios no la usan: su backend no acepta cuerpo.
+    const { onCambiarEstado } = montar()
+    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+
+    expect(screen.queryByLabelText(/fecha/i)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^inactivar$/i }))
+    expect(onCambiarEstado).toHaveBeenCalledWith(expect.anything(), false)
+  })
+
+  it('el acceso al detalle dice ADÓNDE lleva, y no compite con "Ver"', () => {
+    /**
+     * Llevaba un ojo y decía "Ver detalle", justo al lado del "Ver" que abre
+     * la ficha: dos botones con el mismo icono y casi el mismo texto que
+     * llevaban a sitios distintos. Ahora cada sección pone su etiqueta.
+     */
+    const abrir = vi.fn()
+    montar(ROLES.SUPERVISOR, { verDetalle: { abrir, etiqueta: 'Otorgar permisos' } })
+
+    const boton = screen.getAllByRole('button', { name: /otorgar permisos/i })[0]
+    fireEvent.click(boton)
+    expect(abrir).toHaveBeenCalled()
+    // Y el "Ver" de la ficha sigue existiendo, aparte.
+    expect(screen.getAllByRole('button', { name: /^visualizar/i }).length).toBeGreaterThan(0)
+  })
+
+  it('sin detalle que ver, la fila no ofrece el botón', () => {
+    // En Usuarios solo los Docentes lo tienen; el hueco se reserva para que
+    // la columna de acciones no baile de una fila a otra.
+    montar(ROLES.SUPERVISOR, { verDetalle: { abrir: vi.fn(), etiqueta: 'Otorgar permisos', aplicaA: () => false } })
+    expect(screen.queryByRole('button', { name: /otorgar permisos/i })).toBeNull()
+  })
+
+  it('el formulario explica para qué es el asterisco', () => {
+    montar()
+    fireEvent.click(screen.getByRole('button', { name: /agregar/i }))
+    expect(screen.getByText(/son obligatorios/i)).toBeInTheDocument()
   })
 
   it('sin permiso de alta en la matriz no aparece el botón Nuevo', () => {

@@ -7,13 +7,10 @@ import useResumenDocente from './useResumenDocente'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
 import ResumenesAccion from './ResumenesAccion'
-import useActividad from './useActividad'
-import Badge from '../../components/ui/Badge'
+import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
-import { usePeriodos } from '../../hooks/useCatalogos'
-import useFiltrosStore from '../../store/filtrosStore'
 import useSessionStore from '../../store/sessionStore'
 import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
@@ -24,23 +21,31 @@ const saludo = () => {
 }
 
 /** Literales de CU010 para `motivo_no_puede_iniciar`. */
+/**
+ * Respaldo por motivo, para cuando el servidor no manda su texto.
+ *
+ * Lo normal es pintar `motivo_no_puede`, que llega ya redactado desde T4: el
+ * mensaje depende del calendario de CADA colegio y de los permisos vigentes, y
+ * eso no se puede deducir en el cliente. Esto es la red por si no llega.
+ *
+ * `fuera_de_periodo` DESAPARECIÓ del contrato en T4: ahora un docente sin
+ * ningún colegio en PA cae también en `sin_asignaciones`. Se deja reconocido
+ * por si un servidor sin actualizar todavía lo manda.
+ */
 const MOTIVO_SIN_ACTIVIDAD = {
-  sin_asignaciones:
-    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
+  sin_asignaciones: SIN_HABILITACIONES,
   fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
+  actividad_activa: 'Ya tienes una actividad en curso. Finalízala para poder iniciar otra.',
 }
 
 export default function InicioDocente() {
   const usuario = useSessionStore((s) => s.usuario)
-  const idPeriodo = useFiltrosStore((s) => s.idPeriodo)
-  const { data: periodos = [] } = usePeriodos()
   const { data: resumen, isLoading, semanaActual } = useResumenDocente()
 
-  const periodo = periodos.find((p) => p.id_periodo === idPeriodo)
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
-  const { sesion, sinAsignaciones, motivoNoPuedeIniciar } = useActividad()
+  const { sesion, sinAsignaciones, motivoNoPuedeIniciar, textoNoPuedeIniciar } = useActividad()
 
   /**
    * La hora de fin es la de la SESIÓN AUTENTICADA, no la de la actividad.
@@ -65,13 +70,18 @@ export default function InicioDocente() {
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">
           {saludo()}, {primerNombre}
         </h1>
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-500">
-          Periodo de evaluación
-          <Badge tone={periodo?.estado === 'abierto' ? 'success' : 'neutral'}>
-            {periodo ? `${periodo.nombre} ${periodo.anio}` : '—'}
-          </Badge>
-          {semanaActual && <span>· Semana {semanaActual.numero} · {formatearRangoSemana(semanaActual)}</span>}
-        </p>
+        {/* YA NO SE ANUNCIA UN "periodo de evaluación" GLOBAL.
+            CU027 reparte el año en PA1 a PA4 con sus recesos, y cada colegio
+            puede tener fechas propias: no existe un periodo único para toda
+            la aplicación que se pueda poner en una cabecera. El periodo
+            aplicable es función de (colegio, fecha) y lo resuelve el
+            servidor. La semana en curso sí se queda: esa es del calendario,
+            no de un periodo, y le dice al docente dónde está. */}
+        {semanaActual && (
+          <p className="mt-1 text-sm text-ink-500">
+            {`Semana del ${formatearRangoSemana(semanaActual)}`}
+          </p>
+        )}
         </div>
 
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
@@ -97,7 +107,9 @@ export default function InicioDocente() {
             aquí. Los textos son los literales de CU010. */}
         {!sesion && sinAsignaciones && (
           <p className="text-sm font-medium text-warning-600">
-            {MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ?? MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
+            {textoNoPuedeIniciar ??
+              MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ??
+              MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
           </p>
         )}
       </header>

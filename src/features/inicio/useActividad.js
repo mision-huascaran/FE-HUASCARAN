@@ -27,7 +27,7 @@ import {
 } from '../../api/resources/administracion'
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
-import { obtenerNivelesRazkids, obtenerNivelesRubrica, obtenerSemanas } from '../../api/resources/catalogos'
+import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useActividadStore from '../../store/actividadStore'
@@ -35,6 +35,24 @@ import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import useConexion from '../../hooks/useConexion'
 import { idSesionDe } from '../../auth/jwt'
+
+/**
+ * Respaldo del literal de CU010 para cuando el servidor no manda el suyo.
+ *
+ * Lo normal es usar `motivo_no_puede`, que llega redactado: el motivo depende
+ * del calendario de cada colegio y de los permisos vigentes, y eso no se puede
+ * deducir aquí.
+ */
+export const SIN_HABILITACIONES =
+  'No puedes iniciar una actividad porque no tienes asignaciones habilitadas ni permisos excepcionales vigentes.'
+
+/**
+ * Las pantallas cuyo GET trae el bloque `escritura` del servidor (T6). El
+ * servidor lo calcula CON la actividad abierta, así que al abrirla o cerrarla
+ * hay que volver a pedirlo: si no, quien inicia la actividad desde la propia
+ * pantalla sigue viendo "Inicia una actividad…" y no puede registrar.
+ */
+const CON_ESCRITURA_DEL_SERVIDOR = [['asistencia', 'clase'], ['lectura', 'tabla'], ['rubricas'], ['registro-vuelo']]
 
 export default function useActividad() {
   const toast = useToast()
@@ -46,6 +64,13 @@ export default function useActividad() {
   // login quedaría colgado de la sesión equivocada.
   const idSesion = useSessionStore((s) => idSesionDe(s.token))
   const sesion = useActividadStore((s) => s.sesion)
+
+  /** `['inicio']` y las pantallas con `escritura`: todas dependen de la actividad. */
+  const refrescarTrasActividad = () => {
+    Promise.all(
+      [['inicio'], ...CON_ESCRITURA_DEL_SERVIDOR].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    ).catch(() => null)
+  }
   const iniciarLocal = useActividadStore((s) => s.iniciar)
   const cerrarLocal = useActividadStore((s) => s.cerrar)
   const pendientes = useSyncStore((s) => s.pendientes)
@@ -104,14 +129,23 @@ export default function useActividad() {
       // El servidor manda la expiración de la SESIÓN, que es el límite real de
       // la actividad: una actividad no tiene 8 horas propias (CU009).
       useActividadStore.setState({ sesion: { ...abierta, ...creada } })
-      queryClient.invalidateQueries({ queryKey: ['inicio'] })
+      refrescarTrasActividad()
     } catch (error) {
       // Si el servidor la rechaza, no puede quedarse abierta solo aquí: el
       // docente creería que puede registrar y cada guardado daría 409.
       useActividadStore.getState().limpiar()
       const motivo = motivoDe(error)
       if (motivo === 'sin_asignaciones') {
-        toast.error('No se pudo iniciar', 'No puede iniciar una actividad porque no tiene asignaciones activas.')
+        /**
+         * El texto lo manda el SERVIDOR, no se escribe aquí.
+         *
+         * Desde T4 este caso es 422 y no 409, y el mensaje menciona los
+         * permisos excepcionales: "No puedes iniciar una actividad porque no
+         * tienes asignaciones habilitadas ni permisos excepcionales
+         * vigentes." Repetirlo en el cliente garantizaba que un día dejaran de
+         * coincidir. El literal de respaldo es solo para cuando no llega.
+         */
+        toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES))
       } else if (motivo === 'actividad_activa_existente') {
         toast.error('Ya hay una actividad abierta', 'Finalice la actividad actual antes de iniciar otra.')
       } else if (motivo === 'actividad_superpuesta') {
@@ -134,7 +168,6 @@ export default function useActividad() {
       grados: () => listarGradosAdmin(),
       nivelesRubrica: () => obtenerNivelesRubrica(),
       nivelesRazkids: () => obtenerNivelesRazkids(),
-      semanas: () => obtenerSemanas(),
       asignaciones: () => listarMisAsignaciones(),
     }, { propietario: propietarioDe(useSessionStore.getState().usuario) })
     queryClient.invalidateQueries({ queryKey: ['precarga'] })
@@ -170,7 +203,7 @@ export default function useActividad() {
     try {
       await finalizarActividad(cerrada.id)
       reintentarAhora()
-      queryClient.invalidateQueries({ queryKey: ['inicio'] })
+      refrescarTrasActividad()
       toast.success('Actividad finalizada')
     } catch (error) {
       toast.error('No se pudo registrar el cierre', mensajeDeError(error))
@@ -195,6 +228,16 @@ export default function useActividad() {
     iniciar,
     finalizar,
     motivoNoPuedeIniciar: motivo === 'actividad_activa' ? null : motivo,
+    /**
+     * El texto ya redactado por el servidor (`motivo_no_puede`, T4).
+     *
+     * Viene al lado del código porque el mensaje depende de cosas que el
+     * cliente no sabe: el calendario de CADA colegio y los permisos vigentes.
+     * Si no llega, la pantalla cae a su literal.
+     */
+    textoNoPuedeIniciar: inicio?.motivo_no_puede ?? null,
+    /** Los permisos de corrección vigentes, para el apartado de CU010. */
+    permisosVigentes: inicio?.permisos_vigentes ?? [],
     // `actividad_activa` no impide nada: significa que ya hay una abierta, y
     // en ese caso el botón que se muestra es "Finalizar actividad".
     sinAsignaciones: Boolean(motivo) && motivo !== 'actividad_activa',

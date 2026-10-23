@@ -20,3 +20,6 @@ playwright-report/
 test-results/
 .e2e-home/
 e2e/
+
+# Reportes del escaneo OWASP ZAP (stage de Jenkins en qa)
+zap-reports/

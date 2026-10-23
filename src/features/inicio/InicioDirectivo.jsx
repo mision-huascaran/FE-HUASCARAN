@@ -25,8 +25,10 @@ export default function InicioDirectivo() {
      * colegios era justo lo que no convenía.
      *
      * `salud_sistema` llega hoy en `null` porque depende de la sincronización
-     * offline, que el backend todavía no tiene. CU012 prohíbe inventar un
-     * porcentaje: se muestra "Sin datos disponibles".
+     * offline, que el backend todavía no reporta. CU012 prohíbe inventar un
+     * porcentaje: se muestra "Sin datos disponibles" y la tarjeta se queda,
+     * porque la fórmula ya está definida y el día que el servidor la calcule
+     * no hay que volver a montarla.
      */
     queryFn: async () => {
       const datos = await obtenerInicioDirectivo()
@@ -47,7 +49,11 @@ export default function InicioDirectivo() {
     ) : (
       <div className="flex flex-col gap-5">
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
-        <AvisoDatosLocales sinDatos />
+        {/* Sin conexión y sin copia local NO es lo mismo que con conexión y
+            el servidor caído, y CU012 da un texto distinto para cada uno.
+            Antes los dos decían "sin conexión", que delante de un Directivo
+            con internet es sencillamente falso. */}
+        <AvisoDatosLocales rol="directivo" sinDatos enLinea={enLinea} />
       </div>
     )
   }
@@ -66,9 +72,16 @@ export default function InicioDirectivo() {
         <StatCard
           icon={Activity}
           label="Salud del sistema"
-          // CU012 y §1.5 del contrato: un indicador en `null` se pinta
-          // exactamente como "Sin datos disponibles".
-          value={resumen.salud === null ? 'Sin datos disponibles' : `${resumen.salud}%`}
+          /**
+           * CU012 y §1.5 del contrato: un indicador en `null` se pinta
+           * exactamente como "Sin datos disponibles".
+           *
+           * Y el porcentaje va REDONDEADO al entero más cercano, que el caso
+           * de uso lo ejemplifica tal cual: "98 %, no 97.6 %". Redondear aquí
+           * es una red, no una regla de negocio duplicada: si el servidor
+           * manda el decimal, la tarjeta no lo enseña.
+           */
+          value={resumen.salud === null ? 'Sin datos disponibles' : `${Math.round(resumen.salud)}%`}
           hint={resumen.salud === null ? undefined : 'Sincronización global'}
         />
       </div>

@@ -3,11 +3,10 @@
 // localStorage guarda filtros y preferencias de navegación, nunca registros de
 // negocio. Al volver al módulo, el docente recupera el contexto donde lo dejó.
 //
-// LA SECCIÓN SE VA, esta vez de verdad. CU022 la pide como filtro, pero el
-// contrato no la tiene en ninguna parte: `GET /asistencias` recibe colegio,
-// grado, subprograma y fecha, `AlumnoAsistencia` no trae aula y `/secciones` se
-// retiró. Las opciones salían del simulador, así que contra el backend real el
-// desplegable nacía vacío y, siendo obligatorio, la clase no se pedía jamás.
+// LA SECCIÓN VUELVE, y ahora con datos detrás. Se quitó cuando el contrato no
+// la tenía —el desplegable nacía vacío y, siendo obligatorio, la clase no se
+// pedía jamás—. Con T3 es una entidad por grado y `GET /asistencias` la recibe
+// como `id_seccion`: la clase es colegio × grado × sección.
 //
 // La FECHA arranca en hoy según el reloj del SERVIDOR, no el del dispositivo
 // (ver `lib/relojServidor.js`): CU022 prohíbe fiarse de la hora local.
@@ -21,11 +20,12 @@ const CAMPO = {
   docente: 'idDocente',
   colegio: 'idColegio',
   grado: 'idGrado',
+  seccion: 'idSeccion',
   subprograma: 'idPrograma',
   fecha: 'fecha',
 }
 
-const VACIOS = { idDocente: '', idColegio: '', idGrado: '', idPrograma: '', fecha: '' }
+const VACIOS = { idDocente: '', idColegio: '', idGrado: '', idSeccion: '', idPrograma: '', fecha: '' }
 
 function leer() {
   try {
@@ -66,6 +66,9 @@ export default function useFiltrosAsistencia() {
   const cambiar = useCallback((campo, valor) => {
     setFiltros((previos) => {
       const siguiente = { ...previos, [CAMPO[campo]]: valor }
+      // Las aulas son de ese colegio y ese grado: la "A" de uno no es la "A"
+      // del otro, así que cambiar cualquiera de los dos invalida la elegida.
+      if (campo === 'colegio' || campo === 'grado') siguiente.idSeccion = ''
       try {
         localStorage.setItem(CLAVE, JSON.stringify(siguiente))
       } catch {

@@ -65,7 +65,49 @@ describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRo
     expect(useSessionStore.getState().usuario.id_rol).toBe(idRol)
     // RNF-003: el token sobrevive a la recarga pero no al cierre del navegador.
     expect(sessionStorage.getItem('sicedu.token')).toBe(useSessionStore.getState().token)
-    expect(localStorage.length).toBe(0)
+
+    /**
+     * Y NINGUNA credencial en localStorage, que es lo que prohíbe RNF-003.
+     *
+     * Antes esto exigía `localStorage.length === 0`, que decía algo más
+     * fuerte de lo que pide la regla: localStorage sí se usa, y los casos de
+     * uso lo mandan: el ancla del reloj (CU010), las selecciones de filtros
+     * (CU023, CU029, CU031) y el último resumen institucional (CU012). Lo que
+     * no puede haber ahí es el token ni nada de la cuenta.
+     */
+    /**
+     * Se recorre con `key(i)`, no con `Object.keys`: en jsdom el objeto
+     * `Storage` no garantiza que sus claves se enumeren como las de un objeto
+     * corriente, y la comprobación salía inestable según lo que hubiera
+     * escrito el resto de la aplicación en ese momento.
+     */
+    /**
+     * Lo que prohíbe RNF-003 es guardar CREDENCIALES, así que se comprueban
+     * los valores y no los nombres de las claves. La versión anterior buscaba
+     * palabras en los nombres y fallaba a ratos con `sicedu.filtros.sesiones`,
+     * que casaba con "sesion" y es un filtro, no una credencial.
+     *
+     * localStorage sí se usa, y los casos de uso lo mandan: el ancla del reloj
+     * (CU010), las selecciones de filtros (CU023, CU029, CU031) y el último
+     * resumen institucional (CU012).
+     */
+    /**
+     * El token se afirma ANTES de buscarlo. Sin esto la comprobación era una
+     * trampa: si el estado aún no lo tenía, `not.toContain('')` falla siempre
+     * —toda cadena contiene la vacía— y `not.toContain(null)` revienta, así
+     * que un retraso del login se leía como una credencial en localStorage.
+     * El fallo decía lo contrario de lo que pasaba.
+     */
+    const token = useSessionStore.getState().token
+    expect(typeof token).toBe('string')
+    expect(token.length).toBeGreaterThan(0)
+
+    const enLocal = Array.from({ length: localStorage.length }, (_, i) =>
+      localStorage.getItem(localStorage.key(i)),
+    ).join('|')
+
+    expect(enLocal).not.toContain(token)
+    expect(enLocal).not.toContain(CLAVE_DEMO)
   })
 })
 
@@ -226,7 +268,7 @@ describe('Verificación de la sesión al recargar', () => {
 
   it('mientras /me responde muestra la pantalla de verificación, no la ruta', async () => {
     useSessionStore.setState({ token: 'mock.4.2026', usuario: null, cargando: true })
-    renderConProveedores(null, { ruta: '/dashboard' })
+    renderConProveedores(null, { ruta: '/seguimiento' })
 
     expect(screen.getByText('Verificando su sesión…')).toBeInTheDocument()
     await waitFor(() => expect(useSessionStore.getState().usuario?.id_rol).toBe(ROLES.SUPERVISOR))

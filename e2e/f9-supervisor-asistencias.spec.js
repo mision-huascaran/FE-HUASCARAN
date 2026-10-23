@@ -2,17 +2,17 @@
 // (CU020, CU021, CU022).
 //
 // En Seguimiento encuentra la jornada de F8 con su productividad («2
-// Asistencias», siempre en plural) y entra por el atajo «Ver Asistencias», que
-// lleva la fecha de ESA sesión en hora de Lima. En la clase ve lo que registró
-// el Docente —la tardanza, la presencia y la observación— sin poder cambiar
-// nada: los controles están deshabilitados, no hay «Marcar todos» y no sale
-// ningún PUT /asistencias.
+// Asistencias», siempre en plural), y el atajo «Ver Asistencias» enseña lo que
+// tocó ESA jornada (tanda 10: sale de la auditoría de la actividad): la clase y
+// sus 2 cambios. En la clase ve lo que registró el Docente —la tardanza, la
+// presencia y la observación— sin poder cambiar nada: los controles están
+// deshabilitados, no hay «Marcar todos» y no sale ningún PUT /asistencias.
 import { expect, test } from '@playwright/test'
 import { SUBPROGRAMA, elegirClase, lado } from './support/asistencia.js'
 import { SEED } from './support/cuentas.js'
 import { exigirEstadoDe } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
-import { fechaHoraLima, fechaLima } from './support/fechas.js'
+import { fechaHoraLima } from './support/fechas.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
 /** La fila de la jornada: su hora de inicio y exactamente «2 Asistencias». */
@@ -46,13 +46,23 @@ test('F9 · Supervisora: la jornada de asistencias en Seguimiento y en Asistenci
     await evidencia(page, 'seguimiento-jornada-asistencias')
   })
 
-  await test.step('«Ver Asistencias» lleva a la fecha de la sesión en hora de Lima (CU021)', async () => {
+  await test.step('«Ver Asistencias» enseña la clase de esa jornada y sus 2 cambios (CU021)', async () => {
     await jornadaDe(page, asistencia.inicio).first().getByRole('button', { name: 'Ver Asistencias' }).click()
-    await expect(page).toHaveURL((url) => url.pathname === '/asistencia')
-    expect(new URL(page.url()).searchParams.get('fecha'), 'fecha del atajo').toBe(fechaLima(asistencia.inicio))
+    const panel = page.getByRole('dialog', { name: 'Asistencias de esta jornada' })
+    await expect(panel).toContainText(`Actividad del ${fechaHoraLima(asistencia.inicio)}`)
+    const clase = panel.getByRole('row').filter({ hasText: `${SEED.colegio} · ${asistencia.grado}` })
+    await expect(clase).toHaveCount(1)
+    await expect(clase).toContainText(asistencia.fecha.split('-').reverse().join('/'))
+    await expect(clase.getByRole('cell').last(), 'cambios de esa clase').toHaveText('2')
+    await evidencia(page, 'seguimiento-registros-de-la-jornada')
+    await panel.getByRole('button', { name: 'Cerrar' }).last().click()
+    await expect(panel).toBeHidden()
   })
 
   await test.step('En la clase registrada ve todo y no puede cambiar nada (CU022)', async () => {
+    // Asistencia no está en el menú del Supervisor (CU022: acceso derivado de
+    // Seguimiento) y el atajo ya no navega: se entra por la URL.
+    await page.goto('/asistencia')
     expect(await elegirClase(page, { docente: SEED.docente, grado: asistencia.grado, fecha: asistencia.fecha })).toBe('lista')
     await expect(lado(page, 'Tardanza', asistencia.tarde)).toHaveAttribute('aria-pressed', 'true')
     await expect(lado(page, 'Presente', asistencia.observado)).toHaveAttribute('aria-pressed', 'true')

@@ -23,6 +23,7 @@ import { cerrarPopupTrasGuardar, esperarAntesDeAbrirPopup } from './support/bugs
 import { SEED } from './support/cuentas.js'
 import { guardarEstado } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
+import { fechaLima } from './support/fechas.js'
 import { esApi, iniciarSesion, irPorMenu } from './support/sesion.js'
 
 // Los textos que piden los casos de uso, ya corregidos en la pantalla: CU014
@@ -116,7 +117,10 @@ test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastr
     await popup.getByLabel('Apellidos').fill(apellidos)
     await popup.getByLabel('Colegio').selectOption({ label: SEED.colegio })
     await popup.getByLabel('Grado').selectOption({ label: '1.º' })
+    // Desde T3 el alumno pertenece a una sección y a su grupo desde una fecha.
+    await popup.getByLabel('Sección').selectOption({ label: 'Única' })
     await popup.getByLabel('Subprograma').selectOption({ label: 'Alfabetización' })
+    await popup.getByLabel('Pertenece al grupo desde').fill(fechaLima(Date.now()))
     await expect(popup.getByLabel('Nombres')).toHaveValue(nombres)
     await expect(popup.getByLabel('Colegio')).not.toHaveValue('')
     await expect(popup.getByLabel('Subprograma')).not.toHaveValue('')

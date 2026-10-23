@@ -21,17 +21,33 @@ import Select from '../../components/ui/Select'
 import DetalleDocente from './DetalleDocente'
 import { listarSeguimiento } from '../../api/resources/seguimiento'
 import { listarColegiosAdmin } from '../../api/resources/administracion'
-import { ETIQUETA_SINCRONIZACION } from '../../api/resources/actividades'
+import { AYUDA_SINCRONIZACION, ETIQUETA_SINCRONIZACION, TONO_SINCRONIZACION } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
+/**
+ * Los cuatro valores del contrato, en el orden en que el servidor ordena las
+ * filas: lo que necesita atención primero.
+ */
 const SINCRONIZACIONES = [
-  { value: 'al_dia', label: 'Al día' },
+  { value: 'error', label: 'Error' },
   { value: 'pendiente', label: 'Pendiente' },
+  { value: 'sin_informacion', label: 'Sin información' },
+  { value: 'al_dia', label: 'Al día' },
 ]
 
+/**
+ * Un contador que el servidor no pudo determinar llega en `null`, y eso NO es
+ * un cero. Mientras la cola offline no se informe (T5), llega null siempre.
+ */
+const contador = (valor) => (valor == null ? 'No disponible' : valor)
+
 const SIN_FILTROS = { id_colegio: '', desde: '', hasta: '', sincronizacion: '' }
+
+/** Un rango al revés no es una búsqueda vacía, es un error de quien lo puso. */
+const RANGO_INVALIDO = 'El rango de fechas no es válido'
+const alReves = ({ desde, hasta }) => Boolean(desde && hasta && desde > hasta)
 
 export default function SeguimientoPage() {
   const enLinea = useConexion()
@@ -63,6 +79,8 @@ export default function SeguimientoPage() {
     setFiltros(SIN_FILTROS)
   }
 
+  const rangoInvalido = alReves(borrador)
+
   if (!enLinea) {
     return (
       <div className="flex flex-col gap-5">
@@ -91,7 +109,11 @@ export default function SeguimientoPage() {
       </header>
 
       <Card padded={false}>
-        <BarraDeFiltros onFiltrar={() => setFiltros(borrador)} onLimpiar={limpiar}>
+        <BarraDeFiltros
+          filtrarDeshabilitado={rangoInvalido}
+          onFiltrar={() => setFiltros(borrador)}
+          onLimpiar={limpiar}
+        >
           <CeldaFiltro>
             <Select
               label="Colegio"
@@ -102,12 +124,30 @@ export default function SeguimientoPage() {
             />
           </CeldaFiltro>
           {/* El rango es sobre la ÚLTIMA CONEXIÓN: quien nunca entró queda
-              fuera en cuanto se usa, y conviene saberlo antes de extrañarse. */}
+              fuera en cuanto se usa, y conviene saberlo antes de extrañarse.
+
+              Cada campo acota al otro con `max` y `min`, así que el propio
+              calendario del navegador impide elegir un rango al revés. El
+              error se comprueba igual, porque la fecha también se puede
+              teclear. */}
           <CeldaFiltro>
-            <Input label="Conectado desde" type="date" value={borrador.desde} onChange={(e) => cambiar('desde', e.target.value)} />
+            <Input
+              label="Conectado desde"
+              type="date"
+              max={borrador.hasta || undefined}
+              error={rangoInvalido ? RANGO_INVALIDO : undefined}
+              value={borrador.desde}
+              onChange={(e) => cambiar('desde', e.target.value)}
+            />
           </CeldaFiltro>
           <CeldaFiltro>
-            <Input label="Hasta" type="date" value={borrador.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
+            <Input
+              label="Hasta"
+              type="date"
+              min={borrador.desde || undefined}
+              value={borrador.hasta}
+              onChange={(e) => cambiar('hasta', e.target.value)}
+            />
           </CeldaFiltro>
           <CeldaFiltro>
             <Select
@@ -143,18 +183,36 @@ export default function SeguimientoPage() {
               {
                 key: 'ultima_conexion',
                 header: 'Última conexión',
-                render: (d) => (d.ultima_conexion ? formatearFechaHora(d.ultima_conexion) : 'Nunca'),
+                // "Nunca" sonaba a dato; el contrato pide decir que no consta.
+                render: (d) =>
+                  d.ultima_conexion ? formatearFechaHora(d.ultima_conexion) : 'Sin inicio de sesión registrado',
               },
               {
                 key: 'sincronizacion',
                 header: 'Sincronización',
+                /**
+                 * El tono sale de una tabla, no de un `=== 'pendiente'`.
+                 *
+                 * Con el ternario de antes, CUALQUIER valor que no fuera
+                 * "pendiente" se pintaba de verde: `error` incluido. Al añadir
+                 * el backend dos estados más, ese atajo pasaba de impreciso a
+                 * falso.
+                 */
                 render: (d) => (
-                  <Badge tone={d.sincronizacion === 'pendiente' ? 'warning' : 'success'}>
+                  <Badge
+                    tone={TONO_SINCRONIZACION[d.sincronizacion] ?? 'neutral'}
+                    title={AYUDA_SINCRONIZACION[d.sincronizacion]}
+                  >
                     {ETIQUETA_SINCRONIZACION[d.sincronizacion] ?? d.sincronizacion}
                   </Badge>
                 ),
               },
-              { key: 'registros_pendientes', header: 'Pendientes', align: 'center' },
+              {
+                key: 'registros_pendientes',
+                header: 'Pendientes',
+                align: 'center',
+                render: (d) => contador(d.registros_pendientes),
+              },
               {
                 key: 'acciones',
                 header: '',

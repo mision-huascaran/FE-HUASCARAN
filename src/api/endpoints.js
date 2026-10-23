@@ -85,6 +85,15 @@ export const ENDPOINTS = {
     docentes: '/seguimiento/docentes', // ?id_colegio=&desde=&hasta=&sincronizacion=&activo=&page=
     docente: (id) => `/seguimiento/docentes/${id}`,
     actividadesDe: (id) => `/seguimiento/docentes/${id}/actividades`,
+    /**
+     * SEMANA 11 — Los registros que una actividad TOCÓ (CU021, T10).
+     *
+     * Sale de la AUDITORÍA de la actividad, no de la fecha: dos actividades
+     * del mismo día tocaron cosas distintas, y filtrar por fecha mezclaría el
+     * trabajo de una con el de la otra. `?modulo=` y paginado de 40.
+     */
+    registrosDe: (idDocente, idActividad) =>
+      `/seguimiento/docentes/${idDocente}/actividades/${idActividad}/registros`,
   },
 
   // PUBLICADO — Colegios (CU013) ─────────────────────────────────────────────
@@ -95,6 +104,9 @@ export const ENDPOINTS = {
     actualizar: (id) => `/colegios/${id}`, // PATCH; null en obligatorio → 422
     // Valores existentes para llenar los desplegables de filtro.
     ubicaciones: '/colegios/ubicaciones',
+    // En qué periodo está HOY cada colegio, para decidir si una asignación
+    // nueva es retroactiva o empieza en el próximo PA (CU016, T4).
+    estadoCalendario: '/colegios/estado-calendario',
     // La baja lógica tiene ruta propia: NO es un PATCH con `{activo}`.
     activar: (id) => `/colegios/${id}/activar`,
     desactivar: (id) => `/colegios/${id}/desactivar`,
@@ -140,6 +152,95 @@ export const ENDPOINTS = {
     desactivar: (id) => `/usuarios/${id}/desactivar`,
   },
 
+  /**
+   * SEMANA 11 — Calendario académico (CU027).
+   *
+   * Sustituye al "periodo vigente" único que asumía el frontend: cada colegio
+   * puede tener fechas propias, así que el periodo aplicable es función de
+   * (colegio, fecha) y lo resuelve el servidor.
+   */
+  calendarios: {
+    listar: '/calendarios', // ?id_anio_escolar=&id_colegio= ; sin colegio, el general
+    crear: '/calendarios', // el general de un año
+    crearParticular: '/calendarios/particulares',
+    // PUT, no PATCH: se manda el calendario completo con su `version`.
+    actualizar: (id) => `/calendarios/${id}`,
+    usarGeneral: (id) => `/calendarios/${id}/usar-general`,
+    // ?id_colegio=&fecha= → qué PA/PR aplica y si el día es lectivo.
+    periodo: '/calendarios/periodo',
+  },
+
+  /**
+   * SEMANA 11 — Permisos excepcionales de corrección (CU028) y habilitaciones.
+   *
+   * `misHabilitaciones` es el paquete que el frontend guarda en IndexedDB para
+   * poder decidir SIN CONEXIÓN si una escritura está autorizada. Con conexión
+   * no se usa: cada GET de módulo ya trae su propio bloque `escritura`.
+   */
+  permisos: {
+    deUsuario: (id) => `/usuarios/${id}/permisos`,
+    detalle: (id, idPermiso) => `/usuarios/${id}/permisos/${idPermiso}`,
+    otorgar: (id) => `/usuarios/${id}/permisos`,
+    // POST, no PATCH: revocar es una acción, no una edición parcial.
+    revocar: (id, idPermiso) => `/usuarios/${id}/permisos/${idPermiso}/revocar`,
+    opciones: '/permisos/opciones', // ?id_colegio=&id_anio_escolar=
+    mios: '/me/permisos', // los VIGENTES del docente autenticado
+    misHabilitaciones: '/me/habilitaciones',
+  },
+
+  /**
+   * SEMANA 11 — Clases y reprogramaciones (CU013, CU022, base de CU024).
+   *
+   * OJO: una clase es colegio × grado × SECCIÓN, sin subprograma —el
+   * subprograma es del alumno—. Por eso no se filtra por `id_programa`.
+   */
+  clases: {
+    deColegio: (id) => `/colegios/${id}/clases`, // ?id_grado=&id_seccion=&desde=&hasta=
+    reprogramar: (id) => `/colegios/${id}/clases/reprogramaciones`,
+    reprogramaciones: (idClase) => `/clases/${idClase}/reprogramaciones`,
+  },
+
+  // SEMANA 11 — Seguimiento de Lectura (CU023 a CU026).
+  lectura: {
+    tablas: '/lectura/tablas',
+    crear: '/lectura/tablas',
+    claseReferencia: (id) => `/lectura/tablas/${id}/clase-referencia`,
+    filas: (id) => `/lectura/tablas/${id}/filas`,
+    noRealizada: (id) => `/lectura/tablas/${id}/no-realizada`,
+  },
+
+  // SEMANA 11 — Rúbrica mensual (CU029, CU030).
+  rubricas: {
+    listar: '/rubricas',
+    guardar: '/rubricas',
+    // Los descriptores pedagógicos los sirve el backend (RN-011): nunca se
+    // escriben en el código.
+    criterios: '/rubricas/criterios', // ?id_programa=&id_ciclo=
+  },
+
+  // SEMANA 11 — Registro de Vuelo (CU031, CU032).
+  registroVuelo: {
+    listar: '/registro-vuelo',
+    // La sugerencia, la entrada y el nivel del programa los calcula el
+    // SERVIDOR y no se aceptan desde el cliente.
+    guardar: '/registro-vuelo',
+  },
+
+  /**
+   * SEMANA 11 — Sincronización (CU012, CU017 a CU021).
+   *
+   * `pendientes` es el aviso ligero que cierra el agujero de "el trabajo
+   * offline que nadie ve": al reconectar se avisa de QUÉ operaciones existen
+   * antes de mandarlas, así el Supervisor ve el riesgo sin esperar al envío
+   * completo.
+   */
+  sincronizacion: {
+    pendientes: '/sincronizacion/pendientes',
+    operacion: (idOperacion) => `/sincronizacion/operaciones/${idOperacion}`,
+    // P4 §1: una operación propia `rechazada` pasa a `descartada`.
+    descartar: (idOperacion) => `/sincronizacion/operaciones/${idOperacion}/descartar`,
+  },
+
   // PUBLICADO — Catálogos. Se piden una vez al entrar y se guardan en IndexedDB.
   //
   // Los nombres están verificados contra el servidor: no hay `/ciclos` ni
@@ -154,55 +255,12 @@ export const ENDPOINTS = {
     asignaciones: '/asignaciones',
     nivelesRazkids: '/niveles-razkids',
     nivelesRubrica: '/niveles-rubrica', // ?programa=
-    nivelesGenerales: '/niveles-generales',
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // NO EXISTE AÚN (api_sicedu_frontend §12). Las pantallas que dependen de
-  // esto siguen en mock; sus rutas son provisionales y habrá que contrastarlas
-  // con /docs cuando el backend publique las grillas.
-  // ─────────────────────────────────────────────────────────────────────────
-  // De los niveles, solo este sigue sin existir.
-  esperadoPorGrado: '/niveles/esperado-por-grado',
-
-  reporteSemanal: {
-    listar: '/reporte-semanal',
-    crear: '/reporte-semanal',
-    actualizar: (id) => `/reporte-semanal/${id}`,
-    agregarLibro: (id) => `/reporte-semanal/${id}/libros`,
-    eliminarLibro: (idLibro) => `/reporte-semanal/libros/${idLibro}`,
-  },
-
-  rubricaSemanal: {
-    listar: '/rubrica-semanal',
-    crear: '/rubrica-semanal',
-  },
-
-  evaluacionDiagnostica: {
-    listar: '/evaluacion-diagnostica',
-    crear: '/evaluacion-diagnostica',
-    actualizar: (id) => `/evaluacion-diagnostica/${id}`,
-  },
-
-  nivelFinalMensual: {
-    listar: '/nivel-final-mensual',
-    ajustar: (id) => `/nivel-final-mensual/${id}/ajuste`,
   },
 
   dashboard: {
     resumen: '/dashboard/resumen',
     ejecutivo: '/dashboard/ejecutivo',
     rankingAulas: '/dashboard/ranking-aulas',
-  },
-
-  consolidados: {
-    nivel: '/consolidados/nivel',
-    libros: '/consolidados/libros',
-  },
-
-  alertas: {
-    inconsistencias: '/alertas/inconsistencias',
-    revisar: (id) => `/alertas/inconsistencias/${id}`,
   },
 }
 

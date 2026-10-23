@@ -5,14 +5,7 @@ import ProtectedRoute from './auth/ProtectedRoute'
 import RoleRoute from './auth/RoleRoute'
 import ForbiddenPage from './features/errores/ForbiddenPage'
 import InicioPage from './features/inicio/InicioPage'
-import AdministracionPage from './features/administracion/AdministracionPage'
-import AlertasPage from './features/alertas/AlertasPage'
-import ColegioDetallePage from './features/colegios/ColegioDetallePage'
-import ColegiosPage from './features/colegios/ColegiosPage'
 import MantenimientoColegios from './features/colegios/MantenimientoColegios'
-import ConsolidadosPage from './features/consolidados/ConsolidadosPage'
-import ConsultaColegiosPage from './features/consultaColegios/ConsultaColegiosPage'
-import DashboardPage from './features/dashboard/DashboardPage'
 import AlumnosPage from './features/alumnos/AlumnosPage'
 import MantenimientoUsuarios from './features/usuarios/MantenimientoUsuarios'
 import SesionesPage from './features/sesiones/SesionesPage'
@@ -20,12 +13,9 @@ import SeguimientoPage from './features/seguimiento/SeguimientoPage'
 import AsistenciaPage from './features/asistencia/AsistenciaPage'
 import FichaEstudiantePage from './features/estudiantes/FichaEstudiantePage'
 import LoginPage from './features/login/LoginPage'
-import NivelFinalPage from './features/nivelFinal/NivelFinalPage'
-import PanelEjecutivoPage from './features/panelEjecutivo/PanelEjecutivoPage'
-import ReportesPage from './features/reportes/ReportesPage'
-import NuevaEvaluacionPage from './features/registroVuelo/NuevaEvaluacionPage'
-import RegistroVueloPage from './features/registroVuelo/RegistroVueloPage'
-import ReporteSemanalPage from './features/reporteSemanal/ReporteSemanalPage'
+import RegistroVueloAnualPage from './features/registroVuelo/RegistroVueloAnualPage'
+import LecturaPage from './features/lectura/LecturaPage'
+import RubricaPage from './features/rubrica/RubricaPage'
 import UiKitPage from './features/uiKit/UiKitPage'
 import useSessionStore from './store/sessionStore'
 import { ROLES, rutaInicioDe } from './auth/roles'
@@ -49,31 +39,31 @@ export const RUTAS_PROTEGIDAS = [
   // Rúbrica y Seguimiento de Lectura son DOS secciones con permisos propios: el
   // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
   { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencia', elemento: <AsistenciaPage /> },
-  { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <ReporteSemanalPage pestanaFija="rubrica" /> },
-  { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <ReporteSemanalPage pestanaFija="semanal" /> },
-  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloPage /> },
-  { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registrar evaluación diagnóstica', elemento: <NuevaEvaluacionPage /> },
+  // La rúbrica SEMANAL ya no existe: desde la tanda 8 es una evaluación por
+  // alumno y MES, con su propia pantalla. No quedó nada de la grilla que
+  // compartía con Seguimiento de Lectura.
+  { path: '/rubrica', allow: [PROFESOR, JEFA], titulo: 'Rúbrica', elemento: <RubricaPage /> },
+  // La pantalla de Lectura ya no comparte grilla con Rúbrica: desde la tanda 7
+  // su unidad es la TABLA SEMANAL, con su clase de referencia y su versión, y
+  // no una fila por alumno. Rúbrica sigue en la pantalla compartida hasta que
+  // se rehaga como evaluación MENSUAL (tanda 8).
+  { path: '/seguimiento-lectura', allow: [PROFESOR, JEFA], titulo: 'Seguimiento de Lectura', elemento: <LecturaPage /> },
+  // El ASISTENTE DESAPARECE (tanda 9). Ya no se aplica una prueba ni se
+  // cuentan aciertos sobre un total: hay una decisión por alumno y periodo, y
+  // la sugerencia la calcula el servidor sobre la rúbrica mensual. La ruta
+  // `/registro-vuelo/nuevo` se queda redirigiendo, porque el panel del docente
+  // y los atajos todavía la enlazan.
+  { path: '/registro-vuelo', allow: [PROFESOR, JEFA], titulo: 'Registro de Vuelo', elemento: <RegistroVueloAnualPage /> },
+  { path: '/registro-vuelo/nuevo', allow: [PROFESOR], titulo: 'Registro de Vuelo', elemento: <Navigate to="/registro-vuelo" replace /> },
   // CU017 a CU019: solo el Docente, y solo sus propias sesiones.
   { path: '/sesiones', allow: [PROFESOR], titulo: 'Sesiones', elemento: <SesionesPage /> },
   // CU020 y CU021: lo que el Supervisor usa en su lugar.
   { path: '/seguimiento', allow: [JEFA], titulo: 'Seguimiento', elemento: <SeguimientoPage /> },
-  // CU012: el Dashboard es solo del Supervisor. Ocultarlo del menú no basta,
-  // la ruta también tiene que rechazar al Directivo (RNF-004).
-  { path: '/dashboard', allow: [JEFA], titulo: 'Dashboard', elemento: <DashboardPage /> },
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
   { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
-  { path: '/ranking', allow: [JEFA, DIRECTIVOS], titulo: 'Ranking de colegios', elemento: <ColegiosPage /> },
-  { path: '/ranking/:id', allow: [JEFA, DIRECTIVOS], titulo: 'Detalle del colegio', elemento: <ColegioDetallePage /> },
-  { path: '/nivel-final', allow: [PROFESOR, JEFA], titulo: 'Nivel final mensual', elemento: <NivelFinalPage /> },
-  { path: '/consulta-colegios', allow: [PROFESOR], titulo: 'Consulta de otros colegios', elemento: <ConsultaColegiosPage /> },
-  { path: '/consolidados', allow: [JEFA], titulo: 'Consolidados', elemento: <ConsolidadosPage /> },
-  { path: '/alertas', allow: [JEFA], titulo: 'Alertas de inconsistencias', elemento: <AlertasPage /> },
-  { path: '/administracion', allow: [JEFA], titulo: 'Administración', elemento: <AdministracionPage /> },
-  { path: '/panel-ejecutivo', allow: [DIRECTIVOS], titulo: 'Panel ejecutivo', elemento: <PanelEjecutivoPage /> },
-  { path: '/reportes', allow: [DIRECTIVOS], titulo: 'Reportes y descargas', elemento: <ReportesPage /> },
 ]
 
 const enDesarrollo = import.meta.env.DEV

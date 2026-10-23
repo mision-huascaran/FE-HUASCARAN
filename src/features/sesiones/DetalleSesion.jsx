@@ -86,7 +86,12 @@ export default function DetalleSesion({ sesion, onCerrar }) {
               )}
             </Dato>
             <Dato etiqueta="Última sincronización">{d?.sincronizado_en && formatearFechaHora(d.sincronizado_en)}</Dato>
-            <Dato etiqueta="Registros pendientes">{d?.registros_pendientes ?? 0}</Dato>
+            {/* `null` = el servidor no puede determinarlo todavía (T5). Un 0
+                aquí afirmaría que no hay nada pendiente, que es justo lo que
+                no se sabe. */}
+            <Dato etiqueta="Registros pendientes">
+              {d?.registros_pendientes == null ? 'No disponible' : d.registros_pendientes}
+            </Dato>
             <Dato etiqueta="Cambios">{d?.cambios ?? 0}</Dato>
           </dl>
 

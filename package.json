@@ -11,11 +11,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verificar:backend": "node scripts/verificar-backend.mjs",
+    "verificar:csp": "node scripts/verificar-csp.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report playwright-report"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/poppins": "^5.3.0",
     "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-query": "^5.59.20",
     "axios": "^1.7.7",

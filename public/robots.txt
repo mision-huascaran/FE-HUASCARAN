@@ -1,0 +1,4 @@
+# SICEDU es un sistema interno con inicio de sesión: ninguna página debe
+# aparecer en buscadores.
+User-agent: *
+Disallow: /
