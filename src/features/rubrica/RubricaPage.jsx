@@ -169,7 +169,7 @@ export default function RubricaPage() {
 
       {/* Sin alumnos el servidor responde 200 con su `detail`: es un estado
           normal del mes, no una lista que falló al cargar. */}
-      {listos && datos && datos.items.length === 0 && (
+      {listos && datos?.items.length === 0 && (
         <Card>
           <EmptyState
             icon={BookMarked}

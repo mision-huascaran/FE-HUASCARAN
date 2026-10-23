@@ -132,7 +132,7 @@ function procesarResultado(modulo, envio, resultado) {
         pendiente.clave === envio.clave && pendiente.payload?.item?.version === envio.item.version
           ? { ...pendiente, payload: { ...pendiente.payload, item: { ...pendiente.payload.item, version: registro.version } } }
           : pendiente,
-      )
+      ).catch(() => null) // `ajustarPendientes` ya maneja sus errores.
     }
   }
   // Entrada y sugerencia del Registro de Vuelo dependen de otros registros:

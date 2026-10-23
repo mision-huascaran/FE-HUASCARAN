@@ -288,7 +288,7 @@ describe('Guardar una evaluación', () => {
     montar()
     fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
 
-    await screen.findByText(/valoración permitida para esta dimensión/i, {}, ESPERA)
+    expect(await screen.findByText(/valoración permitida para esta dimensión/i, {}, ESPERA)).toBeInTheDocument()
   })
 })
 

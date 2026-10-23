@@ -165,7 +165,7 @@ export default function RegistroVueloAnualPage() {
 
       {/* Sin alumnos el servidor manda su `aviso` en un 200: es un estado del
           año, no una lista que falló al cargar. */}
-      {listos && datos && datos.items.length === 0 && (
+      {listos && datos?.items.length === 0 && (
         <Card>
           <EmptyState
             icon={PlaneTakeoff}

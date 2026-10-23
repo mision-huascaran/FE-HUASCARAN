@@ -46,6 +46,14 @@ import { idSesionDe } from '../../auth/jwt'
 export const SIN_HABILITACIONES =
   'No puedes iniciar una actividad porque no tienes asignaciones habilitadas ni permisos excepcionales vigentes.'
 
+/**
+ * Las pantallas cuyo GET trae el bloque `escritura` del servidor (T6). El
+ * servidor lo calcula CON la actividad abierta, así que al abrirla o cerrarla
+ * hay que volver a pedirlo: si no, quien inicia la actividad desde la propia
+ * pantalla sigue viendo "Inicia una actividad…" y no puede registrar.
+ */
+const CON_ESCRITURA_DEL_SERVIDOR = [['asistencia', 'clase'], ['lectura', 'tabla'], ['rubricas'], ['registro-vuelo']]
+
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
@@ -56,6 +64,13 @@ export default function useActividad() {
   // login quedaría colgado de la sesión equivocada.
   const idSesion = useSessionStore((s) => idSesionDe(s.token))
   const sesion = useActividadStore((s) => s.sesion)
+
+  /** `['inicio']` y las pantallas con `escritura`: todas dependen de la actividad. */
+  const refrescarTrasActividad = () => {
+    Promise.all(
+      [['inicio'], ...CON_ESCRITURA_DEL_SERVIDOR].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    ).catch(() => null)
+  }
   const iniciarLocal = useActividadStore((s) => s.iniciar)
   const cerrarLocal = useActividadStore((s) => s.cerrar)
   const pendientes = useSyncStore((s) => s.pendientes)
@@ -114,7 +129,7 @@ export default function useActividad() {
       // El servidor manda la expiración de la SESIÓN, que es el límite real de
       // la actividad: una actividad no tiene 8 horas propias (CU009).
       useActividadStore.setState({ sesion: { ...abierta, ...creada } })
-      queryClient.invalidateQueries({ queryKey: ['inicio'] })
+      refrescarTrasActividad()
     } catch (error) {
       // Si el servidor la rechaza, no puede quedarse abierta solo aquí: el
       // docente creería que puede registrar y cada guardado daría 409.
@@ -188,7 +203,7 @@ export default function useActividad() {
     try {
       await finalizarActividad(cerrada.id)
       reintentarAhora()
-      queryClient.invalidateQueries({ queryKey: ['inicio'] })
+      refrescarTrasActividad()
       toast.success('Actividad finalizada')
     } catch (error) {
       toast.error('No se pudo registrar el cierre', mensajeDeError(error))

@@ -62,7 +62,8 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
     if ('id_nivel_colocado' in cambios) local.nivel_colocado = nivelLocal(cambios.id_nivel_colocado)
     if ('id_nivel_proyeccion' in cambios) local.proyeccion = nivelLocal(cambios.id_nivel_proyeccion)
     if ('observacion' in cambios) local.observacion = cambios.observacion
-    const { id_operacion: _sinId, ...item } = decision({
+    // El id de operación lo pone la cola al encolar; el de `decision` no va.
+    const item = decision({
       version: periodo.version,
       realizadoEn: ahora().toISOString(),
       idActividad,
@@ -74,6 +75,7 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
       idPrograma,
       cambios,
     })
+    delete item.id_operacion
     guardarRegistro('vuelo', {
       clave: [idColegio, idGrado, idSeccion, idPrograma, alumno.id_alumno, periodo.id_periodo_academico].join('-'),
       envio: { item, numero: periodo.numero, nombre: `${alumno.nombre} · PA${periodo.numero}` },

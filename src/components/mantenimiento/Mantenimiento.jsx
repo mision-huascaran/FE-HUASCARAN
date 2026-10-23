@@ -27,6 +27,7 @@ import { ROLES } from '../../auth/roles'
 
 /** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
 const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'usuarios' }
+const VER_DETALLE = 'Ver detalle'
 
 export const avisoSinConexion = (seccion) =>
   `Acción no disponible sin conexión. Conéctate a internet para gestionar ${GESTIONADO[seccion] ?? seccion}.`
@@ -206,11 +207,11 @@ export default function Mantenimiento({
                 size="sm"
                 variant="ghost"
                 iconLeft={verDetalle.icono ?? ClipboardList}
-                title={verDetalle.etiqueta ?? 'Ver detalle'}
-                aria-label={`${verDetalle.etiqueta ?? 'Ver detalle'} de ${fila.nombre ?? entidad}`}
+                title={verDetalle.etiqueta ?? VER_DETALLE}
+                aria-label={`${verDetalle.etiqueta ?? VER_DETALLE} de ${fila.nombre ?? entidad}`}
                 onClick={() => verDetalle.abrir(fila)}
               >
-                {verDetalle.etiqueta ?? 'Ver detalle'}
+                {verDetalle.etiqueta ?? VER_DETALLE}
               </Button>
             ) : (
               // El hueco se mide por el texto más largo que puede ocupar.

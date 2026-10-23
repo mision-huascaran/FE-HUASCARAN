@@ -311,7 +311,7 @@ describe('Las filas de la tabla (CU024)', () => {
     )
 
     montar()
-    await screen.findByText(/revisa la asistencia/i, {}, ESPERA)
+    expect(await screen.findByText(/revisa la asistencia/i, {}, ESPERA)).toBeInTheDocument()
   })
 
   it('un rechazo por fila se explica con el texto del servidor', async () => {
@@ -331,7 +331,7 @@ describe('Las filas de la tabla (CU024)', () => {
     fireEvent.change(nota, { target: { value: '9' } })
     fireEvent.blur(nota)
 
-    await screen.findByText(/ingresa una nota entre 0 y ese máximo/i, {}, ESPERA)
+    expect(await screen.findByText(/ingresa una nota entre 0 y ese máximo/i, {}, ESPERA)).toBeInTheDocument()
   })
 })
 

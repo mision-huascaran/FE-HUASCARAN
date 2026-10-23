@@ -10,6 +10,11 @@ import { sincronizarReloj } from '../../lib/relojServidor'
 
 const RETARDO_MS = 300
 
+// Textos que se repiten en varias respuestas del simulador.
+const CLASE_PROGRAMADA = 'Clase programada'
+const ALUMNO_NO_EXISTE = 'El alumno no existe'
+const CORREO_REGISTRADO = 'Ese correo ya está registrado'
+
 /** Permisos otorgados durante la sesión (CU028). Viven aquí, no en `db`. */
 const PERMISOS_MOCK = {}
 
@@ -221,7 +226,9 @@ function filaDe(tabla, idAlumno) {
   const lsl = d.cantidad_lsl ?? null
 
   const noAplica = tabla.estado === 'no_realizada' || asistencia === 'ausente'
-  const estadoFila = noAplica ? 'no_aplica' : presente && lsl != null ? 'completada' : 'pendiente'
+  let estadoFila = 'pendiente'
+  if (noAplica) estadoFila = 'no_aplica'
+  else if (presente && lsl != null) estadoFila = 'completada'
 
   return {
     id_alumno: alumno.id_alumno,
@@ -256,7 +263,47 @@ const DECISIONES_MOCK = {}
 const claveDeDecision = (idAlumno, idPeriodo) => `${idAlumno}|${idPeriodo}`
 
 /** Los modulos que un atajo de CU021 puede abrir. Lista CERRADA del contrato. */
-const MODULOS_DE_ACTIVIDAD_MOCK = ['asistencias', 'lectura', 'rubrica', 'registro_vuelo', 'alumnos']
+const MODULOS_DE_ACTIVIDAD_MOCK = new Set(['asistencias', 'lectura', 'rubrica', 'registro_vuelo', 'alumnos'])
+
+/** `futuro`, `en_curso` o `culminado` según la fecha de hoy. */
+function estadoDelTramo(hoy, { inicio, fin }) {
+  if (hoy < inicio) return 'futuro'
+  return hoy > fin ? 'culminado' : 'en_curso'
+}
+
+/** La regla de avance de la rúbrica: desde 28 décimas sube, desde 16 mantiene y debajo baja. */
+function accionDeRubrica(decimas) {
+  if (decimas >= 28) return 'subir'
+  return decimas >= 16 ? 'mantener' : 'bajar'
+}
+
+/** Por debajo de aa o por encima de Z no hay a dónde ir: se queda en el extremo. */
+function excepcionDeExtremo(fuera, destino) {
+  if (!fuera) return null
+  return destino < 1 ? 'aa' : 'Z'
+}
+
+/** El resultado `rechazada` de un item de un lote. */
+const rechazoDeItem = (item) => (motivo, detail, registro = null) => ({
+  id_operacion: item.id_operacion,
+  estado: 'rechazada',
+  motivo,
+  detail,
+  registro,
+})
+
+/** Un LSN va completo (título, nota y máximo) y con la nota entre 0 y el máximo (5 o 10). */
+function rechazoDeLsn(titulo, nota, maximo) {
+  const partes = [titulo, nota, maximo]
+  if (partes.some((v) => v != null) && partes.some((v) => v == null)) {
+    return ['lsn_incompleto', 'Para registrar un LSN, completa el titulo, la nota obtenida y el puntaje maximo.']
+  }
+  const fueraDeRango = ![5, 10].includes(Number(maximo)) || nota < 0 || nota > Number(maximo)
+  if (partes.every((v) => v != null) && fueraDeRango) {
+    return ['lsn_invalido', 'Selecciona un maximo de 5 o 10 e ingresa una nota entre 0 y ese maximo.']
+  }
+  return null
+}
 
 /** Los cuatro PA del ano, con su estado segun la fecha de hoy. */
 function periodosDelAnio() {
@@ -274,7 +321,7 @@ function periodosDelAnio() {
     nombre: `PA${t.numero}`,
     fecha_inicio: t.inicio,
     fecha_fin: t.fin,
-    estado: hoy < t.inicio ? 'futuro' : hoy > t.fin ? 'culminado' : 'en_curso',
+    estado: estadoDelTramo(hoy, t),
   }))
 }
 
@@ -351,8 +398,8 @@ function sugerenciaDe(alumno, entrada) {
   }
 
   const decimas = 4 * ultima.fluidez + 6 * ultima.comprension
-  const accion = decimas >= 28 ? 'subir' : decimas >= 16 ? 'mantener' : 'bajar'
-  const salto = accion === 'subir' ? 1 : accion === 'bajar' ? -1 : 0
+  const accion = accionDeRubrica(decimas)
+  const salto = { subir: 1, mantener: 0, bajar: -1 }[accion]
 
   // Las excepciones de los extremos: por debajo de aa y por encima de Z no hay
   // nada, asi que la sugerencia se queda donde esta y lo dice.
@@ -366,7 +413,7 @@ function sugerenciaDe(alumno, entrada) {
     nivel,
     texto: fuera ? 'Mantener nivel' : { subir: 'Subir nivel', mantener: 'Mantener nivel', bajar: 'Bajar nivel' }[accion],
     resultado_decimas: decimas,
-    excepcion: fuera ? (destino < 1 ? 'aa' : 'Z') : null,
+    excepcion: excepcionDeExtremo(fuera, destino),
     rubrica: {
       id: ultima.id,
       mes: `${db.ANIO_LECTIVO}-${String(ultima.mes).padStart(2, '0')}`,
@@ -454,7 +501,7 @@ function itemDeRubrica(alumno, guardada) {
     comprension: c,
     // Una sola dimension es `incompleta` y SE PUEDE GUARDAR: el docente no
     // tiene por que evaluar las dos cosas en la misma sentada.
-    estado: puestas === 0 ? 'pendiente' : puestas === 1 ? 'incompleta' : 'completada',
+    estado: ['pendiente', 'incompleta', 'completada'][puestas],
     // En DECIMAS: 4F + 6C, o sea F x 0,40 + C x 0,60. 26 es 2,6.
     resultado_decimas: puestas === 2 ? 4 * f + 6 * c : null,
     version: guardada?.version ?? null,
@@ -1015,6 +1062,7 @@ export const handlers = {
       }
       const noLectivo = CALENDARIO_MOCK.dias_no_lectivos.find((d) => fecha >= d.fecha_inicio && fecha <= d.fecha_fin)
       const finDeSemana = [0, 6].includes(new Date(`${fecha}T12:00:00`).getDay())
+      const motivoFinDeSemana = finDeSemana ? 'fin_de_semana' : null
       return responder({
         fecha,
         id_colegio: Number(idColegio),
@@ -1026,7 +1074,7 @@ export const handlers = {
         es_lectivo: periodo.tipo === 'PA' && !noLectivo && !finDeSemana,
         motivo_no_lectivo: periodo.tipo === 'PR'
           ? 'receso'
-          : (noLectivo?.motivo ?? (finDeSemana ? 'fin_de_semana' : null)),
+          : (noLectivo?.motivo ?? motivoFinDeSemana),
       })
     },
   },
@@ -1311,7 +1359,7 @@ export const handlers = {
           ? {
               id_clase: guardada.id_clase,
               tipo: guardada.tipo,
-              etiqueta: guardada.tipo === 'adicional' ? 'Clase adicional' : 'Clase programada',
+              etiqueta: guardada.tipo === 'adicional' ? 'Clase adicional' : CLASE_PROGRAMADA,
               fecha_original: fecha,
               fecha,
               aviso: null,
@@ -1319,7 +1367,7 @@ export const handlers = {
           : {
               id_clase: null,
               tipo: lectiva ? 'habitual' : null,
-              etiqueta: lectiva ? 'Clase programada' : null,
+              etiqueta: lectiva ? CLASE_PROGRAMADA : null,
               fecha_original: fecha,
               fecha,
               aviso: lectiva ? null : 'No hay una clase programada para esta fecha.',
@@ -1402,7 +1450,7 @@ export const handlers = {
           clase: {
             id_clase: clase.id_clase,
             tipo: clase.tipo,
-            etiqueta: clase.tipo === 'adicional' ? 'Clase adicional' : 'Clase programada',
+            etiqueta: clase.tipo === 'adicional' ? 'Clase adicional' : CLASE_PROGRAMADA,
             fecha_original: fecha,
             fecha,
             aviso: null,
@@ -1556,13 +1604,7 @@ export const handlers = {
       const tabla = porIdDeTabla(idTabla)
 
       const resultados = filas.map((f) => {
-        const rechazo = (motivo, detail) => ({
-          id_operacion: f.id_operacion,
-          estado: 'rechazada',
-          motivo,
-          detail,
-          registro: null,
-        })
+        const rechazo = rechazoDeItem(f)
 
         if (tabla.estado === 'no_realizada') {
           return rechazo('lectura_no_realizada', 'La lectura semanal de esta tabla fue marcada como no realizada.')
@@ -1592,17 +1634,8 @@ export const handlers = {
         const nota = 'lsn_nota' in f ? f.lsn_nota : guardado.lsn_nota
         const maximo = 'lsn_maximo' in f ? f.lsn_maximo : guardado.lsn_maximo
         const tituloFinal = 'lsn_titulo' in f ? titulo : guardado.lsn_titulo
-        const partes = [tituloFinal, nota, maximo]
-
-        if (partes.some((v) => v != null) && partes.some((v) => v == null)) {
-          return rechazo(
-            'lsn_incompleto',
-            'Para registrar un LSN, completa el titulo, la nota obtenida y el puntaje maximo.',
-          )
-        }
-        if (partes.every((v) => v != null) && (![5, 10].includes(Number(maximo)) || nota < 0 || nota > Number(maximo))) {
-          return rechazo('lsn_invalido', 'Selecciona un maximo de 5 o 10 e ingresa una nota entre 0 y ese maximo.')
-        }
+        const lsn = rechazoDeLsn(tituloFinal, nota, maximo)
+        if (lsn) return rechazo(...lsn)
 
         tabla.datos[f.id_alumno] = {
           ...guardado,
@@ -1706,13 +1739,7 @@ export const handlers = {
     guardar: async (items = []) =>
       responder(
         items.map((it) => {
-          const rechazo = (motivo, detail, registro = null) => ({
-            id_operacion: it.id_operacion,
-            estado: 'rechazada',
-            motivo,
-            detail,
-            registro,
-          })
+          const rechazo = rechazoDeItem(it)
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
@@ -1861,8 +1888,8 @@ export const handlers = {
       const periodos = periodosDelAnio()
 
       // Un campo calculado en el cuerpo tira el LOTE COMPLETO, no solo su item.
-      const PROHIBIDOS = ['entrada', 'sugerencia', 'nivel_programa', 'nivel_colocado', 'proyeccion', 'avance_anual']
-      const intruso = items.flatMap((it) => Object.keys(it)).find((c) => PROHIBIDOS.includes(c))
+      const PROHIBIDOS = new Set(['entrada', 'sugerencia', 'nivel_programa', 'nivel_colocado', 'proyeccion', 'avance_anual'])
+      const intruso = items.flatMap((it) => Object.keys(it)).find((c) => PROHIBIDOS.has(c))
       if (intruso) {
         const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
         error.response.data.errores = [{ campo: intruso, mensaje: 'Este campo lo calcula el servidor.' }]
@@ -1871,13 +1898,7 @@ export const handlers = {
 
       return responder(
         items.map((it) => {
-          const rechazo = (motivo, detail, registro = null) => ({
-            id_operacion: it.id_operacion,
-            estado: 'rechazada',
-            motivo,
-            detail,
-            registro,
-          })
+          const rechazo = rechazoDeItem(it)
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
@@ -2024,7 +2045,7 @@ export const handlers = {
      * unidad es el MES, no porque falte el dato.
      */
     registrosDeActividad: async (idDocente, idActividad, { modulo, pagina = 1 } = {}) => {
-      if (!MODULOS_DE_ACTIVIDAD_MOCK.includes(modulo)) {
+      if (!MODULOS_DE_ACTIVIDAD_MOCK.has(modulo)) {
         const error = errorMock(422, 'Los datos enviados no son validos.', 'validacion')
         error.response.data.errores = [{ campo: 'modulo', mensaje: 'El modulo indicado no existe.' }]
         throw error
@@ -2293,12 +2314,12 @@ export const handlers = {
     listar: (filtros = {}) => responder(db.alumnosDe(filtros).map(fichaDeListado)),
     detalle: (id) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       return responder(fichaDeAlumno(alumno))
     },
     historial: (id) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       return responder(historialDeAlumno(alumno))
     },
   },
@@ -2310,7 +2331,7 @@ export const handlers = {
 
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(payload.id_alumno))
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
 
       const periodo = db.PERIODOS.find((p) => p.id_periodo === Number(payload.id_periodo))
       if (!periodo) throw errorHttp(422, 'El periodo de evaluación no existe')
@@ -2375,7 +2396,7 @@ export const handlers = {
     },
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === payload.id_alumno)
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       const guardada = db.guardarReporteSemanal(normalizarReporte(payload))
       return responder(filaSemanal(alumno, guardada, payload.id_semana), RETARDO_ESCRITURA_MS)
     },
@@ -2390,7 +2411,7 @@ export const handlers = {
     },
     guardar: async (payload) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === payload.id_alumno)
-      if (!alumno) throw errorHttp(404, 'El alumno no existe')
+      if (!alumno) throw errorHttp(404, ALUMNO_NO_EXISTE)
       // RN-008: Fluidez y Comprensión viajan siempre juntas.
       if (!payload.id_nivel_fluidez || !payload.id_nivel_comprension) {
         throw errorHttp(422, 'Ambas dimensiones son obligatorias')
@@ -2636,6 +2657,12 @@ export const handlers = {
             colegio: colegio?.nombre ?? '—',
             grado: grado?.nombre ?? a.id_grado,
             programa: programa?.nombre ?? '—',
+            // Desde T3 todo alumno pertenece a una sección: la "Única" de su
+            // grado, la misma que da el detalle del colegio (100 + id_grado).
+            // Sin ella, editar a cualquiera rellenaba la sección y el
+            // formulario lo tomaba por un cambio de grupo.
+            id_seccion: a.id_seccion ?? 100 + a.id_grado,
+            seccion: a.seccion ?? 'Única',
           }
         }),
       ),
@@ -2804,7 +2831,7 @@ export const handlers = {
       if (!nombre || !apellido || !email) throw errorHttp(422, 'Completa nombres, apellidos y correo')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
       // El backend responde 409 cuando el correo ya está tomado.
-      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, CORREO_REGISTRADO)
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
       const idDocente = Math.max(...db.DOCENTES.map((d) => d.id_docente)) + 1
@@ -2839,7 +2866,7 @@ export const handlers = {
       // Ya NO se rechaza el rol Docente: `/profesores` desapareció y este es
       // el único alta de los tres roles. Con id_rol de Docente, el backend crea
       // además su ficha y sus asignaciones en la misma transacción.
-      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.correo.toLowerCase() === email)) throw errorHttp(409, CORREO_REGISTRADO)
 
       const idUsuario = Math.max(...db.USUARIOS.map((u) => u.id_usuario)) + 1
       const nuevo = { id_usuario: idUsuario, id_rol: rol, correo: email, id_docente: null, nombres: nombre, apellidos: apellido, activo: true }
@@ -2857,7 +2884,7 @@ export const handlers = {
       const rol = Number(idRol ?? usuario.id_rol)
       if (!nombre || !apellido || !email || !rol) throw errorHttp(422, 'Completa todos los campos del usuario')
       if (!esCorreoValido(email)) throw errorHttp(422, 'El correo no es válido')
-      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, 'Ese correo ya está registrado')
+      if (db.USUARIOS.some((u) => u.id_usuario !== Number(id) && u.correo.toLowerCase() === email)) throw errorHttp(422, CORREO_REGISTRADO)
 
       const anteriorRol = usuario.id_rol
       usuario.nombres = nombre

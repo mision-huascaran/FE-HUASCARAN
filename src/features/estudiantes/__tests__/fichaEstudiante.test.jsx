@@ -71,7 +71,7 @@ describe('Detalle del alumno (CU015)', () => {
     expect(await screen.findByText('PA4')).toBeInTheDocument()
     ;['PA1', 'PA2', 'PA3'].forEach((pa) => expect(screen.getByText(pa)).toBeInTheDocument())
     expect(screen.getByText('Pendiente del periodo anterior')).toBeInTheDocument()
-    expect(screen.getAllByText('Sin registrar').length).toBe(2)
+    expect(screen.getAllByText('Sin registrar')).toHaveLength(2)
   })
 
   it('un error de una pestaña muestra el detail del servidor', async () => {

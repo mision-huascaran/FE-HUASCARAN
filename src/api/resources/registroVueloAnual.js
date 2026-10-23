@@ -140,8 +140,8 @@ export function decision({
   idPrograma,
   cambios,
 }) {
-  const permitidos = ['id_nivel_colocado', 'id_nivel_proyeccion', 'observacion']
-  const soloLoSuyo = Object.fromEntries(Object.entries(cambios ?? {}).filter(([campo]) => permitidos.includes(campo)))
+  const permitidos = new Set(['id_nivel_colocado', 'id_nivel_proyeccion', 'observacion'])
+  const soloLoSuyo = Object.fromEntries(Object.entries(cambios ?? {}).filter(([campo]) => permitidos.has(campo)))
 
   return {
     id_operacion: idOperacion,
