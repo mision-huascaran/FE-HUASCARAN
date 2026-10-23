@@ -9,7 +9,7 @@
 //   · NO SE EDITA NADA. Solo se otorga y se revoca, y la revocación deja su
 //     propio rastro. Por eso no hay lápiz en ninguna fila.
 //   · EL ESTADO SE CALCULA con la hora, no se guarda. Un permiso caduca solo.
-//   · TODO EXIGE CONEXIÓN. No hay versión offline de esto ni debe haberla:
+//   · CUALQUIER ACCIÓN EXIGE CONEXIÓN. No hay versión offline de esto ni debe haberla:
 //     autorizar una corrección es un acto administrativo, no trabajo de aula.
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'

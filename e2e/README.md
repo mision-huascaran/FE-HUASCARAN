@@ -4,11 +4,10 @@ Recorren SICEDU desplegado en **qa** (backend y base de datos reales) con las cu
 seed del backend en cada despliegue (`python -m app.cli sembrar-e2e`). En Jenkins corren en la rama
 `qa`, después del deploy.
 
-qa se compila con `VITE_USE_MOCK=true`, `VITE_AUTH_REAL=true` y `VITE_ADMIN_REAL=true`. Solo se prueban
-módulos **reales**: login y primer ingreso, `/me`, logout, Inicio de los 3 roles, actividades,
-Colegios, Alumnos, Usuarios, historial del alumno, Seguimiento y Asistencias (CU022). Rúbrica,
-Seguimiento de Lectura, Registro de Vuelo, Dashboard y la ficha `/estudiantes/:id` siguen en mock y no
-se prueban (salvo para comprobar que el Directivo **no llega** al Dashboard).
+qa se compila sin el simulador (`VITE_USE_MOCK=false`): todo va contra la API real. Se prueban login y
+primer ingreso, `/me`, logout, Inicio de los 3 roles, actividades, Colegios, Alumnos, Usuarios, historial
+del alumno (mientras la pestaña Auditoría esté visible), Seguimiento y Asistencias (CU022), y que el
+Directivo **no llega** a la ficha de un estudiante.
 
 | Archivo | Flujo |
 |---|---|
@@ -18,7 +17,7 @@ se prueban (salvo para comprobar que el Directivo **no llega** al Dashboard).
 | `f3b-cu015-historial-alumno.spec.js` | CU015: el historial muestra la creación (D29, corregido) |
 | `f4-gestion-usuarios.spec.js` | La Supervisora crea un Docente, primer ingreso (si hay temporal) e inactivación |
 | `f5-indicadores-directivo.spec.js` | 2 tarjetas del Directivo, sin datos de alumnos |
-| `f5b-cu012-directivo-sin-estudiantes.spec.js` | CU012/RN-033: el Directivo no llega al Dashboard (corregido) |
+| `f5b-cu012-directivo-sin-estudiantes.spec.js` | CU012/RN-033: el Directivo no llega a la ficha de un estudiante |
 | `f6-cierre-sesion-con-actividad.spec.js` | Cerrar sesión fuerza el cierre de la actividad |
 | `f7-seguimiento.spec.js` | La Supervisora ve al Docente E2E y la actividad de F3 |
 | `f8-jornada-asistencias.spec.js` | Jornada con Asistencias: marcar todos, tardanza, observación, «2 Asistencias» |

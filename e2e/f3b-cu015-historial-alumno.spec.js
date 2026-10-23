@@ -7,12 +7,19 @@
 // es donde viene el detalle de cada edición.
 //
 // Solo lectura: usa el alumno que creó (e inactivó) F3.
+//
+// La pestaña «Auditoría» está oculta mientras MOSTRAR_AUDITORIA sea false
+// (src/config/funcionalidades.js, 8219262): la prueba lee esa misma constante
+// y vuelve a correr sola cuando se active.
 import { expect, test } from '@playwright/test'
+import { MOSTRAR_AUDITORIA } from '../src/config/funcionalidades.js'
 import { exigirEstadoDeF3 } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
 test('CU015 – historial registra la creación (D29)', async ({ page }) => {
+  // Se salta a propósito: la pestaña Auditoría está oculta en la app hasta que la auditoría cubra todas las entidades.
+  test.skip(!MOSTRAR_AUDITORIA, 'Pestaña «Auditoría» oculta: MOSTRAR_AUDITORIA = false en src/config/funcionalidades.js')
   const { alumno } = exigirEstadoDeF3('alumno')
 
   await iniciarSesion(page, 'docente')

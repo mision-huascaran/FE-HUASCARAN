@@ -4,7 +4,7 @@
 // solo y la pantalla era una grilla de filas independientes. Ahora hay un
 // objeto propio —la TABLA SEMANAL— que existe o no existe, se crea a mano, se
 // puede marcar "no realizada" y tiene su `version`. Eso cambia el orden de
-// todo: primero se pregunta si la tabla existe, y solo después hay filas.
+// las cosas: primero se pregunta si la tabla existe, y solo después hay filas.
 //
 // UNA TABLA ES: grupo (colegio, grado, sección) × subprograma × semana, atada a
 // una CLASE DE REFERENCIA de esa semana. Dos consecuencias que no son obvias:

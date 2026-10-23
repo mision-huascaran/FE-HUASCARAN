@@ -50,7 +50,7 @@ export function conectarCacheConsultas(cliente, propietario) {
   const escribir = () => {
     clearTimeout(temporizador)
     temporizador = setTimeout(() => {
-      guardar({ propietario, entradas })
+      guardar({ propietario, entradas }).catch(() => null) // `guardar` ya maneja sus errores.
     }, ESPERA_MS)
   }
 
@@ -61,7 +61,7 @@ export function conectarCacheConsultas(cliente, propietario) {
       // Lo que ya está en memoria es más reciente que lo guardado.
       if (cliente.getQueryData(clave) === undefined) cliente.setQueryData(clave, datos, { updatedAt: en })
     })
-  })
+  }).catch(() => null) // Sin caché recuperable se sigue con la memoria: no es un error.
 
   const desuscribir = cliente.getQueryCache().subscribe((evento) => {
     const consulta = evento?.query

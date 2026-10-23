@@ -68,7 +68,7 @@ const mismo = (a, b) => a != null && b != null && String(a) === String(b)
  * hay calendario de ese colegio —que NO es lo mismo que "fuera de periodo"— y
  * `{tipo: null}` cuando la fecha cae fuera de todos sus periodos.
  */
-export function periodoDe(calendarios = [], idColegio, fecha) {
+export function periodoDe(calendarios, idColegio, fecha) {
   /**
    * Un colegio puede traer MÁS DE UN calendario: uno por año escolar.
    *
@@ -78,7 +78,7 @@ export function periodoDe(calendarios = [], idColegio, fecha) {
    * siguiente. Así que no vale quedarse con el primero del colegio: hay que
    * buscar el que CONTIENE la fecha, que es lo que desempata entre años.
    */
-  const delColegio = calendarios.filter((c) => mismo(c.id_colegio, idColegio))
+  const delColegio = (calendarios ?? []).filter((c) => mismo(c.id_colegio, idColegio))
   if (!delColegio.length) return null
 
   let calendario = null
@@ -139,11 +139,9 @@ export function habilitacionPara({ habilitaciones, modulo, idColegio, idGrado, f
    */
   const asignadas = asignaciones.filter((a) => delGrupo(a) && mismo(a.id_periodo_academico, idPeriodo))
 
-  const ordinaria = asignadas.find((a) => !a.retroactiva)
-  if (ordinaria) return { permitida: true, motivo: MOTIVO.ASIGNACION, id_periodo_academico: idPeriodo }
+  if (asignadas.some((a) => !a.retroactiva)) return { permitida: true, motivo: MOTIVO.ASIGNACION, id_periodo_academico: idPeriodo }
 
-  const retroactiva = asignadas.find((a) => a.retroactiva)
-  if (retroactiva) {
+  if (asignadas.some((a) => a.retroactiva)) {
     return { permitida: true, motivo: MOTIVO.ASIGNACION_RETROACTIVA, id_periodo_academico: idPeriodo }
   }
 

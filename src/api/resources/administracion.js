@@ -727,8 +727,8 @@ async function asignacionDe(datos, { obligatoria }) {
  * "desde qué periodo": en un PA no hay ambigüedad y el backend ignora el
  * campo, y sin calendario configurado tampoco hay nada que preguntar.
  */
-export function recesoDelColegio(estados = [], idColegio) {
-  const estado = estados.find((c) => String(c.id) === String(idColegio))?.estado_calendario
+export function recesoDelColegio(estados, idColegio) {
+  const estado = (estados ?? []).find((c) => String(c.id) === String(idColegio))?.estado_calendario
   return estado?.tipo === 'PR' ? estado : null
 }
 

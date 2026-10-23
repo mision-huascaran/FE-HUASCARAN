@@ -320,7 +320,7 @@ describe('Bitácora de un docente (CU021)', () => {
     await abrirDetalle()
     fireEvent.click(await screen.findByRole('button', { name: /ver rúbrica/i }, ESPERA))
 
-    await screen.findByText(/nada de este módulo en esta jornada/i, {}, ESPERA)
+    expect(await screen.findByText(/nada de este módulo en esta jornada/i, {}, ESPERA)).toBeInTheDocument()
   })
 
   it('se puede volver a la grilla general', async () => {
