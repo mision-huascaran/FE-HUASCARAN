@@ -21,14 +21,12 @@ import {
   obtenerTabla,
 } from '../../api/resources/lectura'
 import { ahora } from '../../lib/relojServidor'
+import { nuevoUuid } from '../../lib/uuid'
 import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 
 /** Un `id_operacion` nuevo por intento del usuario, estable en el reintento. */
-const nuevaOperacion = () =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+const nuevaOperacion = nuevoUuid
 
 /**
  * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
@@ -126,6 +124,7 @@ export default function useTablaLectura(filtros) {
    */
   const guardarFila = ({ idAlumno, cambios, version }) => {
     const fila = tabla.data?.filas?.find((f) => f.id_alumno === idAlumno)
+    const quien = fila?.nombre ?? `alumno ${idAlumno}`
     guardarRegistro('lectura', {
       clave: `${tabla.data.id}-${idAlumno}`,
       envio: {
@@ -134,7 +133,7 @@ export default function useTablaLectura(filtros) {
         item: { version, realizado_en: ahora().toISOString(), id_actividad: idActividad, id_alumno: idAlumno, ...cambios },
       },
       local: cambios,
-      descripcion: `Lectura · ${fila?.nombre ?? `alumno ${idAlumno}`}`,
+      descripcion: `Lectura · ${quien}`,
       idActividad,
     }).catch((error) => {
       if (!esDefinitivo(error)) return

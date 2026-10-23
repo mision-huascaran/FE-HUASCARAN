@@ -64,11 +64,9 @@ export async function elegirClase(page, { docente = null, grado, fecha }, { refr
   await expect(colegio.getByRole('option', { name: SEED.colegio, exact: true }), 'el colegio E2E en el filtro Colegio').toBeAttached()
   await colegio.selectOption({ label: SEED.colegio })
   await page.getByLabel('Grado', { exact: true }).selectOption({ label: grado })
-  // La Sección se muestra para ubicarse (CU022) pero no se elige: es la del
-  // colegio y no viaja en `GET /asistencias`.
-  const seccion = page.getByLabel('Sección', { exact: true })
-  await expect(seccion).toHaveValue('Única')
-  await expect(seccion).toBeDisabled()
+  // La clase es colegio × grado × sección × fecha (T6): la sección se elige.
+  // El Subprograma solo filtra lo que se ve (CU022 v2).
+  await page.getByLabel('Sección', { exact: true }).selectOption({ label: 'Única' })
   await page.getByLabel('Subprograma', { exact: true }).selectOption({ label: SUBPROGRAMA })
   const campoFecha = page.getByLabel('Fecha', { exact: true })
   if (refresco && (await campoFecha.inputValue()) === fecha) {

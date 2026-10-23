@@ -18,6 +18,7 @@ import { mensajeDeError, motivoDe } from '../api/client'
 import { del, get, set } from 'idb-keyval'
 import { avisarPendientes, consultarOperacion } from '../api/resources/sincronizacion'
 import { idDeDispositivo } from './dispositivo'
+import { nuevoUuid } from './uuid'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 
@@ -126,16 +127,8 @@ function descartarDependientes(clave, error) {
  * Se genera UNA vez, al encolar, y viaja igual en cada reintento: esa es toda
  * su gracia. Si se generara al enviar, dos intentos del mismo cambio serían
  * dos operaciones distintas para el servidor y se aplicarían las dos.
- *
- * `crypto.randomUUID` no existe en navegadores viejos ni en algunos jsdom.
  */
-function nuevoIdOperacion() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
+const nuevoIdOperacion = nuevoUuid
 
 /**
  * Un error sin respuesta: se mandó, pero no se supo si llegó.
@@ -203,17 +196,112 @@ function programar(ms) {
   temporizador = setTimeout(() => procesar(), ms)
 }
 
-async function procesar() {
-  if (procesando || cola.length === 0) return
+/** ¿Se puede vaciar la cola ahora? */
+function sePuedeProcesar() {
+  if (procesando || cola.length === 0) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     useSyncStore.getState().terminarSincronizacion(null)
-    return
+    return false
   }
   // Sin sesión no se envía nada (CU007, CU008): recuperar la conexión en la
   // pantalla de login no debe sincronizar. Además, sin token cada envío daría
   // 401, que no es reintentable, y el pendiente se perdería. Se espera al
   // siguiente inicio de sesión (ver `iniciarCola`).
-  if (!useSessionStore.getState().token) return
+  return Boolean(useSessionStore.getState().token)
+}
+
+/** La operación ya había llegado: se cierra con lo que respondió entonces. */
+async function resolverConocida(item, conocida) {
+  cola.shift()
+  item.verificar = false
+  await persistir()
+  if (conocida.estado === 'rechazada') {
+    const error = new Error(conocida.motivo ?? 'rechazada')
+    error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
+    descartarDependientes(item.clave, error)
+    rechazarPromesa(item.idOperacion, error)
+  } else {
+    resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
+  }
+}
+
+/** Un envío falló. Devuelve si la cola sigue con el siguiente. */
+async function trasFalloDeEnvio(item, error) {
+  enVuelo = null
+  const mensaje = mensajeDeError(error, error?.message ?? 'Error de envío')
+  // Si no hubo respuesta, el próximo intento preguntará antes de mandar.
+  item.verificar = sinRespuesta(error)
+
+  if (!esReintentable(error)) {
+    cola.shift()
+    // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
+    // daría otro error y ensuciaría la cola con fallos encadenados.
+    descartarDependientes(item.clave, error)
+    await persistir()
+    rechazarPromesa(item.idOperacion, error)
+    return true
+  }
+
+  item.intentos += 1
+  item.error = mensaje
+  await persistir()
+
+  if (item.intentos >= MAX_INTENTOS) {
+    // Se agotaron los tres intentos: queda en la cola, visible en el
+    // SyncBadge, esperando el "Reintentar ahora" del docente.
+    useSyncStore.getState().terminarSincronizacion(mensaje)
+    rechazarPromesa(item.idOperacion, error)
+    return false
+  }
+
+  programar(ESPERAS_MS[item.intentos - 1])
+  useSyncStore.getState().terminarSincronizacion(null)
+  return false
+}
+
+/** Envía el primero de la cola. Devuelve si la cola sigue con el siguiente. */
+async function procesarUno(item) {
+  const enviar = enviadores.get(item.tipo)
+  if (!enviar) {
+    // Tipo desconocido: se descarta para no dejar la cola trabada.
+    cola.shift()
+    rechazarPromesa(item.idOperacion, new Error(`Sin enviador para "${item.tipo}"`))
+    await persistir()
+    return true
+  }
+
+  try {
+    /**
+     * Antes de reintentar algo que se quedó sin respuesta, se pregunta si
+     * ya llegó. Evita un reintento inútil y, sobre todo, permite
+     * distinguir "no llegó" de "llegó y fue rechazado".
+     */
+    const conocida = await yaLlego(item)
+    if (conocida) {
+      await resolverConocida(item, conocida)
+      return true
+    }
+
+    enVuelo = item.idOperacion
+    const respuesta = await enviar({
+      ...item.payload,
+      id_operacion: item.idOperacion,
+      // El nombre antiguo sigue yendo: los endpoints que no se han
+      // actualizado todavía lo esperan, y mandar uno de más no estorba.
+      idempotency_key: item.clave,
+    })
+    enVuelo = null
+    cola.splice(cola.indexOf(item), 1)
+    await persistir()
+    resolverPromesa(item.idOperacion, respuesta)
+    return true
+  } catch (error) {
+    return trasFalloDeEnvio(item, error)
+  }
+}
+
+async function procesar() {
+  if (!sePuedeProcesar()) return
 
   procesando = true
   useSyncStore.getState().iniciarSincronizacion()
@@ -230,85 +318,9 @@ async function procesar() {
 
   try {
     while (cola.length > 0) {
-      const item = cola[0]
-      const enviar = enviadores.get(item.tipo)
-
-      if (!enviar) {
-        // Tipo desconocido: se descarta para no dejar la cola trabada.
-        cola.shift()
-        rechazarPromesa(item.idOperacion, new Error(`Sin enviador para "${item.tipo}"`))
-        await persistir()
-        continue
-      }
-
-      try {
-        /**
-         * Antes de reintentar algo que se quedó sin respuesta, se pregunta si
-         * ya llegó. Evita un reintento inútil y, sobre todo, permite
-         * distinguir "no llegó" de "llegó y fue rechazado".
-         */
-        const conocida = await yaLlego(item)
-        if (conocida) {
-          cola.shift()
-          item.verificar = false
-          await persistir()
-          if (conocida.estado === 'rechazada') {
-            const error = new Error(conocida.motivo ?? 'rechazada')
-            error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
-            descartarDependientes(item.clave, error)
-            rechazarPromesa(item.idOperacion, error)
-          } else {
-            resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
-          }
-          continue
-        }
-
-        enVuelo = item.idOperacion
-        const respuesta = await enviar({
-          ...item.payload,
-          id_operacion: item.idOperacion,
-          // El nombre antiguo sigue yendo: los endpoints que no se han
-          // actualizado todavía lo esperan, y mandar uno de más no estorba.
-          idempotency_key: item.clave,
-        })
-        enVuelo = null
-        cola.splice(cola.indexOf(item), 1)
-        await persistir()
-        resolverPromesa(item.idOperacion, respuesta)
-      } catch (error) {
-        enVuelo = null
-        const mensaje = mensajeDeError(error, error?.message ?? 'Error de envío')
-        // Si no hubo respuesta, el próximo intento preguntará antes de mandar.
-        item.verificar = sinRespuesta(error)
-
-        if (!esReintentable(error)) {
-          cola.shift()
-          // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
-          // daría otro error y ensuciaría la cola con fallos encadenados.
-          descartarDependientes(item.clave, error)
-          await persistir()
-          rechazarPromesa(item.idOperacion, error)
-          continue
-        }
-
-        item.intentos += 1
-        item.error = mensaje
-        await persistir()
-
-        if (item.intentos >= MAX_INTENTOS) {
-          // Se agotaron los tres intentos: queda en la cola, visible en el
-          // SyncBadge, esperando el "Reintentar ahora" del docente.
-          useSyncStore.getState().terminarSincronizacion(mensaje)
-          rechazarPromesa(item.idOperacion, error)
-          return
-        }
-
-        programar(ESPERAS_MS[item.intentos - 1])
-        useSyncStore.getState().terminarSincronizacion(null)
-        return
-      }
+      const sigue = await procesarUno(cola[0])
+      if (!sigue) return
     }
-
     useSyncStore.getState().terminarSincronizacion(null)
   } finally {
     procesando = false
@@ -470,10 +482,11 @@ export async function iniciarCola() {
   // Al iniciar sesión se envía lo que quedó pendiente de la sesión anterior
   // (por ejemplo, el cierre de una actividad hecho sin conexión).
   useSessionStore.subscribe((estado, previo) => {
-    if (estado.token && estado.token !== previo.token) procesar()
+    // `procesar` ya maneja sus errores: el catch solo cierra la promesa.
+    if (estado.token && estado.token !== previo.token) procesar().catch(() => null)
   })
 
-  if (cola.length > 0) procesar()
+  if (cola.length > 0) procesar().catch(() => null)
 }
 
 /** ¿Cuántos cambios quedan sin enviar? Lo consulta el cierre de sesión. */

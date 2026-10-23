@@ -10,16 +10,11 @@
 // seguir siendo el MISMO después de un cierre de sesión. No identifica a la
 // persona, solo al navegador, así que no es un dato personal que haya que
 // borrar; si se borrara, el siguiente aviso parecería venir de otro equipo.
+import { nuevoUuid } from './uuid'
+
 const CLAVE = 'sicedu.dispositivo'
 
-/** Un UUID, con respaldo para navegadores viejos y para jsdom. */
-function nuevoId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
+const nuevoId = nuevoUuid
 
 /**
  * El id de este dispositivo, creándolo la primera vez.

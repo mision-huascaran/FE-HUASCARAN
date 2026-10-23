@@ -366,7 +366,7 @@ describe('Lo que decide el docente', () => {
     montar()
     fireEvent.change(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA), { target: { value: '' } })
 
-    await screen.findByText(/no se puede quitar; selecciona otro nivel/i, {}, ESPERA)
+    expect(await screen.findByText(/no se puede quitar; selecciona otro nivel/i, {}, ESPERA)).toBeInTheDocument()
   })
 
   it('un choque de versiones no se reintenta: "Cargar versión actual" adopta el vigente y descarta', async () => {
@@ -424,7 +424,7 @@ describe('Lo que decide el docente', () => {
     )
 
     montar()
-    await screen.findByText(/la entrada de este periodo cambió después de registrar/i, {}, ESPERA)
+    expect(await screen.findByText(/la entrada de este periodo cambió después de registrar/i, {}, ESPERA)).toBeInTheDocument()
   })
 })
 
