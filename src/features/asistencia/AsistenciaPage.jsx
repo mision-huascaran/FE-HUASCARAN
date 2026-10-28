@@ -285,7 +285,24 @@ export default function AsistenciaPage() {
    */
   const datosClase = clase.data?.clase
   const escritura = clase.data?.escritura
-  const autoguardado = Boolean(escritura?.permitida) && puedeEditar && conActividad
+
+  /**
+   * ESA FECHA NO TIENE CLASE (CU022, flujo "Identificar la clase seleccionada").
+   *
+   * El servidor lo dice con `etiqueta: null`. Entonces no se habilita la lista:
+   * primero hay que decidir que se va a registrar una CLASE ADICIONAL, y eso lo
+   * decide el Docente, no la pantalla. Marcar sin decidirlo acababa en un
+   * rechazo `sin_clase_programada` después de haber rellenado media tabla.
+   */
+  const sinClase = Boolean(clase.data) && !datosClase?.etiqueta
+  const [registrandoAdicional, setRegistrandoAdicional] = useState(false)
+
+  // La decisión es de ESTA clase: cambiar de fecha o de aula la olvida, o se
+  // registrarían adicionales en días que el docente ni miró.
+  useEffect(() => setRegistrandoAdicional(false), [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha])
+
+  const autoguardado =
+    Boolean(escritura?.permitida) && puedeEditar && conActividad && (!sinClase || registrandoAdicional)
   const soloLectura = !autoguardado
 
   /**
@@ -306,6 +323,10 @@ export default function AsistenciaPage() {
     idGrado: filtros.idGrado,
     idSeccion: filtros.idSeccion,
     activo: autoguardado,
+    // CU022: la clase adicional se crea AL GUARDAR la primera asistencia, no
+    // al pulsar el botón. Por eso la marca viaja con el aviso, y pulsar no
+    // deja ningún registro vacío detrás.
+    adicional: sinClase && registrandoAdicional,
     claveClase,
   })
 
@@ -391,10 +412,32 @@ export default function AsistenciaPage() {
         asistencia de la trasladada. Eso último es justo lo que un docente
         daría por supuesto al contrario, así que se dice.
       */}
-      {datosClase?.etiqueta && (
+      {(datosClase?.etiqueta || datosClase?.aviso || registrandoAdicional) && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">{datosClase.etiqueta}</span>
-          {datosClase.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
+          {/*
+            La etiqueta del servidor o, si todavía no hay clase y el Docente
+            decidió registrar una adicional, la que tendrá al guardarse.
+          */}
+          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">
+            {datosClase?.etiqueta ?? 'Clase adicional'}
+          </span>
+          {datosClase?.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
+
+          {/*
+            CU022: "Antes de habilitar la lista para escritura, presenta el
+            botón 'Registrar clase adicional'".
+
+            La clase se crea AL GUARDAR la primera asistencia, no al pulsar:
+            pulsar no deja ningún registro vacío detrás. Y no sustituye
+            ninguna validación —sesión, actividad, calendario, habilitación
+            siguen decidiendo—, por eso solo sale cuando lo demás ya deja
+            escribir.
+          */}
+          {sinClase && !registrandoAdicional && puedeEditar && conActividad && escritura?.permitida && (
+            <Button size="sm" variant="secondary" onClick={() => setRegistrandoAdicional(true)}>
+              Registrar clase adicional
+            </Button>
+          )}
         </div>
       )}
 

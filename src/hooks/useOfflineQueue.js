@@ -45,12 +45,23 @@ export const TIPOS_ENVIO = {
  */
 registrarEnviador(
   TIPOS_ENVIO.ASISTENCIA,
-  async ({ idColegio, idGrado, idSeccion, fecha, nombre, registros, id_operacion: idOperacion, idempotency_key: clave }) => {
+  async ({
+    idColegio,
+    idGrado,
+    idSeccion,
+    fecha,
+    nombre,
+    adicional,
+    registros,
+    id_operacion: idOperacion,
+    idempotency_key: clave,
+  }) => {
     const respuesta = await guardarAsistencia({
       idColegio,
       idGrado,
       idSeccion,
       fecha,
+      adicional,
       registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
     })
 

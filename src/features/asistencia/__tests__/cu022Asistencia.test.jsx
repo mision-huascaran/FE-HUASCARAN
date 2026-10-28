@@ -50,13 +50,28 @@ vi.mock('idb-keyval', () => {
 const marcar = vi.fn()
 // Sin red, pedir la clase falla como falla axios sin respuesta.
 let sinRed = false
+/** Para forzar el caso "esa fecha no tiene clase" (`etiqueta: null`). */
+let claseSinProgramar = false
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
   return {
     ...original,
     guardarAsistencia: (...args) => marcar(...args),
-    obtenerClase: (...args) =>
-      sinRed ? Promise.reject(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })) : original.obtenerClase(...args),
+    obtenerClase: async (...args) => {
+      if (sinRed) throw Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+      const datos = await original.obtenerClase(...args)
+      if (!claseSinProgramar) return datos
+      return {
+        ...datos,
+        clase: {
+          ...datos.clase,
+          id_clase: null,
+          tipo: null,
+          etiqueta: null,
+          aviso: 'No hay una clase programada para esta fecha.',
+        },
+      }
+    },
   }
 })
 
@@ -100,6 +115,7 @@ beforeEach(() => {
   _reiniciarCola()
   fallaElDisco = false
   sinRed = false
+  claseSinProgramar = false
   marcar.mockReset()
   // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
   // `aplicado` ya no existe; lo que hay es `estado: 'aceptada' | 'rechazada'`.
@@ -462,6 +478,36 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
     expect(await screen.findByRole('alert', {}, ESPERA)).toHaveTextContent(/habilitación vigente/i)
   })
 
+  it('cada rechazo va en SU tarjeta, con su propio Descartar', async () => {
+    /**
+     * Con dos o tres dentro de la misma caja se leían como un solo aviso
+     * largo, y no se veía a qué alumno pertenecía cada botón. Son registros
+     * distintos que se resuelven por separado.
+     */
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_clase_programada',
+        detail: null,
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+    fireEvent.click(ladoPresente(controles()[1]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(2), ESPERA)
+    // Dos tarjetas, no una con dos renglones dentro.
+    const avisos = await screen.findAllByRole('alert', {}, ESPERA)
+    expect(avisos).toHaveLength(2)
+    // Y cada una con su botón, que es lo que permite resolverlas por separado.
+    avisos.forEach((aviso) => expect(within(aviso).getByRole('button', { name: 'Descartar' })).toBeInTheDocument())
+  })
+
   it('una marca ACEPTADA después borra el rechazo anterior', async () => {
     // Primero una que el servidor rechaza, con la clave de verdad.
     const rechazar = async ({ fecha, registros }) => ({
@@ -487,5 +533,60 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
     fireEvent.click(ladoAusente(controles()[0]))
 
     await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(0), ESPERA)
+  })
+})
+
+describe('Una fecha SIN clase programada (CU022)', () => {
+  beforeEach(() => {
+    claseSinProgramar = true
+  })
+
+  it('ENSEÑA el aviso del servidor, que antes se escondía', async () => {
+    /**
+     * El aviso vivía dentro de un bloque condicionado a que hubiera
+     * `etiqueta`, y sin clase la etiqueta llega `null`: justo en el caso
+     * donde el aviso importa, no se pintaba. El docente marcaba media tabla
+     * y se enteraba por el rechazo.
+     */
+    montar()
+    await abrirClase()
+    expect(
+      await screen.findByText('No hay una clase programada para esta fecha.', {}, ESPERA),
+    ).toBeInTheDocument()
+  })
+
+  it('NO deja marcar hasta decidir que es una clase adicional', async () => {
+    // CU022: "Antes de habilitar la lista para escritura, presenta el botón
+    // 'Registrar clase adicional'".
+    montar()
+    await abrirClase()
+
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeDisabled(), ESPERA)
+    expect(screen.getByRole('button', { name: 'Registrar clase adicional' })).toBeInTheDocument()
+  })
+
+  it('al registrarla, habilita la lista y la marca viaja con `adicional`', async () => {
+    montar()
+    await abrirClase()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+
+    // La etiqueta que tendrá al guardarse.
+    expect(screen.getByText('Clase adicional')).toBeInTheDocument()
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+    // CU022: la clase se crea AL GUARDAR, así que el aviso viaja con la
+    // marca. Pulsar el botón no manda nada por su cuenta.
+    expect(marcar.mock.calls[0][0]).toMatchObject({ adicional: true })
+  })
+
+  it('pulsar el botón NO crea nada por sí solo', async () => {
+    montar()
+    await abrirClase()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+    expect(marcar).not.toHaveBeenCalled()
   })
 })

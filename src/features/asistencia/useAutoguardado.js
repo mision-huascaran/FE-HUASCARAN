@@ -77,7 +77,16 @@ const conAlumno = (clase, idAlumno, marca) =>
  * @param claveClase la queryKey de la clase: lo que el servidor confirma se
  *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrado, idSeccion, activo, claveClase }) {
+export default function useAutoguardado({
+  alumnos = [],
+  fecha,
+  idColegio,
+  idGrado,
+  idSeccion,
+  activo,
+  adicional = false,
+  claveClase,
+}) {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -181,6 +190,14 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
             // rechaza cuando esta pantalla ya no esté abierta.
             nombre: alumno.nombre,
             /**
+             * CU022 — La CLASE ADICIONAL se crea con la primera asistencia.
+             *
+             * Viaja con la marca, no antes: pulsar "Registrar clase adicional"
+             * no debe dejar una clase vacía si el Docente se arrepiente. El
+             * servidor solo la crea si ese día no hay ninguna.
+             */
+            adicional,
+            /**
              * Un registro es una OPERACIÓN. La cola le pone su `id_operacion`
              * al enviar; `realizado_en` es la hora REAL del clic, no la de la
              * sincronización, y el servidor evalúa la habilitación A ESA HORA:
@@ -258,6 +275,7 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
       idGrado,
       idSeccion,
       idActividad,
+      adicional,
       toast,
       claveClase,
       queryClient,
