@@ -89,8 +89,25 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
     })
   }
 
+  /**
+   * La respuesta del servidor, con sus listas SIEMPRE como listas (D48).
+   *
+   * El contrato dice que vienen como arreglos, pero cuando no llega lo esperado
+   * —un endpoint a medio migrar, un `null` donde iba `[]`— un `.map()` o un
+   * `.length` revientan el render y la pantalla acaba en el error genérico "No
+   * se pudo mostrar esta pantalla". Eso fue D48: el probador veía ese cartel en
+   * Registro de Vuelo y, como Supervisora, en Rúbrica y Seguimiento de Lectura,
+   * sin forma de saber qué había pasado.
+   *
+   * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
+   * vacío, que es lo que el caso de uso pide.
+   */
+  const datos = vuelo.data
+    ? { ...vuelo.data, items: vuelo.data.items ?? [], periodos: vuelo.data.periodos ?? [] }
+    : null
+
   return {
-    datos: vuelo.data ?? null,
+    datos,
     cargando: vuelo.isLoading,
     error: vuelo.isError ? vuelo.error : null,
     guardarDecision,

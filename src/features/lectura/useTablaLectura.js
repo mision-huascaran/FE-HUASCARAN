@@ -142,8 +142,25 @@ export default function useTablaLectura(filtros) {
     })
   }
 
+  /**
+   * La respuesta del servidor, con sus listas SIEMPRE como listas (D48).
+   *
+   * El contrato dice que vienen como arreglos, pero cuando no llega lo esperado
+   * —un endpoint a medio migrar, un `null` donde iba `[]`— un `.map()` o un
+   * `.length` revientan el render y la pantalla acaba en el error genérico "No
+   * se pudo mostrar esta pantalla". Eso fue D48: el probador veía ese cartel en
+   * Registro de Vuelo y, como Supervisora, en Rúbrica y Seguimiento de Lectura,
+   * sin forma de saber qué había pasado.
+   *
+   * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
+   * vacío, que es lo que el caso de uso pide.
+   */
+  const datosTabla = tabla.data
+    ? { ...tabla.data, filas: tabla.data.filas ?? [], declaraciones: tabla.data.declaraciones ?? [] }
+    : null
+
   return {
-    tabla: tabla.data ?? null,
+    tabla: datosTabla,
     cargando: tabla.isLoading,
     // Un error de verdad: ni el 404 de "no existe", que es una respuesta.
     error: tabla.isError && !porCrear ? tabla.error : null,

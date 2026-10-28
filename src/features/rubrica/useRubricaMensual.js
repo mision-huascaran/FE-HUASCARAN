@@ -81,8 +81,23 @@ export default function useRubricaMensual({ filtros, pagina }) {
 
   const motivoDelMes = esMotivoDeMes(motivoDe(rubrica.error)) ? motivoDe(rubrica.error) : null
 
+  /**
+   * La respuesta del servidor, con sus listas SIEMPRE como listas (D48).
+   *
+   * El contrato dice que vienen como arreglos, pero cuando no llega lo esperado
+   * —un endpoint a medio migrar, un `null` donde iba `[]`— un `.map()` o un
+   * `.length` revientan el render y la pantalla acaba en el error genérico "No
+   * se pudo mostrar esta pantalla". Eso fue D48: el probador veía ese cartel en
+   * Registro de Vuelo y, como Supervisora, en Rúbrica y Seguimiento de Lectura,
+   * sin forma de saber qué había pasado.
+   *
+   * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
+   * vacío, que es lo que el caso de uso pide.
+   */
+  const datos = rubrica.data ? { ...rubrica.data, items: rubrica.data.items ?? [] } : null
+
   return {
-    datos: rubrica.data ?? null,
+    datos,
     cargando: rubrica.isLoading,
     motivoDelMes,
     // Un error de verdad: ni el mes futuro ni el mes sin días lectivos.
