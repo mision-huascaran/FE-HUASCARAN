@@ -21,7 +21,7 @@ import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/Toast'
 import { MODULOS_PERMISO, opcionesDePermiso, otorgarPermiso } from '../../api/resources/permisos'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
-import { mensajeDeError } from '../../api/client'
+import { erroresDeCampo, mensajeDeError } from '../../api/client'
 
 const VACIO = {
   id_anio_escolar: '',
@@ -85,13 +85,34 @@ export default function ModalOtorgarPermiso({
     enabled: Boolean(abierto && datos.id_colegio),
   })
 
+  /**
+   * Lo que el servidor rechaza POR CAMPO, para pintarlo debajo de su control.
+   *
+   * CU028 lo pide así campo a campo: "Selecciona una fecha y hora futura o
+   * utiliza la opción 'Desde ahora'." va bajo Inicio de vigencia, y "El fin de
+   * vigencia debe ser posterior al inicio." bajo Fin. En un toast suelto el
+   * Supervisor tiene que adivinar cuál de los ocho campos corregir.
+   */
+  const [erroresCampo, setErroresCampo] = useState({})
+
   const otorgar = useMutation({
-    mutationFn: () => otorgarPermiso(idUsuario, datos),
+    mutationFn: () => {
+      setErroresCampo({})
+      return otorgarPermiso(idUsuario, datos)
+    },
     onSuccess: onOtorgado,
-    onError: (error) => toast.error('No se pudo otorgar el permiso', mensajeDeError(error)),
+    onError: (error) => {
+      const porCampo = erroresDeCampo(error)
+      setErroresCampo(porCampo)
+      // El toast solo para lo que no tiene campo: un 409 de superposición, un
+      // fallo de red. Si el error ya se señaló en su control, repetirlo arriba
+      // es ruido.
+      if (!Object.keys(porCampo).length) toast.error('No se pudo otorgar el permiso', mensajeDeError(error))
+    },
   })
 
-  const cambiar = (campo, valor) =>
+  const cambiar = (campo, valor) => {
+    setErroresCampo((e) => (e[campo] ? { ...e, [campo]: undefined } : e))
     setDatos((d) => {
       const siguiente = { ...d, [campo]: valor }
       // Cambiar de colegio invalida periodo y grado: son suyos. Y cambiar de
@@ -103,6 +124,7 @@ export default function ModalOtorgarPermiso({
       if (campo === 'id_anio_escolar') siguiente.id_periodo_academico = ''
       return siguiente
     })
+  }
 
   const periodos = opciones?.periodos ?? []
   const grados = opciones?.grados ?? []
@@ -164,6 +186,7 @@ export default function ModalOtorgarPermiso({
           label="Periodo académico"
           required
           placeholder={datos.id_colegio ? 'Seleccione' : 'Elija antes un colegio'}
+          error={erroresCampo.id_periodo_academico}
           value={datos.id_periodo_academico}
           options={periodos.map((p) => ({ value: String(p.id), label: p.nombre }))}
           hint="Solo los periodos cuyo plazo ordinario ya terminó"
@@ -199,6 +222,7 @@ export default function ModalOtorgarPermiso({
             type="datetime-local"
             required
             value={datos.inicio}
+            error={erroresCampo.inicio}
             onChange={(e) => cambiar('inicio', e.target.value)}
           />
         )}
@@ -208,6 +232,7 @@ export default function ModalOtorgarPermiso({
           required
           value={datos.fin}
           min={datos.inicio || undefined}
+          error={erroresCampo.fin}
           onChange={(e) => cambiar('fin', e.target.value)}
         />
 
@@ -218,6 +243,7 @@ export default function ModalOtorgarPermiso({
             required
             maxLength={300}
             value={datos.motivo}
+            error={erroresCampo.motivo}
             hint="Queda registrado junto a quién lo otorgó. Por ejemplo: faltó registrar la lectura de marzo."
             onChange={(e) => cambiar('motivo', e.target.value)}
           />

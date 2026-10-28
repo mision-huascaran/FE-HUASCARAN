@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { NAV_BY_ROLE, navegacionDe } from '../navegacion'
 import { ROLES } from '../../../auth/roles'
+import { ACCION, puede } from '../../../auth/permisos'
 import { RUTAS_PROTEGIDAS } from '../../../rutas'
 
 const ROLES_REALES = [ROLES.DOCENTE, ROLES.SUPERVISOR, ROLES.DIRECTIVO]
@@ -25,14 +26,38 @@ describe('NAV_BY_ROLE', () => {
     expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio'])
   })
 
-  it('el Supervisor ve exactamente sus secciones de RF-046 (CP-ROL-03, D09)', () => {
-    // CU014 le da Alumnos con entrada propia; las grillas del aula y
-    // Asistencia no van en su menú. CU022 lo confirma: su acceso es
-    // "derivado desde el CU021", en solo lectura y desde Seguimiento.
+  it('el Supervisor también tiene los cuatro módulos académicos (CP-ROL-03, D49)', () => {
+    /**
+     * Antes no los tenía: se leyó CU022 como que su acceso era "derivado
+     * desde el CU021" y se dejaron fuera del menú. Eso era D49.
+     *
+     * La matriz de permisos del backend y los casos de uso actualizados
+     * coinciden en que el Supervisor CONSULTA los cuatro en solo lectura, y un
+     * acceso que no está en el menú es un acceso que nadie encuentra.
+     */
     const rutas = navegacionDe(ROLES.SUPERVISOR).map((i) => i.to)
     expect([...rutas].sort()).toEqual(
-      ['/inicio', '/colegios', '/alumnos', '/usuarios', '/seguimiento'].sort(),
+      [
+        '/inicio',
+        '/colegios',
+        '/alumnos',
+        '/usuarios',
+        '/seguimiento',
+        '/asistencia',
+        '/seguimiento-lectura',
+        '/rubrica',
+        '/registro-vuelo',
+      ].sort(),
     )
+  })
+
+  it('el Supervisor los consulta, pero no puede escribir en ellos', () => {
+    // Entrar por el menú no le da permisos nuevos: sigue sin EDITAR, y el
+    // servidor le responde 403 en cualquier escritura.
+    for (const seccion of ['asistencia', 'lectura', 'rubrica', 'vuelo']) {
+      expect(puede(seccion, ROLES.SUPERVISOR, ACCION.VER)).toBe(true)
+      expect(puede(seccion, ROLES.SUPERVISOR, ACCION.EDITAR)).toBe(false)
+    }
   })
 
   it('el Docente ve sus secciones, con Asistencia (CU022 paso 1)', () => {
