@@ -678,35 +678,64 @@ async function idAnioEscolar(anio) {
   return elegido?.id ?? anioVigente(anios)?.id ?? null
 }
 
-/** `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde. */
+/**
+ * `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde.
+ *
+ * UN DOCENTE PUEDE TENER VARIOS COLEGIOS (D67, tanda G1). El contrato cambió
+ * de forma, no se amplió: `desde_periodo` ya no existe, ni `id_colegio` ni
+ * `grados` sueltos en la raíz. Un cuerpo con la forma vieja responde 422.
+ *
+ *   {"id_anio_escolar": 2,
+ *    "colegios": [{"id_colegio": 1, "grados": [1, 2]},
+ *                 {"id_colegio": 4, "grados": [5], "inicio_asignacion": "retroactivo"}]}
+ *
+ * En la EDICIÓN, `colegios` es la lista COMPLETA del año: el colegio que no
+ * venga se libera de sus PA no terminados. No es un añadido incremental, y por
+ * eso el formulario manda siempre todos los que tiene puestos.
+ */
 async function asignacionDe(datos, { obligatoria }) {
   if (Number(datos.id_rol) !== 1 && obligatoria) return null
-  if (!datos.id_colegio) return null
-  const grados = (Array.isArray(datos.grados) ? datos.grados : []).map(Number).filter(Boolean)
-  const asignacion = {
-    id_colegio: Number(datos.id_colegio),
-    id_anio_escolar: await idAnioEscolar(datos.anio_escolar),
-  }
-  // Sin grados elegidos se OMITE el campo y el backend asigna todos los que
-  // ofrece el colegio. `grados: null` responde 422 ("no puede ser nulo") y
-  // `grados: []` también ("al menos un elemento"), aunque openapi diga otra cosa.
-  if (grados.length) asignacion.grados = grados
+
   /**
-   * DESDE QUÉ PERIODO empieza la asignación, solo si ese colegio está HOY en
-   * receso (T4).
-   *
-   * En un PA o en un año que todavía no ha empezado el backend lo ignora, así
-   * que no se manda: el formulario tampoco lo pregunta. Pero si el colegio
-   * está en PR y falta, responde 422 `inicio_asignacion_requerido`.
-   *
-   *   · `retroactivo` — crea además la fila del PA recién culminado, para
-   *     regularizarlo. Solo habilita escribir mientras dure ese receso.
-   *   · `proximo` — desde el PA siguiente. En el PR4 no existe un PA
-   *     siguiente, y el backend lo rechaza diciendo que hay que elegir el año
-   *     escolar que viene.
+   * Se acepta la forma nueva (`colegios`) y, mientras queden pantallas sin
+   * migrar, también un colegio suelto en la raíz, que se convierte aquí.
    */
-  if (datos.inicio_asignacion) asignacion.inicio_asignacion = datos.inicio_asignacion
-  return asignacion
+  const crudos = Array.isArray(datos.colegios) && datos.colegios.length
+    ? datos.colegios
+    : datos.id_colegio
+      ? [{ id_colegio: datos.id_colegio, grados: datos.grados, inicio_asignacion: datos.inicio_asignacion }]
+      : []
+
+  if (!crudos.length) return null
+
+  const colegios = crudos
+    .map((c) => {
+      const grados = (Array.isArray(c.grados) ? c.grados : []).map(Number).filter(Boolean)
+      const bloque = { id_colegio: Number(c.id_colegio) }
+      // Sin grados elegidos se OMITE el campo y el backend decide. NUNCA se
+      // manda `[]` ni `null`: los dos responden 422.
+      if (grados.length) bloque.grados = grados
+      /**
+       * DESDE QUÉ PERIODO empieza, y es POR COLEGIO: cada uno tiene su
+       * calendario, así que uno puede estar en receso y otro en un PA.
+       *
+       *   · `retroactivo` — crea además la fila del PA recién culminado para
+       *     regularizarlo. Solo habilita escribir mientras dure ese receso.
+       *   · `proximo` — desde el PA siguiente. En el PR4 no hay PA siguiente
+       *     y el backend lo rechaza: hay que elegir el año escolar que viene.
+       *
+       * En un PA o en un año sin empezar el backend lo ignora, así que no se
+       * manda; si el colegio está en PR y falta, responde 422
+       * `inicio_asignacion_requerido` con el índice de SU bloque.
+       */
+      if (c.inicio_asignacion) bloque.inicio_asignacion = c.inicio_asignacion
+      return bloque
+    })
+    .filter((c) => Number.isFinite(c.id_colegio) && c.id_colegio > 0)
+
+  if (!colegios.length) return null
+
+  return { id_anio_escolar: await idAnioEscolar(datos.anio_escolar), colegios }
 }
 
 /**
@@ -841,18 +870,42 @@ export const obtenerUsuario = async (idUsuario) => {
   })
   if (!usuario) return usuario
   const asignacion = usuario.asignacion ?? null
-  const periodos = asignacion?.periodos ?? []
-  const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+
   let anio = ''
   if (asignacion?.id_anio_escolar != null) {
     const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
     const nombre = anios.find((a) => a.id === asignacion.id_anio_escolar)?.nombre
     anio = /\d{4}/.exec(String(nombre ?? ''))?.[0] ?? ''
   }
+
+  /**
+   * `asignacion` viene AGRUPADA POR COLEGIO (tanda G1).
+   *
+   * Antes era `asignacion.periodos[]` con un `id_colegio` dentro de cada
+   * periodo, y aquí se aplanaba a UN colegio: el Docente con dos perdía el
+   * segundo al abrir su ficha, y al guardar se lo quitaba sin que nadie lo
+   * pidiera. Ahora cada elemento de `colegios` es un colegio seleccionado, y
+   * sus grados salen del periodo vigente o, si no hay, del primero.
+   */
+  const colegios = (asignacion?.colegios ?? []).map((c) => {
+    const periodos = c.periodos ?? []
+    const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+    return {
+      id_colegio: String(c.id_colegio),
+      nombre: c.colegio,
+      grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+      // `retroactiva: true` significa que ese PA está habilitado con
+      // "Retroactivo", y el formulario lo propone al reabrirlo.
+      inicio_asignacion: periodo?.retroactiva ? 'retroactivo' : '',
+    }
+  })
+
   return {
     ...usuario,
-    id_colegio: periodo?.id_colegio == null ? '' : String(periodo.id_colegio),
-    grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+    colegios,
+    // La forma plana se conserva para lo que todavía la lee (el primero).
+    id_colegio: colegios[0]?.id_colegio ?? '',
+    grados: colegios[0]?.grados ?? [],
     anio_escolar: anio,
   }
 }
