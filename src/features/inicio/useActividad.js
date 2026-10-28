@@ -25,6 +25,8 @@ import {
   listarGradosAdmin,
   listarMisAsignaciones,
 } from '../../api/resources/administracion'
+import { hayHabilitacionParaIniciar } from '../../auth/habilitaciones'
+import { ahora } from '../../lib/relojServidor'
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
@@ -78,11 +80,20 @@ export default function useActividad() {
 
   const itemsPendientes = useSyncStore((s) => s.items)
 
-  // `GET /me/asignaciones`: las del token, nunca por id de docente.
-  const { data: asignaciones = [] } = useQuery({
-    queryKey: ['me', 'asignaciones'],
-    queryFn: listarMisAsignaciones,
+  /**
+   * El paquete de habilitaciones, que es lo que de verdad decide (D56).
+   *
+   * Trae las asignaciones Y LOS PERMISOS excepcionales. Antes aquí se pedía
+   * solo `GET /me/asignaciones`, y por eso un Docente con un permiso vigente y
+   * sin asignaciones veía el botón deshabilitado: no podía iniciar la
+   * actividad y, sin actividad, no podía usar el permiso para nada.
+   */
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
     enabled: Boolean(idDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   })
 
   /**
@@ -148,7 +159,18 @@ export default function useActividad() {
          */
         toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES))
       } else if (motivo === 'actividad_activa_existente') {
-        toast.error('Ya hay una actividad abierta', 'Finalice la actividad actual antes de iniciar otra.')
+        /**
+         * El texto del SERVIDOR primero, igual que en `sin_asignaciones`.
+         *
+         * D58 — El tester leyó aquí un texto nuestro donde esperaba el de
+         * CU010. El contrato no publica el literal de este caso, así que lo
+         * que corresponde es decir lo que diga el servidor y dejar el nuestro
+         * como respaldo, no competir con él.
+         */
+        toast.error(
+          'Ya hay una actividad abierta',
+          mensajeDeError(error, 'Finalice la actividad actual antes de iniciar otra.'),
+        )
       } else if (motivo === 'actividad_superpuesta') {
         // Puede pasar al sincronizar: el horario choca con otra actividad suya
         // de la misma sesión. No es culpa de lo que acaba de hacer.
@@ -233,10 +255,18 @@ export default function useActividad() {
    * "fuera de periodo" sería adivinar. CU010 pide además que el botón se vea
    * DESHABILITADO, nunca oculto, con el motivo al lado.
    *
-   * Si el servidor no contesta todavía, se cae al dato local: sin asignaciones
-   * tampoco hay nada que iniciar.
+   * Si el servidor no contesta todavía, se cae al paquete local de
+   * habilitaciones, que incluye los permisos excepcionales (D56).
    */
-  const motivo = inicio?.motivo_no_puede_iniciar ?? (asignaciones.length === 0 ? 'sin_asignaciones' : null)
+  const puedeEnLocal = hayHabilitacionParaIniciar({ habilitaciones, instante: ahora() })
+  /**
+   * Mientras no se sabe NADA —ni el servidor ha contestado ni hay paquete
+   * local— el botón no se deshabilita. Deshabilitarlo "por si acaso" daría un
+   * motivo que nadie ha comprobado; dejándolo activo, como mucho el servidor
+   * responde su 422 con el texto bueno.
+   */
+  const motivo =
+    inicio?.motivo_no_puede_iniciar ?? (habilitaciones && !puedeEnLocal ? 'sin_asignaciones' : null)
 
   return {
     sesion,

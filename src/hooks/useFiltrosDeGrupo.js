@@ -23,7 +23,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
 import { obtenerSemanas } from '../api/resources/catalogos'
+import { obtenerInicioDocente } from '../api/resources/inicio'
 import { useColegiosReales } from './useCatalogos'
+import useSessionStore from '../store/sessionStore'
 import { ahora } from '../lib/relojServidor'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
@@ -80,12 +82,44 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   })
   const { data: todos = [] } = useColegiosReales(!esDocente)
 
+  /**
+   * LOS PERMISOS DE CORRECCIÓN VIGENTES, que también son aulas suyas (D56).
+   *
+   * El contrato es explícito: "los grupos a los que solo llega por un permiso
+   * NO suman a `asignaciones`". Entonces el aula de un permiso no salía en
+   * estos filtros, y el Docente no tenía forma de abrir la pantalla donde
+   * usarlo —que es justo lo único para lo que se le dio—.
+   *
+   * No se cachea para siempre, a diferencia de las asignaciones: un permiso
+   * vence a una hora concreta.
+   *
+   * Misma clave que `useActividad` a propósito: es la misma respuesta y no
+   * tiene sentido pedirla dos veces por pantalla.
+   */
+  const idDocente = useSessionStore((st) => st.usuario?.id_docente)
+  const { data: inicio } = useQuery({
+    queryKey: ['inicio', 'docente', idDocente],
+    queryFn: obtenerInicioDocente,
+    enabled: Boolean(esDocente && idDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  const permisos = inicio?.permisos_vigentes ?? []
+
   const colegios = useMemo(() => {
     if (!esDocente) return todos.map((c) => ({ id_colegio: c.id_colegio ?? c.id, nombre: c.nombre }))
     const vistos = new Map()
     asignaciones.forEach((a) => vistos.set(a.id_colegio, { id_colegio: a.id_colegio, nombre: a.colegio }))
+    permisos.forEach((p) => {
+      const id = p.colegio?.id ?? p.id_colegio
+      if (id == null || vistos.has(id)) return
+      // Se marca de dónde viene: la pantalla ya explica el permiso con
+      // `escritura.aviso_permiso`, y aquí sirve para no confundirlo con una
+      // asignación si algún día hay que distinguirlos en el desplegable.
+      vistos.set(id, { id_colegio: id, nombre: p.colegio?.nombre ?? `Colegio ${id}`, soloPorPermiso: true })
+    })
     return [...vistos.values()]
-  }, [esDocente, asignaciones, todos])
+  }, [esDocente, asignaciones, permisos, todos])
 
   const idColegio = params.get('colegio') || ''
   const idGrado = params.get('grado') || ''
@@ -110,11 +144,21 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
 
   const grados = useMemo(() => {
     const delColegio = colegio?.grados ?? []
-    if (!esDocente || !asignacion) return delColegio
-    const suyos = new Set((asignacion.grados ?? []).map((g) => String(g.id_grado)))
+    if (!esDocente) return delColegio
+
+    const suyos = new Set((asignacion?.grados ?? []).map((g) => String(g.id_grado)))
+    // Y los grados de sus permisos vigentes EN ESTE colegio (D56).
+    permisos
+      .filter((p) => String(p.colegio?.id ?? p.id_colegio ?? '') === String(idColegio))
+      .forEach((p) => {
+        const id = p.grado?.id ?? p.id_grado
+        if (id != null) suyos.add(String(id))
+      })
+
+    if (!suyos.size) return delColegio
     const cruce = delColegio.filter((g) => suyos.has(String(g.id_grado)))
     return cruce.length ? cruce : delColegio
-  }, [colegio, esDocente, asignacion])
+  }, [colegio, esDocente, asignacion, permisos, idColegio])
 
   const secciones = useMemo(
     () => grados.find((g) => String(g.id_grado) === String(idGrado))?.secciones ?? [],

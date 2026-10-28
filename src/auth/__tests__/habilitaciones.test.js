@@ -7,7 +7,7 @@
 // uno que ya venció, una fecha fuera de todo periodo, o un colegio cuyo
 // calendario ni siquiera se ha descargado.
 import { describe, expect, it } from 'vitest'
-import { MODULOS, MOTIVO, habilitacionPara, periodoDe } from '../habilitaciones'
+import { MODULOS, MOTIVO, habilitacionPara, hayHabilitacionParaIniciar, periodoDe } from '../habilitaciones'
 
 const PA3 = { tipo: 'PA', numero: 3, id_periodo_academico: 33, fecha_inicio: '2026-08-01', fecha_fin: '2026-10-15' }
 const PR3 = { tipo: 'PR', numero: 3, id_periodo_academico: 93, fecha_inicio: '2026-10-16', fecha_fin: '2026-10-31' }
@@ -191,5 +191,47 @@ describe('Habilitación de escritura', () => {
     })
     expect(pedir(h)).toMatchObject({ motivo: MOTIVO.ASIGNACION })
     expect(pedir(h).id_permiso).toBeUndefined()
+  })
+})
+
+// D56 — Iniciar la actividad con un permiso y sin asignaciones.
+//
+// Es el respaldo local de `puede_iniciar_actividad`. Importa porque sin
+// actividad no se puede registrar nada, así que equivocarse aquí deja al
+// Docente con un permiso que no puede usar para nada.
+describe('¿Hay con qué iniciar una actividad?', () => {
+  const PERMISO = {
+    id_permiso: 7,
+    id_colegio: 1,
+    id_grado: 3,
+    id_periodo_academico: 33,
+    modulo: MODULOS.LECTURA,
+    inicio: '2026-10-19T00:00:00-05:00',
+    fin: '2026-10-25T23:59:59-05:00',
+  }
+
+  it('con una asignación, sí', () => {
+    const habilitaciones = base({
+      asignaciones: [{ id_colegio: 1, id_grado: 3, id_periodo_academico: 33, retroactiva: false }],
+    })
+    expect(hayHabilitacionParaIniciar({ habilitaciones, instante: AHORA })).toBe(true)
+  })
+
+  it('SIN asignaciones pero con un permiso VIGENTE, también', () => {
+    // Es el caso del defecto: el único en que el permiso tiene sentido.
+    const habilitaciones = base({ permisos: [PERMISO] })
+    expect(hayHabilitacionParaIniciar({ habilitaciones, instante: AHORA })).toBe(true)
+  })
+
+  it('un permiso que todavía no empezó o que ya venció no habilita', () => {
+    const programado = { ...PERMISO, inicio: '2026-10-28T00:00:00-05:00', fin: '2026-10-30T23:59:59-05:00' }
+    const vencido = { ...PERMISO, inicio: '2026-10-01T00:00:00-05:00', fin: '2026-10-02T23:59:59-05:00' }
+    expect(hayHabilitacionParaIniciar({ habilitaciones: base({ permisos: [programado] }), instante: AHORA })).toBe(false)
+    expect(hayHabilitacionParaIniciar({ habilitaciones: base({ permisos: [vencido] }), instante: AHORA })).toBe(false)
+  })
+
+  it('sin nada, no', () => {
+    expect(hayHabilitacionParaIniciar({ habilitaciones: base(), instante: AHORA })).toBe(false)
+    expect(hayHabilitacionParaIniciar({ habilitaciones: null, instante: AHORA })).toBe(false)
   })
 })
