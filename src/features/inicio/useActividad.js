@@ -28,6 +28,7 @@ import {
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
+import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useActividadStore from '../../store/actividadStore'
@@ -169,6 +170,20 @@ export default function useActividad() {
       nivelesRubrica: () => obtenerNivelesRubrica(),
       nivelesRazkids: () => obtenerNivelesRazkids(),
       asignaciones: () => listarMisAsignaciones(),
+      /**
+       * D45 — SIN ESTO, LA ACTIVIDAD SE INICIABA A CIEGAS.
+       *
+       * La habilitación para escribir no depende solo de tener asignaciones:
+       * depende del CALENDARIO de cada colegio —en qué periodo está hoy, qué
+       * días son lectivos— y de los PERMISOS excepcionales vigentes. Nada de
+       * eso estaba en la precarga, así que sin conexión el cliente no podía
+       * comprobar nada y dejaba pasar lo que el servidor luego rechazaría.
+       *
+       * `GET /me/habilitaciones` trae las dos cosas ya resueltas, con el
+       * calendario de cada colegio dentro. `src/auth/habilitaciones.js` tiene
+       * la lógica pura que las lee sin conexión.
+       */
+      habilitaciones: () => obtenerMisHabilitaciones(),
     }, { propietario: propietarioDe(useSessionStore.getState().usuario) })
     queryClient.invalidateQueries({ queryKey: ['precarga'] })
 

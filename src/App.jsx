@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ToastProvider } from './components/ui'
 import AuthProvider from './auth/AuthProvider'
+import AvisoVersionNueva from './components/layout/AvisoVersionNueva'
 import RutasApp from './rutas'
 
 /**
@@ -50,6 +51,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
+        <AvisoVersionNueva />
         {/* Se adoptan desde ya los dos comportamientos de React Router 7: evita
             las advertencias en consola y que la migración traiga sorpresas. */}
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
