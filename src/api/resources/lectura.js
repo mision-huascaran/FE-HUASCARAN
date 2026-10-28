@@ -213,3 +213,42 @@ export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, 
       }),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * `POST /lectura/tablas/{id}/habilitar-registro` — deshacer la declaración de
+ * "no realizada" (CU026, tanda D).
+ *
+ * NO BORRA NADA. La declaración anterior se queda en `declaraciones` con su
+ * motivo de corrección, quién la revirtió y cuándo: el Supervisor que revise
+ * después tiene que poder ver que esa semana estuvo declarada y por qué dejó
+ * de estarlo.
+ *
+ * Tampoco amplía el plazo: si la semana ya venció, la tabla vuelve a contar
+ * como vencida en CU011. Habilitar el registro no es una prórroga.
+ */
+export const habilitarRegistroLectura = (idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }) =>
+  resolver({
+    mock: () => handlers.lectura.habilitarRegistro(idTabla, { idOperacion, version, realizadoEn, motivo }),
+    real: () =>
+      api.post(lectura.habilitarRegistro(idTabla), {
+        id_operacion: idOperacion,
+        version,
+        realizado_en: realizadoEn,
+        id_actividad: idActividad ?? null,
+        motivo,
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Los textos EXACTOS de los dos conflictos de CU026, y qué ofrecer ante ellos.
+ *
+ * Los dos se resuelven igual: volver a pedir la tabla. Ninguno se reintenta
+ * solo —reintentar un choque de versiones solo lo repite— y en los dos la
+ * salida es "Consultar versión actual".
+ */
+export const CONFLICTO_TABLA = {
+  declaracion_no_vigente: 'La lectura ya no figura como no realizada. Consulta la versión actual.',
+  modificacion_concurrente:
+    'Esta tabla de lectura semanal fue modificada desde que la consultaste. Revisa la versión actual antes de guardar nuevamente.',
+}

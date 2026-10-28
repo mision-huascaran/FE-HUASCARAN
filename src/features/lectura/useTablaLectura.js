@@ -14,9 +14,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import {
+  CONFLICTO_TABLA,
+  cambiarClaseReferencia,
   crearTabla,
   datosParaCrear,
   esTablaPorCrear,
+  habilitarRegistroLectura,
   marcarNoRealizada,
   obtenerTabla,
 } from '../../api/resources/lectura'
@@ -44,7 +47,21 @@ export default function useTablaLectura(filtros) {
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
-  const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }]
+  /**
+   * EL MES NO ENTRA EN LA CLAVE, y no es un descuido.
+   *
+   * La tabla es grupo × subprograma × SEMANA. El `mes` viaja en la peticion
+   * porque el contrato lo exige, pero desde la tanda B el servidor devuelve la
+   * tabla aunque el mes enviado no sea el suyo: una semana que cae en dos meses
+   * tiene UNA sola tabla, y su mes es el de su clase de referencia.
+   *
+   * Si el mes estuviera en la clave, ajustar el filtro al mes que responde el
+   * servidor cambiaría la clave y dispararía otra consulta por los MISMOS
+   * datos. Y mientras esa consulta vuelve, `data` queda en `undefined` y la
+   * tabla desaparece de la pantalla: el docente vería su trabajo parpadear por
+   * un filtro que solo sirve para ubicarse.
+   */
+  const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, idSemana }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
@@ -83,8 +100,15 @@ export default function useTablaLectura(filtros) {
       )
     },
     onError: (error) => {
-      // Que ya exista no es un fallo que haya que explicar: alguien la creó
-      // entre medias. Se recarga y se sigue trabajando sobre la que hay.
+      /**
+       * Que ya exista no es un fallo que haya que explicar: alguien la creó
+       * entre medias, o se creó desde el OTRO MES de una semana partida. Se
+       * recarga y se sigue trabajando sobre la que hay.
+       *
+       * Recargar basta porque el GET devuelve la tabla aunque el `mes` que se
+       * manda no sea el suyo (tanda B), y la pantalla ajusta el filtro al mes
+       * que venga en la respuesta.
+       */
       if (motivoDe(error) === 'tabla_existente') {
         refrescar()
         return
@@ -92,6 +116,23 @@ export default function useTablaLectura(filtros) {
       toast.error('No se pudo crear la tabla', mensajeDeError(error))
     },
   })
+
+  /**
+   * Los dos conflictos de CU026 se resuelven igual: volver a pedir la tabla.
+   *
+   * Y NO SE REINTENTAN SOLOS. Un choque de versiones reintentado se vuelve a
+   * chocar, y `declaracion_no_vigente` significa que otra operación ya hizo
+   * lo que esta pedía: insistir lo desharia. Lo que se ofrece es consultar la
+   * versión actual, que es lo único que puede resolverlo una persona.
+   */
+  const avisarConflicto = (error, titulo) => {
+    const motivo = motivoDe(error)
+    const texto = CONFLICTO_TABLA[motivo]
+    if (!texto) return false
+    refrescar()
+    toast.error(titulo, mensajeDeError(error, texto))
+    return true
+  }
 
   const noRealizada = useMutation({
     mutationFn: (motivo) =>
@@ -106,8 +147,63 @@ export default function useTablaLectura(filtros) {
       toast.success('Lectura marcada como no realizada', 'Ninguna fila queda pendiente para esta semana.')
     },
     onError: (error) => {
-      if (motivoDe(error) === 'modificacion_concurrente') refrescar()
+      if (avisarConflicto(error, 'No se pudo marcar la semana')) return
       toast.error('No se pudo marcar la semana', mensajeDeError(error))
+    },
+  })
+
+  /**
+   * Habilitar el registro: deshacer la declaración de "no realizada" (CU026).
+   *
+   * EXIGE CONEXIÓN, igual que declararla. Las dos operaciones cambian el estado
+   * de la tabla ENTERA y recalculan todas sus filas, así que encolarlas
+   * dejaría al docente registrando sobre un estado que el servidor aún no ha
+   * aceptado. El contrato contempla encolarlas en orden; aquí se mantiene la
+   * decisión que ya tomaba `no-realizada`, por coherencia: o las dos se
+   * encolan o ninguna.
+   */
+  const habilitar = useMutation({
+    mutationFn: (motivo) =>
+      habilitarRegistroLectura(tabla.data.id, {
+        idOperacion: nuevaOperacion(),
+        version: tabla.data.version,
+        realizadoEn: ahora().toISOString(),
+        idActividad,
+        motivo,
+      }),
+    onSuccess: (actualizada) => {
+      queryClient.setQueryData(clave, actualizada)
+      toast.success('El registro de lectura fue habilitado.')
+    },
+    onError: (error) => {
+      if (avisarConflicto(error, 'No se pudo habilitar el registro')) return
+      toast.error('No se pudo habilitar el registro', mensajeDeError(error))
+    },
+  })
+
+  /**
+   * Cambiar la clase de referencia (CU024, tanda B).
+   *
+   * Acepta cualquier clase de la semana, incluso de OTRO MES: una semana que
+   * cae en dos meses tiene una sola tabla. Si la clase nueva es de otro mes, la
+   * respuesta trae el `mes` nuevo y la pantalla ajusta el filtro.
+   */
+  const cambiarClase = useMutation({
+    mutationFn: ({ idClase, fecha }) =>
+      cambiarClaseReferencia(tabla.data.id, {
+        idOperacion: nuevaOperacion(),
+        version: tabla.data.version,
+        idClase,
+        fecha,
+      }),
+    onSuccess: (actualizada) => {
+      queryClient.setQueryData(clave, actualizada)
+      refrescar()
+      toast.success('Clase de referencia actualizada', 'Las filas se rehicieron con la lista de esa clase.')
+    },
+    onError: (error) => {
+      if (avisarConflicto(error, 'No se pudo cambiar la clase')) return
+      toast.error('No se pudo cambiar la clase', mensajeDeError(error))
     },
   })
 
@@ -169,6 +265,11 @@ export default function useTablaLectura(filtros) {
     creando: crear.isPending,
     marcarNoRealizada: noRealizada.mutate,
     marcando: noRealizada.isPending,
+    habilitarRegistro: habilitar.mutate,
+    habilitando: habilitar.isPending,
+    errorAlHabilitar: habilitar.error,
+    cambiarClase: cambiarClase.mutate,
+    cambiandoClase: cambiarClase.isPending,
     guardarFila,
   }
 }

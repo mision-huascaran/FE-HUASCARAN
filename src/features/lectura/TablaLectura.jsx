@@ -3,10 +3,11 @@
 // La cabecera no es decorativa: dice de qué CLASE son estas filas. La tabla se
 // ata a una clase de referencia de la semana, y si no se dijera cuál, dos
 // tablas distintas de la misma semana se verían idénticas.
-import { CalendarClock, Ban } from 'lucide-react'
+import { CalendarClock, Ban, CalendarCog, Undo2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import FilaLectura from './FilaLectura'
+import HistorialDeclaraciones from './HistorialDeclaraciones'
 
 const FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 const comoFecha = (iso) => (iso ? FECHA.format(new Date(`${iso}T12:00:00`)) : '—')
@@ -16,10 +17,35 @@ const ETIQUETA_CLASE = {
   adicional: 'Clase adicional',
 }
 
-export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObservar, onNoRealizada, marcando, sinConexion }) {
+export default function TablaLectura({
+  tabla,
+  soloLectura,
+  onGuardarFila,
+  onObservar,
+  onNoRealizada,
+  onHabilitarRegistro,
+  onCambiarClase,
+  marcando,
+  habilitando,
+  sinConexion,
+}) {
   const bloqueada = tabla.estado === 'no_realizada'
   const clase = tabla.clase_referencia ?? {}
   const pendientes = tabla.filas.filter((f) => f.estado_fila === 'pendiente').length
+
+  /**
+   * ¿Se puede cambiar la clase de referencia? (B6)
+   *
+   * Solo mientras la tabla NO TENGA DATOS DE LECTURA: cambiarla rehace las
+   * filas con la lista de la clase nueva, y con libros dentro eso sería
+   * perderlos. El servidor lo rechaza con 409 `tabla_con_datos`, pero
+   * enseñar el botón para que lo rechace es peor que no enseñarlo.
+   *
+   * Las observaciones NO cuentan como datos de lectura, igual que para
+   * "no realizada".
+   */
+  const conLecturas = tabla.filas.some((f) => f.total_libros > 0 || f.lsn_titulo || f.cantidad_lsl > 0)
+  const puedeCambiarClase = !soloLectura && !bloqueada && !conLecturas && !sinConexion
 
   return (
     <Card
@@ -32,24 +58,50 @@ export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObse
          * rechaza si los hay, porque marcarla borraría el sentido de lo que ya
          * se registró.
          */
-        !soloLectura && !bloqueada ? (
+        !soloLectura ? (
           <span className="flex flex-col items-end gap-1">
-            <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando || sinConexion}>
-              Marcar como no realizada
-            </Button>
-            {/* No se encola: bloquea la semana entera y exige ver la versión vigente. */}
+            {/*
+              Con la tabla declarada "no realizada" la única acción posible es
+              deshacerla (CU026): marcarla otra vez no tendría sentido y
+              registrar está bloqueado hasta que el servidor confirme.
+            */}
+            {bloqueada ? (
+              <Button
+                variant="secondary"
+                iconLeft={Undo2}
+                onClick={onHabilitarRegistro}
+                disabled={habilitando || sinConexion}
+              >
+                Habilitar registro de lectura
+              </Button>
+            ) : (
+              <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando || sinConexion}>
+                Marcar como no realizada
+              </Button>
+            )}
+            {/* No se encola: cambia la semana entera y exige ver la versión vigente. */}
             {sinConexion && <span className="text-xs text-ink-500">Esta acción requiere conexión</span>}
           </span>
         ) : null
       }
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-3 text-sm">
+        {/* B6 — "Clase de esta semana: DD/MM/AAAA", con el tipo de clase al
+            lado: una reprogramada o una adicional no se leen igual. */}
         <span className="inline-flex items-center gap-1.5 font-medium text-ink-700">
           <CalendarClock className="h-4 w-4 text-ink-400" aria-hidden="true" />
-          {clase.reprogramada ? 'Clase reprogramada' : (ETIQUETA_CLASE[clase.tipo] ?? 'Clase de referencia')}
-          {' · '}
-          {comoFecha(clase.fecha)}
+          {`Clase de esta semana: ${comoFecha(clase.fecha)}`}
         </span>
+        <span className="text-ink-500">
+          {clase.reprogramada ? 'Clase reprogramada' : (ETIQUETA_CLASE[clase.tipo] ?? 'Clase de referencia')}
+        </span>
+
+        {puedeCambiarClase && (
+          <Button size="sm" variant="ghost" iconLeft={CalendarCog} onClick={onCambiarClase}>
+            Cambiar clase
+          </Button>
+        )}
+
         {!bloqueada && pendientes > 0 && (
           <span className="text-ink-500">
             {pendientes} fila{pendientes === 1 ? '' : 's'} pendiente{pendientes === 1 ? '' : 's'}
@@ -72,6 +124,10 @@ export default function TablaLectura({ tabla, soloLectura, onGuardarFila, onObse
           </span>
         </div>
       )}
+
+      {/* El historial se ensena aunque la tabla ya este normal: una
+          declaracion revertida sigue habiendo ocurrido. */}
+      <HistorialDeclaraciones declaraciones={tabla.declaraciones} />
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[56rem] text-sm">

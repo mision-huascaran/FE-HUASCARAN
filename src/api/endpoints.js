@@ -219,6 +219,9 @@ export const ENDPOINTS = {
     claseReferencia: (id) => `/lectura/tablas/${id}/clase-referencia`,
     filas: (id) => `/lectura/tablas/${id}/filas`,
     noRealizada: (id) => `/lectura/tablas/${id}/no-realizada`,
+    // Revierte la declaración de "no realizada" (CU026, tanda D). No la borra:
+    // la anterior queda en `declaraciones` con su motivo de corrección.
+    habilitarRegistro: (id) => `/lectura/tablas/${id}/habilitar-registro`,
   },
 
   // SEMANA 11 — Rúbrica mensual (CU029, CU030).

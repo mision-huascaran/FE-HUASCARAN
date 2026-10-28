@@ -119,9 +119,11 @@ function responder(datos, ms = RETARDO_MS) {
  * Error con la MISMA forma que el de axios, para que las pantallas puedan
  * ramificar por `motivo` igual que contra el backend real.
  */
-function errorMock(status, detail, motivo) {
+function errorMock(status, detail, motivo, errores) {
   const error = new Error(detail)
-  error.response = { status, data: { detail, motivo } }
+  // `errores` solo cuando el backend lo manda: un 422 de validacion lleva el
+  // detalle por campo, y la pantalla lo pinta debajo del campo que lo tiene.
+  error.response = { status, data: { detail, motivo, ...(errores ? { errores } : {}) } }
   return error
 }
 
@@ -607,10 +609,13 @@ function conFilas(tabla) {
       reprogramada: false,
     },
     filas,
+    // La más reciente primero (tanda D). `[]` si nunca se declaró.
+    declaraciones: [...(tabla.declaraciones ?? [])].reverse(),
     escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
   }
 }
 
+let ultimaDeclaracion = 0
 let ultimoIdClase = 10
 const siguienteIdClase = () => (ultimoIdClase += 1)
 
@@ -1905,6 +1910,63 @@ export const handlers = {
       }
       tabla.estado = 'no_realizada'
       tabla.motivo_no_realizada = String(motivo).trim()
+      tabla.version += 1
+
+      tabla.declaraciones = tabla.declaraciones ?? []
+      const vigente = tabla.declaraciones.find((d) => d.vigente)
+      if (vigente) {
+        // Reenviar con otro motivo CORRIGE la declaración vigente: no crea
+        // otra. Si no, el historial se llenaría de versiones del mismo hecho.
+        vigente.motivo = tabla.motivo_no_realizada
+      } else {
+        ultimaDeclaracion += 1
+        tabla.declaraciones.push({
+          id: ultimaDeclaracion,
+          motivo: tabla.motivo_no_realizada,
+          declarada_por: { id: 1, nombre: 'Docente de Prueba' },
+          fecha_registro: new Date().toISOString(),
+          vigente: true,
+          motivo_correccion: null,
+          revertida_por: null,
+          fecha_registro_reversion: null,
+        })
+      }
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * `POST /lectura/tablas/{id}/habilitar-registro` — revierte la declaración.
+     *
+     * La declaración anterior NO se borra: queda con su motivo de corrección,
+     * quién la revirtió y cuándo. Las filas se recalculan, pero no se genera
+     * ningún dato de lectura.
+     */
+    habilitarRegistro: async (idTabla, { version, motivo }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (!motivo || !String(motivo).trim()) {
+        throw errorMock(422, 'Ingresa el motivo de la correccion.', 'validacion', [
+          { campo: 'motivo', mensaje: 'Ingresa el motivo de la correccion.' },
+        ])
+      }
+      if (tabla.estado !== 'no_realizada') {
+        throw errorMock(
+          409,
+          'La lectura ya no figura como no realizada. Consulta la version actual.',
+          'declaracion_no_vigente',
+        )
+      }
+
+      const vigente = (tabla.declaraciones ?? []).find((d) => d.vigente)
+      if (vigente) {
+        vigente.vigente = false
+        vigente.motivo_correccion = String(motivo).trim()
+        vigente.revertida_por = { id: 1, nombre: 'Docente de Prueba' }
+        vigente.fecha_registro_reversion = new Date().toISOString()
+      }
+
+      tabla.estado = 'normal'
+      tabla.motivo_no_realizada = null
       tabla.version += 1
       return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
     },

@@ -50,10 +50,15 @@ export const obtenerNivelesRubrica = (idPrograma) =>
  *
  * Y ya no acepta `id_periodo_academico`: la semana cubre el año escolar
  * completo, de lunes a viernes, sin depender de los periodos.
+ *
+ * `id_programa` es OPCIONAL y conviene mandarlo (tanda B): acota las semanas a
+ * las que tienen clase de ESE subprograma. Sin él, un grupo con clases de
+ * Alfabetización y de Comprensión Lectora ofrece semanas que, para el
+ * subprograma elegido, no tienen nada que registrar.
  */
-export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSeccion } = {}) =>
+export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma } = {}) =>
   resolver({
-    mock: () => handlers.catalogos.semanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion }),
+    mock: () => handlers.catalogos.semanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }),
     real: () =>
       api.get(catalogos.semanas, {
         params: {
@@ -62,6 +67,7 @@ export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSecci
           id_colegio: Number(idColegio),
           id_grado: Number(idGrado),
           id_seccion: Number(idSeccion),
+          ...(idPrograma ? { id_programa: Number(idPrograma) } : {}),
         },
       }),
     // Las semanas deciden qué tabla de Lectura se pide al backend real: si

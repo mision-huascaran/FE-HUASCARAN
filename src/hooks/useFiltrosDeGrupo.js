@@ -26,6 +26,7 @@ import { obtenerSemanas } from '../api/resources/catalogos'
 import { obtenerInicioDocente } from '../api/resources/inicio'
 import { useColegiosReales } from './useCatalogos'
 import useSessionStore from '../store/sessionStore'
+import { etiquetaDeSemana } from '../lib/format'
 import { ahora } from '../lib/relojServidor'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
@@ -45,11 +46,17 @@ export const MESES = [
   'diciembre',
 ].map((nombre, i) => ({ value: i + 1, label: nombre[0].toUpperCase() + nombre.slice(1) }))
 
-/** La semana, dicha como la lee una persona: "Sem. 23 · 15/06 al 19/06". */
-export const etiquetaDeSemanaDeGrupo = (s) => {
-  const corto = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '—')
-  return `Sem. ${s.numero_semana ?? s.id_semana} · ${corto(s.fecha_inicio)} al ${corto(s.fecha_fin)}`
-}
+/**
+ * La semana, dicha como la lee una persona.
+ *
+ * Es la MISMA etiqueta que el resto de la aplicación (`lib/format`): "Semana
+ * 23 · 15 – 19 jun" y, cuando la semana CRUZA DE MES, con las fechas
+ * completas —"Semana 27 · 29/06/2026 – 03/07/2026"—, que es justo lo que
+ * pide la tanda B. Había aquí un segundo formato propio ("Sem. 23 · 15/06 al
+ * 19/06") que decia lo mismo de otra manera y, en una semana partida, no
+ * dejaba claro de qué año eran los días.
+ */
+export const etiquetaDeSemanaDeGrupo = (s) => etiquetaDeSemana(s) || `Semana ${s?.id_semana ?? ''}`.trim()
 
 export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana = true }) {
   const [params, setParams] = useSearchParams()
@@ -185,11 +192,17 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   /**
    * Las semanas DEL GRUPO Y DEL MES. Hacen falta los cinco datos: sin uno solo
    * la petición responde 422, así que ni se lanza.
+   *
+   * Y va también el SUBPROGRAMA cuando está elegido (tanda B). Es opcional en
+   * el contrato, pero sin él un grupo con clases de Alfabetización y de
+   * Comprensión Lectora ofrece semanas que, para el subprograma del filtro, no
+   * tienen ninguna clase: el docente la elige y se encuentra una semana sin
+   * nada que registrar.
    */
   const semanasListas = conSemana && Boolean(idAnioEscolar && mes && idColegio && idGrado && idSeccion)
   const { data: semanas = [] } = useQuery({
-    queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion }],
-    queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion }),
+    queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }],
+    queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }),
     enabled: semanasListas,
   })
 

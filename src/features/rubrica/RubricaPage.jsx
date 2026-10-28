@@ -34,6 +34,7 @@ import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
+import useRechazosStore from '../../store/rechazosStore'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -76,6 +77,17 @@ export default function RubricaPage() {
   const escritura = datos?.escritura ?? null
   const puedeEscribir = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !puedeEscribir
+
+  /**
+   * El rechazo del servidor, emparejado con SU alumno.
+   *
+   * Se busca por `envio.item.id_alumno` y no por la clave del rechazo: la
+   * clave junta siete campos y rearmarla aquí significaría repetir ese
+   * formato en dos sitios, que es el tipo de duplicado que se desincroniza.
+   */
+  const rechazos = useRechazosStore((st) => st.rechazos)
+  const rechazoDe = (idAlumno) =>
+    rechazos.find((r) => r.modulo === 'rubrica' && r.envio?.item?.id_alumno === idAlumno) ?? null
 
   const paginas = datos?.total_pages ?? 1
 
@@ -213,6 +225,7 @@ export default function RubricaPage() {
                     fila={fila}
                     nombrePrograma={nombrePrograma}
                     soloLectura={soloLectura}
+                    rechazo={rechazoDe(fila.id_alumno)}
                     onGuardar={guardarFila}
                   />
                 ))}

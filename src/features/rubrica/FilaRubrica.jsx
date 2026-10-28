@@ -23,7 +23,7 @@ const TONO = {
 /** `''` es "sin evaluar"; `'0'` es Pre-inicio. No se pueden mezclar. */
 const aValor = (texto) => (texto === '' ? null : Number(texto))
 
-export default function FilaRubrica({ fila, nombrePrograma, soloLectura, onGuardar }) {
+export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo, onGuardar }) {
   const estado = ESTADO_RUBRICA[fila.estado] ?? ESTADO_RUBRICA.pendiente
   const nota = comoNota(fila.resultado_decimas)
 
@@ -47,6 +47,17 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, onGuard
             Inactivo
           </span>
         )}
+
+        {/*
+          EL RECHAZO DEL SERVIDOR VA AQUÍ, en la fila de su alumno.
+
+          Lo pide el contrato de la tanda 0 para `evaluacion_en_otro_grupo`, y
+          con razón: en una tabla de cuarenta alumnos, un aviso arriba obliga a
+          buscar de quién hablaba. El aviso general sigue estando porque es el
+          que lleva la acción de descartar y el que aparece cuando el rechazo
+          llega con la pantalla cerrada.
+        */}
+        {rechazo?.detail && <p className="mt-1 text-xs text-danger-600">{rechazo.detail}</p>}
       </td>
 
       <td className="px-3 py-2">
