@@ -138,7 +138,7 @@ describe('CU027 · Calendario académico', () => {
     expect(cuerpo.periodos).toHaveLength(8)
     expect(cuerpo.periodos[0]).toEqual({ ...PERIODOS[0], fecha_fin: '2026-05-14' })
     expect(cuerpo.dias_no_lectivos).toEqual([{ motivo: 'Aniversario', fecha_inicio: ANIVERSARIO, fecha_fin: ANIVERSARIO }])
-    expect(await screen.findByText('Calendario actualizado', {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
   it('Cancelar vuelve a la consulta sin guardar', async () => {
@@ -215,7 +215,7 @@ describe('CU027 · Calendario académico', () => {
 
     await waitFor(() => expect(crearParticular).toHaveBeenCalledTimes(1), ESPERA)
     expect(crearParticular.mock.calls[0][0]).toEqual(expect.objectContaining({ id_colegio: 2, id_anio_escolar: 2 }))
-    expect(await screen.findByText('Calendario creado', {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Calendario académico creado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
   it('un colegio con fechas particulares puede volver al calendario general', async () => {

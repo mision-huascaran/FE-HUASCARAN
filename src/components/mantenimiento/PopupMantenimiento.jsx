@@ -137,6 +137,13 @@ function validar(campos, valores, modo) {
 }
 
 export default function PopupMantenimiento({
+  /**
+   * Lo que el SERVIDOR rechazó, por campo (`errores[{campo, mensaje}]`).
+   *
+   * Pesa más que la validación local: el backend sabe cosas que el formulario
+   * no puede saber, como que ese nombre de colegio ya existe.
+   */
+  erroresServidor = {},
   abierto,
   modo = 'nuevo',
   entidad,
@@ -286,7 +293,7 @@ export default function PopupMantenimiento({
               campo={campo}
               modo={modo}
               valor={valores[campo.nombre]}
-              error={errores[campo.nombre]}
+              error={errores[campo.nombre] ?? erroresServidor[campo.nombre]}
               onCambio={cambiar}
             />
           ))}

@@ -6,7 +6,7 @@
 // condicionales por pantalla: si la matriz no da `N`, no hay botón de Nuevo.
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ban, ClipboardList, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
@@ -19,7 +19,7 @@ import ProponerActividad from './ProponerActividad'
 import FiltrosMantenimiento from './FiltrosMantenimiento'
 import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
-import { mensajeDeError } from '../../api/client'
+import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
@@ -118,13 +118,31 @@ export default function Mantenimiento({
    * el usuario escribió, que es lo que permite corregir y reintentar.
    */
   const guardar = async (valores) => {
+    setErroresServidor({})
     try {
       await onGuardar(valores, popup)
       setPopup(null)
-    } catch {
-      // El toast de la pantalla ya explica qué pasó.
+    } catch (error) {
+      /**
+       * Los errores por campo del 422, para pintarlos DEBAJO de su control.
+       *
+       * Antes se perdían: el toast mostraba "campo: mensaje" todo junto y el
+       * usuario tenía que adivinar cuál de los diez campos era. El backend ya
+       * los manda separados en `errores: [{campo, mensaje}]`; lo único que
+       * faltaba era traerlos hasta el formulario.
+       */
+      setErroresServidor(erroresDeCampo(error))
     }
   }
+  /**
+   * Lo que el servidor rechazó, por campo.
+   *
+   * Lo limpia quien lo tiene, no el formulario: son de UN intento concreto, y
+   * dejarlos puestos al abrir otro registro señalaría campos que están bien.
+   */
+  const [erroresServidor, setErroresServidor] = useState({})
+  useEffect(() => setErroresServidor({}), [popup])
+
   // S4 — Inactivar/Activar pide confirmación: cambia el estado de un registro
   // que otros pueden estar usando, y conviene que sea deliberado.
   const [confirmando, setConfirmando] = useState(null)
@@ -377,6 +395,7 @@ export default function Mantenimiento({
         cargarDetalle={cargarDetalle}
         genero={genero}
         onGuardar={guardar}
+        erroresServidor={erroresServidor}
         onCerrar={() => setPopup(null)}
       />
     </div>

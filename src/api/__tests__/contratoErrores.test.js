@@ -25,14 +25,21 @@ describe('Errores del backend (api_sicedu_frontend §1.3)', () => {
     expect(mensajeDeError(e, 'respaldo')).toBe('Correo o contraseña incorrectos.')
   })
 
-  it('en el 422 unificado nombra el campo que falla, no solo "datos no válidos"', () => {
-    // Respuesta real de dev al editar un usuario (PATCH /usuarios/4).
+  it('en el 422 unificado devuelve el detail SOLO, sin anteponer el campo', () => {
+    /**
+     * Esto es D62 y D74. El probador veía "asignacion.grados: Este campo no
+     * puede ser nulo." y creía que el prefijo lo mandaba el backend. No lo
+     * manda: lo armaba esta función. El mensaje de cada campo va DEBAJO de su
+     * control, y para eso está `erroresDeCampo`.
+     */
     const e = error(422, {
       detail: 'Los datos enviados no son válidos.',
       motivo: 'validacion',
       errores: [{ campo: 'asignacion.grados', mensaje: 'Este campo no puede ser nulo.' }],
     })
-    expect(mensajeDeError(e)).toBe('Los datos enviados no son válidos. asignacion.grados: Este campo no puede ser nulo.')
+    expect(mensajeDeError(e)).toBe('Los datos enviados no son válidos.')
+    // Y el mensaje no se pierde: sale por su campo.
+    expect(erroresDeCampo(e)).toEqual({ 'asignacion.grados': 'Este campo no puede ser nulo.' })
   })
 
   it('cae al respaldo cuando el servidor no manda texto', () => {

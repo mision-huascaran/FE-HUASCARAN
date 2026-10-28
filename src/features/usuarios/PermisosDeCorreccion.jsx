@@ -90,7 +90,8 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     onSuccess: () => {
       setViendo(null)
       queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
-      toast.success('Permiso revocado', 'El Docente ya no puede corregir con esta autorización.')
+      // El literal de CU028, sin añadirle nada (D62).
+      toast.success('Permiso de corrección revocado correctamente.')
     },
     onError: (error) => toast.error('No se pudo revocar', mensajeDeError(error)),
   })
@@ -239,7 +240,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         onOtorgado={() => {
           setOtorgando(false)
           queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
-          toast.success('Permiso otorgado', 'El Docente ya puede corregir ese periodo.')
+          toast.success('Permiso de corrección otorgado correctamente.')
         }}
       />
 

@@ -110,11 +110,19 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     toast.error('No se pudo guardar el calendario', mensajeDeError(error))
   }
 
+  /**
+   * El texto de éxito es el de CU027, PALABRA POR PALABRA.
+   *
+   * Antes decía "Calendario creado" + "Las fechas ya rigen para los módulos
+   * que dependen de ellas.", que suena bien pero se lo inventó el front: el
+   * backend no manda texto de éxito y el caso de uso sí lo da. El probador lo
+   * compara carácter a carácter (D62).
+   */
   const alGuardar = (mensaje) => () => {
     setIncompatibilidades([])
     setModo('consulta')
     refrescar()
-    toast.success(mensaje, 'Las fechas ya rigen para los módulos que dependen de ellas.')
+    toast.success(mensaje)
   }
 
   const crear = useMutation({
@@ -124,7 +132,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         ? crearCalendarioParticular({ ...cuerpo, id_colegio: Number(idColegio) })
         : crearCalendarioGeneral(cuerpo)
     },
-    onSuccess: alGuardar('Calendario creado'),
+    onSuccess: alGuardar('Calendario académico creado correctamente.'),
     onError: alFallar,
   })
 
@@ -137,7 +145,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         periodos: periodosParaGuardar(periodos),
         dias_no_lectivos: dias,
       }),
-    onSuccess: alGuardar('Calendario actualizado'),
+    onSuccess: alGuardar('Calendario académico actualizado correctamente.'),
     onError: alFallar,
   })
 
