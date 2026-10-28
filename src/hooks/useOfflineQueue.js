@@ -3,6 +3,7 @@
 // el SyncBadge y las filas de Asistencia.
 import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
+import { cerrarSesionDiferido } from '../api/resources/auth'
 import { guardarAsistencia } from '../api/resources/asistencia'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
@@ -11,6 +12,17 @@ import useSyncStore from '../store/syncStore'
 export const TIPOS_ENVIO = {
   ACTIVIDAD_INICIO: 'actividad-inicio',
   ACTIVIDAD_CIERRE: 'actividad-cierre',
+  /**
+   * D44 — El cierre de la SESIÓN, no el de la actividad.
+   *
+   * Son dos cosas distintas y la diferencia importa: una actividad que el
+   * docente ya dio por terminada NO se reescribe, así que mandar el cierre
+   * por `/actividades/{id}/finalizar` la dejaba como "Manual por finalización
+   * de actividad" y la sesión seguía abierta en el servidor, con su fin y su
+   * causa en null. `POST /me/sesiones/{id}/cerrar` cierra las dos, y la
+   * actividad como "Forzado por cierre de sesión".
+   */
+  SESION_CIERRE: 'sesion-cierre',
   ASISTENCIA: 'asistencia',
 }
 
@@ -73,6 +85,18 @@ registrarEnviador(
   ({ id, inicio, id_sesion: idSesion }) => iniciarActividad({ id, inicio, id_sesion: idSesion }),
   { modulo: 'actividad' },
 )
+registrarEnviador(
+  TIPOS_ENVIO.SESION_CIERRE,
+  async ({ id_sesion: idSesion, fin, id_actividad: idActividad }) => {
+    const respuesta = await cerrarSesionDiferido(idSesion, { fin })
+    // La actividad la cerró el servidor con la sesión: que una respuesta
+    // anterior del Inicio no la vuelva a dar por abierta en este navegador.
+    if (idActividad) useActividadStore.getState().marcarCerrada(idActividad)
+    return respuesta
+  },
+  { modulo: 'actividad' },
+)
+
 registrarEnviador(
   TIPOS_ENVIO.ACTIVIDAD_CIERRE,
   async ({ id, fin }) => {

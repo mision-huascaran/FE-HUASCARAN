@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
 import { limpiarDatosLocalesDeSesion, limpiarSiEsOtroUsuario } from '../lib/datosLocales'
+import { ahora } from '../lib/relojServidor'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
@@ -166,13 +167,28 @@ export function AuthProvider({ children }) {
 
     const { sinRespuesta } = await cerrarSesionEnServidor()
 
-    if (abierta && sinRespuesta && motivo !== 'expiracion') {
+    if (sinRespuesta && motivo !== 'expiracion' && idSesion) {
+      /**
+       * D44 — SE ENCOLA EL CIERRE DE LA SESIÓN, NO EL DE LA ACTIVIDAD.
+       *
+       * Antes se mandaba `POST /actividades/{id}/finalizar`, y una actividad
+       * que el docente ya dio por terminada NO se reescribe: quedaba como
+       * "Manual por finalización de actividad" y la sesión seguía abierta en
+       * el servidor, con su fin y su causa en null.
+       *
+       * `POST /me/sesiones/{id}/cerrar` cierra las dos, y la actividad como
+       * "Forzado por cierre de sesión", que es lo que de verdad pasó. Va con
+       * la hora REAL en que el docente salió, no la de la sincronización: lo
+       * que se registra es cuándo ocurrió.
+       */
       encolar({
-        clave: `actividad-cierre-${abierta.id}`,
-        tipo: TIPOS_ENVIO.ACTIVIDAD_CIERRE,
-        payload: { id: abierta.id, fin: abierta.fin, id_sesion: idSesion },
-        descripcion: 'Cierre de actividad (cierre de sesión sin conexión)',
-        dependeDe: `actividad-inicio-${abierta.id}`,
+        clave: `sesion-cierre-${idSesion}`,
+        tipo: TIPOS_ENVIO.SESION_CIERRE,
+        payload: { id_sesion: idSesion, fin: abierta?.fin ?? ahora().toISOString(), id_actividad: abierta?.id ?? null },
+        descripcion: 'Cierre de sesión sin conexión',
+        // Si la actividad se inició sin conexión y todavía no subió, primero
+        // tiene que existir en el servidor: cerrarla antes daría un 404.
+        ...(abierta ? { dependeDe: `actividad-inicio-${abierta.id}` } : {}),
       }).catch(() => {
         // El resultado se ve en el panel de sincronización, no aquí.
       })

@@ -144,6 +144,19 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
         const respuesta = await encolar({
           clave: claveDeMarca(alumno.id_alumno, fecha, idSeccion),
           tipo: TIPOS_ENVIO.ASISTENCIA,
+          /**
+           * E2 — Qué REGISTRO toca esta operación, para el aviso de
+           * pendientes. Sin esto el servidor cuenta uno por operación, así
+           * que marcar y corregir al mismo alumno salía como dos registros
+           * en riesgo y la Salud del Sistema bajaba sin motivo.
+           */
+          registro: {
+            id_colegio: Number(idColegio),
+            id_grado: Number(idGrado),
+            id_seccion: Number(idSeccion),
+            fecha,
+            id_alumno: alumno.id_alumno,
+          },
           payload: {
             idColegio,
             idGrado,

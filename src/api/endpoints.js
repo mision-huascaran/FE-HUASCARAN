@@ -73,6 +73,18 @@ export const ENDPOINTS = {
    * El id lo genera el CLIENTE (UUID) para poder reintentar sin duplicar: 201
    * si la crea, 200 si ese UUID ya era suyo.
    */
+  /**
+   * SEMANA 12 — Cierre diferido de la SESIÓN autenticada (CU008, D44).
+   *
+   * No es lo mismo que `/actividades/{id}/finalizar`: eso cierra la actividad
+   * de trabajo, y una actividad ya finalizada NO se reescribe. Por eso el
+   * cierre sin conexión tiene que ir por aquí, que además cierra la actividad
+   * en curso como "Forzado por cierre de sesión".
+   */
+  sesiones: {
+    cerrar: (idSesion) => `/me/sesiones/${idSesion}/cerrar`,
+  },
+
   actividades: {
     crear: '/actividades',
     finalizar: (id) => `/actividades/${id}/finalizar`,
