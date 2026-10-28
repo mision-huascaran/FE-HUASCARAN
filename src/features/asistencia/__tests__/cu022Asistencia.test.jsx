@@ -20,6 +20,7 @@ import { ERROR_LOCAL, ERROR_SERVIDOR } from '../useAutoguardado'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import useSyncStore from '../../../store/syncStore'
+import useRechazosStore from '../../../store/rechazosStore'
 import { _reiniciarCola } from '../../../lib/colaOffline'
 import { ROLES } from '../../../auth/roles'
 
@@ -112,6 +113,7 @@ beforeEach(() => {
       registro: { id_clase: 12, id_alumno: r.id_alumno, estado: r.estado ?? null, observacion: r.observacion ?? null },
     })),
   }))
+  useRechazosStore.getState().limpiar()
   useActividadStore.getState().iniciar({ idDocente: 1 })
 })
 
@@ -399,5 +401,91 @@ describe('Asistencia (CU022)', () => {
     // feriado, una suspensión— que el front no tiene forma de saber.
     await screen.findByText(/d[ií]a no lectivo/i, {}, ESPERA)
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('La marca se atribuye a SU actividad', () => {
+  /**
+   * El contrato dice que `id_actividad` es opcional y que "por defecto, la
+   * activa". Darlo por bueno era el fallo: la operación se envía cuando la
+   * cola puede, y eso puede ser después de que el Docente cerrara la
+   * actividad o al recuperar la señal horas más tarde. Sin actividad activa
+   * el servidor no tenía a qué atribuir la marca, y en Sesiones la actividad
+   * salía con 0 cambios y la sincronización en "Error".
+   *
+   * Los otros tres módulos ya lo mandaban. Asistencias era el único que no.
+   */
+  it('manda el id_actividad DENTRO del registro', async () => {
+    montar()
+    await abrirClase()
+
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+
+    const { id } = useActividadStore.getState().sesion
+    expect(marcar.mock.calls[0][0].registros[0]).toMatchObject({ id_actividad: id })
+  })
+})
+
+describe('Un rechazo no desaparece en silencio (D69)', () => {
+  /**
+   * El lote responde 200 aunque un ítem venga rechazado, así que para la cola
+   * el envío fue bien. La pantalla lo atiende mientras siga abierta, pero si
+   * el docente recargó la página esa promesa ya no existe: el rechazo se
+   * perdía y solo se veía, sin explicación, en Sesiones.
+   */
+  it('queda anotado con su texto y se puede descartar', async () => {
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: null,
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(1), ESPERA)
+    const [rechazo] = useRechazosStore.getState().rechazos
+    expect(rechazo).toMatchObject({ modulo: 'asistencias', motivo: 'sin_habilitacion' })
+    // Con el texto del módulo, no uno genérico.
+    expect(rechazo.detail).toMatch(/habilitación vigente para registrar o corregir asistencias/i)
+    // Y de quién era la marca, para poder encontrarla.
+    expect(rechazo.nombre).toEqual(expect.any(String))
+
+    // Se ve en la pantalla, que es lo que faltaba.
+    expect(await screen.findByRole('alert', {}, ESPERA)).toHaveTextContent(/habilitación vigente/i)
+  })
+
+  it('una marca ACEPTADA después borra el rechazo anterior', async () => {
+    // Primero una que el servidor rechaza, con la clave de verdad.
+    const rechazar = async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: null,
+        registro: null,
+      })),
+    })
+    const aceptar = marcar.getMockImplementation()
+    marcar.mockImplementation(rechazar)
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(1), ESPERA)
+
+    // Y ahora el docente corrige: la misma fila, aceptada.
+    marcar.mockImplementation(aceptar)
+    fireEvent.click(ladoAusente(controles()[0]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(0), ESPERA)
   })
 })

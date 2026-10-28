@@ -4,9 +4,11 @@
 import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
 import { cerrarSesionDiferido } from '../api/resources/auth'
-import { guardarAsistencia } from '../api/resources/asistencia'
+import { MOTIVO_REGISTRO, guardarAsistencia } from '../api/resources/asistencia'
+import { textoDeRechazo } from '../api/resources/sincronizacion'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
+import useRechazosStore from '../store/rechazosStore'
 import useSyncStore from '../store/syncStore'
 
 export const TIPOS_ENVIO = {
@@ -41,14 +43,55 @@ export const TIPOS_ENVIO = {
  * fecha. `id_operacion` lo pone la cola y viaja DENTRO de cada registro,
  * porque el contrato trata cada fila como una operación independiente.
  */
-registrarEnviador(TIPOS_ENVIO.ASISTENCIA, ({ idColegio, idGrado, idSeccion, fecha, registros, id_operacion: idOperacion }) =>
-  guardarAsistencia({
-    idColegio,
-    idGrado,
-    idSeccion,
-    fecha,
-    registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
-  }),
+registrarEnviador(
+  TIPOS_ENVIO.ASISTENCIA,
+  async ({ idColegio, idGrado, idSeccion, fecha, nombre, registros, id_operacion: idOperacion, idempotency_key: clave }) => {
+    const respuesta = await guardarAsistencia({
+      idColegio,
+      idGrado,
+      idSeccion,
+      fecha,
+      registros: (registros ?? []).map((r) => ({ id_operacion: idOperacion, version: null, ...r })),
+    })
+
+    /**
+     * UN RECHAZO DENTRO DE UN 200 TAMBIÉN SE ANOTA.
+     *
+     * El lote responde 200 aunque alguno de sus ítems venga rechazado, así que
+     * para la cola el envío fue bien y nadie lo registra. La pantalla de
+     * Asistencias sí lo atiende —revierte el control y avisa—, pero solo
+     * mientras siga abierta: si el docente recargó la página o cerró el
+     * navegador, esa promesa ya no existe y el rechazo **desaparecía en
+     * silencio**. Era D69 otra vez, y Asistencias es el único de los cuatro
+     * módulos al que le faltaba.
+     *
+     * Se anota aquí, que es por donde pasa TODO envío de asistencia, venga de
+     * un clic o de la cola al recuperar la señal.
+     */
+    const rechazos = useRechazosStore.getState()
+    const resultados = Array.isArray(respuesta?.resultados) ? respuesta.resultados : []
+    for (const resultado of resultados) {
+      if (resultado?.estado === 'rechazada') {
+        rechazos.agregar({
+          clave,
+          modulo: 'asistencias',
+          nombre: nombre ?? null,
+          idOperacion: resultado.id_operacion ?? idOperacion,
+          motivo: resultado.motivo ?? null,
+          detail: textoDeRechazo(resultado, MOTIVO_REGISTRO) ?? 'El servidor rechazó el registro.',
+          // Asistencias no tiene control de versión —gana la captura más
+          // reciente—, así que no hay "versión actual" que ofrecer: la salida
+          // es descartar la operación.
+          registro: null,
+        })
+      } else if (resultado?.estado === 'aceptada') {
+        // La marca buena sustituye al rechazo anterior del mismo registro.
+        rechazos.quitar(clave)
+      }
+    }
+
+    return respuesta
+  },
   { modulo: 'asistencias' },
 )
 

@@ -41,6 +41,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import AvisoActividades from '../../components/layout/AvisoActividades'
+import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
@@ -351,6 +352,16 @@ export default function AsistenciaPage() {
       {/* Una corrección excepcional SÍ hay que anunciarla: el docente está
           escribiendo en un periodo cerrado y con fecha de caducidad. */}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
+
+      {/*
+        Lo que el servidor rechazó y sigue sin resolverse.
+
+        Faltaba aquí, y era el único de los cuatro módulos sin él: una marca
+        rechazada después de recargar la página no la veía nadie, y el docente
+        solo se enteraba mirando Sesiones, donde su actividad salía en "Error"
+        sin decir de qué.
+      */}
+      <AvisoConflictos modulo="asistencias" />
 
       <FiltrosAsistencia
         filtros={filtros}
