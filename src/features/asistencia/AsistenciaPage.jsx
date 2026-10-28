@@ -58,7 +58,6 @@ import useSessionStore from '../../store/sessionStore'
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 // Literales de CU022, tal cual los da el caso de uso.
-const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
 const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
 const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
 
@@ -334,7 +333,7 @@ export default function AsistenciaPage() {
         </p>
       </header>
 
-      {puedeEditar && !conActividad && <AvisoActividades mensaje={SIN_ACTIVIDAD} />}
+      {puedeEditar && !conActividad && <AvisoActividades />}
 
       {/*
         El servidor dice POR QUÉ no se puede escribir, con el texto ya

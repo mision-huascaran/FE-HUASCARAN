@@ -35,8 +35,8 @@ const PASOS = ['Pedir PIN', 'Verificar PIN', 'Nueva contraseña']
 export const MENSAJE = {
   enviado: 'Si el correo está registrado y activo, recibirá un PIN.',
   sinConexion:
-    'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctese a Internet e inténtelo nuevamente.',
-  pinIncorrecto: 'El código ingresado es incorrecto. Inténtelo nuevamente.',
+    'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctate a Internet e inténtalo nuevamente.',
+  pinIncorrecto: 'El código ingresado es incorrecto. Inténtalo nuevamente.',
   pinExpirado: 'El código ha expirado. Solicite un nuevo PIN.',
   // Texto nuevo del contrato, literal.
   pinAgotado: 'Ha agotado los intentos permitidos. Solicite un nuevo PIN para continuar.',

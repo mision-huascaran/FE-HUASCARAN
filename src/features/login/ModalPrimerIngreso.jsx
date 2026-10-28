@@ -24,7 +24,7 @@ import { mensajeDeError, motivoDe } from '../../api/client'
 import { REQUISITOS_PASSWORD, requisitosIncumplidos } from '../../lib/validacion'
 
 export const TEXTO = {
-  expirada: "Su contraseña temporal ha expirado. Use '¿Olvidó su contraseña?' para generar una nueva.",
+  expirada: "Tu contraseña temporal ha expirado. Usa '¿Olvidaste tu contraseña?' para generar una nueva.",
   noCoinciden: 'Las contraseñas no coinciden.',
   igualAnterior: 'La nueva contraseña debe ser diferente de la contraseña anterior.',
 }

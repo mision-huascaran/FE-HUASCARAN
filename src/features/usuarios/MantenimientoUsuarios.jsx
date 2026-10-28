@@ -328,7 +328,7 @@ export default function MantenimientoUsuarios() {
              * CU001/CU016: una cuenta recién creada arrastra una contraseña
              * temporal de 48 horas hasta su primer ingreso. Saberlo le importa
              * al Supervisor: si expira sin usarse, él no puede reenviarla y la
-             * persona tiene que pasar por "¿Olvidó su contraseña?".
+             * persona tiene que pasar por "¿Olvidaste tu contraseña?".
              */
             key: 'debe_cambiar_contrasena',
             header: 'Acceso',

@@ -39,7 +39,7 @@ describe('Inicio de sesión sin conexión (CU001)', () => {
 
     expect(screen.getByRole('button', { name: /ingresar/i })).toBeDisabled()
     // Recuperar contraseña también necesita servidor de principio a fin (CU004).
-    expect(screen.getByRole('button', { name: /olvidó su contraseña/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /olvidaste tu contraseña/i })).toBeDisabled()
     expect(screen.getByText(MENSAJE.sinConexion)).toBeInTheDocument()
   })
 
@@ -48,7 +48,7 @@ describe('Inicio de sesión sin conexión (CU001)', () => {
     montar()
 
     expect(screen.getByRole('button', { name: /ingresar/i })).toBeEnabled()
-    expect(screen.getByRole('button', { name: /olvidó su contraseña/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /olvidaste tu contraseña/i })).toBeEnabled()
     expect(screen.queryByText(MENSAJE.sinConexion)).not.toBeInTheDocument()
   })
 })

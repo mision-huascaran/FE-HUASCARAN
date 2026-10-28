@@ -80,9 +80,31 @@ export const descartarOperacion = (idOperacion) =>
     forzarReal: adminContraApiReal,
   })
 
+/**
+ * Lo que responde el servidor cuando falta la actividad de trabajo (CU014,
+ * CU022, CU023, CU025, CU030 y CU032 lo dan con estas mismas palabras).
+ *
+ * Es el RESPALDO: lo que se pinta es el `detail` o el `escritura.motivo` que
+ * llega. Esto solo se usa cuando no hay respuesta del servidor.
+ */
+export const SIN_ACTIVIDAD = 'Debes iniciar una actividad de trabajo para registrar o modificar información.'
+
 export const MOTIVO_OPERACION = {
   fuera_de_actividad: 'La operación se realizó fuera de una actividad de trabajo del docente.',
-  actividad_requerida: 'Inicia una actividad de trabajo para registrar información.',
+  /**
+   * EL ÚNICO TEXTO DE "no has iniciado actividad", y vive aquí a propósito.
+   *
+   * El backend tenía SIETE redacciones distintas para lo mismo —una por
+   * módulo— y las unificó en esta. El front tenía sus propias copias encima,
+   * así que el mismo rechazo se leía de cinco maneras según la pantalla. Ahora
+   * hay una sola, y los módulos la heredan por `textoDeRechazo`.
+   *
+   * NO es el literal de CU010: ese es otro, "Inicia una actividad de trabajo
+   * para habilitar el registro de datos.", y se queda en el Inicio. Aquel lo
+   * dice la pantalla cuando ella misma sabe que no hay actividad; este lo dice
+   * el servidor al rechazar una escritura. Son dos momentos distintos.
+   */
+  actividad_requerida: SIN_ACTIVIDAD,
   realizado_en_futuro:
     'La hora del dispositivo iba adelantada cuando se registró el dato. Comprueba la fecha y la hora del equipo.',
   operacion_ajena: 'El identificador de la operación ya fue usado.',

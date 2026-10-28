@@ -262,7 +262,7 @@ describe('Asistencia (CU022)', () => {
     await abrirClase()
 
     expect(
-      screen.getByText('Inicia una actividad de trabajo para habilitar el registro de datos.'),
+      screen.getByText('Debes iniciar una actividad de trabajo para registrar o modificar información.'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
     expect(ladoPresente(controles()[0])).toBeDisabled()

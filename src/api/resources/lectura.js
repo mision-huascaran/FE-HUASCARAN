@@ -59,7 +59,6 @@ export const MOTIVO_FILA = {
   lsn_invalido: 'Selecciona un máximo de 5 o 10 e ingresa una nota entre 0 y ese máximo.',
   alumno_fuera_de_la_tabla: 'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
   sin_habilitacion: 'No tienes una habilitación vigente para registrar o corregir la lectura de esta semana.',
-  actividad_requerida: 'Debes iniciar una actividad de trabajo para registrar o modificar la lectura semanal.',
   lectura_no_realizada: 'La lectura semanal de esta tabla fue marcada como no realizada.',
   modificacion_concurrente:
     'Este registro de lectura fue modificado desde que lo consultaste. Revisa la versión actual antes de guardar nuevamente.',

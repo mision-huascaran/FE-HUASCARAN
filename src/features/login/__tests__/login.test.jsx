@@ -57,7 +57,7 @@ describe('LoginPage', () => {
     renderLogin()
 
     expect(screen.queryByRole('button', { name: /crear cuenta/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /¿olvidó su contraseña\?/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /¿olvidaste tu contraseña\?/i })).toBeInTheDocument()
   })
 
   it('con credenciales válidas lleva al inicio que corresponde al rol', async () => {

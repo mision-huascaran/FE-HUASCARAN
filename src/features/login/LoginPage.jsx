@@ -27,10 +27,10 @@ export const MENSAJE = {
     'No se pudo establecer conexión con el servidor. Para iniciar sesión es necesario disponer de conexión a Internet.',
   credenciales: 'Correo o contraseña incorrectos.',
   bloqueo: 'Demasiados intentos fallidos. Por seguridad, intente nuevamente en 15 minutos.',
-  desactivada: 'Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.',
+  desactivada: 'Tu cuenta se encuentra desactivada. Comunícate con el Supervisor para solicitar su habilitación.',
   // CU001, literal: la contraseña temporal dura 48 horas y, pasadas, la única
   // salida es pedir un PIN. Reintentar no sirve de nada.
-  temporalExpirada: "Su contraseña temporal ha expirado. Use '¿Olvidó su contraseña?' para generar una nueva.",
+  temporalExpirada: "Tu contraseña temporal ha expirado. Usa '¿Olvidaste tu contraseña?' para generar una nueva.",
 }
 
 const esquema = z.object({
@@ -114,7 +114,7 @@ export default function LoginPage() {
         return
       }
       if (estado) {
-        setErrorGeneral(mensajeDeError(error, 'No se pudo iniciar sesión. Intente nuevamente.'))
+        setErrorGeneral(mensajeDeError(error, 'No se pudo iniciar sesión. Inténtalo nuevamente.'))
         return
       }
       // Sin respuesta del servidor: para CU001 es el mismo caso que estar sin red.
@@ -208,7 +208,7 @@ export default function LoginPage() {
                 onClick={() => setResetAbierto(true)}
                 className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-ink-400 disabled:hover:text-ink-400"
               >
-                ¿Olvidó su contraseña?
+                ¿Olvidaste tu contraseña?
               </button>
             </div>
 

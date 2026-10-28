@@ -20,6 +20,7 @@ import FiltrosMantenimiento from './FiltrosMantenimiento'
 import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
 import { mensajeDeError } from '../../api/client'
+import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
 import useActividad from '../../features/inicio/useActividad'
@@ -37,7 +38,10 @@ function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
   if (sinConexion) return avisoSinConexion(seccion)
   // CU010 da este mensaje PALABRA POR PALABRA. No es una sugerencia de
   // redacción: el probador lo compara carácter a carácter.
-  if (exigeActividad) return 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+  // CU014 adopta el MISMO texto que los módulos operativos: antes decía
+  // "Debe iniciar una actividad para realizar cambios." y el servidor ya
+  // responde el unificado, así que tener dos era contradecirse solo.
+  if (exigeActividad) return SIN_ACTIVIDAD
   return undefined
 }
 

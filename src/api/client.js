@@ -184,7 +184,7 @@ export function erroresDeCampo(error) {
  * se nombra como lo que es, porque con la disponibilidad del 70 % de RN-017
  * pasa a menudo y el docente necesita saber que su dato quedó en la cola local.
  */
-export function mensajeDeError(error, porDefecto = 'Intente nuevamente.') {
+export function mensajeDeError(error, porDefecto = 'Inténtalo nuevamente.') {
   if (!error) return porDefecto
 
   const detalle = error?.response?.data?.detail

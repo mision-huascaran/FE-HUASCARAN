@@ -62,7 +62,7 @@ describe('useHabilitacion', () => {
     expect(result.current).toEqual({
       permitida: false,
       motivo: MOTIVO_LOCAL.SIN_ACTIVIDAD,
-      texto: 'Inicia una actividad de trabajo para habilitar el registro de datos.',
+      texto: 'Debes iniciar una actividad de trabajo para registrar o modificar información.',
       id_permiso: null,
       id_periodo_academico: null,
     })

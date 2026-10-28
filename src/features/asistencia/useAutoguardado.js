@@ -41,7 +41,7 @@ import useConexion from '../../hooks/useConexion'
 
 // Literales de CU022. Se escriben tal cual porque el caso de uso los da como
 // "el mensaje exacto" y el probador los comprueba palabra por palabra.
-export const ERROR_LOCAL = 'Error al guardar la asistencia localmente. Inténtelo nuevamente.'
+export const ERROR_LOCAL = 'Error al guardar la asistencia localmente. Inténtalo nuevamente.'
 export const ERROR_SERVIDOR =
   'El servidor rechazó el registro de asistencia. Verifique su conexión o contacte al Supervisor.'
 

@@ -513,7 +513,7 @@ describe('Quién puede escribir', () => {
 
     montar()
 
-    await screen.findByText('Inicia una actividad de trabajo para habilitar el registro de datos.', {}, ESPERA)
+    await screen.findByText('Debes iniciar una actividad de trabajo para registrar o modificar información.', {}, ESPERA)
     expect(await screen.findByLabelText(/título del LSN/i, {}, ESPERA)).toBeDisabled()
   })
 })

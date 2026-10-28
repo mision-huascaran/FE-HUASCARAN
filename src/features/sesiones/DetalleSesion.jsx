@@ -59,7 +59,7 @@ export default function DetalleSesion({ sesion, onCerrar }) {
         <EmptyState
           icon={WifiOff}
           title="Detalle no disponible sin conexión"
-          description="Conéctese a internet para visualizar la información de esta sesión."
+          description="Conéctate a internet para visualizar la información de esta sesión."
         />
       )}
 

@@ -79,7 +79,6 @@ export const MOTIVO_RUBRICA = {
   valor_no_permitido: 'Selecciona una valoración permitida para esta dimensión.',
   sin_habilitacion:
     'No tienes una habilitación vigente para registrar o modificar las rúbricas del grupo y mes seleccionados.',
-  actividad_requerida: 'Debes iniciar una actividad de trabajo para registrar o modificar las rúbricas.',
   modificacion_concurrente:
     'Esta evaluación fue modificada desde que la consultaste. Revisa la versión actual antes de guardar nuevamente.',
   alumno_fuera_del_grupo: 'El estudiante no pertenecía a este grupo en el mes seleccionado.',

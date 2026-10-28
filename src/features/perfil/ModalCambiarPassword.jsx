@@ -33,7 +33,7 @@ const PASOS = ['Pedir código', 'Verificar código', 'Nueva contraseña']
  * y carácter especial), que vive en `lib/validacion`.
  */
 const SIN_CONEXION =
-  'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctese a Internet e inténtelo nuevamente.'
+  'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctate a Internet e inténtalo nuevamente.'
 
 export default function ModalCambiarPassword({ abierto, onCerrar }) {
   const toast = useToast()

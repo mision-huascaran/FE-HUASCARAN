@@ -2183,7 +2183,7 @@ export const handlers = {
     async verificarCodigoPublico({ correo, codigo }) {
       if (!esCorreoValido(correo)) throw errorMock(422, 'El correo no es válido', 'validacion')
       if (String(codigo ?? '').trim() !== '123456') {
-        throw errorMock(400, 'El código ingresado es incorrecto. Inténtelo nuevamente.', 'incorrecto')
+        throw errorMock(400, 'El código ingresado es incorrecto. Inténtalo nuevamente.', 'incorrecto')
       }
       return responder({ valido: true })
     },
