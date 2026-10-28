@@ -38,6 +38,8 @@ const VACIO = {
 export default function ModalOtorgarPermiso({
   abierto,
   idUsuario,
+  /** La ficha del Docente, para nombrarlo en la cabecera (CU028, D77). */
+  docente,
   colegios = [],
   idAnioEscolar = '',
   onCerrar,
@@ -71,6 +73,8 @@ export default function ModalOtorgarPermiso({
     const disponible = anios.some((a) => String(a.id) === String(idAnioEscolar))
     const propuesto = disponible ? String(idAnioEscolar) : String(anioVigente(anios)?.id ?? '')
     setDatos({ ...VACIO, id_anio_escolar: propuesto })
+    setConfirmandoDescarte(false)
+    setErroresCampo({})
   }, [abierto, anios, idAnioEscolar])
 
   /**
@@ -94,6 +98,8 @@ export default function ModalOtorgarPermiso({
    * Supervisor tiene que adivinar cuál de los ocho campos corregir.
    */
   const [erroresCampo, setErroresCampo] = useState({})
+  /** D78 — Con datos escritos, cancelar pregunta DENTRO del mismo modal. */
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
 
   const otorgar = useMutation({
     mutationFn: () => {
@@ -126,6 +132,19 @@ export default function ModalOtorgarPermiso({
     })
   }
 
+  /**
+   * ¿Hay algo escrito que se perdería al cerrar?
+   *
+   * `desde_ahora` nace en `true` y el año viene precargado, así que no
+   * cuentan: preguntar por ellos haría que cerrar un formulario intacto
+   * pidiera confirmación, que es justo el estorbo que D78 no quiere.
+   */
+  const conDatos = Boolean(
+    datos.id_colegio || datos.id_grado || datos.id_periodo_academico || datos.modulo || datos.fin || datos.motivo.trim(),
+  )
+
+  const cancelar = () => (conDatos ? setConfirmandoDescarte(true) : onCerrar())
+
   const periodos = opciones?.periodos ?? []
   const grados = opciones?.grados ?? []
 
@@ -142,20 +161,52 @@ export default function ModalOtorgarPermiso({
   return (
     <Modal
       open={abierto}
-      onClose={onCerrar}
+      // D78 — Mientras procesa no se cierra: la solicitud puede haberse
+      // aplicado, y cerrar daría a entender que no.
+      onClose={otorgar.isPending ? () => {} : cancelar}
+      // D78 — Pulsar fuera NO lo cierra: un clic distraído no puede tirar un
+      // formulario de ocho campos a medio llenar.
+      cierreExterior={false}
       title="Otorgar permiso de corrección"
-      subtitle="Un permiso autoriza un solo módulo: para otro, otorga uno aparte."
+      // D77 — El nombre del Docente, como dato de solo lectura: el modal se
+      // abre desde su ficha, pero una vez abierto nada decía a quién se está
+      // autorizando.
+      subtitle={docente?.nombre ?? docente?.nombres ?? 'Un permiso autoriza un solo módulo.'}
       footer={
+        confirmandoDescarte ? (
+          <>
+            <Button variant="ghost" onClick={() => setConfirmandoDescarte(false)}>
+              Continuar completando
+            </Button>
+            <Button variant="danger" onClick={onCerrar}>
+              Descartar datos
+            </Button>
+          </>
+        ) : (
         <>
-          <Button variant="ghost" onClick={onCerrar}>
+          <Button variant="ghost" onClick={cancelar} disabled={otorgar.isPending}>
             Cancelar
           </Button>
           <Button loading={otorgar.isPending} disabled={!completo} onClick={() => otorgar.mutate()}>
-            Otorgar
+            Otorgar permiso
           </Button>
         </>
+        )
       }
     >
+      {confirmandoDescarte ? (
+        <p className="text-sm text-ink-700">Tienes datos sin guardar. ¿Deseas descartarlos?</p>
+      ) : (
+      <>
+      {/*
+        El aviso de CU028. Lo que hay que dejar claro es qué NO hace: el
+        permiso habilita regularizar ese grupo, pero no toca las asignaciones
+        históricas ni convierte al Docente en su titular.
+      */}
+      <p className="mb-4 rounded-lg bg-surface-100 px-3 py-2 text-sm text-ink-700">
+        Este permiso permite regularizar información del grupo seleccionado sin modificar sus asignaciones
+        históricas.
+      </p>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Select
           label="Año escolar"
@@ -249,6 +300,8 @@ export default function ModalOtorgarPermiso({
           />
         </div>
       </div>
+      </>
+      )}
     </Modal>
   )
 }

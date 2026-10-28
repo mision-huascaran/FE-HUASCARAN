@@ -23,6 +23,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import Select from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import DetallePermiso from './DetallePermiso'
+import ModalRevocarPermiso from './ModalRevocarPermiso'
 import ModalOtorgarPermiso from './ModalOtorgarPermiso'
 import {
   ESTADOS_PERMISO,
@@ -31,10 +32,11 @@ import {
   MODULOS_PERMISO,
   TONO_ESTADO_PERMISO,
   listarPermisos,
+  opcionesDePermiso,
   revocarPermiso,
 } from '../../api/resources/permisos'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
-import { mensajeDeError } from '../../api/client'
+import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
@@ -52,6 +54,9 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
   const [filtros, setFiltros] = useState(SIN_FILTROS)
   const [viendo, setViendo] = useState(null)
   const [otorgando, setOtorgando] = useState(false)
+  /** El permiso que se está revocando, y el error de su motivo si lo hubo. */
+  const [revocando, setRevocando] = useState(null)
+  const [errorRevocacion, setErrorRevocacion] = useState(undefined)
 
   const idUsuario = docente?.id_usuario ?? docente?.id
 
@@ -79,6 +84,20 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     setFiltros((f) => (f.id_anio_escolar ? f : { ...f, id_anio_escolar: String(vigente.id) }))
   }, [anios])
 
+  /**
+   * Los PA que ofrece el filtro salen del COLEGIO y del AÑO.
+   *
+   * No hay un catálogo global de periodos: cada colegio tiene su calendario, y
+   * un PA puede estar cerrado en uno y abierto en otro. Es el mismo endpoint
+   * que usa el modal de otorgar.
+   */
+  const { data: opcionesPeriodo } = useQuery({
+    queryKey: ['permisos', 'opciones', borrador.id_colegio, borrador.id_anio_escolar],
+    queryFn: () => opcionesDePermiso({ idColegio: borrador.id_colegio, idAnioEscolar: borrador.id_anio_escolar }),
+    enabled: Boolean(borrador.id_colegio && enLinea),
+  })
+  const periodos = opcionesPeriodo?.periodos ?? []
+
   const consulta = useQuery({
     queryKey: ['permisos', idUsuario, filtros],
     queryFn: () => listarPermisos(idUsuario, filtros),
@@ -86,14 +105,44 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
   })
 
   const revocar = useMutation({
-    mutationFn: ({ idPermiso, motivo }) => revocarPermiso(idUsuario, idPermiso, motivo),
+    mutationFn: ({ idPermiso, motivo }) => {
+      setErrorRevocacion(undefined)
+      return revocarPermiso(idUsuario, idPermiso, motivo)
+    },
     onSuccess: () => {
       setViendo(null)
+      setRevocando(null)
       queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
       // El literal de CU028, sin añadirle nada (D62).
       toast.success('Permiso de corrección revocado correctamente.')
     },
-    onError: (error) => toast.error('No se pudo revocar', mensajeDeError(error)),
+    onError: (error) => {
+      /**
+       * El motivo vacío se señala DEBAJO de su campo; lo demás arriba.
+       *
+       * Y hay dos casos que no son errores que corregir sino cambios de
+       * estado: otro Supervisor lo revocó antes, o el permiso venció
+       * mientras se escribía. Ahí se cierra, se refresca y se dice qué pasó.
+       */
+      const motivoError = motivoDe(error)
+      if (motivoError === 'permiso_ya_revocado' || motivoError === 'permiso_vencido') {
+        setRevocando(null)
+        queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
+        toast.info(
+          motivoError === 'permiso_ya_revocado'
+            ? 'El permiso ya fue revocado. Se actualizó su información.'
+            : 'El permiso ya venció y no requiere revocación.',
+        )
+        return
+      }
+
+      const porCampo = erroresDeCampo(error)
+      if (porCampo.motivo) {
+        setErrorRevocacion(porCampo.motivo)
+        return
+      }
+      toast.error('No se pudo revocar', mensajeDeError(error))
+    },
   })
 
   if (!enLinea) {
@@ -155,6 +204,21 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
               onChange={(e) => cambiar('id_colegio', e.target.value)}
             />
           </CeldaFiltro>
+          {/*
+            D77 — Faltaba, y CU028 lo lista entre los cinco filtros. Sus
+            opciones dependen del COLEGIO y del AÑO, porque cada colegio tiene
+            su calendario: sin esos dos elegidos no hay periodos que ofrecer.
+          */}
+          <CeldaFiltro>
+            <Select
+              label="Periodo académico"
+              placeholder={borrador.id_colegio ? 'Todos' : 'Elige un colegio'}
+              value={borrador.id_periodo_academico}
+              disabled={!borrador.id_colegio}
+              options={periodos.map((pa) => ({ value: String(pa.id), label: pa.nombre }))}
+              onChange={(e) => cambiar('id_periodo_academico', e.target.value)}
+            />
+          </CeldaFiltro>
           <CeldaFiltro>
             <Select
               label="Módulo"
@@ -209,11 +273,24 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
               },
               {
                 key: 'acciones',
-                header: '',
+                header: 'Acciones',
                 render: (p) => (
-                  <Button size="sm" variant="ghost" onClick={() => setViendo(p)}>
-                    Ver permiso
-                  </Button>
+                  <div className="flex flex-wrap gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setViendo(p)}>
+                      Ver permiso
+                    </Button>
+                    {/*
+                      D77 — "Revocar" vivía DENTRO de "Ver permiso". CU028 la
+                      pone en la columna Acciones, y solo para los permisos
+                      que todavía se pueden revocar: uno vencido o ya revocado
+                      no admite otra revocación.
+                    */}
+                    {['programado', 'vigente'].includes(p.estado) && (
+                      <Button size="sm" variant="ghost" className="text-danger-600" onClick={() => setRevocando(p)}>
+                        Revocar
+                      </Button>
+                    )}
+                  </div>
                 ),
               },
             ]}
@@ -221,17 +298,24 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         )}
       </Card>
 
-      <DetallePermiso
-        permiso={viendo}
-        idUsuario={idUsuario}
+      <DetallePermiso permiso={viendo} idUsuario={idUsuario} onCerrar={() => setViendo(null)} />
+
+      <ModalRevocarPermiso
+        permiso={revocando}
+        docente={docente}
         revocando={revocar.isPending}
-        onRevocar={(motivo) => revocar.mutate({ idPermiso: viendo.id, motivo })}
-        onCerrar={() => setViendo(null)}
+        error={errorRevocacion}
+        onRevocar={(motivo) => revocar.mutate({ idPermiso: revocando.id, motivo })}
+        onCerrar={() => {
+          setRevocando(null)
+          setErrorRevocacion(undefined)
+        }}
       />
 
       <ModalOtorgarPermiso
         abierto={otorgando}
         idUsuario={idUsuario}
+        docente={docente}
         colegios={colegios}
         // CU028: el modal precarga el año que se está consultando, si sigue
         // disponible. Casi siempre se otorga para lo que se acaba de mirar.
