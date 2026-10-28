@@ -16,6 +16,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
 import Tabs from '../../components/ui/Tabs'
 import ResumenFicha from './ResumenFichaAlumno'
+import GraficaDeVuelo from './GraficaDeVuelo'
 import {
   obtenerAlumno,
   obtenerLecturaAlumno,
@@ -140,7 +141,23 @@ function PestanaVuelo({ idAlumno }) {
       key: 'entrada',
       header: 'Entrada',
       render: (p) =>
-        p.entrada ?? <span className="text-ink-500">{ORIGEN_ENTRADA.pendiente_periodo_anterior}</span>,
+        p.entrada ? (
+          <span title={ORIGEN_ENTRADA[p.origen_entrada] ?? undefined}>
+            {p.entrada}
+            {/*
+              Tanda A3 — El nivel viene de una decisión tomada en OTRO
+              colegio, antes del traslado. Se destaca porque explica una
+              entrada que de otro modo parecería salida de la nada.
+            */}
+            {p.de_otro_colegio && (
+              <span className="ml-2 whitespace-nowrap rounded-full bg-surface-100 px-2 py-0.5 text-xs text-ink-500">
+                Registrado antes del traslado
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-ink-500">{ORIGEN_ENTRADA.pendiente_periodo_anterior}</span>
+        ),
     },
     { key: 'nivel_colocado', header: 'Nivel colocado', render: (p) => p.nivel_colocado ?? 'Sin registrar' },
     { key: 'nivel_programa', header: 'Nivel del programa', render: (p) => oGuion(p.nivel_programa) },
@@ -148,14 +165,24 @@ function PestanaVuelo({ idAlumno }) {
   ]
 
   return (
-    <DataTable
-      columns={columnas}
-      rows={data}
-      getRowId={(p) => p.numero}
-      loading={isLoading}
-      paginated={false}
-      empty={<EmptyState title="Sin periodos" description="No hay periodos académicos en el año." />}
-    />
+    <div className="flex flex-col gap-5">
+      {/*
+        D64 — La gráfica de PA1 a PA4. El endpoint devuelve SIEMPRE los cuatro
+        periodos, incluso los que aún no tienen decisión, justamente para
+        esto: lo que se quiere ver de un vistazo es si el alumno sube, se
+        mantiene o baja, y para eso hacen falta los cuatro puntos.
+      */}
+      {!isLoading && <GraficaDeVuelo periodos={data} />}
+
+      <DataTable
+        columns={columnas}
+        rows={data}
+        getRowId={(p) => p.numero}
+        loading={isLoading}
+        paginated={false}
+        empty={<EmptyState title="Sin periodos" description="No hay periodos académicos en el año." />}
+      />
+    </div>
   )
 }
 

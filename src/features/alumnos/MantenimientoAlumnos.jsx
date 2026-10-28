@@ -77,7 +77,20 @@ export default function MantenimientoAlumnos() {
   // Copia de IndexedDB: sin conexión, la tabla se lee de aquí en solo lectura.
   const precarga = usePrecarga()
 
-  const { data: colegiosEnLinea = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'colegios'], queryFn: async () => (await listarColegiosAdmin()).items, ...SIEMPRE, enabled: enLinea })
+  /**
+   * D63 — SOLO COLEGIOS ACTIVOS en el filtro.
+   *
+   * El backend dejó de devolver alumnos de colegios inactivos, así que
+   * ofrecer uno inactivo lleva a una lista vacía —no a un error— y el
+   * Supervisor no entiende por qué: el colegio está ahí, el filtro responde,
+   * y no sale nadie. Se ofrece lo que puede dar resultados.
+   */
+  const { data: colegiosEnLinea = [] } = useQuery({
+    queryKey: ['admin', 'catalogo', 'colegios', 'activos'],
+    queryFn: async () => (await listarColegiosAdmin({ estado: 'activo' })).items,
+    ...SIEMPRE,
+    enabled: enLinea,
+  })
   const { data: gradosEnLinea = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'grados'], queryFn: listarGradosAdmin, ...SIEMPRE, enabled: enLinea })
   const { data: programas = [] } = useQuery({ queryKey: ['admin', 'catalogo', 'programas'], queryFn: listarProgramasAdmin, ...SIEMPRE, enabled: enLinea })
   const { data: asignacionesEnLinea, isSuccess: asignacionesCargadas } = useQuery({
