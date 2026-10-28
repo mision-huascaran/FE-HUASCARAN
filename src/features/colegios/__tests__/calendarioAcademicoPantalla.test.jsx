@@ -131,6 +131,13 @@ describe('CU027 · Calendario académico', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Quitar el día no lectivo 1' }))
 
     fireEvent.click(boton('Guardar'))
+
+    // D72 — Guardar el GENERAL ya no escribe directo: primero confirma,
+    // porque mueve las fechas de todos los colegios que lo usan.
+    await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA)
+    expect(actualizar).not.toHaveBeenCalled()
+    fireEvent.click(boton('Confirmar cambios'))
+
     await waitFor(() => expect(actualizar).toHaveBeenCalledTimes(1), ESPERA)
     const [idCalendario, cuerpo] = actualizar.mock.calls[0]
     expect(idCalendario).toBe(7)
@@ -141,14 +148,45 @@ describe('CU027 · Calendario académico', () => {
     expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
-  it('Cancelar vuelve a la consulta sin guardar', async () => {
+  it('Cancelar pregunta antes de descartar lo escrito (D72)', async () => {
+    /**
+     * El calendario no se encola ni se guarda en `localStorage`: lo escrito
+     * vive solo en memoria. Si se pierde, se pierde, y por eso se pregunta.
+     */
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
     fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
     fireEvent.click(boton('Cancelar'))
 
+    await screen.findByText('Tienes cambios sin guardar. Si continúas, se perderán.', {}, ESPERA)
+    fireEvent.click(boton('Seguir editando'))
+    expect(screen.getByLabelText(FIN_PA1)).toBeInTheDocument()
+
+    fireEvent.click(boton('Cancelar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar cambios' }, ESPERA))
+
     expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeInTheDocument()
     expect(actualizar).not.toHaveBeenCalled()
+  })
+
+  it('un conflicto de versión bloquea Guardar y ofrece la versión actual (D75)', async () => {
+    // El sistema NO combina ni sobrescribe: o se conserva lo escrito, o se
+    // carga lo del servidor, y las dos son decisiones de la persona.
+    obtenerCalendario.mockResolvedValue(calendario())
+    actualizar.mockRejectedValueOnce(
+      errorHttp(409, { detail: 'La configuración fue modificada.', motivo: 'modificacion_concurrente' }),
+    )
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-14' } })
+    fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
+
+    await screen.findByText(/modificado por otro Supervisor/i, {}, ESPERA)
+    expect(boton('Guardar')).toBeDisabled()
+
+    fireEvent.click(boton('Consultar versión actual'))
+    await screen.findByText('Lo que hay guardado en el servidor ahora mismo', {}, ESPERA)
   })
 
   it('sin calendario (404) ofrece crearlo y exige las ocho fechas', async () => {
@@ -186,6 +224,7 @@ describe('CU027 · Calendario académico', () => {
     fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
     fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-08' } })
     fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
 
     expect(await screen.findByText('El cambio afecta a registros existentes', {}, ESPERA)).toBeInTheDocument()
     expect(screen.getByText(/I.E. 86021 Ranrahirca · 15\/05\/2026 · asistencia — quedaría en un receso/)).toBeInTheDocument()
@@ -230,8 +269,17 @@ describe('CU027 · Calendario académico', () => {
     expect(await screen.findByText('fechas particulares', {}, ESPERA)).toBeInTheDocument()
     fireEvent.click(boton('Usar el calendario general'))
 
+    /**
+     * D72 — El colegio renuncia a sus fechas propias y vuelve a depender del
+     * general, incluidos sus cambios futuros. Se confirma antes, diciendo
+     * qué colegio y qué año.
+     */
+    await screen.findByText(/dejará de utilizar sus fechas particulares/i, {}, ESPERA)
+    expect(volverAlGeneral).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /^confirmar$/i }))
+
     await waitFor(() => expect(volverAlGeneral).toHaveBeenCalledWith(9, 1), ESPERA)
-    expect(await screen.findByText('El colegio vuelve al calendario general', {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
   it('sin conexión avisa y no deja editar', async () => {
@@ -239,7 +287,7 @@ describe('CU027 · Calendario académico', () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
 
-    expect(await screen.findByText(/Sin conexión se muestra la última versión guardada/, {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText(/Sin conexión. Estás consultando la última versión guardada del calendario/, {}, ESPERA)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeDisabled()
   })
 })

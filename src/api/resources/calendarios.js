@@ -69,13 +69,22 @@ export function ochoPeriodos(periodos) {
  * tiene, el general: `origen` dice cuál de los dos es, y esa distinción hay
  * que mostrarla o nadie sabe qué está editando.
  */
-export const obtenerCalendario = async ({ idAnioEscolar, idColegio } = {}) => {
+export const obtenerCalendario = async ({ anio, idAnioEscolar, idColegio } = {}) => {
   const datos = await resolver({
-    mock: () => handlers.calendarios.obtener({ idAnioEscolar, idColegio }),
+    mock: () => handlers.calendarios.obtener({ anio, idAnioEscolar, idColegio }),
     real: () =>
       api.get(calendarios.listar, {
         params: {
-          ...(idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {}),
+          /**
+           * `anio` es el AÑO CALENDARIO (2027), no el id del año escolar.
+           *
+           * Lo añadió la tanda C junto con el selector de solo año: elegir un
+           * año no crea nada, y si no existe se responde 404
+           * `calendario_no_configurado` para poder ofrecer "Crear calendario".
+           * Mandar los dos a la vez es un 422, así que `anio` manda cuando
+           * está.
+           */
+          ...(anio ? { anio: Number(anio) } : idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {}),
           ...(idColegio ? { id_colegio: Number(idColegio) } : {}),
         },
       }),
@@ -85,6 +94,38 @@ export const obtenerCalendario = async ({ idAnioEscolar, idColegio } = {}) => {
 }
 
 /** `POST /calendarios` — crear el general de un año escolar. */
+/**
+ * Los nombres de los ocho periodos, como los escribe CU027.
+ *
+ * "Receso posterior al cuarto periodo", no "PR4": es lo que se muestra junto a
+ * los filtros para decir en qué periodo estamos hoy, y ahí el código no
+ * significa nada para quien lo lee.
+ */
+export const NOMBRE_LARGO_PERIODO = {
+  PA1: 'Primer periodo',
+  PA2: 'Segundo periodo',
+  PA3: 'Tercer periodo',
+  PA4: 'Cuarto periodo',
+  PR1: 'Receso posterior al primer periodo',
+  PR2: 'Receso posterior al segundo periodo',
+  PR3: 'Receso posterior al tercer periodo',
+  PR4: 'Receso posterior al cuarto periodo',
+}
+
+/** "Receso posterior al cuarto periodo: 21/12/2026 al 15/02/2027". */
+export function textoDePeriodoActual(periodo) {
+  if (!periodo) return 'Sin periodo aplicable a la fecha actual'
+  const nombre = NOMBRE_LARGO_PERIODO[nombreDePeriodo(periodo)] ?? nombreDePeriodo(periodo)
+  const corta = (iso) => (iso ? iso.split('-').reverse().join('/') : '—')
+  return `${nombre}: ${corta(periodo.fecha_inicio)} al ${corta(periodo.fecha_fin)}`
+}
+
+/** ¿Esta fila de la tabla es el periodo en el que estamos hoy? */
+export const esPeriodoActual = (fila, periodoActual) =>
+  Boolean(periodoActual) &&
+  fila.tipo === periodoActual.tipo &&
+  Number(fila.numero) === Number(periodoActual.numero)
+
 export const crearCalendarioGeneral = (cuerpo) =>
   resolver({
     mock: () => handlers.calendarios.crearGeneral(cuerpo),
