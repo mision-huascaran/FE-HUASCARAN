@@ -106,7 +106,7 @@ describe('Auditoría de entidades sin historial en el backend', () => {
   it('la pestaña muestra "Sin cambios registrados", no un error', async () => {
     render(
       <QueryClientProvider client={clienteDePrueba()}>
-        <PestanaAuditoria seccion="colegio" registro={{ id_colegio: 4 }} cargarAuditoria={(id) => listarAuditoria('colegio', id)} />
+        <PestanaAuditoria entidad="colegio" registro={{ id_colegio: 4 }} cargarAuditoria={(id) => listarAuditoria('colegio', id)} />
       </QueryClientProvider>,
     )
     expect(await screen.findByText('Sin cambios registrados')).toBeInTheDocument()

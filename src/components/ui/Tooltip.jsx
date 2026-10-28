@@ -2,8 +2,12 @@ import { useId, useState } from 'react'
 import cn from '../../lib/cn'
 
 /**
- * Tooltip accesible por hover y por foco. Se usa para los descriptores oficiales
- * de la rúbrica (P5) y para explicar qué mide cada gráfico (P12).
+ * Tooltip accesible por hover, por foco Y POR TOQUE.
+ *
+ * Se usa para los descriptores oficiales de la rúbrica (P5), para explicar
+ * qué mide cada gráfico (P12) y para los íconos de información que CU015 pide
+ * consultables "mediante clic o toque". En un móvil no hay hover: sin el clic,
+ * ese texto simplemente no existía para la mitad de los dispositivos.
  */
 export default function Tooltip({ content, side = 'top', className, children }) {
   const [visible, setVisible] = useState(false)
@@ -18,6 +22,7 @@ export default function Tooltip({ content, side = 'top', className, children }) 
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}
       onBlur={() => setVisible(false)}
+      onClick={() => setVisible((previo) => !previo)}
     >
       <span aria-describedby={visible ? id : undefined}>{children}</span>
       {visible && (

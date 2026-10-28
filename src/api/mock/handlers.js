@@ -704,6 +704,35 @@ function fichaDeListado(alumno) {
   }
 }
 
+/**
+ * Un alumno como lo devuelve Administración (CU014), en el listado Y EN EL
+ * DETALLE.
+ *
+ * Tiene que ser el mismo mapeo en los dos: el popup de edición completa la
+ * fila con el detalle, y un detalle con menos campos borraba lo que la fila sí
+ * traía. Así pasó con la sección, y el formulario tomaba cada edición por un
+ * cambio de grupo.
+ */
+function alumnoDeAdministracion(a) {
+  const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
+  const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
+  const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
+  return {
+    ...a,
+    nombre: db.nombreCompleto(a),
+    codigo: a.codigo,
+    colegio: colegio?.nombre ?? '—',
+    grado: grado?.nombre ?? a.id_grado,
+    programa: programa?.nombre ?? '—',
+    // Desde T3 todo alumno pertenece a una sección: la "Única" de su grado, la
+    // misma que da el detalle del colegio (100 + id_grado). Sin ella, editar a
+    // cualquiera rellenaba la sección y el formulario lo tomaba por un cambio
+    // de grupo.
+    id_seccion: a.id_seccion ?? 100 + a.id_grado,
+    seccion: a.seccion ?? 'Única',
+  }
+}
+
 /** Encabezado e indicadores de la ficha del estudiante (P11). */
 function fichaDeAlumno(alumno) {
   const base = fichaDeListado(alumno)
@@ -2764,13 +2793,24 @@ export const handlers = {
      *
      * `pertenece_desde` es `null` cuando está inactivo: sin grupo en curso no
      * hay fecha de inicio que dar.
+     *
+     * Uno de cada siete activos lo trae en `null` AUNQUE ESTÉ ACTIVO: es el
+     * caso que encontró el tester (D65), los alumnos cargados antes de que el
+     * backend modelara el historial de pertenencia. El formulario tiene que
+     * pedir la fecha para poder arreglarlos, y sin un alumno así en el
+     * simulador no hay manera de verlo.
      */
     alumno: async (idAlumno) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
       if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      const inicio = db.ANIO_ESCOLAR_INICIO ?? '2026-03-02'
+      const sinPertenencia = alumno.id_alumno % 7 === 0
+      // El MISMO mapeo que el listado a propósito: el detalle no puede traer
+      // menos campos que la fila, o editar borraría lo que no se mostró.
       return responder({
-        ...alumno,
-        pertenece_desde: alumno.activo ? db.ANIO_ESCOLAR_INICIO ?? '2026-03-02' : null,
+        ...alumnoDeAdministracion(alumno),
+        creado_en: `${inicio}T08:15:00-05:00`,
+        pertenece_desde: alumno.activo && !sinPertenencia ? inicio : null,
       })
     },
 
@@ -2841,28 +2881,7 @@ export const handlers = {
       }))
     },
 
-    alumnos: () =>
-      responder(
-        db.ALUMNOS.map((a) => {
-          const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
-          const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
-          const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
-          return {
-            ...a,
-            nombre: db.nombreCompleto(a),
-            codigo: a.codigo,
-            colegio: colegio?.nombre ?? '—',
-            grado: grado?.nombre ?? a.id_grado,
-            programa: programa?.nombre ?? '—',
-            // Desde T3 todo alumno pertenece a una sección: la "Única" de su
-            // grado, la misma que da el detalle del colegio (100 + id_grado).
-            // Sin ella, editar a cualquiera rellenaba la sección y el
-            // formulario lo tomaba por un cambio de grupo.
-            id_seccion: a.id_seccion ?? 100 + a.id_grado,
-            seccion: a.seccion ?? 'Única',
-          }
-        }),
-      ),
+    alumnos: () => responder(db.ALUMNOS.map(alumnoDeAdministracion)),
 
     usuarios: () =>
       responder(

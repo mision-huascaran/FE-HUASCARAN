@@ -1,87 +1,114 @@
 // La trayectoria del alumno a lo largo del año (CU015, D64).
 //
+// EL EJE Y SON LOS CUATRO NIVELES DESCRIPTIVOS del programa —Inicio, En
+// proceso, Logrado y Avanzado—, no las letras Raz-Kids. Lo pide CU015 con
+// nombre y apellido, y tiene sentido: una "J" no significa lo mismo en 3.º que
+// en 5.º, así que una línea de letras compararía al alumno consigo mismo en
+// una escala que se mueve con el grado. "Pre-inicio" queda fuera a propósito:
+// pertenece a los criterios internos de la Rúbrica, no a esta gráfica.
+//
+// Esa correspondencia letra → nivel descriptivo la calcula el SERVIDOR con la
+// matriz por grado de CU015 y llega en `nivel_programa`. Aquí no se traduce
+// ninguna letra: hacerlo sería mantener una segunda matriz que puede quedar
+// desalineada con la del backend, y de paso obligaría a comparar letras, que
+// como texto da "Z" > "aa" y pondría al alumno más avanzado abajo (RN-012).
+//
 // `GET /alumnos/{id}/registro-vuelo` devuelve SIEMPRE los cuatro PA, incluso
 // los que aún no tienen decisión, justamente para esto: lo que se quiere ver
-// de un vistazo es si el alumno sube, se mantiene o baja, y para eso hacen
-// falta los cuatro puntos aunque algunos estén vacíos.
-//
-// SE COMPARA POR `orden`, NUNCA POR LA LETRA. La escala Raz-Kids va de "aa" a
-// "Z", y como texto "Z" > "aa": ordenar por la letra pondría al alumno más
-// avanzado abajo del todo (RN-012). El eje usa el orden del catálogo.
-import { useMemo } from 'react'
-import { useNivelesRazkids } from '../../hooks/useCatalogos'
+// de un vistazo es si el alumno sube, se mantiene o baja.
+import { TrendingUp } from 'lucide-react'
+import EmptyState from '../../components/ui/EmptyState'
 
-const ALTO = 140
-const MARGEN = 24
+/** De abajo a arriba, como se dibuja el eje. El orden es el de CU015. */
+const NIVELES = ['Inicio', 'En proceso', 'Logrado', 'Avanzado']
+
+const ANCHO = 420
+const ALTO = 200
+const IZQUIERDA = 86
+const DERECHA = 16
+const ARRIBA = 14
+const ABAJO = 30
 
 export default function GraficaDeVuelo({ periodos = [] }) {
-  const { data: niveles = [] } = useNivelesRazkids()
-
-  /** El `orden` de cada letra, que es con lo que se compara de verdad. */
-  const ordenDe = useMemo(() => {
-    const mapa = new Map(niveles.map((n) => [n.letra, n.orden]))
-    return (letra) => mapa.get(letra) ?? null
-  }, [niveles])
-
   const puntos = periodos.map((p) => ({
     numero: p.numero,
     letra: p.nivel_colocado ?? null,
-    orden: ordenDe(p.nivel_colocado),
+    // El índice en la escala descriptiva, o `null` si el periodo no tiene
+    // decisión todavía.
+    fila: NIVELES.indexOf(p.nivel_programa),
   }))
 
-  const conDato = puntos.filter((p) => p.orden != null)
+  const conDato = puntos.filter((p) => p.fila >= 0)
 
-  // Con un solo punto no hay trayectoria que dibujar: una línea de un punto
-  // sugiere una tendencia que nadie ha medido.
-  if (conDato.length < 2) {
+  // Sin ninguna evaluación del año se OCULTAN LOS EJES: unos ejes vacíos
+  // parecen un error de carga, y el texto de CU015 dice justo lo que pasa.
+  if (conDato.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-sm text-ink-500">
-        {conDato.length === 0
-          ? 'Todavía no hay decisiones registradas este año.'
-          : 'Hace falta al menos un segundo periodo decidido para ver la trayectoria.'}
-      </p>
+      <EmptyState
+        icon={TrendingUp}
+        title="Aún no hay datos suficientes para graficar el progreso"
+        description="La gráfica aparece en cuanto el alumno tenga su primera decisión de Registro de Vuelo en el año."
+      />
     )
   }
 
-  const minimo = Math.min(...conDato.map((p) => p.orden))
-  const maximo = Math.max(...conDato.map((p) => p.orden))
-  // Con todos los puntos iguales el rango sería 0 y la división explotaría;
-  // además, una línea plana es justo lo que hay que enseñar ahí.
-  const rango = maximo - minimo || 1
+  const x = (i) => IZQUIERDA + (i * (ANCHO - IZQUIERDA - DERECHA)) / Math.max(1, puntos.length - 1)
+  const y = (fila) => ALTO - ABAJO - (fila * (ALTO - ARRIBA - ABAJO)) / (NIVELES.length - 1)
 
-  const ancho = 320
-  const x = (i) => MARGEN + (i * (ancho - MARGEN * 2)) / Math.max(1, puntos.length - 1)
-  const y = (orden) => ALTO - MARGEN - ((orden - minimo) / rango) * (ALTO - MARGEN * 2)
-
-  const linea = conDato
-    .map((p) => `${x(puntos.indexOf(p))},${y(p.orden)}`)
-    .join(' ')
+  const linea = conDato.map((p) => `${x(puntos.indexOf(p))},${y(p.fila)}`).join(' ')
+  const sinDecision = puntos.filter((p) => p.fila < 0)
 
   return (
     <figure className="m-0">
-      <figcaption className="mb-2 text-sm font-medium text-ink-700">
-        Nivel colocado por periodo
-      </figcaption>
+      <figcaption className="mb-2 text-sm font-medium text-ink-700">Evolución del nivel en el año</figcaption>
 
       <svg
-        viewBox={`0 0 ${ancho} ${ALTO}`}
-        className="h-auto w-full max-w-md"
+        viewBox={`0 0 ${ANCHO} ${ALTO}`}
+        className="h-auto w-full max-w-xl"
         role="img"
-        aria-label={`Nivel colocado por periodo: ${conDato.map((p) => `PA${p.numero} ${p.letra}`).join(', ')}`}
+        aria-label={`Evolución del nivel por periodo: ${conDato
+          .map((p) => `PA${p.numero} ${NIVELES[p.fila]}${p.letra ? ` (${p.letra})` : ''}`)
+          .join(', ')}`}
       >
+        {/* El eje Y: una línea guía por nivel descriptivo. */}
+        {NIVELES.map((nivel, fila) => (
+          <g key={nivel}>
+            <line
+              x1={IZQUIERDA}
+              x2={ANCHO - DERECHA}
+              y1={y(fila)}
+              y2={y(fila)}
+              className="stroke-line"
+              strokeWidth="1"
+            />
+            <text x={IZQUIERDA - 8} y={y(fila) + 4} textAnchor="end" className="fill-ink-500 text-[11px]">
+              {nivel}
+            </text>
+          </g>
+        ))}
+
         <polyline points={linea} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-600" />
 
         {puntos.map((p, i) => (
           <g key={p.numero}>
-            {p.orden != null && (
+            {p.fila >= 0 && (
               <>
-                <circle cx={x(i)} cy={y(p.orden)} r="4" className="fill-brand-600" />
-                <text x={x(i)} y={y(p.orden) - 10} textAnchor="middle" className="fill-ink-900 text-[11px] font-semibold">
-                  {p.letra}
-                </text>
+                <circle cx={x(i)} cy={y(p.fila)} r="4" className="fill-brand-600" />
+                {/* La letra se mantiene junto al punto: es el dato que el
+                    Docente registró, y el nivel descriptivo solo lo agrupa. */}
+                {p.letra && (
+                  <text
+                    x={x(i)}
+                    y={y(p.fila) - 10}
+                    textAnchor="middle"
+                    className="fill-ink-900 text-[11px] font-semibold"
+                  >
+                    {p.letra}
+                  </text>
+                )}
               </>
             )}
-            <text x={x(i)} y={ALTO - 4} textAnchor="middle" className="fill-ink-500 text-[11px]">
+            <text x={x(i)} y={ALTO - 8} textAnchor="middle" className="fill-ink-500 text-[11px]">
               PA{p.numero}
             </text>
           </g>
@@ -91,9 +118,9 @@ export default function GraficaDeVuelo({ periodos = [] }) {
       {/* Los PA sin decisión no se dibujan, pero se nombran: un hueco en la
           línea es un dato, y callarlo haría parecer que el año tiene menos
           periodos de los que tiene. */}
-      {puntos.some((p) => p.orden == null) && (
+      {sinDecision.length > 0 && (
         <p className="mt-1 text-xs text-ink-500">
-          Sin decisión en {puntos.filter((p) => p.orden == null).map((p) => `PA${p.numero}`).join(', ')}.
+          Sin decisión en {sinDecision.map((p) => `PA${p.numero}`).join(', ')}.
         </p>
       )}
     </figure>

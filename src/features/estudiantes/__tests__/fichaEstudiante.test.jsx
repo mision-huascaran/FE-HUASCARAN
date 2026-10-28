@@ -1,7 +1,8 @@
-// Detalle del alumno (CU015): cabecera y las cuatro pestañas con la forma
+// Detalle del alumno (CU015): cabecera y las CINCO pestañas con la forma
 // nueva de los endpoints (P4 y P5): asistencia como objeto, nivel colocado del
-// Registro de Vuelo, lectura por tabla semanal, rúbrica mensual y los 4 PA.
-import { afterEach, describe, expect, it, vi } from 'vitest'
+// Registro de Vuelo, lectura por tabla semanal, rúbrica mensual, los 4 PA y el
+// Historial de cambios, que es la única pestaña que exige conexión.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import handlers from '../../../api/mock/handlers'
@@ -21,7 +22,14 @@ const ASISTENCIA = 'Asistencia'
 
 const tarjeta = (rotulo) => screen.getByText(rotulo).closest('.shadow-card')
 
+/** `useConexion` lee `navigator.onLine`, y jsdom lo da como `true`. */
+const conConexion = (enLinea) =>
+  Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+
+beforeEach(() => conConexion(true))
+
 afterEach(() => {
+  conConexion(true)
   vi.restoreAllMocks()
 })
 
@@ -68,10 +76,96 @@ describe('Detalle del alumno (CU015)', () => {
   it('Registro de Vuelo muestra siempre los 4 PA, con "Pendiente del periodo anterior" y "Sin registrar"', async () => {
     await abrirFicha()
     await userEvent.click(screen.getByRole('tab', { name: 'Registro de Vuelo' }))
-    expect(await screen.findByText('PA4')).toBeInTheDocument()
-    ;['PA1', 'PA2', 'PA3'].forEach((pa) => expect(screen.getByText(pa)).toBeInTheDocument())
-    expect(screen.getByText('Pendiente del periodo anterior')).toBeInTheDocument()
-    expect(screen.getAllByText('Sin registrar')).toHaveLength(2)
+
+    // Los PA salen DOS veces: en el eje de la gráfica y en la mini-grilla, así
+    // que las filas se buscan dentro de la tabla.
+    const tabla = within(await screen.findByRole('table'))
+    ;['PA1', 'PA2', 'PA3', 'PA4'].forEach((pa) => expect(tabla.getByText(pa)).toBeInTheDocument())
+    expect(tabla.getByText('Pendiente del periodo anterior')).toBeInTheDocument()
+    expect(tabla.getAllByText('Sin registrar')).toHaveLength(2)
+  })
+
+  it('la gráfica usa los CUATRO NIVELES DESCRIPTIVOS, no las letras', async () => {
+    /**
+     * Es lo que pide CU015 y es lo correcto: una "J" no significa lo mismo en
+     * 3.º que en 5.º, así que una línea de letras compararía al alumno consigo
+     * mismo en una escala que se mueve con el grado. El nivel descriptivo lo
+     * calcula el servidor y llega en `nivel_programa`.
+     */
+    await abrirFicha()
+    await userEvent.click(screen.getByRole('tab', { name: 'Registro de Vuelo' }))
+
+    const grafica = await screen.findByRole('img', { name: /Evolución del nivel por periodo/ })
+    const ejeY = within(grafica)
+    ;['Inicio', 'En proceso', 'Logrado', 'Avanzado'].forEach((nivel) =>
+      expect(ejeY.getByText(nivel)).toBeInTheDocument(),
+    )
+    // Y los periodos sin decisión se nombran, en vez de desaparecer sin más.
+    expect(screen.getByText('Sin decisión en PA3, PA4.')).toBeInTheDocument()
+  })
+
+  it('sin ninguna decisión en el año, la gráfica OCULTA LOS EJES y lo explica', async () => {
+    // Unos ejes vacíos se leen como un error de carga.
+    vi.spyOn(handlers.administracion, 'registroVueloAlumno').mockResolvedValue(
+      [1, 2, 3, 4].map((numero) => ({ numero, nivel_colocado: null, nivel_programa: null })),
+    )
+    await abrirFicha()
+    await userEvent.click(screen.getByRole('tab', { name: 'Registro de Vuelo' }))
+
+    expect(
+      await screen.findByText('Aún no hay datos suficientes para graficar el progreso'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /Evolución del nivel/ })).not.toBeInTheDocument()
+  })
+
+  it('las pestañas van en el orden de CU015, con Historial al final', async () => {
+    /**
+     * No es decoración: Registro de Vuelo va antes que las demás porque es de
+     * donde sale el Nivel colocado que el Resumen enseña, y el Historial va al
+     * final porque no es un reporte operativo.
+     */
+    await abrirFicha()
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Resumen',
+      'Registro de Vuelo',
+      'Rúbrica',
+      'Seguimiento de Lectura',
+      'Historial',
+    ])
+  })
+
+  it('el Historial lista los eventos con el formato de CU015', async () => {
+    await abrirFicha()
+    await userEvent.click(screen.getByRole('tab', { name: 'Historial' }))
+
+    expect(await screen.findByText(/editó al alumno/)).toBeInTheDocument()
+    expect(screen.getByText(/Docente de Prueba/)).toBeInTheDocument()
+    // El detalle visual de una edición: "Grado: 1.º → 2.º".
+    expect(screen.getByText('Grado:')).toBeInTheDocument()
+    expect(screen.getByText('2.º')).toBeInTheDocument()
+  })
+
+  it('SIN CONEXIÓN el Historial lo dice y NO pide nada al servidor', async () => {
+    /**
+     * CU015 prohíbe guardar la auditoría en IndexedDB para no llenar la memoria
+     * del dispositivo, así que sin señal no hay nada que enseñar. Lo que no
+     * puede pasar es que la pestaña intente la petición y falle: eso daría un
+     * error de red donde corresponde una explicación.
+     */
+    const auditoria = vi.spyOn(handlers.administracion, 'auditoria')
+    await abrirFicha()
+    conConexion(false)
+    await userEvent.click(screen.getByRole('tab', { name: 'Historial' }))
+
+    expect(await screen.findByText('Contenido no disponible sin conexión')).toBeInTheDocument()
+    expect(
+      screen.getByText('Conéctate a internet para visualizar el historial de cambios.'),
+    ).toBeInTheDocument()
+    expect(auditoria).not.toHaveBeenCalled()
+
+    // Y las demás pestañas siguen navegables: la ficha no se bloquea.
+    await userEvent.click(screen.getByRole('tab', { name: 'Rúbrica' }))
+    expect(await screen.findByText('Incompleta')).toBeInTheDocument()
   })
 
   it('un error de una pestaña muestra el detail del servidor', async () => {

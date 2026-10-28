@@ -525,6 +525,21 @@ export const cambiaDeGrupo = (antes, ahora) =>
     return String(previo ?? '') !== String(nuevo)
   })
 
+/**
+ * Cuándo se creó el alumno, en `YYYY-MM-DD` (D65).
+ *
+ * Es la fecha que el formulario propone cuando al alumno le falta el inicio de
+ * su pertenencia: la única que se sabe cierta. El nombre del campo no está en
+ * el contrato publicado —se pidió al backend—, así que se aceptan las tres
+ * formas en que suele venir y, si no viene ninguna, se devuelve vacío y la
+ * elige la persona. Proponer hoy sería inventar un historial que no ocurrió.
+ */
+export const fechaDeCreacion = (registro) => {
+  const valor = registro?.creado_en ?? registro?.fecha_creacion ?? registro?.creado ?? null
+  if (!valor) return ''
+  // Puede llegar como instante (`2026-03-02T08:15:00-05:00`) o como día suelto.
+  return String(valor).slice(0, 10)
+}
 
 /**
  * Activar o inactivar a un alumno. AHORA LLEVA CUERPO, y es obligatorio.

@@ -21,7 +21,13 @@ import EmptyState from '../ui/EmptyState'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 
-/** El sujeto de la frase: "al alumno", "el colegio", "la cuenta". */
+/**
+ * El sujeto de la frase: "al alumno", "el colegio", "la cuenta".
+ *
+ * Va por ENTIDAD, en singular. Antes se buscaba por sección —"alumnos"—, que
+ * no está en esta tabla, así que toda la auditoría decía "modificó el
+ * registro" en vez de la frase de CU015.
+ */
 const SUJETO = { alumno: 'al alumno', colegio: 'el colegio', usuario: 'la cuenta' }
 
 /**
@@ -32,10 +38,10 @@ const SUJETO = { alumno: 'al alumno', colegio: 'el colegio', usuario: 'la cuenta
  */
 const accionDe = (evento) => evento.accion ?? 'modificó'
 
-export default function PestanaAuditoria({ seccion, registro, cargarAuditoria }) {
-  const id = registro?.id ?? registro?.[`id_${seccion}`] ?? null
+export default function PestanaAuditoria({ entidad, registro, cargarAuditoria }) {
+  const id = registro?.id ?? registro?.[`id_${entidad}`] ?? null
   const consulta = useQuery({
-    queryKey: ['auditoria', seccion, id],
+    queryKey: ['auditoria', entidad, id],
     queryFn: () => cargarAuditoria(id),
     enabled: Boolean(id && cargarAuditoria),
   })
@@ -69,7 +75,7 @@ export default function PestanaAuditoria({ seccion, registro, cargarAuditoria })
             <span className="font-medium text-ink-900">
               {evento.usuario}
               {evento.rol ? <span className="font-normal text-ink-500">{` (${evento.rol})`}</span> : null}
-              {` ${accionDe(evento)} ${SUJETO[seccion] ?? 'el registro'}`}
+              {` ${accionDe(evento)} ${SUJETO[entidad] ?? 'el registro'}`}
             </span>
           ),
         },

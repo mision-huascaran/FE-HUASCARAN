@@ -23,6 +23,7 @@ import {
   listarGradosAdmin,
   listarProgramasAdmin,
   cambiaDeGrupo,
+  fechaDeCreacion,
   obtenerAlumno,
   obtenerColegio,
 } from '../../api/resources/administracion'
@@ -246,7 +247,27 @@ export default function MantenimientoAlumnos() {
         tipo: 'fecha',
         requerido: true,
         max: hoy(),
-        soloEn: 'nuevo',
+        /**
+         * D65 — SE PIDE TAMBIÉN AL EDITAR si al alumno le falta.
+         *
+         * Al crear siempre; al editar, solo cuando el alumno está activo y no
+         * tiene intervalo de pertenencia. Eso último no debería pasar, pero
+         * pasa con los alumnos cargados antes de que el backend modelara el
+         * historial, y sin esa fecha no se sabe quién estaba en el aula el día
+         * de una clase: el alumno se cae de las tablas históricas de Lectura,
+         * Rúbrica y Registro de Vuelo. El formulario es el único sitio donde
+         * se puede arreglar.
+         *
+         * Con el alumno INACTIVO no se pregunta: ahí no hay grupo en curso, y
+         * volver a uno es justo lo que hace "Activar" con su fecha efectiva.
+         * Pedirlo en los dos sitios daría dos fechas para un mismo hecho.
+         */
+        visible: (valores, { modo, registro, detalleListo } = {}) =>
+          modo === 'nuevo' ||
+          (modo === 'editar' && detalleListo && registro?.activo !== false && !registro?.pertenece_desde),
+        // La fecha propuesta es la de creación del alumno: es la única que se
+        // sabe cierta, y poner hoy inventaría un historial que no ocurrió.
+        porDefecto: (registro) => fechaDeCreacion(registro),
         ayuda: 'Desde qué día está en este colegio, grado y sección',
       },
       /**
