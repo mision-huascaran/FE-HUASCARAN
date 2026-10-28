@@ -48,6 +48,14 @@ function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
 export default function Mantenimiento({
   seccion,
   entidad,
+  /**
+   * Por qué ESTA fila no se puede inactivar, o `undefined` si se puede.
+   *
+   * Lo decide cada pantalla porque la razón es suya: en Usuarios son la
+   * propia cuenta y el Supervisor original; en Colegios y Alumnos no hay
+   * ninguna. El texto que devuelve va al tooltip.
+   */
+  protegida,
   titulo,
   consulta,
   columnas = [],
@@ -155,7 +163,7 @@ export default function Mantenimiento({
    * a pulsar otro botón y que vuelva a empezar era la parte molesta.
    */
   const [pendientePorActividad, setPendientePorActividad] = useState(null)
-  const { iniciar, sinAsignaciones } = useActividad()
+  const { iniciar } = useActividad()
   const [iniciando, setIniciando] = useState(false)
 
   const iniciarYContinuar = async () => {
@@ -174,9 +182,16 @@ export default function Mantenimiento({
   }
 
   /**
-   * Envuelve una acción de escritura: si falta la actividad, propone abrirla
-   * en vez de dejar el botón muerto. Sin asignaciones no hay nada que
-   * proponer, así que ahí sí se deshabilita.
+   * D59 — SIN ACTIVIDAD, LOS BOTONES DE ESCRITURA ESTÁN DESHABILITADOS.
+   *
+   * Antes seguían habilitados y, al pulsarlos, se ofrecía abrir la actividad.
+   * Suena mejor de lo que era: el botón prometía una acción que el servidor
+   * iba a rechazar, y el probador lo marcó porque el estado visible mentía
+   * sobre lo que se podía hacer. Ahora se ven en gris con el tooltip que
+   * explica por qué, igual que ya hacía el modo sin conexión (CU013).
+   *
+   * El atajo de proponer la actividad sigue aquí para cuando se pulse una
+   * acción que no pasa por un botón deshabilitado.
    */
   const alEscribir = (accion, seguir) => () => {
     if (exigeActividad) {
@@ -254,8 +269,8 @@ export default function Mantenimiento({
               variant="ghost"
               iconLeft={Pencil}
               aria-label={`Editar ${fila.nombre ?? entidad}`}
-              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? aviso : undefined}
+              disabled={bloqueado}
+              title={aviso}
               onClick={alEscribir(`editar ${entidad}`, () => setPopup({ modo: 'editar', registro: fila }))}
             >
               Editar
@@ -268,8 +283,14 @@ export default function Mantenimiento({
               iconLeft={fila.activo === false ? RotateCcw : Ban}
               className={fila.activo === false ? undefined : 'text-danger-600'}
               aria-label={`${fila.activo === false ? 'Activar' : 'Inactivar'} ${fila.nombre ?? entidad}`}
-              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? aviso : undefined}
+              /*
+               * D68 — Hay filas que NO se pueden inactivar, y el botón tiene
+               * que decirlo antes de pulsarlo. El backend las rechaza con
+               * `auto_desactivacion` y `supervisor_original`, pero llegar al
+               * error para enterarse es enterarse tarde.
+               */
+              disabled={bloqueado || Boolean(protegida?.(fila))}
+              title={aviso ?? protegida?.(fila)}
               onClick={alEscribir(
                 `${fila.activo === false ? 'activar' : 'inactivar'} ${entidad}`,
                 () => setConfirmando({ fila, activo: fila.activo === false }),
@@ -317,8 +338,8 @@ export default function Mantenimiento({
           {puedeCrear && (
             <Button
               iconLeft={Plus}
-              disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
+              disabled={Boolean(motivoNuevo)}
+              title={motivoNuevo}
               onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
             >
               Agregar

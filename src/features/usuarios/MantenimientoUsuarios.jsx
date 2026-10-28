@@ -32,6 +32,7 @@ import { mensajeDeError } from '../../api/client'
 import { etiquetaDe, formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
+import useSessionStore from '../../store/sessionStore'
 
 /**
  * El rol se guarda como texto en el `<select>`, así que se compara en texto.
@@ -48,6 +49,7 @@ const ROLES_CREABLES = [
 
 export default function MantenimientoUsuarios() {
   const toast = useToast()
+  const idUsuarioActual = Number(useSessionStore((s) => s.usuario?.id_usuario))
   // El Docente cuyo detalle se está viendo, o `null` en el listado.
   const [docenteAbierto, setDocenteAbierto] = useState(null)
   const queryClient = useQueryClient()
@@ -299,6 +301,19 @@ export default function MantenimientoUsuarios() {
           abrir: setDocenteAbierto,
           aplicaA: esDocente,
           etiqueta: 'Otorgar permisos',
+        }}
+        /**
+         * D68 — Dos cuentas que NO se pueden inactivar, y el botón lo dice.
+         *
+         * El backend ya las rechaza: `auto_desactivacion` con la propia y la
+         * protección del Supervisor original, que CU001 declara que "no puede
+         * ser eliminada, no puede ser desactivada". Pero el botón se veía
+         * habilitado y había que pulsarlo para enterarse.
+         */
+        protegida={(fila) => {
+          if (fila.es_supervisor_original) return 'La cuenta del Supervisor original no se puede desactivar.'
+          if (Number(fila.id_usuario) === idUsuarioActual) return 'No puedes desactivar tu propia cuenta.'
+          return undefined
         }}
         consulta={consulta}
         campos={campos}

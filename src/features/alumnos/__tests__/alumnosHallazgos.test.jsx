@@ -173,40 +173,36 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     expect(activo).toBe(false)
   })
 
-  it('sin actividad abierta, "Editar" OFRECE iniciarla en vez de denegar', async () => {
+  it('sin actividad abierta, los botones de escritura están DESHABILITADOS (D59)', async () => {
     /**
-     * CU010 sigue exigiendo la actividad para escribir: el servidor responde
-     * 409 `actividad_requerida` igualmente, así que esto no es un atajo.
+     * Esto reemplaza al comportamiento anterior, en el que el botón seguía
+     * habilitado y al pulsarlo se ofrecía abrir la actividad.
      *
-     * Lo que cambia es cómo se presenta. Antes el botón salía muerto y el
-     * docente tenía que deducir que la solución estaba en otro botón, arriba
-     * del todo. Ahora se le propone abrirla ahí mismo y continuar.
+     * Sonaba mejor de lo que era: el botón prometía una acción que el
+     * servidor iba a rechazar con 409 `actividad_requerida`, y el estado
+     * visible mentía sobre lo que se podía hacer. El probador lo marcó como
+     * D59 en la ronda 4, y es el mismo criterio que CU013 ya aplica al modo
+     * sin conexión: gris, y un tooltip que explica por qué.
      */
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
     const editar = screen.getAllByRole('button', { name: /^editar /i })[0]
-    expect(editar).toBeEnabled()
-    fireEvent.click(editar)
-
-    // No se abre el formulario: se abre la propuesta.
-    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
-    expect(within(dialogo).getByText('Necesitas una actividad de trabajo')).toBeInTheDocument()
-    expect(within(dialogo).getByRole('button', { name: /iniciar actividad/i })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /editar alumno/i })).not.toBeInTheDocument()
+    expect(editar).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /^inactivar /i })[0]).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeDisabled()
   })
 
-  it('aceptar la propuesta abre la actividad y continúa con lo que se iba a hacer', async () => {
+  it('y el tooltip dice por qué, con el texto del caso de uso', async () => {
+    // El mismo que responde el servidor: así el docente lee lo mismo antes de
+    // intentarlo y si llega a intentarlo.
     montar()
     await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /^editar /i })[0])
-    fireEvent.click(await screen.findByRole('button', { name: /iniciar actividad/i }, ESPERA))
-
-    // La actividad queda abierta y el formulario se abre solo, sin tener que
-    // volver a buscar la fila.
-    await waitFor(() => expect(useActividadStore.getState().sesion).not.toBeNull(), ESPERA)
-    expect(await screen.findByRole('heading', { name: /editar alumno/i }, ESPERA)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^editar /i })[0]).toHaveAttribute(
+      'title',
+      'Debes iniciar una actividad de trabajo para registrar o modificar información.',
+    )
   })
 
   it('al abrir actividad, los botones de escritura se habilitan', async () => {
