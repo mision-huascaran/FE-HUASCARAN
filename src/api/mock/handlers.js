@@ -136,6 +136,78 @@ const claveDeClase = (idColegio, idGrado, idSeccion, fecha) => `${idColegio}|${i
 /** Clases creadas durante la sesion, con su lista congelada y sus marcas. */
 const CLASES_MOCK = {}
 
+// ── Programacion de clases y reprogramaciones (CU013) ───────────────────────
+//
+// Una clase es colegio x grado x seccion x fecha VIGENTE. Reprogramar no crea
+// otra: cambia su fecha vigente y deja la original en el historial.
+const REPROGRAMACIONES_MOCK = {}
+let ultimoIdReprogramacion = 700
+
+/** El dia habitual de clase de cada grado, tal como lo configura CU013. */
+const DIA_HABITUAL = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 1 }
+
+const claveDeProgramacion = (idColegio, idGrado, idSeccion, fechaOriginal) =>
+  `${idColegio}|${idGrado}|${idSeccion}|${fechaOriginal}`
+
+/**
+ * Las clases HABITUALES de un rango, segun el dia de clase de cada grado.
+ *
+ * Solo dentro de los PA y excluyendo los dias no lectivos: es lo que hace el
+ * backend al cruzar el dia habitual con el calendario del colegio.
+ */
+function clasesHabituales({ idColegio, idGrado, idSeccion, desde, hasta }) {
+  const salida = []
+  const inicio = new Date(`${desde}T12:00:00`)
+  const fin = new Date(`${hasta}T12:00:00`)
+  const grados = db.GRADOS.filter((g) => !idGrado || Number(g.id_grado) === Number(idGrado))
+
+  for (const grado of grados) {
+    const diaDeClase = DIA_HABITUAL[grado.id_grado] ?? 1
+    for (let d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== diaDeClase) continue
+      const fecha = d.toISOString().slice(0, 10)
+      if (!esDiaLectivo(fecha)) continue
+
+      const seccion = Number(idSeccion) || 2
+      const clave = claveDeProgramacion(idColegio, grado.id_grado, seccion, fecha)
+      const traslado = REPROGRAMACIONES_MOCK[clave]
+      const vigente = traslado?.fecha_nueva ?? fecha
+      const guardada = CLASES_MOCK[claveDeClase(idColegio, grado.id_grado, seccion, vigente)]
+
+      // Los subprogramas salen de los ALUMNOS de la clase en su fecha
+      // vigente: de la lista congelada si ya tiene asistencias, y si no, de
+      // quienes pertenecen hoy. Puede quedar vacio.
+      const alumnos = guardada?.lista ?? db.alumnosDe({ colegio: Number(idColegio), grado: grado.id_grado })
+      const ids = [...new Set(alumnos.map((a) => Number(a.id_programa)))].sort((x, y) => x - y)
+      const subprogramas = ids
+        .map((id) => db.PROGRAMAS.find((pr) => pr.id_programa === id))
+        .filter(Boolean)
+        .map((pr) => ({ id: pr.id_programa, nombre: pr.nombre }))
+
+      salida.push({
+        id_clase: guardada?.id_clase ?? null,
+        id_grado: grado.id_grado,
+        grado: { id: grado.id_grado, nombre: grado.nombre },
+        id_seccion: seccion,
+        seccion: { id: seccion, nombre: 'Unica' },
+        fecha_original: fecha,
+        fecha: vigente,
+        tipo: 'habitual',
+        reprogramada: Boolean(traslado),
+        tiene_asistencias: Boolean(guardada && Object.keys(guardada.marcas ?? {}).length),
+        id_periodo_academico: 2,
+        version: traslado?.version ?? null,
+        subprogramas,
+      })
+    }
+  }
+
+  // El orden del contrato: fecha vigente, grado y seccion.
+  return salida.sort(
+    (a, b) => a.fecha.localeCompare(b.fecha) || a.id_grado - b.id_grado || a.id_seccion - b.id_seccion,
+  )
+}
+
 // ── Tablas de lectura semanal (CU023 a CU026) ───────────────────────────────
 //
 // La tabla es grupo x subprograma x semana, y su MES es el de su clase de
@@ -1459,6 +1531,131 @@ export const handlers = {
         },
         RETARDO_ESCRITURA_MS,
       )
+    },
+  },
+
+  /**
+   * Programacion de clases y reprogramaciones (CU013).
+   *
+   * Lo que importa reproducir:
+   *
+   *   · Una clase MIXTA sale UNA sola vez, con sus dos subprogramas en la
+   *     misma fila. `id_programa` filtra, no parte.
+   *   · Reprogramar conserva el identificador de la clase: cambia su fecha
+   *     vigente y la original queda en el historial.
+   *   · No se puede reprogramar una clase que ya tiene asistencias.
+   */
+  clases: {
+    listar: async ({ idColegio, idGrado, idSeccion, idPrograma, desde, hasta, pagina = 1 }) => {
+      const todas = clasesHabituales({ idColegio, idGrado, idSeccion, desde, hasta })
+
+      // El filtro se aplica ANTES de paginar: `total` cuenta solo las que
+      // quedan, y una clase con los dos subprogramas aparece con cualquiera.
+      const filtradas = idPrograma
+        ? todas.filter((c) => c.subprogramas.some((sp) => Number(sp.id) === Number(idPrograma)))
+        : todas
+
+      const porPagina = 40
+      const desdeIndice = (Number(pagina) - 1) * porPagina
+      return responder({
+        items: filtradas.slice(desdeIndice, desdeIndice + porPagina),
+        total: filtradas.length,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(filtradas.length / porPagina)),
+      })
+    },
+
+    reprogramar: async (idColegio, { idGrado, idSeccion, fechaOriginal, fechaNueva, motivo, version }) => {
+      const clave = claveDeProgramacion(idColegio, idGrado, idSeccion, fechaOriginal)
+      const previa = REPROGRAMACIONES_MOCK[clave]
+
+      if (version != null && Number(version) !== Number(previa?.version ?? 0)) {
+        throw errorMock(
+          409,
+          'La clase fue modificada por otro usuario. Vuelve a consultarla e intentalo de nuevo.',
+          'modificacion_concurrente',
+        )
+      }
+
+      const vigente = previa?.fecha_nueva ?? fechaOriginal
+      const guardada = CLASES_MOCK[claveDeClase(idColegio, idGrado, idSeccion, vigente)]
+      if (guardada && Object.keys(guardada.marcas ?? {}).length) {
+        throw errorMock(
+          409,
+          'Esta clase ya tiene asistencias registradas y no puede reprogramarse.',
+          'clase_con_asistencias',
+        )
+      }
+
+      const porCampo = (campo, mensaje, motivoError) => {
+        const error = errorMock(422, mensaje, motivoError)
+        error.response.data.errores = [{ campo, mensaje }]
+        return error
+      }
+
+      if (!motivo || !String(motivo).trim()) {
+        throw porCampo('motivo', 'Ingresa el motivo de la reprogramacion.', 'validacion')
+      }
+      if (fechaNueva === vigente) {
+        throw porCampo('fecha_nueva', 'Selecciona una fecha distinta de la fecha actual de la clase.', 'fecha_sin_cambio')
+      }
+      if (!esDiaLectivo(fechaNueva)) {
+        throw porCampo(
+          'fecha_nueva',
+          'La nueva fecha no es un dia lectivo del calendario del colegio.',
+          'fecha_no_lectiva',
+        )
+      }
+      // Ya ocupada por otra clase del mismo grupo.
+      const ocupada = Object.values(REPROGRAMACIONES_MOCK).some(
+        (r) => r.clave !== clave && r.id_grado === Number(idGrado) && r.fecha_nueva === fechaNueva,
+      )
+      if (ocupada) {
+        throw porCampo('fecha_nueva', `El grupo ya tiene una clase el ${fechaNueva}.`, 'fecha_ocupada')
+      }
+
+      REPROGRAMACIONES_MOCK[clave] = {
+        clave,
+        id_grado: Number(idGrado),
+        id_seccion: Number(idSeccion),
+        fecha_original: fechaOriginal,
+        fecha_anterior: vigente,
+        fecha_nueva: fechaNueva,
+        motivo: String(motivo).trim(),
+        version: (previa?.version ?? 0) + 1,
+        historial: [
+          ...(previa?.historial ?? []),
+          {
+            id: ++ultimoIdReprogramacion,
+            fecha_anterior: vigente,
+            fecha_nueva: fechaNueva,
+            motivo: String(motivo).trim(),
+            usuario: { id: 2, nombre: 'Sara Supervisora' },
+            fecha: new Date().toISOString(),
+          },
+        ],
+      }
+
+      return responder(
+        {
+          id_clase: REPROGRAMACIONES_MOCK[clave].historial.at(-1).id,
+          fecha_original: fechaOriginal,
+          fecha: fechaNueva,
+          reprogramada: true,
+          version: REPROGRAMACIONES_MOCK[clave].version,
+        },
+        RETARDO_ESCRITURA_MS,
+      )
+    },
+
+    reprogramaciones: async (idClase) => {
+      const traslado = Object.values(REPROGRAMACIONES_MOCK).find((r) =>
+        (r.historial ?? []).some((h) => Number(h.id) === Number(idClase)),
+      )
+      // El historial entero, del mas reciente al mas antiguo: modificar una
+      // reprogramacion NO sobrescribe la anterior.
+      return responder([...(traslado?.historial ?? [])].reverse())
     },
   },
 
@@ -2999,6 +3196,7 @@ export function _reiniciarSimulador() {
   Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
   Object.keys(RUBRICAS_MOCK).forEach((k) => delete RUBRICAS_MOCK[k])
   Object.keys(DECISIONES_MOCK).forEach((k) => delete DECISIONES_MOCK[k])
+  Object.keys(REPROGRAMACIONES_MOCK).forEach((k) => delete REPROGRAMACIONES_MOCK[k])
 }
 
 export default handlers
