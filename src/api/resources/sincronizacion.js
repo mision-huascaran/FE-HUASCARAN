@@ -5,12 +5,11 @@
 //
 //   · `POST /sincronizacion/pendientes` — el AVISO. Al recuperar la conexión
 //     se manda primero la lista de qué operaciones existen, antes de mandarlas
-//     de verdad. Es lo que cierra el agujero descrito en
-//     `docs/propuesta-visibilidad-sincronizacion.md`: hasta ahora, un Docente
-//     que trabajó una semana sin señal era invisible para el Supervisor —su
-//     fila salía en verde— porque el servidor no tenía forma de enterarse de
-//     que existía ese trabajo. Con el aviso, el riesgo se ve en cuanto hay un
-//     hueco de red, sin esperar a que suba el contenido completo.
+//     de verdad. Es lo que cierra un agujero de fondo del Seguimiento: hasta
+//     ahora, un Docente que trabajó una semana sin señal era invisible para
+//     el Supervisor —su fila salía en verde— porque el servidor no tenía
+//     forma de enterarse de que existía ese trabajo. Con el aviso, el riesgo
+//     se ve en cuanto hay un hueco de red, sin esperar al contenido completo.
 //
 //   · `GET /sincronizacion/operaciones/{id}` — la VERIFICACIÓN. Para el envío
 //     que se quedó sin respuesta: se mandó, pero no se supo si llegó. Antes de
