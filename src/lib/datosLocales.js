@@ -55,3 +55,51 @@ export async function limpiarDatosLocalesDeSesion() {
   useRechazosStore.getState().limpiar()
   await Promise.all([borrarPrecarga(), borrarCacheConsultas()])
 }
+
+/**
+ * La cuenta que usó este navegador la última vez.
+ *
+ * Es el único dato con el que el siguiente inicio de sesión puede decidir si
+ * lo guardado le pertenece. El cierre de sesión lo borra con todo lo demás, y
+ * está bien: después de un cierre limpio no queda nada que proteger.
+ */
+const CLAVE_ULTIMO_USUARIO = 'sicedu.ultimo.usuario'
+
+/**
+ * Deja el navegador limpio si entra una cuenta DISTINTA de la anterior (D51).
+ *
+ * El cierre de sesión ya limpia todo, pero solo cuando se pulsa "Cerrar
+ * sesión". Si la pestaña se cierra, el token caduca o alguien lo borra a mano,
+ * esa limpieza nunca corre: el resumen del Inicio, los filtros y las consultas
+ * guardadas se quedan, y la siguiente persona los ve como suyos. El probador
+ * lo encontró entrando con otra cuenta del mismo rol y viendo el resumen de la
+ * anterior.
+ *
+ * No basta con mirar el rol: dos Supervisores comparten rol y no comparten
+ * datos. Se compara la CUENTA.
+ *
+ * @returns `true` si se borró algo, es decir si el usuario cambió.
+ */
+export async function limpiarSiEsOtroUsuario(idUsuario) {
+  if (idUsuario == null) return false
+
+  let anterior = null
+  try {
+    anterior = localStorage.getItem(CLAVE_ULTIMO_USUARIO)
+  } catch {
+    // Sin almacenamiento no hay nada que comparar ni que limpiar.
+    return false
+  }
+
+  const mismo = anterior != null && String(anterior) === String(idUsuario)
+  // La primera vez (`anterior === null`) no se borra nada: no hay motivo para
+  // suponer que lo guardado es de otro, y el usuario acaba de entrar.
+  if (!mismo && anterior != null) await limpiarDatosLocalesDeSesion()
+
+  try {
+    localStorage.setItem(CLAVE_ULTIMO_USUARIO, String(idUsuario))
+  } catch {
+    // Que no se pueda recordar no impide trabajar.
+  }
+  return !mismo && anterior != null
+}

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef } fr
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
-import { limpiarDatosLocalesDeSesion } from '../lib/datosLocales'
+import { limpiarDatosLocalesDeSesion, limpiarSiEsOtroUsuario } from '../lib/datosLocales'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
@@ -31,6 +31,8 @@ export function AuthProvider({ children }) {
   const setToken = useSessionStore((s) => s.setToken)
   const setUsuario = useSessionStore((s) => s.setUsuario)
   const setCargando = useSessionStore((s) => s.setCargando)
+  const servidorInalcanzable = useSessionStore((s) => s.servidorInalcanzable)
+  const setServidorInalcanzable = useSessionStore((s) => s.setServidorInalcanzable)
   const limpiarSesion = useSessionStore((s) => s.cerrarSesion)
   // El motivo del cierre vive en el store: lo escribe el interceptor de axios
   // al recibir un 401 `sesion_expirada`, que ocurre fuera de React.
@@ -55,7 +57,10 @@ export function AuthProvider({ children }) {
       limpiarSesion()
       return
     }
-    if (usuario || perfilPedidoPara.current === token) return
+    // Mientras la marca de servidor caído siga puesta no se reintenta solo:
+    // reintentar en bucle contra un servidor que no contesta no arregla nada
+    // y llena la consola. Lo desbloquea el botón "Reintentar".
+    if (usuario || servidorInalcanzable || perfilPedidoPara.current === token) return
 
     perfilPedidoPara.current = token
     setCargando(true)
@@ -64,11 +69,34 @@ export function AuthProvider({ children }) {
         setUsuario(perfil)
         setCargando(false)
       })
-      .catch(() => {
-        // Token vencido o inválido: se vuelve a empezar.
-        limpiarSesion()
+      .catch((error) => {
+        /**
+         * UN SERVIDOR CAÍDO NO ES UNA SESIÓN TERMINADA (D52).
+         *
+         * Antes cualquier fallo de `/me` borraba la sesión, así que con el
+         * backend caído recargar echaba al usuario al login y le hacía creer
+         * que su sesión había expirado. Son dos cosas distintas y se tratan
+         * distinto:
+         *
+         *   · 401 o 403 → el token no sirve. Se cierra, que es lo correcto.
+         *   · sin respuesta o 5xx → el servidor no contesta. El token sigue
+         *     siendo válido: se conserva y la pantalla lo dice.
+         */
+        const estado = error?.response?.status
+        if (estado === 401 || estado === 403) {
+          limpiarSesion()
+          return
+        }
+        /**
+         * Se suelta la marca de "ya pedí el perfil para este token" para que
+         * el reintento pueda volver a pedirlo. Sin esto, el botón
+         * "Reintentar" bajaba la bandera y el efecto se encontraba con que
+         * ese token ya se había pedido, así que no hacía nada.
+         */
+        perfilPedidoPara.current = null
+        setServidorInalcanzable(true)
       })
-  }, [token, usuario, setUsuario, setCargando, limpiarSesion])
+  }, [token, usuario, servidorInalcanzable, setUsuario, setCargando, limpiarSesion, setServidorInalcanzable])
 
   const entrar = useCallback(
     async ({ correo, password }) => {
@@ -78,6 +106,18 @@ export function AuthProvider({ children }) {
       perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
+      /**
+       * D51 — Si entra OTRA cuenta, lo guardado no es suyo.
+       *
+       * El cierre de sesión ya limpia, pero solo cuando se pulsa "Cerrar
+       * sesión". Si la pestaña se cierra, el token caduca o alguien lo borra,
+       * esa limpieza nunca corre y la siguiente persona ve el resumen, los
+       * filtros y las consultas de la anterior como si fueran suyos.
+       *
+       * Va ANTES de `setUsuario`: la pantalla no debe llegar a pintar nada con
+       * datos ajenos, ni siquiera un instante.
+       */
+      await limpiarSiEsOtroUsuario(perfil?.id_usuario)
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -98,6 +138,7 @@ export function AuthProvider({ children }) {
       perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
+      await limpiarSiEsOtroUsuario(perfil?.id_usuario)
       setUsuario(perfil)
       setCargando(false)
       return perfil

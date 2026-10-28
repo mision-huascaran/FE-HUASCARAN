@@ -4,6 +4,7 @@ import { render, renderHook, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import useSessionStore from '../../store/sessionStore'
 import useExpiracionSesion from '../useExpiracionSesion'
+import { _reiniciarReloj, sincronizarReloj } from '../../lib/relojServidor'
 import RoleRoute from '../RoleRoute'
 import ProtectedRoute from '../ProtectedRoute'
 import { ROLES, esSoloLectura, rutaInicioDe } from '../roles'
@@ -109,10 +110,48 @@ describe('useExpiracionSesion (CU007)', () => {
     expect(onExpirar).toHaveBeenCalledTimes(1)
   })
 
-  it('un token ya vencido al montar cierra en el acto', () => {
+  it('un token ya vencido al montar cierra en el acto, SI la hora es fiable', () => {
+    // Con referencia del servidor se puede afirmar que venció.
+    sincronizarReloj(new Date().toUTCString())
+
     const onExpirar = vi.fn()
     renderHook(() => useExpiracionSesion({ token: jwtDePrueba({ exp: expEn(-1) }), onExpirar }))
     expect(onExpirar).toHaveBeenCalledTimes(1)
+  })
+
+  it('sin referencia del servidor NO cierra: lo decide el 401 (D57)', () => {
+    // El ancla vive en el módulo y sobrevive entre pruebas: aquí hace falta
+    // justo lo contrario, un arranque sin ninguna referencia.
+    _reiniciarReloj()
+
+    /**
+     * Es el defecto que echaba al docente al recargar con el reloj del equipo
+     * adelantado. Sin ancla del servidor, la única hora disponible es la del
+     * dispositivo, y cerrar por ella sería fiarse justo de lo que CU007
+     * prohíbe. Se deja decidir al servidor: su 401 llega en la primera
+     * petición.
+     */
+    const onExpirar = vi.fn()
+    renderHook(() => useExpiracionSesion({ token: jwtDePrueba({ exp: expEn(-1) }), onExpirar }))
+    expect(onExpirar).not.toHaveBeenCalled()
+  })
+
+  it('un reloj adelantado no adelanta el cierre', () => {
+    /**
+     * El token vence dentro de 8 horas según el servidor. Si el equipo va dos
+     * horas adelantado, `Date.now()` diría que faltan 6 y el temporizador
+     * saltaría antes de tiempo. `ahora()` va anclado al servidor, así que no.
+     */
+    const haceDosHoras = new Date(Date.now() - 2 * 60 * 60_000)
+    sincronizarReloj(haceDosHoras.toUTCString())
+
+    const onExpirar = vi.fn()
+    // `exp` se calcula con la hora del equipo, que va 2 h por delante de la
+    // del servidor: para el servidor todavía faltan 8 h + 2 h.
+    renderHook(() => useExpiracionSesion({ token: jwtDePrueba({ exp: expEn(480) }), onExpirar }))
+
+    vi.advanceTimersByTime(480 * 60_000)
+    expect(onExpirar).not.toHaveBeenCalled()
   })
 
   it.each([
