@@ -98,7 +98,7 @@ const idDe = (valor) => (valor != null && typeof valor === 'object' ? (valor.id 
  * pide `activo=true`, luego `activo=false`, y se juntan. Sin esto "Todos"
  * enseñaba exactamente lo mismo que "Activos".
  */
-async function todasLasPaginas(pedir, { pagina, estado } = {}) {
+export async function todasLasPaginas(pedir, { pagina, estado } = {}) {
   const barrido = async (activo) => {
     const primera = await pedir(pagina, activo)
     if (Array.isArray(primera) || pagina) return primera

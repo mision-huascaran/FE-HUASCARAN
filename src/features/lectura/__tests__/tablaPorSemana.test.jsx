@@ -259,7 +259,7 @@ describe('"Cambiar clase" (CU024, B6)', () => {
 
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
     fireEvent.change(await within(dialogo).findByLabelText(/clase de la semana/i, {}, ESPERA), {
-      target: { value: '2026-07-02' },
+      target: { value: 'id:42' },
     })
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Cambiar clase' }))
 
@@ -269,6 +269,29 @@ describe('"Cambiar clase" (CU024, B6)', () => {
     // La clase nueva es de julio: el filtro sigue a la tabla.
     abrirFiltros()
     await waitFor(() => expect(screen.getByLabelText('Mes')).toHaveValue('7'), ESPERA)
+  })
+
+  /**
+   * D103 — CP-LEC-08. Sin `page`, el servidor responde un ARREGLO y el modal
+   * leía `items`: contra la API real nunca había candidatas y decía "No hay
+   * otra clase esta semana" aunque hubiera una adicional con asistencias.
+   */
+  it('ofrece la clase adicional con asistencias cuando el servidor responde un arreglo', async () => {
+    listarClases.mockResolvedValue([
+      { ...CLASE, tiene_asistencias: true },
+      { id_clase: 77, fecha: '2026-07-01', tipo: 'adicional', reprogramada: false, tiene_asistencias: true },
+      // Sin asistencias: el servidor la rechazaría con `clase_no_realizada`.
+      { id_clase: null, fecha: '2026-07-03', tipo: 'habitual', reprogramada: false, tiene_asistencias: false },
+    ])
+    obtenerTabla.mockResolvedValue(tabla())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Cambiar clase' }, ESPERA))
+
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    const select = await within(dialogo).findByLabelText(/clase de la semana/i, {}, ESPERA)
+    expect(within(select).getByRole('option', { name: /01\/07\/2026 · Adicional/i })).toBeInTheDocument()
+    expect(within(select).queryByRole('option', { name: /03\/07\/2026/ })).not.toBeInTheDocument()
+    expect(within(dialogo).queryByText('No hay otra clase esta semana')).not.toBeInTheDocument()
   })
 
   it('con lecturas guardadas NO se ofrece: cambiarla las perdería', async () => {

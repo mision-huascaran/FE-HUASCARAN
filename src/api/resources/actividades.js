@@ -8,7 +8,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
-import { normalizarPaginado } from './administracion'
+import { normalizarPaginado, todasLasPaginas } from './administracion'
 
 const { actividades } = ENDPOINTS
 
@@ -79,22 +79,28 @@ export const finalizarActividad = (id, { fin } = {}) =>
  * 422 con `motivo: "rango_fechas_invalido"`.
  */
 export const listarActividades = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.sesiones.listar(filtros),
-    real: () =>
-      api.get(actividades.listar, {
-        params: {
-          desde: filtros.desde || undefined,
-          hasta: filtros.hasta || undefined,
-          estado: filtros.estado || undefined,
-          sincronizacion: filtros.sincronizacion || undefined,
-          tipo_cierre: filtros.tipo_cierre || undefined,
-          page: filtros.pagina || undefined,
-        },
-      }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarPaginado(datos)
+  /**
+   * TODAS LAS PÁGINAS (D97). El servidor entrega de 40 en 40 y la tabla
+   * pagina en el cliente: pedir solo la primera dejaba a un Docente con 46
+   * actividades viendo "Mostrando 1 a 40 de 40", sin forma de llegar al resto.
+   */
+  const pedir = (pagina) =>
+    resolver({
+      mock: () => handlers.sesiones.listar(filtros),
+      real: () =>
+        api.get(actividades.listar, {
+          params: {
+            desde: filtros.desde || undefined,
+            hasta: filtros.hasta || undefined,
+            estado: filtros.estado || undefined,
+            sincronizacion: filtros.sincronizacion || undefined,
+            tipo_cierre: filtros.tipo_cierre || undefined,
+            page: pagina || undefined,
+          },
+        }),
+      forzarReal: adminContraApiReal,
+    })
+  return normalizarPaginado(await todasLasPaginas(pedir, { pagina: filtros.pagina }))
 }
 
 /**

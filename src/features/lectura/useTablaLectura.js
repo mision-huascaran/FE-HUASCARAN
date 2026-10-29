@@ -40,6 +40,13 @@ const esDefinitivo = (error) => {
   return estado != null && estado >= 400 && estado < 500
 }
 
+/**
+ * Tanda M (D101) — `422 sin_alumnos`: la semana tiene clase pero el grupo no
+ * tenía alumnos en esa fecha. Tampoco es un fallo: es un estado del bloque, y
+ * no hay tabla que crear. Se distingue por `motivo`, nunca por el texto.
+ */
+const esSinAlumnos = (error) => motivoDe(error) === 'sin_alumnos'
+
 export default function useTablaLectura(filtros) {
   const toast = useToast()
   const queryClient = useQueryClient()
@@ -70,10 +77,22 @@ export default function useTablaLectura(filtros) {
     queryFn: () => obtenerTabla(filtros),
     enabled: listos,
     /**
+     * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87), igual que Rúbrica y Registro
+     * de Vuelo.
+     *
+     * Con el `staleTime` global de 60 s, volver a la pantalla servía la copia
+     * en memoria (o la recuperada de IndexedDB) sin preguntarle al servidor:
+     * una asistencia corregida en Asistencias, un permiso nuevo o las lecturas
+     * guardadas desde otra sesión no aparecían ni al recargar. Sin conexión no
+     * cambia nada: la consulta queda en pausa y se sigue viendo lo guardado.
+     */
+    staleTime: 0,
+    refetchOnMount: 'always',
+    /**
      * El 404 de "no existe todavía" no se reintenta: es una respuesta, no un
      * fallo, y reintentarla tres veces solo retrasaría el botón de crear.
      */
-    retry: (intentos, error) => !esTablaPorCrear(error) && intentos < 2,
+    retry: (intentos, error) => !esTablaPorCrear(error) && !esSinAlumnos(error) && intentos < 2,
   })
 
   const porCrear = esTablaPorCrear(tabla.error) ? datosParaCrear(tabla.error) : null
@@ -113,9 +132,19 @@ export default function useTablaLectura(filtros) {
         refrescar()
         return
       }
+      // La pantalla lo enseña como estado del bloque, no como un fallo.
+      if (esSinAlumnos(error)) return
       toast.error('No se pudo crear la tabla', mensajeDeError(error))
     },
   })
+
+  // Lo que respondió crear la tabla de OTRA semana no vale para esta.
+  const olvidarCreacion = crear.reset
+  useEffect(() => olvidarCreacion(), [olvidarCreacion, idColegio, idPrograma, idGrado, idSeccion, idSemana])
+
+  /** El `detail` de `sin_alumnos`, venga de consultar la tabla o de crearla. */
+  const errorSinAlumnos = [tabla.error, crear.error].find(esSinAlumnos)
+  const sinAlumnos = errorSinAlumnos ? mensajeDeError(errorSinAlumnos) : null
 
   /**
    * Los dos conflictos de CU026 se resuelven igual: volver a pedir la tabla.
@@ -336,9 +365,11 @@ export default function useTablaLectura(filtros) {
   return {
     tabla: datosTabla,
     cargando: tabla.isLoading,
-    // Un error de verdad: ni el 404 de "no existe", que es una respuesta.
-    error: tabla.isError && !porCrear ? tabla.error : null,
-    porCrear,
+    // Un error de verdad: ni el 404 de "no existe" ni `sin_alumnos`, que son respuestas.
+    error: tabla.isError && !porCrear && !esSinAlumnos(tabla.error) ? tabla.error : null,
+    // Con `sin_alumnos` no hay nada que crear.
+    porCrear: sinAlumnos ? null : porCrear,
+    sinAlumnos,
     crear: crear.mutate,
     creando: crear.isPending,
     marcarNoRealizada: noRealizada.mutate,

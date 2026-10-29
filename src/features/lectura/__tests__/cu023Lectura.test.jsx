@@ -404,6 +404,76 @@ describe('Las filas de la tabla (CU024)', () => {
   })
 })
 
+describe('Grupo sin alumnos en la fecha (Tanda M, D101)', () => {
+  const SIN_ALUMNOS = 'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.'
+  const errorSinAlumnos = () =>
+    Object.assign(new Error('sin alumnos'), {
+      response: { status: 422, data: { detail: SIN_ALUMNOS, motivo: 'sin_alumnos' } },
+    })
+
+  it('al consultar, enseña el texto del servidor como estado del bloque y no ofrece crear', async () => {
+    obtenerTabla.mockRejectedValue(errorSinAlumnos())
+
+    montar()
+
+    expect(await screen.findByText(SIN_ALUMNOS, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText(/no se pudo cargar la tabla/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sin clases este mes/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /crear la tabla/i })).not.toBeInTheDocument()
+    // Es una respuesta, no un fallo: no se reintenta.
+    expect(obtenerTabla).toHaveBeenCalledTimes(1)
+  })
+
+  it('al crear, también: el texto queda en el bloque y desaparece el botón', async () => {
+    obtenerTabla.mockRejectedValue(errorPorCrear())
+    crearTabla.mockRejectedValue(errorSinAlumnos())
+
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: /crear la tabla/i }, ESPERA))
+
+    expect(await screen.findByText(SIN_ALUMNOS, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /crear la tabla/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('Datos frescos con conexión (D87)', () => {
+  it('al volver a la pantalla pide la tabla otra vez y enseña lo que responde el servidor', async () => {
+    /**
+     * CP-LEC-11 a 13: una asistencia corregida, un permiso nuevo o lo guardado
+     * desde otra sesión no aparecían porque se servía la copia en memoria.
+     */
+    useSessionStore.setState({
+      token: 'mock.4.2026',
+      usuario: { id_usuario: 4, id_rol: ROLES.PROFESOR, id_docente: 1, nombres: 'Prueba' },
+      cargando: false,
+    })
+    const cliente = crearQueryClient()
+    const pantalla = () => (
+      <QueryClientProvider client={cliente}>
+        <ToastProvider>
+          <MemoryRouter>
+            <LecturaPage />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>
+    )
+
+    obtenerTabla.mockResolvedValue(tabla())
+    const { unmount } = render(pantalla())
+    expect(await screen.findByLabelText(/libros de sala de lectura de Torres, Ana/i, {}, ESPERA)).toHaveValue(null)
+    unmount()
+
+    // Otra sesión registró 4 LSL mientras tanto.
+    obtenerTabla.mockResolvedValue(tabla({ filas: [fila({ cantidad_lsl: 4, total_libros: 4 })] }))
+    render(pantalla())
+
+    await waitFor(
+      () => expect(screen.getByLabelText(/libros de sala de lectura de Torres, Ana/i)).toHaveValue(4),
+      ESPERA,
+    )
+  })
+})
+
 describe('Choque de versiones (CU024)', () => {
   it('no se adopta en silencio: avisa y "Cargar versión actual" descarta la operación', async () => {
     obtenerTabla.mockResolvedValue(tabla())
