@@ -72,6 +72,9 @@ function borradorPara(modo, calendario) {
   return { periodos: ochoPeriodos(calendario?.periodos), dias: calendario?.dias_no_lectivos ?? [] }
 }
 
+/** Respuestas del proxy cuando el servidor no contesta: no dicen qué pasó con el envío. */
+const SIN_SERVIDOR = new Set([502, 503, 504])
+
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
   const toast = useToast()
   const enLinea = useConexion()
@@ -172,8 +175,12 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
      *
      * La solicitud pudo llegar y aplicarse: volver a mandarla escribiría dos
      * veces. Se bloquea "Guardar" hasta comprobar con el servidor qué pasó.
+     *
+     * D75 — Con el backend CAÍDO también es "sin respuesta", aunque haya una:
+     * la da el proxy (502, 503 o 504), no el servidor. Antes caía en el
+     * mensaje genérico y "Guardar" seguía activo para reintentar a ciegas.
      */
-    if (!error?.response) {
+    if (!error?.response || SIN_SERVIDOR.has(error.response.status)) {
       setSinConfirmar(true)
       return
     }

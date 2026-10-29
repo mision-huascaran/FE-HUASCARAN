@@ -36,8 +36,11 @@ function leer(rol, idUsuario) {
  * @param rol      'supervisor' | 'directivo'
  * @param datos    lo que devolvió el servidor, o undefined si aún no llegó
  * @param enLinea  si hay conexión ahora mismo
+ * @param falloServidor hay conexión pero el servidor no contestó (D52): CU011
+ *   y CU012 piden lo mismo que sin conexión, la copia marcada como
+ *   potencialmente desactualizada.
  */
-export default function useResumenLocal(rol, datos, enLinea) {
+export default function useResumenLocal(rol, datos, enLinea, { falloServidor = false } = {}) {
   const idUsuario = useSessionStore((s) => s.usuario?.id_usuario)
   const [guardado, setGuardado] = useState(() => leer(rol, idUsuario))
 
@@ -59,7 +62,7 @@ export default function useResumenLocal(rol, datos, enLinea) {
 
   return {
     resumen: guardado?.datos ?? null,
-    desactualizado: Boolean(guardado) && !enLinea,
+    desactualizado: Boolean(guardado) && (!enLinea || falloServidor),
     fecha: guardado?.fecha ?? null,
   }
 }

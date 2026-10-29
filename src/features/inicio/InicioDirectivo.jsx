@@ -41,7 +41,9 @@ export default function InicioDirectivo() {
     enabled: enLinea,
   })
 
-  const { resumen, desactualizado } = useResumenLocal('directivo', consulta.data, enLinea)
+  const { resumen, desactualizado } = useResumenLocal('directivo', consulta.data, enLinea, {
+    falloServidor: consulta.isError,
+  })
 
   if (!resumen) {
     return consulta.isLoading ? (
@@ -64,7 +66,7 @@ export default function InicioDirectivo() {
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
       </header>
 
-      {desactualizado && <AvisoDatosLocales />}
+      {desactualizado && <AvisoDatosLocales enLinea={enLinea} />}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <StatCard icon={Users} label="Total de beneficiarios activos" value={resumen.beneficiarios} />

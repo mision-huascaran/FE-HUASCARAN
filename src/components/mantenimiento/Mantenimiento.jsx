@@ -33,6 +33,10 @@ const VER_DETALLE = 'Ver detalle'
 export const avisoSinConexion = (seccion) =>
   `Acción no disponible sin conexión. Conéctate a internet para gestionar ${GESTIONADO[seccion] ?? seccion}.`
 
+/** Lo que se está viendo sin conexión: la última copia guardada en el equipo (D61). */
+export const CONSULTA_SIN_CONEXION =
+  'Sin conexión. Se muestra la última información guardada en este equipo, que puede estar desactualizada.'
+
 /** Por qué no se puede escribir ahora, o `undefined` si se puede. La conexión manda sobre la actividad. */
 function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
   if (sinConexion) return avisoSinConexion(seccion)
@@ -358,6 +362,12 @@ export default function Mantenimiento({
         </p>
       )}
 
+      {sinConexion && (
+        <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          {CONSULTA_SIN_CONEXION}
+        </p>
+      )}
+
       <Card padded={false}>
         <FiltrosMantenimiento
           filtros={filtros}
@@ -415,6 +425,9 @@ export default function Mantenimiento({
         cargarAuditoria={cargarAuditoria}
         cargarDetalle={cargarDetalle}
         genero={genero}
+        // D61 — Si la conexión se va con el modal abierto, se queda abierto y
+        // con lo escrito; solo "Guardar" espera a que vuelva.
+        motivoSinGuardar={sinConexion ? avisoSinConexion(seccion) : null}
         onGuardar={guardar}
         erroresServidor={erroresServidor}
         onCerrar={() => setPopup(null)}

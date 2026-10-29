@@ -1,6 +1,6 @@
 // Colegios (CU013): el alta pide los Subprogramas, que son obligatorios.
-import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
@@ -38,4 +38,30 @@ describe('Colegios (CU013)', () => {
     expect(within(dialogo).getByText('Subprogramas')).toBeInTheDocument()
     expect(await within(dialogo).findByRole('checkbox', { name: /Alfabetización/ }, ESPERA)).toBeInTheDocument()
   })
+
+  /**
+   * D61 y D70 — CP-COL-04, CP-CAL-01. Sin conexión la pantalla entera se
+   * cambiaba por "Requiere conexión": no se veía la copia y no había forma
+   * de llegar al Calendario académico, que sí se consulta sin conexión.
+   */
+  it('sin conexión sigue mostrando los colegios y deja abrir el calendario', async () => {
+    montar()
+    await screen.findByRole('table', {}, ESPERA)
+    await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)
+
+    act(() => {
+      Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+      window.dispatchEvent(new Event('offline'))
+    })
+
+    expect(screen.queryByText('Requiere conexión')).not.toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^editar /i })[0]).toBeDisabled()
+    expect(screen.getByRole('button', { name: /calendario académico/i })).toBeEnabled()
+  })
+})
+
+afterEach(() => {
+  Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+  window.dispatchEvent(new Event('online'))
 })

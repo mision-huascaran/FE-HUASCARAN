@@ -221,6 +221,26 @@ describe('CU027 · Calendario académico', () => {
     await screen.findByText('Lo que hay guardado en el servidor ahora mismo', {}, ESPERA)
   })
 
+  /**
+   * D75 — CP-CAL-07. Con el backend caído el proxy responde 502: el mensaje
+   * era genérico y "Guardar" seguía activo, invitando a reenviar algo que
+   * pudo haberse aplicado.
+   */
+  it('con el servidor caído no confirma el guardado y bloquea Guardar (D75)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    actualizar.mockRejectedValueOnce(errorHttp(502, '<html>Bad Gateway</html>'))
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-14' } })
+    fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
+
+    await screen.findByText(/No se pudo confirmar el guardado/i, {}, ESPERA)
+    expect(boton('Guardar')).toBeDisabled()
+    // Lo escrito sigue ahí.
+    expect(screen.getByLabelText(FIN_PA1)).toHaveValue('2026-05-14')
+  })
+
   it('sin calendario (404) ofrece crearlo y exige las ocho fechas', async () => {
     obtenerCalendario.mockRejectedValue(errorHttp(404, { detail: 'No hay calendario', motivo: 'calendario_no_configurado' }))
     montar()

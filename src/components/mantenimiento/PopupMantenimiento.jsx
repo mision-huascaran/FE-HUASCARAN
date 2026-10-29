@@ -164,6 +164,8 @@ export default function PopupMantenimiento({
   // se mostró.
   cargarDetalle = null,
   guardando = false,
+  // Por qué no se puede guardar ahora (sin conexión); lo escrito se conserva.
+  motivoSinGuardar = null,
   genero = 'm',
   puedeVerAuditoria = false,
   cargarAuditoria,
@@ -290,8 +292,18 @@ export default function PopupMantenimiento({
           <Button variant="ghost" onClick={onCerrar}>
             {modo === 'ver' ? 'Cerrar' : 'Cancelar'}
           </Button>
+          {modo !== 'ver' && motivoSinGuardar && (
+            <span role="note" className="mr-auto text-xs text-ink-500">
+              {motivoSinGuardar}
+            </span>
+          )}
           {modo !== 'ver' && (
-            <Button loading={guardando} onClick={enviar}>
+            <Button
+              loading={guardando}
+              disabled={Boolean(motivoSinGuardar)}
+              title={motivoSinGuardar ?? undefined}
+              onClick={enviar}
+            >
               Guardar
             </Button>
           )}
