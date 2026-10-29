@@ -57,6 +57,7 @@ export default function BloqueAsistencia({
   const resumen = datos?.resumen
   const mensual = datos?.mensual ?? []
   const aviso = etiquetaDeEstado(resumen)
+  const deAnio = anioEscolar ? ` de ${anioEscolar}` : ''
 
   if (detalle) {
     return (
@@ -113,7 +114,7 @@ export default function BloqueAsistencia({
         </div>
 
         <Grafica
-          titulo={`Asistencia mensual ${alcance} · ${periodo?.nombre ?? ''}${anioEscolar ? ` de ${anioEscolar}` : ''}`}
+          titulo={`Asistencia mensual ${alcance} · ${periodo?.nombre ?? ''}${deAnio}`}
           contexto={contexto}
           anioEscolar={anioEscolar}
           avisos={[resumen?.provisional ? 'Información incompleta: hay clases con asistencias pendientes.' : null]}

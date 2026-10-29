@@ -88,7 +88,7 @@ registrarEnviador(
      * silencio**. Era D69 otra vez, y Asistencias es el único de los cuatro
      * módulos al que le faltaba.
      *
-     * Se anota aquí, que es por donde pasa TODO envío de asistencia, venga de
+     * Se anota aquí, que es por donde pasa cualquier envío de asistencia, venga de
      * un clic o de la cola al recuperar la señal.
      */
     const rechazos = useRechazosStore.getState()

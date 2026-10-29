@@ -59,12 +59,19 @@ const recortar = (filtros, colegios) => {
   return { ...filtros, idColegios: (filtros.idColegios ?? []).filter((id) => autorizados.has(String(id))) }
 }
 
+/** Los ids de una selección en un orden fijo, para compararla por valor. */
+const conjunto = (ids) =>
+  (ids ?? [])
+    .map(String)
+    .sort((x, y) => x.localeCompare(y))
+    .join(',')
+
 /** Mismos filtros, comparados por valor: el array de colegios no vale por referencia. */
 const iguales = (a, b) =>
   String(a.idAnioEscolar) === String(b.idAnioEscolar) &&
   String(a.idPeriodoAcademico) === String(b.idPeriodoAcademico) &&
   Boolean(a.todosLosColegios) === Boolean(b.todosLosColegios) &&
-  [...(a.idColegios ?? [])].sort().join(',') === [...(b.idColegios ?? [])].sort().join(',')
+  conjunto(a.idColegios) === conjunto(b.idColegios)
 
 export default function useFiltrosDashboard({ clave = 'dashboard', exigePeriodo = true } = {}) {
   const catalogo = useQuery({

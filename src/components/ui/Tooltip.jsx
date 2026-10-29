@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { cloneElement, isValidElement, useId, useState } from 'react'
 import cn from '../../lib/cn'
 
 /**
@@ -15,6 +15,25 @@ export default function Tooltip({ content, side = 'top', className, children }) 
 
   if (!content) return children
 
+  /*
+   * El clic (o el toque) y Escape van EN EL HIJO, que es el control: un botón
+   * de información, que ya recibe el foco y el teclado. Así el envoltorio no
+   * se hace pasar por un segundo control. Escape lo cierra, como pide el
+   * patrón de tooltip de WAI-ARIA.
+   */
+  const disparador = isValidElement(children)
+    ? cloneElement(children, {
+        onClick: (evento) => {
+          children.props.onClick?.(evento)
+          setVisible((previo) => !previo)
+        },
+        onKeyDown: (evento) => {
+          children.props.onKeyDown?.(evento)
+          if (evento.key === 'Escape') setVisible(false)
+        },
+      })
+    : children
+
   return (
     <span
       className={cn('relative inline-flex', className)}
@@ -22,9 +41,8 @@ export default function Tooltip({ content, side = 'top', className, children }) 
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}
       onBlur={() => setVisible(false)}
-      onClick={() => setVisible((previo) => !previo)}
     >
-      <span aria-describedby={visible ? id : undefined}>{children}</span>
+      <span aria-describedby={visible ? id : undefined}>{disparador}</span>
       {visible && (
         <span
           id={id}

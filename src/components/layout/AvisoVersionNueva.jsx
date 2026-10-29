@@ -17,14 +17,14 @@ export default function AvisoVersionNueva() {
   if (!hayVersion) return null
 
   return (
-    <div
-      role="status"
+    // <output> ya tiene el rol `status`: se anuncia sin interrumpir.
+    <output
       className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-line bg-surface-0 px-4 py-3 text-sm shadow-card"
     >
       <span className="text-ink-700">Hay una versión nueva de SICEDU.</span>
       <Button size="sm" iconLeft={RefreshCw} onClick={aplicarVersionNueva}>
         Actualizar
       </Button>
-    </div>
+    </output>
   )
 }

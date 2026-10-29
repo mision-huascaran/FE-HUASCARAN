@@ -50,7 +50,7 @@ export default function SelectorColegios({ colegios = [], todos = true, elegidos
   return (
     <fieldset className="min-w-0">
       <legend className="mb-1 block text-sm font-medium text-ink-700">
-        Colegios
+        {'Colegios'}
         <span className="ml-2 text-xs font-normal text-ink-500">
           {todos ? 'Todos los colegios' : `${elegidos.length} de ${colegios.length}`}
         </span>
@@ -64,7 +64,7 @@ export default function SelectorColegios({ colegios = [], todos = true, elegidos
             onChange={(e) => onChange({ todos: e.target.checked, elegidos: [] })}
             className="h-4 w-4 rounded border-line-strong text-brand-600"
           />
-          Todos los colegios
+          {'Todos los colegios'}
         </label>
 
         <div className="relative">

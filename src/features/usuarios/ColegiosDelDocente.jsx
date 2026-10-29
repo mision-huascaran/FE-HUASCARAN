@@ -155,8 +155,8 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                 </legend>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                   {(gradosDe?.(c.id_colegio) ?? []).map((g) => {
-                    const puestos = (c.grados ?? []).map(String)
-                    const marcado = puestos.includes(String(g.value))
+                    const puestos = new Set((c.grados ?? []).map(String))
+                    const marcado = puestos.has(String(g.value))
                     return (
                       <label key={g.value} className="flex items-center gap-1.5 text-sm text-ink-700">
                         <input
@@ -168,7 +168,7 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                               // Se respeta el orden de los grados, no el del clic.
                               grados: (gradosDe?.(c.id_colegio) ?? [])
                                 .map((o) => String(o.value))
-                                .filter((v) => (v === String(g.value) ? !marcado : puestos.includes(v))),
+                                .filter((v) => (v === String(g.value) ? !marcado : puestos.has(v))),
                             })
                           }
                         />

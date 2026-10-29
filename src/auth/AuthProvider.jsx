@@ -2,13 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef } fr
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
-import { limpiarDatosLocalesDeSesion, limpiarSiEsOtroUsuario } from '../lib/datosLocales'
+import {
+  guardarPerfilLocal,
+  limpiarDatosLocalesDeSesion,
+  limpiarSiEsOtroUsuario,
+  perfilLocalDe,
+} from '../lib/datosLocales'
 import { ahora } from '../lib/relojServidor'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
 import { idSesionDe, tokenCaducado } from './jwt'
-import { guardarPerfilLocal, perfilLocalDe } from '../lib/datosLocales'
 import useExpiracionSesion from './useExpiracionSesion'
 
 /**

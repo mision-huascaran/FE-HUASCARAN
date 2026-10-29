@@ -53,7 +53,7 @@ export default function GraficaLineas({ datos = [], campo = 'porcentaje', sufijo
       className="h-auto w-full"
       role="img"
       aria-label={datos
-        .map((d) => `${d.nombre}: ${sinInformacion(d, campo) ? 'sin información' : `${d[campo]}${sufijo}`}`)
+        .map((d) => `${d.nombre}: ${sinInformacion(d, campo) ? 'sin información' : String(d[campo]) + sufijo}`)
         .join(', ')}
     >
       {[0, 0.25, 0.5, 0.75, 1].map((f) => {

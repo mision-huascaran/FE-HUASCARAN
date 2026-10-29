@@ -39,10 +39,11 @@ export default function ResumenAnual({ filtros, contexto, anio }) {
   const resumen = libros.data?.resumen
   const parcial = Boolean(delAnio?.parcial)
   const cargando = cobertura.isLoading || libros.isLoading
+  const delAnioEnTitulo = anio ? ` · ${anio}` : ''
 
   return (
     <Card
-      title={`Resumen anual de Primaria${anio ? ` · ${anio}` : ''}`}
+      title={`Resumen anual de Primaria${delAnioEnTitulo}`}
       subtitle={contexto.filter(Boolean).join(' · ') || undefined}
       actions={parcial && <Badge tone="warning">Acumulado hasta la fecha de consulta</Badge>}
     >

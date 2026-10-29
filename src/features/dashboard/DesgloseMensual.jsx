@@ -40,7 +40,7 @@ export default function DesgloseMensual({ alumno, mes, filtros, onActualizar, on
 
   const items = consulta.data?.items ?? []
   // El total que trae el detalle frente al que se pintó en la celda.
-  const cambio = consulta.data && consulta.data.total != null && consulta.data.total !== mes?.cantidad
+  const cambio = consulta.data?.total != null && consulta.data.total !== mes?.cantidad
 
   return (
     <Modal

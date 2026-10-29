@@ -166,7 +166,11 @@ function clasesHabituales({ idColegio, idGrado, idSeccion, desde, hasta }) {
 
   for (const grado of grados) {
     const diaDeClase = DIA_HABITUAL[grado.id_grado] ?? 1
-    for (let d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
+    // Por número de día desde el inicio: `setDate` desborda bien de mes y de año.
+    const dias = Math.round((fin - inicio) / 86400000)
+    for (let n = 0; n <= dias; n += 1) {
+      const d = new Date(inicio)
+      d.setDate(inicio.getDate() + n)
       if (d.getDay() !== diaDeClase) continue
       const fecha = d.toISOString().slice(0, 10)
       if (!esDiaLectivo(fecha)) continue
@@ -1388,7 +1392,7 @@ export const handlers = {
     },
 
     /**
-     * `POST /usuarios/{id}/permisos/lote` — TODO O NADA (tanda I).
+     * `POST /usuarios/{id}/permisos/lote` — atómico: todos o ninguno (tanda I).
      *
      * Un permiso por combinación de grado y módulo, con el mismo alcance.
      * Si una falla no se guarda NINGUNA, y la respuesta trae todas las
@@ -1420,7 +1424,7 @@ export const handlers = {
       }
 
       // La superposicion se mira ANTES de crear nada: es lo que hace que el
-      // todo o nada signifique algo.
+      // lote atómico signifique algo.
       const rechazadas = combinaciones
         .map((c, indice) => {
           const choca = Object.values(PERMISOS_MOCK).find(

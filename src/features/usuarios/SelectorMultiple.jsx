@@ -72,24 +72,28 @@ export default function SelectorMultiple({
               <div className="flex flex-wrap gap-1.5">
                 {suyas.map((opcion) => {
                   const puesto = elegidos.has(String(opcion.value))
+                  // Una casilla NATIVA con aspecto de chip: el lector de
+                  // pantalla y el teclado (Espacio) la tratan como lo que es.
                   return (
-                    <button
+                    <label
                       key={opcion.value}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={puesto}
-                      onClick={() => alternar(opcion.value)}
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+                        'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
+                        'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-500',
                         puesto
                           ? 'border-brand-600 bg-brand-100 font-semibold text-brand-700'
                           : 'border-line bg-surface-0 text-ink-700 hover:bg-surface-50',
                       )}
                     >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={puesto}
+                        onChange={() => alternar(opcion.value)}
+                      />
                       {puesto && <Check className="h-3.5 w-3.5" aria-hidden />}
                       {opcion.label}
-                    </button>
+                    </label>
                   )
                 })}
               </div>

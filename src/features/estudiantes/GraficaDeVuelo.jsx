@@ -22,6 +22,12 @@ import EmptyState from '../../components/ui/EmptyState'
 /** De abajo a arriba, como se dibuja el eje. El orden es el de CU015. */
 const NIVELES = ['Inicio', 'En proceso', 'Logrado', 'Avanzado']
 
+/** "PA2 Logrado (M)": un punto de la gráfica, para su texto alternativo. */
+function textoDePunto(p) {
+  const letra = p.letra ? ` (${p.letra})` : ''
+  return `PA${p.numero} ${NIVELES[p.fila]}${letra}`
+}
+
 const ANCHO = 420
 const ALTO = 200
 const IZQUIERDA = 86
@@ -66,9 +72,7 @@ export default function GraficaDeVuelo({ periodos = [] }) {
         viewBox={`0 0 ${ANCHO} ${ALTO}`}
         className="h-auto w-full max-w-xl"
         role="img"
-        aria-label={`Evolución del nivel por periodo: ${conDato
-          .map((p) => `PA${p.numero} ${NIVELES[p.fila]}${p.letra ? ` (${p.letra})` : ''}`)
-          .join(', ')}`}
+        aria-label={`Evolución del nivel por periodo: ${conDato.map(textoDePunto).join(', ')}`}
       >
         {/* El eje Y: una línea guía por nivel descriptivo. */}
         {NIVELES.map((nivel, fila) => (

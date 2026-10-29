@@ -737,11 +737,11 @@ async function asignacionDe(datos, { obligatoria }) {
    * Se acepta la forma nueva (`colegios`) y, mientras queden pantallas sin
    * migrar, también un colegio suelto en la raíz, que se convierte aquí.
    */
-  const crudos = Array.isArray(datos.colegios) && datos.colegios.length
-    ? datos.colegios
-    : datos.id_colegio
-      ? [{ id_colegio: datos.id_colegio, grados: datos.grados, inicio_asignacion: datos.inicio_asignacion }]
-      : []
+  let crudos = []
+  if (Array.isArray(datos.colegios) && datos.colegios.length) crudos = datos.colegios
+  else if (datos.id_colegio) {
+    crudos = [{ id_colegio: datos.id_colegio, grados: datos.grados, inicio_asignacion: datos.inicio_asignacion }]
+  }
 
   if (!crudos.length) return null
 

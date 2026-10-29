@@ -54,11 +54,13 @@ const ROLES_CREABLES = [
  * año y lo que no viene se libera. Mandarla cuando no cambió nada haría que
  * corregir un DNI reescribiera las asignaciones del Docente.
  */
+const ordenados = (lista) => lista.map(String).sort((x, y) => x.localeCompare(y))
+
 function mismosColegios(a, b) {
   const normal = (lista) =>
     (lista ?? [])
-      .map((c) => `${c.id_colegio}:${[...(c.grados ?? [])].map(String).sort().join(',')}:${c.inicio_asignacion ?? ''}`)
-      .sort()
+      .map((c) => `${c.id_colegio}:${ordenados(c.grados ?? []).join(',')}:${c.inicio_asignacion ?? ''}`)
+      .sort((x, y) => x.localeCompare(y))
       .join('|')
   return normal(a) === normal(b)
 }

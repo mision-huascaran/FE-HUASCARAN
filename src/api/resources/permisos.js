@@ -137,7 +137,7 @@ export const otorgarPermiso = (idUsuario, datos) =>
  * autorice un solo módulo. Lo que cambia es que se piden juntos, con el
  * alcance común —año, colegio, periodo, vigencia y motivo— una sola vez.
  *
- * ES TODO O NADA, y por eso existe en vez de un bucle en el cliente. Con N
+ * ES ATÓMICO (todos o ninguno), y por eso existe en vez de un bucle en el cliente. Con N
  * peticiones sueltas, que la cuarta choque con un permiso superpuesto deja
  * tres creados que el Supervisor no pidió y que **no se pueden deshacer**:
  * un permiso no se borra, se revoca.

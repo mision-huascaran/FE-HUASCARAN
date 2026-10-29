@@ -16,7 +16,7 @@
 // autoriza un solo módulo"). Lo que cambia es que se piden juntos: otorgar tres
 // obligaba a abrir el modal tres veces y repetir el alcance entero.
 //
-// El lote es TODO O NADA. Con N peticiones sueltas, que la cuarta choque con un
+// El lote es ATÓMICO: o se crean todos o ninguno. Con N peticiones sueltas, que la cuarta choque con un
 // permiso superpuesto dejaría tres creados que nadie pidió y que no se pueden
 // deshacer: un permiso no se borra, se revoca.
 //
@@ -65,6 +65,174 @@ const nombreDeCombinacion = (grados, { id_grado: idGrado, modulo }) => {
   const grado = grados.find((g) => String(g.id) === String(idGrado))?.nombre ?? idGrado
   const nombre = MODULOS_PERMISO.find((m) => m.value === modulo)?.label ?? modulo
   return `${grado} · ${nombre}`
+}
+
+/**
+ * ¿Hay algo escrito que se perdería al cerrar?
+ *
+ * `desde_ahora` nace en `true` y el año viene precargado, así que no
+ * cuentan: preguntar por ellos haría que cerrar un formulario intacto
+ * pidiera confirmación, que es justo el estorbo que D78 no quiere.
+ */
+const hayDatosEscritos = (datos) =>
+  Boolean(
+    datos.id_colegio ||
+      datos.grados.length ||
+      datos.id_periodo_academico ||
+      datos.modulos.length ||
+      datos.fin ||
+      datos.motivo.trim(),
+  )
+
+/** ¿Se puede pulsar "Otorgar permiso"? */
+const estaCompleto = (datos, combinaciones) =>
+  Boolean(
+    datos.id_anio_escolar &&
+      datos.id_colegio &&
+      combinaciones.length > 0 &&
+      combinaciones.length <= MAX_COMBINACIONES &&
+      datos.id_periodo_academico &&
+      datos.fin &&
+      datos.motivo.trim() &&
+      (datos.desde_ahora || datos.inicio),
+  )
+
+/**
+ * El formulario con un campo cambiado. Cambiar de colegio invalida periodo y
+ * grados: son suyos, y los grados de un colegio no son los de otro. Y cambiar
+ * de año invalida el periodo, que pertenece a un año concreto.
+ */
+function conCampo(datos, campo, valor) {
+  const siguiente = { ...datos, [campo]: valor }
+  if (campo === 'id_colegio') {
+    siguiente.id_periodo_academico = ''
+    siguiente.grados = []
+  }
+  if (campo === 'id_anio_escolar') siguiente.id_periodo_academico = ''
+  return siguiente
+}
+
+/**
+ * Los colegios, con los del Docente PRIMERO y marcados.
+ *
+ * Agrupar no es filtrar: los demás siguen todos ahí, porque el Supervisor
+ * puede autorizarlo para sustituir a otro Docente (CU028).
+ */
+function colegiosConLosSuyosPrimero(colegios, asignados, docente) {
+  const suyos = new Set(asignados.map((a) => String(a.id_colegio)))
+  const etiqueta = suyos.size ? `Asignados a ${docente?.nombre ?? 'este Docente'}` : ''
+  // 0 los suyos, 1 los demás; `sort` es estable y conserva el orden de cada grupo.
+  const prioridad = (c) => (suyos.has(String(c.id_colegio)) ? 0 : 1)
+  return [...colegios]
+    .sort((a, b) => prioridad(a) - prioridad(b))
+    .map((c) => ({
+      value: String(c.id_colegio),
+      label: suyos.has(String(c.id_colegio)) && etiqueta ? `${c.nombre} · asignado` : c.nombre,
+    }))
+}
+
+/** El grupo de un grado: los suyos aparte, y el resto solo si hay suyos. */
+function grupoDeGrado(suyos, idGrado) {
+  if (suyos.has(String(idGrado))) return 'Asignados en este colegio'
+  return suyos.size ? 'Otros grados' : ''
+}
+
+/** Los grados del colegio, con los suyos en su propio grupo. */
+function gradosConLosSuyosAgrupados(grados, asignado) {
+  const suyos = new Set((asignado?.grados ?? []).map(String))
+  return grados.map((g) => ({ value: String(g.id), label: g.nombre, grupo: grupoDeGrado(suyos, g.id) }))
+}
+
+/**
+ * LA CUENTA, ANTES DE PULSAR.
+ *
+ * Dos grados por tres módulos son seis permisos, y seis permisos no es lo que
+ * nadie cree estar otorgando al marcar cinco casillas. Se dice cuántos y
+ * cuáles antes, no después; y debajo, cada una que el servidor rechazó.
+ */
+function ResumenDelLote({ combinaciones, grados, rechazadas }) {
+  const excede = combinaciones.length > MAX_COMBINACIONES
+  const tono = excede ? 'bg-danger-100 text-danger-600' : 'bg-surface-100 text-ink-700'
+  const rechazos = Object.entries(rechazadas)
+
+  return (
+    <div className="md:col-span-2">
+      <p className={`rounded-lg px-3 py-2 text-sm ${tono}`}>
+        {excede ? (
+          <>
+            Son <strong>{combinaciones.length}</strong> permisos y el máximo por lote es{' '}
+            <strong>{MAX_COMBINACIONES}</strong>. Quita algún grado o módulo.
+          </>
+        ) : (
+          <>
+            Se otorgarán <strong>{combinaciones.length}</strong>{' '}
+            {combinaciones.length === 1 ? 'permiso' : 'permisos'}:{' '}
+            {combinaciones.map((c) => nombreDeCombinacion(grados, c)).join(' · ')}.
+          </>
+        )}
+      </p>
+
+      {rechazos.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {rechazos.map(([indice, detalle]) => (
+            <li key={indice} className="text-xs text-danger-600">
+              <strong>{nombreDeCombinacion(grados, combinaciones[Number(indice)] ?? {})}:</strong> {detalle}
+            </li>
+          ))}
+          <li className="text-xs text-ink-500">
+            No se creó ninguno: el lote es todo o nada. Corrige lo señalado y vuelve a intentarlo.
+          </li>
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Los textos que dependen de si ya hay colegio: sin él no hay periodos ni
+ * grados que ofrecer. Y por qué no están los cuatro PA: faltaba decirlo, el
+ * periodo en curso simplemente no salía en la lista, y eso se lee como un
+ * fallo de la pantalla en vez de como la regla que es.
+ */
+function textosSegunColegio(idColegio) {
+  if (!idColegio) {
+    return {
+      periodo: 'Elija antes un colegio',
+      ayudaPeriodo: 'Solo los periodos cuyo plazo ordinario ya terminó',
+      sinGrados: 'Elija antes un colegio',
+    }
+  }
+  return {
+    periodo: 'Seleccione',
+    ayudaPeriodo: 'Los periodos en curso no aparecen: todavía admiten regularización ordinaria y no necesitan permiso.',
+    sinGrados: 'Este colegio no ofrece grados.',
+  }
+}
+
+/** Los botones: los normales, o los de confirmar el descarte (D78). */
+function PieDelModal({ confirmandoDescarte, procesando, completo, onSeguir, onDescartar, onCancelar, onOtorgar }) {
+  if (confirmandoDescarte) {
+    return (
+      <>
+        <Button variant="ghost" onClick={onSeguir}>
+          Continuar completando
+        </Button>
+        <Button variant="danger" onClick={onDescartar}>
+          Descartar datos
+        </Button>
+      </>
+    )
+  }
+  return (
+    <>
+      <Button variant="ghost" onClick={onCancelar} disabled={procesando}>
+        Cancelar
+      </Button>
+      <Button loading={procesando} disabled={!completo} onClick={onOtorgar}>
+        Otorgar permiso
+      </Button>
+    </>
+  )
 }
 
 export default function ModalOtorgarPermiso({
@@ -212,37 +380,10 @@ export default function ModalOtorgarPermiso({
     setErroresCampo((e) => (e[campo] ? { ...e, [campo]: undefined } : e))
     // Tocar algo invalida lo que el servidor rechazó: ya no es el mismo lote.
     setRechazadas({})
-    setDatos((d) => {
-      const siguiente = { ...d, [campo]: valor }
-      // Cambiar de colegio invalida periodo y grados: son suyos, y los grados
-      // de un colegio no son los de otro. Y cambiar de año invalida el
-      // periodo, que pertenece a un año concreto.
-      if (campo === 'id_colegio') {
-        siguiente.id_periodo_academico = ''
-        siguiente.grados = []
-      }
-      if (campo === 'id_anio_escolar') siguiente.id_periodo_academico = ''
-      return siguiente
-    })
+    setDatos((d) => conCampo(d, campo, valor))
   }
 
-  /**
-   * ¿Hay algo escrito que se perdería al cerrar?
-   *
-   * `desde_ahora` nace en `true` y el año viene precargado, así que no
-   * cuentan: preguntar por ellos haría que cerrar un formulario intacto
-   * pidiera confirmación, que es justo el estorbo que D78 no quiere.
-   */
-  const conDatos = Boolean(
-    datos.id_colegio ||
-      datos.grados.length ||
-      datos.id_periodo_academico ||
-      datos.modulos.length ||
-      datos.fin ||
-      datos.motivo.trim(),
-  )
-
-  const cancelar = () => (conDatos ? setConfirmandoDescarte(true) : onCerrar())
+  const cancelar = () => (hayDatosEscritos(datos) ? setConfirmandoDescarte(true) : onCerrar())
 
   // Memoizados por lo mismo: de ellos dependen un efecto y dos `useMemo`.
   const periodos = useMemo(() => opciones?.periodos ?? [], [opciones])
@@ -264,35 +405,11 @@ export default function ModalOtorgarPermiso({
   /** El colegio elegido, entre los asignados al Docente. */
   const asignadoActual = asignados.find((a) => String(a.id_colegio) === String(datos.id_colegio)) ?? null
 
-  /**
-   * Los colegios, con los del Docente PRIMERO y marcados.
-   *
-   * Agrupar no es filtrar: los demás siguen todos ahí, porque el Supervisor
-   * puede autorizarlo para sustituir a otro Docente (CU028).
-   */
-  const colegiosAgrupados = useMemo(() => {
-    const suyos = new Set(asignados.map((a) => String(a.id_colegio)))
-    const etiqueta = suyos.size ? `Asignados a ${docente?.nombre ?? 'este Docente'}` : ''
-    const ordenados = [...colegios].sort((a, b) => {
-      const unoEsSuyo = suyos.has(String(a.id_colegio))
-      const otroEsSuyo = suyos.has(String(b.id_colegio))
-      return unoEsSuyo === otroEsSuyo ? 0 : unoEsSuyo ? -1 : 1
-    })
-    return ordenados.map((c) => ({
-      value: String(c.id_colegio),
-      label: suyos.has(String(c.id_colegio)) && etiqueta ? `${c.nombre} · asignado` : c.nombre,
-    }))
-  }, [colegios, asignados, docente])
-
-  /** Los grados del colegio, con los suyos en su propio grupo. */
-  const gradosAgrupados = useMemo(() => {
-    const suyos = new Set((asignadoActual?.grados ?? []).map(String))
-    return grados.map((g) => ({
-      value: String(g.id),
-      label: g.nombre,
-      grupo: suyos.has(String(g.id)) ? 'Asignados en este colegio' : suyos.size ? 'Otros grados' : '',
-    }))
-  }, [grados, asignadoActual])
+  const colegiosAgrupados = useMemo(
+    () => colegiosConLosSuyosPrimero(colegios, asignados, docente),
+    [colegios, asignados, docente],
+  )
+  const gradosAgrupados = useMemo(() => gradosConLosSuyosAgrupados(grados, asignadoActual), [grados, asignadoActual])
 
   /**
    * Las combinaciones del lote: un permiso por cada cruce de grado y módulo.
@@ -304,15 +421,8 @@ export default function ModalOtorgarPermiso({
     [datos.grados, datos.modulos],
   )
 
-  const completo =
-    datos.id_anio_escolar &&
-    datos.id_colegio &&
-    combinaciones.length > 0 &&
-    combinaciones.length <= MAX_COMBINACIONES &&
-    datos.id_periodo_academico &&
-    datos.fin &&
-    datos.motivo.trim() &&
-    (datos.desde_ahora || datos.inicio)
+  const completo = estaCompleto(datos, combinaciones)
+  const textos = textosSegunColegio(datos.id_colegio)
 
   return (
     <Modal
@@ -329,25 +439,15 @@ export default function ModalOtorgarPermiso({
       // autorizando.
       subtitle={docente?.nombre ?? docente?.nombres ?? 'Un permiso autoriza un solo módulo.'}
       footer={
-        confirmandoDescarte ? (
-          <>
-            <Button variant="ghost" onClick={() => setConfirmandoDescarte(false)}>
-              Continuar completando
-            </Button>
-            <Button variant="danger" onClick={onCerrar}>
-              Descartar datos
-            </Button>
-          </>
-        ) : (
-        <>
-          <Button variant="ghost" onClick={cancelar} disabled={otorgar.isPending}>
-            Cancelar
-          </Button>
-          <Button loading={otorgar.isPending} disabled={!completo} onClick={() => otorgar.mutate()}>
-            Otorgar permiso
-          </Button>
-        </>
-        )
+        <PieDelModal
+          confirmandoDescarte={confirmandoDescarte}
+          procesando={otorgar.isPending}
+          completo={completo}
+          onSeguir={() => setConfirmandoDescarte(false)}
+          onDescartar={onCerrar}
+          onCancelar={cancelar}
+          onOtorgar={() => otorgar.mutate()}
+        />
       }
     >
       {confirmandoDescarte ? (
@@ -385,20 +485,11 @@ export default function ModalOtorgarPermiso({
         <Select
           label="Periodo académico"
           required
-          placeholder={datos.id_colegio ? 'Seleccione' : 'Elija antes un colegio'}
+          placeholder={textos.periodo}
           error={erroresCampo.id_periodo_academico}
           value={datos.id_periodo_academico}
           options={periodos.map((p) => ({ value: String(p.id), label: p.nombre }))}
-          /**
-           * Por qué no están los cuatro PA. Faltaba decirlo: el periodo en
-           * curso simplemente no salía en la lista, y eso se lee como un fallo
-           * de la pantalla en vez de como la regla que es.
-           */
-          hint={
-            datos.id_colegio
-              ? 'Los periodos en curso no aparecen: todavía admiten regularización ordinaria y no necesitan permiso.'
-              : 'Solo los periodos cuyo plazo ordinario ya terminó'
-          }
+          hint={textos.ayudaPeriodo}
           onChange={(e) => cambiar('id_periodo_academico', e.target.value)}
         />
         <div className="md:col-span-2">
@@ -408,7 +499,7 @@ export default function ModalOtorgarPermiso({
             valores={datos.grados}
             opciones={gradosAgrupados}
             deshabilitado={!datos.id_colegio}
-            vacio={datos.id_colegio ? 'Este colegio no ofrece grados.' : 'Elija antes un colegio'}
+            vacio={textos.sinGrados}
             hint="Se crea un permiso por cada grado y módulo."
             onChange={(valores) => cambiar('grados', valores)}
           />
@@ -460,50 +551,8 @@ export default function ModalOtorgarPermiso({
           onChange={(e) => cambiar('fin', e.target.value)}
         />
 
-        {/*
-          LA CUENTA, ANTES DE PULSAR.
-
-          Dos grados por tres módulos son seis permisos, y seis permisos no es
-          lo que nadie cree estar otorgando al marcar cinco casillas. Se dice
-          cuántos y cuáles antes, no después.
-        */}
         {combinaciones.length > 0 && (
-          <div className="md:col-span-2">
-            <p
-              className={`rounded-lg px-3 py-2 text-sm ${
-                combinaciones.length > MAX_COMBINACIONES
-                  ? 'bg-danger-100 text-danger-600'
-                  : 'bg-surface-100 text-ink-700'
-              }`}
-            >
-              {combinaciones.length > MAX_COMBINACIONES ? (
-                <>
-                  Son <strong>{combinaciones.length}</strong> permisos y el máximo por lote es{' '}
-                  <strong>{MAX_COMBINACIONES}</strong>. Quita algún grado o módulo.
-                </>
-              ) : (
-                <>
-                  Se otorgarán <strong>{combinaciones.length}</strong>{' '}
-                  {combinaciones.length === 1 ? 'permiso' : 'permisos'}:{' '}
-                  {combinaciones.map((c) => nombreDeCombinacion(grados, c)).join(' · ')}.
-                </>
-              )}
-            </p>
-
-            {/* Cada una que el servidor rechazó, con su motivo. */}
-            {Object.keys(rechazadas).length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1">
-                {Object.entries(rechazadas).map(([indice, detalle]) => (
-                  <li key={indice} className="text-xs text-danger-600">
-                    <strong>{nombreDeCombinacion(grados, combinaciones[Number(indice)] ?? {})}:</strong> {detalle}
-                  </li>
-                ))}
-                <li className="text-xs text-ink-500">
-                  No se creó ninguno: el lote es todo o nada. Corrige lo señalado y vuelve a intentarlo.
-                </li>
-              </ul>
-            )}
-          </div>
+          <ResumenDelLote combinaciones={combinaciones} grados={grados} rechazadas={rechazadas} />
         )}
 
         <div className="md:col-span-2">

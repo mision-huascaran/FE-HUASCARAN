@@ -42,6 +42,12 @@ function rangoDelMes(mes) {
   return { desde: `${anio}-${dosDigitos}-01`, hasta: `${anio}-${dosDigitos}-${ultimo}` }
 }
 
+/** Por qué "Reprogramar" está deshabilitado, o `undefined` si no lo está. */
+function motivoSinReprogramar(bloqueada, enLinea) {
+  if (bloqueada) return 'Esta clase ya tiene asistencias registradas y no puede reprogramarse.'
+  return enLinea ? undefined : 'Conéctate a Internet para reprogramar una clase.'
+}
+
 export default function ProgramacionDeClases({ colegio }) {
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -249,13 +255,7 @@ export default function ProgramacionDeClases({ colegio }) {
                              * una operación offline.
                              */
                             disabled={bloqueada || !enLinea}
-                            title={
-                              bloqueada
-                                ? 'Esta clase ya tiene asistencias registradas y no puede reprogramarse.'
-                                : !enLinea
-                                  ? 'Conéctate a Internet para reprogramar una clase.'
-                                  : undefined
-                            }
+                            title={motivoSinReprogramar(bloqueada, enLinea)}
                             onClick={() => setReprogramando(clase)}
                           >
                             Reprogramar

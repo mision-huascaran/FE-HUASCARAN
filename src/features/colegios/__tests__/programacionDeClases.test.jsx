@@ -115,13 +115,18 @@ describe('La tabla de programación (CU013)', () => {
   it('sin clases muestra el texto del caso de uso', async () => {
     listarClases.mockResolvedValue(pagina([]))
     montar()
-    await screen.findByText('No hay clases programadas para los filtros seleccionados.', {}, ESPERA)
+    // La aserción va DENTRO del `waitFor`: el aviso se oculta mientras hay una
+    // consulta en curso, y la tabla vuelve a consultar al llegar los catálogos.
+    await waitFor(
+      () => expect(screen.getByText('No hay clases programadas para los filtros seleccionados.')).toBeInTheDocument(),
+      ESPERA,
+    )
   })
 
   it('con `items` en null no revienta (D48)', async () => {
     listarClases.mockResolvedValue({ items: null, total: 0, total_pages: 1 })
     montar()
-    await screen.findByText(/no hay clases programadas/i, {}, ESPERA)
+    await waitFor(() => expect(screen.getByText(/no hay clases programadas/i)).toBeInTheDocument(), ESPERA)
   })
 
   it('el filtro de subprograma viaja al servidor, no se aplica en el cliente', async () => {
@@ -231,7 +236,7 @@ describe('El modal de reprogramación', () => {
     fireEvent.change(within(dialogo).getByLabelText(/motivo/i), { target: { value: 'Prueba' } })
     fireEvent.click(within(dialogo).getByRole('button', { name: /guardar reprogramación/i }))
 
-    await within(dialogo).findByText(/no es un día lectivo/i, {}, ESPERA)
+    await waitFor(() => expect(within(dialogo).getByText(/no es un día lectivo/i)).toBeInTheDocument(), ESPERA)
   })
 
   it('sin respuesta del servidor NO deja reintentar', async () => {

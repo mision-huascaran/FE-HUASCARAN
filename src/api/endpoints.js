@@ -193,7 +193,7 @@ export const ENDPOINTS = {
     deUsuario: (id) => `/usuarios/${id}/permisos`,
     detalle: (id, idPermiso) => `/usuarios/${id}/permisos/${idPermiso}`,
     otorgar: (id) => `/usuarios/${id}/permisos`,
-    // Varios permisos del mismo alcance de una vez, TODO O NADA (tanda I).
+    // Varios permisos del mismo alcance de una vez, atómico: todos o ninguno (tanda I).
     // Sigue creando uno por combinación de grado y módulo: CU028 exige que
     // cada permiso autorice un solo módulo.
     otorgarLote: (id) => `/usuarios/${id}/permisos/lote`,

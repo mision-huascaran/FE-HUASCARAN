@@ -11,7 +11,7 @@
 // no han empezado". Con `findBy*` la espera es por lo que se quiere ver, y la
 // prueba no depende de la carga de la máquina.
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ROLES } from '../../../auth/roles'
 import { renderConProveedores } from '../../../test/renderConProveedores'
@@ -44,7 +44,12 @@ describe('Dashboard del Supervisor (CU033)', () => {
 
   it('tocar un filtro avisa "Cambios sin aplicar" y no cambia los resultados', async () => {
     montar()
-    const antes = (await screen.findAllByText(/en todos los colegios/, {}, ESPERA)).length
+    // Se cuenta con TODOS los bloques cargados: los títulos de las gráficas
+    // también llevan el alcance y aparecen cuando llegan sus datos. Contar al
+    // primer rótulo hacía la prueba dependiente de la velocidad de la máquina.
+    await screen.findAllByText(/en todos los colegios/, {}, ESPERA)
+    await waitFor(() => expect(document.querySelectorAll('.animate-pulse')).toHaveLength(0), ESPERA)
+    const antes = screen.getAllByText(/en todos los colegios/).length
 
     // Se desmarca "Todos los colegios": el borrador cambia, la consulta no.
     await userEvent.click(screen.getByRole('checkbox', { name: 'Todos los colegios' }))
@@ -52,8 +57,9 @@ describe('Dashboard del Supervisor (CU033)', () => {
     expect(screen.getAllByText(CAMBIOS_SIN_APLICAR).length).toBeGreaterThan(0)
     // Los bloques siguen rotulados con el alcance de SU consulta.
     expect(screen.getAllByText(/en todos los colegios/).length).toBe(antes)
-    // Y "Aplicar" queda deshabilitado: una selección vacía no es "todos".
-    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled()
+    // Y "Aplicar" queda deshabilitado: una selección vacía no es "todos". Es
+    // el de la barra de filtros, el primero: la comparación tiene el suyo.
+    expect(screen.getAllByRole('button', { name: 'Aplicar' })[0]).toBeDisabled()
   })
 
   it('un colegio sin información va aparte y no como 0 alumnos', async () => {

@@ -26,7 +26,8 @@ export function nombreDeArchivo(titulo, anioEscolar) {
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase()
-  return `${limpio || 'grafica'}${anioEscolar ? `-${anioEscolar}` : ''}.png`
+  const sufijo = anioEscolar ? `-${anioEscolar}` : ''
+  return `${limpio || 'grafica'}${sufijo}.png`
 }
 
 /** Alto de cada línea de texto del encabezado y del pie, en unidades del SVG. */

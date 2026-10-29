@@ -62,6 +62,12 @@ export function ochoPeriodos(periodos) {
   })
 }
 
+/** El año del calendario: por año calendario si llega, si no por id del año escolar. Nunca los dos. */
+function filtroDeAnio(anio, idAnioEscolar) {
+  if (anio) return { anio: Number(anio) }
+  return idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {}
+}
+
 /**
  * `GET /calendarios` — el que aplica.
  *
@@ -84,7 +90,7 @@ export const obtenerCalendario = async ({ anio, idAnioEscolar, idColegio } = {})
            * Mandar los dos a la vez es un 422, así que `anio` manda cuando
            * está.
            */
-          ...(anio ? { anio: Number(anio) } : idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {}),
+          ...filtroDeAnio(anio, idAnioEscolar),
           ...(idColegio ? { id_colegio: Number(idColegio) } : {}),
         },
       }),

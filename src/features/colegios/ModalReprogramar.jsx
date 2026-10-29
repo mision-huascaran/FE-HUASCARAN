@@ -91,13 +91,8 @@ export default function ModalReprogramar({ clase, colegio, onCerrar, onHecho }) 
       const porCampo = erroresDeCampo(error)
       const motivoError = motivoDe(error)
       const campo = CAMPO_DE_MOTIVO[motivoError]
-      setErrores(
-        Object.keys(porCampo).length
-          ? porCampo
-          : campo
-            ? { [campo]: MOTIVO_REPROGRAMACION[motivoError] }
-            : {},
-      )
+      const delMotivo = campo ? { [campo]: MOTIVO_REPROGRAMACION[motivoError] } : {}
+      setErrores(Object.keys(porCampo).length ? porCampo : delMotivo)
 
       // Lo que no tiene campo —asistencias ya registradas, otro Supervisor la
       // movió— va arriba, porque no se arregla corrigiendo un control.

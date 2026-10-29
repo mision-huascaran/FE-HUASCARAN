@@ -43,9 +43,12 @@ const SUJETO = { alumno: 'al alumno', colegio: 'el colegio', usuario: 'la cuenta
  * "editó la información del alumno". Por eso la frase entera se arma aquí y no
  * concatenando un sujeto común.
  */
+/** "del alumno", o "de" y el sujeto tal cual. */
+const deSujeto = (sujeto) => (sujeto === 'al alumno' ? 'del alumno' : `de ${sujeto}`)
+
 const FRASE = {
   crear: (sujeto) => `creó ${sujeto}`,
-  editar: (sujeto) => `editó la información ${sujeto === 'al alumno' ? 'del alumno' : `de ${sujeto}`}`,
+  editar: (sujeto) => `editó la información ${deSujeto(sujeto)}`,
   activar: (sujeto) => `activó ${sujeto}`,
   inactivar: (sujeto) => `inactivó ${sujeto}`,
 }

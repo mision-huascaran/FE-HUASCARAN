@@ -179,7 +179,7 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
                 }}
                 className="h-4 w-4 rounded border-line-strong text-brand-600"
               />
-              Todos los grados
+              {'Todos los grados'}
             </label>
             {!borrador.todosLosGrados && (
               <SelectorMultiple
