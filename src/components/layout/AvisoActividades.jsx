@@ -4,17 +4,16 @@
 // a una sesión de actividades para poder auditarlo después. Sin esa sesión no
 // habría a qué ligarlo.
 import { PlayCircle } from 'lucide-react'
+import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
 
 /**
- * CU010 lo da PALABRA POR PALABRA, igual que CU022. Antes decía «Pulse
- * "Iniciar actividad" para poder registrar.», que dice lo mismo pero no es lo
- * que el caso de uso exige, y el probador lo compara carácter a carácter.
- */
-const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
-
-/**
- * @param mensaje texto completo. Por defecto el literal de CU010, que es el que
- *   piden todas las grillas; se puede sustituir si un caso de uso da otro.
+ * @param mensaje texto completo. Por defecto, el mismo que responde el
+ *   servidor al rechazar una escritura sin actividad: así el docente lee lo
+ *   mismo antes de intentarlo y después de que se lo rechacen.
+ *
+ *   Lo habitual es pasarle el `detail` o el `escritura.motivo` que llega; el
+ *   valor por defecto es solo para cuando la pantalla sabe por sí misma que no
+ *   hay actividad y todavía no ha preguntado al servidor.
  */
 export default function AvisoActividades({ mensaje = SIN_ACTIVIDAD }) {
   return (

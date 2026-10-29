@@ -37,11 +37,12 @@ import { MOTIVO_REGISTRO } from '../../api/resources/asistencia'
 import { textoDeRechazo } from '../../api/resources/sincronizacion'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../../lib/relojServidor'
+import useActividadStore from '../../store/actividadStore'
 import useConexion from '../../hooks/useConexion'
 
 // Literales de CU022. Se escriben tal cual porque el caso de uso los da como
 // "el mensaje exacto" y el probador los comprueba palabra por palabra.
-export const ERROR_LOCAL = 'Error al guardar la asistencia localmente. Inténtelo nuevamente.'
+export const ERROR_LOCAL = 'Error al guardar la asistencia localmente. Inténtalo nuevamente.'
 export const ERROR_SERVIDOR =
   'El servidor rechazó el registro de asistencia. Verifique su conexión o contacte al Supervisor.'
 
@@ -76,10 +77,33 @@ const conAlumno = (clase, idAlumno, marca) =>
  * @param claveClase la queryKey de la clase: lo que el servidor confirma se
  *   escribe ahí, o al volver a la pantalla se vería lo de antes hasta un F5.
  */
-export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrado, idSeccion, activo, claveClase }) {
+export default function useAutoguardado({
+  alumnos = [],
+  fecha,
+  idColegio,
+  idGrado,
+  idSeccion,
+  activo,
+  adicional = false,
+  claveClase,
+}) {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
+  /**
+   * LA ACTIVIDAD EN LA QUE SE ESTÁ MARCANDO.
+   *
+   * Viaja con cada registro y con el aviso de pendientes. El contrato dice que
+   * `id_actividad` es opcional y que "por defecto, la activa", y eso es justo
+   * lo que no se podía dar por bueno: la operación se envía cuando la cola
+   * puede, que puede ser después de que el Docente haya cerrado la actividad o
+   * al recuperar la señal horas más tarde. Entonces no hay ninguna activa, el
+   * servidor no tiene a qué atribuir la marca y la actividad acaba con sus
+   * cambios en cero y la sincronización en "Error".
+   *
+   * Los otros tres módulos ya lo mandaban; Asistencias era el único que no.
+   */
+  const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
   /**
    * Lo que este navegador ha cambiado por encima de lo que vino del servidor,
@@ -144,19 +168,55 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
         const respuesta = await encolar({
           clave: claveDeMarca(alumno.id_alumno, fecha, idSeccion),
           tipo: TIPOS_ENVIO.ASISTENCIA,
+          /**
+           * E2 — Qué REGISTRO toca esta operación, para el aviso de
+           * pendientes. Sin esto el servidor cuenta uno por operación, así
+           * que marcar y corregir al mismo alumno salía como dos registros
+           * en riesgo y la Salud del Sistema bajaba sin motivo.
+           */
+          registro: {
+            id_colegio: Number(idColegio),
+            id_grado: Number(idGrado),
+            id_seccion: Number(idSeccion),
+            fecha,
+            id_alumno: alumno.id_alumno,
+          },
           payload: {
             idColegio,
             idGrado,
             idSeccion,
             fecha,
+            // De quién es la marca, para poder nombrarla si el servidor la
+            // rechaza cuando esta pantalla ya no esté abierta.
+            nombre: alumno.nombre,
+            /**
+             * CU022 — La CLASE ADICIONAL se crea con la primera asistencia.
+             *
+             * Viaja con la marca, no antes: pulsar "Registrar clase adicional"
+             * no debe dejar una clase vacía si el Docente se arrepiente. El
+             * servidor solo la crea si ese día no hay ninguna.
+             */
+            adicional,
             /**
              * Un registro es una OPERACIÓN. La cola le pone su `id_operacion`
              * al enviar; `realizado_en` es la hora REAL del clic, no la de la
              * sincronización, y el servidor evalúa la habilitación A ESA HORA:
              * un permiso que venció hoy pero estaba vigente entonces acepta.
              */
-            registros: [{ id_alumno: alumno.id_alumno, realizado_en: momentoDelClic(), ...campos }],
+            registros: [
+              {
+                id_alumno: alumno.id_alumno,
+                realizado_en: momentoDelClic(),
+                // La actividad en que se marcó, no la que haya abierta cuando
+                // la cola consiga enviarlo.
+                id_actividad: idActividad,
+                ...campos,
+              },
+            ],
           },
+          // Para `POST /sincronizacion/pendientes`: sin esto el aviso no se
+          // atribuye a ninguna actividad y Sesiones la enseña con 0 cambios.
+          idActividad,
           descripcion: `Asistencia de ${alumno.nombre}`,
           // Sin botón de guardar, un apunte local que no queda escrito es un
           // dato perdido en silencio.
@@ -205,7 +265,21 @@ export default function useAutoguardado({ alumnos = [], fecha, idColegio, idGrad
         return error
       }
     },
-    [activo, enLinea, marcaDe, escribir, fecha, idColegio, idGrado, idSeccion, toast, claveClase, queryClient],
+    [
+      activo,
+      enLinea,
+      marcaDe,
+      escribir,
+      fecha,
+      idColegio,
+      idGrado,
+      idSeccion,
+      idActividad,
+      adicional,
+      toast,
+      claveClase,
+      queryClient,
+    ],
   )
 
   const marcar = useCallback((alumno, estado) => enviar(alumno, { estado }), [enviar])

@@ -61,13 +61,15 @@ describe('Usuarios — formulario y filtros', () => {
 
     fireEvent.change(rol, { target: { value: String(ROLES.DOCENTE) } })
     expect(en().getByLabelText(/año escolar/i)).toBeInTheDocument()
-    expect(en().getByLabelText(/colegio asignado/i)).toBeInTheDocument()
-    expect(en().getByText(/^grados$/i)).toBeInTheDocument()
+    // D67 — Ya no es un campo "Colegio asignado" sino la lista de colegios,
+    // cada uno con sus grados y, si está en receso, su inicio de asignación.
+    expect(en().getByText(/colegios asignados/i)).toBeInTheDocument()
+    expect(en().getByRole('button', { name: /añadir colegio/i })).toBeInTheDocument()
 
     fireEvent.change(rol, { target: { value: String(ROLES.SUPERVISOR) } })
     expect(en().queryByLabelText(/año escolar/i)).not.toBeInTheDocument()
-    expect(en().queryByLabelText(/colegio asignado/i)).not.toBeInTheDocument()
-    expect(en().queryByText(/^grados$/i)).not.toBeInTheDocument()
+    expect(en().queryByText(/colegios asignados/i)).not.toBeInTheDocument()
+    expect(en().queryByRole('button', { name: /añadir colegio/i })).not.toBeInTheDocument()
 
     fireEvent.change(rol, { target: { value: String(ROLES.DIRECTIVO) } })
     expect(en().queryByLabelText(/colegio asignado/i)).not.toBeInTheDocument()

@@ -5,6 +5,7 @@
 // modo que el resto de la aplicación trata igual al mock y a la API.
 import * as db from './db'
 import * as agregados from './consolidados'
+import * as panel from './dashboard'
 import { esCorreoValido } from '../../lib/validacion'
 import { sincronizarReloj } from '../../lib/relojServidor'
 
@@ -119,9 +120,11 @@ function responder(datos, ms = RETARDO_MS) {
  * Error con la MISMA forma que el de axios, para que las pantallas puedan
  * ramificar por `motivo` igual que contra el backend real.
  */
-function errorMock(status, detail, motivo) {
+function errorMock(status, detail, motivo, errores) {
   const error = new Error(detail)
-  error.response = { status, data: { detail, motivo } }
+  // `errores` solo cuando el backend lo manda: un 422 de validacion lleva el
+  // detalle por campo, y la pantalla lo pinta debajo del campo que lo tiene.
+  error.response = { status, data: { detail, motivo, ...(errores ? { errores } : {}) } }
   return error
 }
 
@@ -135,6 +138,82 @@ const claveDeClase = (idColegio, idGrado, idSeccion, fecha) => `${idColegio}|${i
 
 /** Clases creadas durante la sesion, con su lista congelada y sus marcas. */
 const CLASES_MOCK = {}
+
+// ── Programacion de clases y reprogramaciones (CU013) ───────────────────────
+//
+// Una clase es colegio x grado x seccion x fecha VIGENTE. Reprogramar no crea
+// otra: cambia su fecha vigente y deja la original en el historial.
+const REPROGRAMACIONES_MOCK = {}
+let ultimoIdReprogramacion = 700
+
+/** El dia habitual de clase de cada grado, tal como lo configura CU013. */
+const DIA_HABITUAL = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 1 }
+
+const claveDeProgramacion = (idColegio, idGrado, idSeccion, fechaOriginal) =>
+  `${idColegio}|${idGrado}|${idSeccion}|${fechaOriginal}`
+
+/**
+ * Las clases HABITUALES de un rango, segun el dia de clase de cada grado.
+ *
+ * Solo dentro de los PA y excluyendo los dias no lectivos: es lo que hace el
+ * backend al cruzar el dia habitual con el calendario del colegio.
+ */
+function clasesHabituales({ idColegio, idGrado, idSeccion, desde, hasta }) {
+  const salida = []
+  const inicio = new Date(`${desde}T12:00:00`)
+  const fin = new Date(`${hasta}T12:00:00`)
+  const grados = db.GRADOS.filter((g) => !idGrado || Number(g.id_grado) === Number(idGrado))
+
+  for (const grado of grados) {
+    const diaDeClase = DIA_HABITUAL[grado.id_grado] ?? 1
+    // Por número de día desde el inicio: `setDate` desborda bien de mes y de año.
+    const dias = Math.round((fin - inicio) / 86400000)
+    for (let n = 0; n <= dias; n += 1) {
+      const d = new Date(inicio)
+      d.setDate(inicio.getDate() + n)
+      if (d.getDay() !== diaDeClase) continue
+      const fecha = d.toISOString().slice(0, 10)
+      if (!esDiaLectivo(fecha)) continue
+
+      const seccion = Number(idSeccion) || 2
+      const clave = claveDeProgramacion(idColegio, grado.id_grado, seccion, fecha)
+      const traslado = REPROGRAMACIONES_MOCK[clave]
+      const vigente = traslado?.fecha_nueva ?? fecha
+      const guardada = CLASES_MOCK[claveDeClase(idColegio, grado.id_grado, seccion, vigente)]
+
+      // Los subprogramas salen de los ALUMNOS de la clase en su fecha
+      // vigente: de la lista congelada si ya tiene asistencias, y si no, de
+      // quienes pertenecen hoy. Puede quedar vacio.
+      const alumnos = guardada?.lista ?? db.alumnosDe({ colegio: Number(idColegio), grado: grado.id_grado })
+      const ids = [...new Set(alumnos.map((a) => Number(a.id_programa)))].sort((x, y) => x - y)
+      const subprogramas = ids
+        .map((id) => db.PROGRAMAS.find((pr) => pr.id_programa === id))
+        .filter(Boolean)
+        .map((pr) => ({ id: pr.id_programa, nombre: pr.nombre }))
+
+      salida.push({
+        id_clase: guardada?.id_clase ?? null,
+        id_grado: grado.id_grado,
+        grado: { id: grado.id_grado, nombre: grado.nombre },
+        id_seccion: seccion,
+        seccion: { id: seccion, nombre: 'Unica' },
+        fecha_original: fecha,
+        fecha: vigente,
+        tipo: 'habitual',
+        reprogramada: Boolean(traslado),
+        tiene_asistencias: Boolean(guardada && Object.keys(guardada.marcas ?? {}).length),
+        id_periodo_academico: 2,
+        version: traslado?.version ?? null,
+        subprogramas,
+      })
+    }
+  }
+
+  // El orden del contrato: fecha vigente, grado y seccion.
+  return salida.sort(
+    (a, b) => a.fecha.localeCompare(b.fecha) || a.id_grado - b.id_grado || a.id_seccion - b.id_seccion,
+  )
+}
 
 // ── Tablas de lectura semanal (CU023 a CU026) ───────────────────────────────
 //
@@ -535,10 +614,13 @@ function conFilas(tabla) {
       reprogramada: false,
     },
     filas,
+    // La más reciente primero (tanda D). `[]` si nunca se declaró.
+    declaraciones: [...(tabla.declaraciones ?? [])].reverse(),
     escritura: { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null },
   }
 }
 
+let ultimaDeclaracion = 0
 let ultimoIdClase = 10
 const siguienteIdClase = () => (ultimoIdClase += 1)
 
@@ -629,6 +711,35 @@ function fichaDeListado(alumno) {
     orden_esperado: esperado?.orden ?? null,
     ultima_evaluacion: periodo ? { id_periodo: periodo.id_periodo, nombre: periodo.nombre, fecha: ultima.fecha } : null,
     estado_evaluacion: ultima?.estado ?? 'sin-registro',
+  }
+}
+
+/**
+ * Un alumno como lo devuelve Administración (CU014), en el listado Y EN EL
+ * DETALLE.
+ *
+ * Tiene que ser el mismo mapeo en los dos: el popup de edición completa la
+ * fila con el detalle, y un detalle con menos campos borraba lo que la fila sí
+ * traía. Así pasó con la sección, y el formulario tomaba cada edición por un
+ * cambio de grupo.
+ */
+function alumnoDeAdministracion(a) {
+  const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
+  const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
+  const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
+  return {
+    ...a,
+    nombre: db.nombreCompleto(a),
+    codigo: a.codigo,
+    colegio: colegio?.nombre ?? '—',
+    grado: grado?.nombre ?? a.id_grado,
+    programa: programa?.nombre ?? '—',
+    // Desde T3 todo alumno pertenece a una sección: la "Única" de su grado, la
+    // misma que da el detalle del colegio (100 + id_grado). Sin ella, editar a
+    // cualquiera rellenaba la sección y el formulario lo tomaba por un cambio
+    // de grupo.
+    id_seccion: a.id_seccion ?? 100 + a.id_grado,
+    seccion: a.seccion ?? 'Única',
   }
 }
 
@@ -1036,6 +1147,13 @@ export const handlers = {
               .map((p) => ({
                 id_colegio: idColegio,
                 id_grado: g.id_grado,
+                // Tanda I: ademas de los ids, los NOMBRES. Sin ellos el filtro
+                // no podia escribir el aula de un permiso sin conexion.
+                colegio: {
+                  id: idColegio,
+                  nombre: db.COLEGIOS.find((c) => c.id_colegio === idColegio)?.nombre ?? `Colegio ${idColegio}`,
+                },
+                grado: { id: g.id_grado, nombre: g.nombre },
                 id_periodo_academico: p.id_periodo_academico,
                 // La retroactiva la otorga el Supervisor caso por caso: el
                 // simulador no la inventa, para que se vea la diferencia.
@@ -1273,6 +1391,78 @@ export const handlers = {
       return responder(conEstado(PERMISOS_MOCK[id]), RETARDO_ESCRITURA_MS)
     },
 
+    /**
+     * `POST /usuarios/{id}/permisos/lote` — atómico: todos o ninguno (tanda I).
+     *
+     * Un permiso por combinación de grado y módulo, con el mismo alcance.
+     * Si una falla no se guarda NINGUNA, y la respuesta trae todas las
+     * rechazadas con su índice: con solo la primera, corregirla y reintentar
+     * volvería a fallar por las siguientes.
+     */
+    otorgarLote: async (idUsuario, datos) => {
+      const combinaciones = datos.combinaciones ?? []
+      if (!combinaciones.length || combinaciones.length > 24) {
+        throw errorMock(422, 'Revisa las combinaciones de grado y modulo.', 'validacion', [
+          {
+            campo: 'combinaciones',
+            mensaje: combinaciones.length
+              ? 'Debe tener como maximo 24 elementos.'
+              : 'Debe tener al menos un elemento.',
+          },
+        ])
+      }
+
+      const vistas = new Set()
+      for (const c of combinaciones) {
+        const clave = `${c.id_grado}|${c.modulo}`
+        if (vistas.has(clave)) {
+          throw errorMock(422, 'Hay combinaciones de grado y modulo repetidas.', 'validacion', [
+            { campo: 'combinaciones', mensaje: 'Hay combinaciones de grado y modulo repetidas.' },
+          ])
+        }
+        vistas.add(clave)
+      }
+
+      // La superposicion se mira ANTES de crear nada: es lo que hace que el
+      // lote atómico signifique algo.
+      const rechazadas = combinaciones
+        .map((c, indice) => {
+          const choca = Object.values(PERMISOS_MOCK).find(
+            (existente) =>
+              existente.id_usuario === Number(idUsuario) &&
+              !existente.revocado_en &&
+              existente.colegio.id === Number(datos.id_colegio) &&
+              existente.grado.id === Number(c.id_grado) &&
+              existente.modulo === c.modulo,
+          )
+          if (!choca) return null
+          return {
+            indice,
+            id_grado: Number(c.id_grado),
+            modulo: c.modulo,
+            motivo: 'permiso_superpuesto',
+            detail:
+              'Ya existe un permiso para este mismo alcance con una vigencia que coincide total o parcialmente con la propuesta.',
+            permiso_existente: { id: choca.id, inicio: choca.inicio, fin: choca.fin },
+          }
+        })
+        .filter(Boolean)
+
+      if (rechazadas.length) {
+        const error = errorMock(409, rechazadas[0].detail, rechazadas[0].motivo)
+        error.response.data.permiso_existente = rechazadas[0].permiso_existente
+        error.response.data.combinaciones_rechazadas = rechazadas
+        throw error
+      }
+
+      const creados = []
+      for (const c of combinaciones) {
+        // eslint-disable-next-line no-await-in-loop
+        creados.push(await handlers.permisos.otorgar(idUsuario, { ...datos, id_grado: c.id_grado, modulo: c.modulo }))
+      }
+      return responder(creados, RETARDO_ESCRITURA_MS)
+    },
+
     revocar: async (idUsuario, idPermiso, motivo) => {
       const permiso = PERMISOS_MOCK[idPermiso]
       if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')
@@ -1459,6 +1649,131 @@ export const handlers = {
         },
         RETARDO_ESCRITURA_MS,
       )
+    },
+  },
+
+  /**
+   * Programacion de clases y reprogramaciones (CU013).
+   *
+   * Lo que importa reproducir:
+   *
+   *   · Una clase MIXTA sale UNA sola vez, con sus dos subprogramas en la
+   *     misma fila. `id_programa` filtra, no parte.
+   *   · Reprogramar conserva el identificador de la clase: cambia su fecha
+   *     vigente y la original queda en el historial.
+   *   · No se puede reprogramar una clase que ya tiene asistencias.
+   */
+  clases: {
+    listar: async ({ idColegio, idGrado, idSeccion, idPrograma, desde, hasta, pagina = 1 }) => {
+      const todas = clasesHabituales({ idColegio, idGrado, idSeccion, desde, hasta })
+
+      // El filtro se aplica ANTES de paginar: `total` cuenta solo las que
+      // quedan, y una clase con los dos subprogramas aparece con cualquiera.
+      const filtradas = idPrograma
+        ? todas.filter((c) => c.subprogramas.some((sp) => Number(sp.id) === Number(idPrograma)))
+        : todas
+
+      const porPagina = 40
+      const desdeIndice = (Number(pagina) - 1) * porPagina
+      return responder({
+        items: filtradas.slice(desdeIndice, desdeIndice + porPagina),
+        total: filtradas.length,
+        page: Number(pagina),
+        page_size: porPagina,
+        total_pages: Math.max(1, Math.ceil(filtradas.length / porPagina)),
+      })
+    },
+
+    reprogramar: async (idColegio, { idGrado, idSeccion, fechaOriginal, fechaNueva, motivo, version }) => {
+      const clave = claveDeProgramacion(idColegio, idGrado, idSeccion, fechaOriginal)
+      const previa = REPROGRAMACIONES_MOCK[clave]
+
+      if (version != null && Number(version) !== Number(previa?.version ?? 0)) {
+        throw errorMock(
+          409,
+          'La clase fue modificada por otro usuario. Vuelve a consultarla e intentalo de nuevo.',
+          'modificacion_concurrente',
+        )
+      }
+
+      const vigente = previa?.fecha_nueva ?? fechaOriginal
+      const guardada = CLASES_MOCK[claveDeClase(idColegio, idGrado, idSeccion, vigente)]
+      if (guardada && Object.keys(guardada.marcas ?? {}).length) {
+        throw errorMock(
+          409,
+          'Esta clase ya tiene asistencias registradas y no puede reprogramarse.',
+          'clase_con_asistencias',
+        )
+      }
+
+      const porCampo = (campo, mensaje, motivoError) => {
+        const error = errorMock(422, mensaje, motivoError)
+        error.response.data.errores = [{ campo, mensaje }]
+        return error
+      }
+
+      if (!motivo || !String(motivo).trim()) {
+        throw porCampo('motivo', 'Ingresa el motivo de la reprogramacion.', 'validacion')
+      }
+      if (fechaNueva === vigente) {
+        throw porCampo('fecha_nueva', 'Selecciona una fecha distinta de la fecha actual de la clase.', 'fecha_sin_cambio')
+      }
+      if (!esDiaLectivo(fechaNueva)) {
+        throw porCampo(
+          'fecha_nueva',
+          'La nueva fecha no es un dia lectivo del calendario del colegio.',
+          'fecha_no_lectiva',
+        )
+      }
+      // Ya ocupada por otra clase del mismo grupo.
+      const ocupada = Object.values(REPROGRAMACIONES_MOCK).some(
+        (r) => r.clave !== clave && r.id_grado === Number(idGrado) && r.fecha_nueva === fechaNueva,
+      )
+      if (ocupada) {
+        throw porCampo('fecha_nueva', `El grupo ya tiene una clase el ${fechaNueva}.`, 'fecha_ocupada')
+      }
+
+      REPROGRAMACIONES_MOCK[clave] = {
+        clave,
+        id_grado: Number(idGrado),
+        id_seccion: Number(idSeccion),
+        fecha_original: fechaOriginal,
+        fecha_anterior: vigente,
+        fecha_nueva: fechaNueva,
+        motivo: String(motivo).trim(),
+        version: (previa?.version ?? 0) + 1,
+        historial: [
+          ...(previa?.historial ?? []),
+          {
+            id: ++ultimoIdReprogramacion,
+            fecha_anterior: vigente,
+            fecha_nueva: fechaNueva,
+            motivo: String(motivo).trim(),
+            usuario: { id: 2, nombre: 'Sara Supervisora' },
+            fecha: new Date().toISOString(),
+          },
+        ],
+      }
+
+      return responder(
+        {
+          id_clase: REPROGRAMACIONES_MOCK[clave].historial.at(-1).id,
+          fecha_original: fechaOriginal,
+          fecha: fechaNueva,
+          reprogramada: true,
+          version: REPROGRAMACIONES_MOCK[clave].version,
+        },
+        RETARDO_ESCRITURA_MS,
+      )
+    },
+
+    reprogramaciones: async (idClase) => {
+      const traslado = Object.values(REPROGRAMACIONES_MOCK).find((r) =>
+        (r.historial ?? []).some((h) => Number(h.id) === Number(idClase)),
+      )
+      // El historial entero, del mas reciente al mas antiguo: modificar una
+      // reprogramacion NO sobrescribe la anterior.
+      return responder([...(traslado?.historial ?? [])].reverse())
     },
   },
 
@@ -1679,6 +1994,63 @@ export const handlers = {
       }
       tabla.estado = 'no_realizada'
       tabla.motivo_no_realizada = String(motivo).trim()
+      tabla.version += 1
+
+      tabla.declaraciones = tabla.declaraciones ?? []
+      const vigente = tabla.declaraciones.find((d) => d.vigente)
+      if (vigente) {
+        // Reenviar con otro motivo CORRIGE la declaración vigente: no crea
+        // otra. Si no, el historial se llenaría de versiones del mismo hecho.
+        vigente.motivo = tabla.motivo_no_realizada
+      } else {
+        ultimaDeclaracion += 1
+        tabla.declaraciones.push({
+          id: ultimaDeclaracion,
+          motivo: tabla.motivo_no_realizada,
+          declarada_por: { id: 1, nombre: 'Docente de Prueba' },
+          fecha_registro: new Date().toISOString(),
+          vigente: true,
+          motivo_correccion: null,
+          revertida_por: null,
+          fecha_registro_reversion: null,
+        })
+      }
+      return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * `POST /lectura/tablas/{id}/habilitar-registro` — revierte la declaración.
+     *
+     * La declaración anterior NO se borra: queda con su motivo de corrección,
+     * quién la revirtió y cuándo. Las filas se recalculan, pero no se genera
+     * ningún dato de lectura.
+     */
+    habilitarRegistro: async (idTabla, { version, motivo }) => {
+      const tabla = porIdDeTabla(idTabla)
+      exigirVersionDeTabla(tabla, version)
+      if (!motivo || !String(motivo).trim()) {
+        throw errorMock(422, 'Ingresa el motivo de la correccion.', 'validacion', [
+          { campo: 'motivo', mensaje: 'Ingresa el motivo de la correccion.' },
+        ])
+      }
+      if (tabla.estado !== 'no_realizada') {
+        throw errorMock(
+          409,
+          'La lectura ya no figura como no realizada. Consulta la version actual.',
+          'declaracion_no_vigente',
+        )
+      }
+
+      const vigente = (tabla.declaraciones ?? []).find((d) => d.vigente)
+      if (vigente) {
+        vigente.vigente = false
+        vigente.motivo_correccion = String(motivo).trim()
+        vigente.revertida_por = { id: 1, nombre: 'Docente de Prueba' }
+        vigente.fecha_registro_reversion = new Date().toISOString()
+      }
+
+      tabla.estado = 'normal'
+      tabla.motivo_no_realizada = null
       tabla.version += 1
       return responder(conFilas(tabla), RETARDO_ESCRITURA_MS)
     },
@@ -2183,7 +2555,7 @@ export const handlers = {
     async verificarCodigoPublico({ correo, codigo }) {
       if (!esCorreoValido(correo)) throw errorMock(422, 'El correo no es válido', 'validacion')
       if (String(codigo ?? '').trim() !== '123456') {
-        throw errorMock(400, 'El código ingresado es incorrecto. Inténtelo nuevamente.', 'incorrecto')
+        throw errorMock(400, 'El código ingresado es incorrecto. Inténtalo nuevamente.', 'incorrecto')
       }
       return responder({ valido: true })
     },
@@ -2422,30 +2794,26 @@ export const handlers = {
   },
   // ── Fase 6 ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Dashboard de CU033, CU034 y CU035 — un endpoint por bloque.
+   *
+   * Sustituye al dashboard del mockup viejo (`/dashboard/resumen`,
+   * `/dashboard/ejecutivo`, `/dashboard/ranking-aulas`), que respondía todo en
+   * una sola petición y ya no existe en el backend. Lo que cada bloque devuelve
+   * —y los estados que siembra a propósito— está en `mock/dashboard.js`.
+   */
   dashboard: {
-    /**
-     * Todo el dashboard (P12) en una sola respuesta. RF-006 pide una sola vista
-     * con varios gráficos que reaccionan a los mismos filtros; con la conexión
-     * del 70 % de RN-017, una petición es mejor que siete.
-     */
-    resumen: (filtros = {}) =>
-      responder({
-        indicadores: agregados.indicadores(filtros),
-        distribucion: agregados.distribucion(filtros),
-        variacion: agregados.variacion(filtros),
-        alcanzado_vs_esperado: agregados.alcanzadoVsEsperado(filtros),
-        fluidez_vs_comprension: agregados.fluidezVsComprension(filtros),
-        evolucion_programas: agregados.evolucionPorPrograma(filtros),
-        colegios: agregados.resumenPorColegio(filtros),
-      }),
-    rankingColegios: (filtros = {}) => responder(agregados.rankingColegios(filtros)),
-    rankingAulas: (filtros = {}) => responder(agregados.rankingAulas(filtros)),
-    ejecutivo: (filtros = {}) =>
-      responder({
-        indicadores: agregados.panelEjecutivo(filtros),
-        evolucion_programas: agregados.evolucionPorPrograma(filtros),
-        ranking: agregados.rankingColegios(filtros),
-      }),
+    filtros: () => responder(panel.filtros()),
+    distribucionSubprograma: (params) => responder(panel.distribucionSubprograma(params)),
+    resultadosAprendizaje: (params) => responder(panel.resultadosAprendizaje(params)),
+    comparacionResultados: (params) => responder(panel.comparacionResultados(params)),
+    asistencia: (params) => responder(panel.asistencia(params)),
+    asistenciaClases: (params) => responder(panel.asistenciaClases(params)),
+    libros: (params) => responder(panel.libros(params)),
+    librosDeColegio: (idColegio, params) => responder(panel.librosDeColegio(idColegio, params)),
+    librosDesglose: (params) => responder(panel.librosDesglose(params)),
+    evolucionAnual: (params) => responder(panel.evolucionAnual(params)),
+    comparacionColegios: (params) => responder(panel.comparacionColegios(params)),
   },
 
   colegios: {
@@ -2567,13 +2935,24 @@ export const handlers = {
      *
      * `pertenece_desde` es `null` cuando está inactivo: sin grupo en curso no
      * hay fecha de inicio que dar.
+     *
+     * Uno de cada siete activos lo trae en `null` AUNQUE ESTÉ ACTIVO: es el
+     * caso que encontró el tester (D65), los alumnos cargados antes de que el
+     * backend modelara el historial de pertenencia. El formulario tiene que
+     * pedir la fecha para poder arreglarlos, y sin un alumno así en el
+     * simulador no hay manera de verlo.
      */
     alumno: async (idAlumno) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(idAlumno))
       if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${idAlumno}`)
+      const inicio = db.ANIO_ESCOLAR_INICIO ?? '2026-03-02'
+      const sinPertenencia = alumno.id_alumno % 7 === 0
+      // El MISMO mapeo que el listado a propósito: el detalle no puede traer
+      // menos campos que la fila, o editar borraría lo que no se mostró.
       return responder({
-        ...alumno,
-        pertenece_desde: alumno.activo ? db.ANIO_ESCOLAR_INICIO ?? '2026-03-02' : null,
+        ...alumnoDeAdministracion(alumno),
+        fecha_registro: inicio,
+        pertenece_desde: alumno.activo && !sinPertenencia ? inicio : null,
       })
     },
 
@@ -2644,28 +3023,7 @@ export const handlers = {
       }))
     },
 
-    alumnos: () =>
-      responder(
-        db.ALUMNOS.map((a) => {
-          const colegio = db.COLEGIOS.find((c) => c.id_colegio === a.id_colegio)
-          const grado = db.GRADOS.find((g) => g.id_grado === a.id_grado)
-          const programa = db.PROGRAMAS.find((p) => p.id_programa === a.id_programa)
-          return {
-            ...a,
-            nombre: db.nombreCompleto(a),
-            codigo: a.codigo,
-            colegio: colegio?.nombre ?? '—',
-            grado: grado?.nombre ?? a.id_grado,
-            programa: programa?.nombre ?? '—',
-            // Desde T3 todo alumno pertenece a una sección: la "Única" de su
-            // grado, la misma que da el detalle del colegio (100 + id_grado).
-            // Sin ella, editar a cualquiera rellenaba la sección y el
-            // formulario lo tomaba por un cambio de grupo.
-            id_seccion: a.id_seccion ?? 100 + a.id_grado,
-            seccion: a.seccion ?? 'Única',
-          }
-        }),
-      ),
+    alumnos: () => responder(db.ALUMNOS.map(alumnoDeAdministracion)),
 
     usuarios: () =>
       responder(
@@ -2702,7 +3060,7 @@ export const handlers = {
             fecha: '2026-10-05T14:32:00-05:00',
             usuario: 'Docente de Prueba',
             rol: 'Docente',
-            accion: 'editó',
+            accion: 'editar',
             cambios: [
               { campo: 'Nombres', anterior: 'Ana', nuevo: 'Ana María' },
               { campo: 'Grado', anterior: '1.º', nuevo: '2.º' },
@@ -2712,7 +3070,7 @@ export const handlers = {
             fecha: '2026-10-04T09:10:00-05:00',
             usuario: 'Jefa de Prueba',
             rol: 'Supervisor',
-            accion: 'creó',
+            accion: 'crear',
             cambios: [],
           },
         ],
@@ -2999,6 +3357,7 @@ export function _reiniciarSimulador() {
   Object.keys(TABLAS_LECTURA).forEach((k) => delete TABLAS_LECTURA[k])
   Object.keys(RUBRICAS_MOCK).forEach((k) => delete RUBRICAS_MOCK[k])
   Object.keys(DECISIONES_MOCK).forEach((k) => delete DECISIONES_MOCK[k])
+  Object.keys(REPROGRAMACIONES_MOCK).forEach((k) => delete REPROGRAMACIONES_MOCK[k])
 }
 
 export default handlers

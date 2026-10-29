@@ -13,6 +13,7 @@ import Badge from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from '../administracion/ModalCredencialDocente'
 import DetalleDocente from './DetalleDocente'
+import ColegiosDelDocente from './ColegiosDelDocente'
 import {
   activarUsuario,
   actualizarUsuario,
@@ -22,16 +23,16 @@ import {
   listarAuditoria,
   listarColegiosAdmin,
   listarEstadoCalendario,
-  opcionesDeInicio,
   recesoDelColegio,
   listarGradosAdmin,
   listarUsuariosAdmin,
   obtenerUsuario,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
-import { etiquetaDe, formatearFecha } from '../../lib/format'
+import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
+import useSessionStore from '../../store/sessionStore'
 
 /**
  * El rol se guarda como texto en el `<select>`, así que se compara en texto.
@@ -46,8 +47,27 @@ const ROLES_CREABLES = [
   { value: String(ROLES.DIRECTIVO), label: 'Directivo' },
 ]
 
+/**
+ * ¿La asignación es la misma que traía la ficha?
+ *
+ * Se compara la LISTA COMPLETA: en la edición, `colegios` es el conjunto del
+ * año y lo que no viene se libera. Mandarla cuando no cambió nada haría que
+ * corregir un DNI reescribiera las asignaciones del Docente.
+ */
+const ordenados = (lista) => lista.map(String).sort((x, y) => x.localeCompare(y))
+
+function mismosColegios(a, b) {
+  const normal = (lista) =>
+    (lista ?? [])
+      .map((c) => `${c.id_colegio}:${ordenados(c.grados ?? []).join(',')}:${c.inicio_asignacion ?? ''}`)
+      .sort((x, y) => x.localeCompare(y))
+      .join('|')
+  return normal(a) === normal(b)
+}
+
 export default function MantenimientoUsuarios() {
   const toast = useToast()
+  const idUsuarioActual = Number(useSessionStore((s) => s.usuario?.id_usuario))
   // El Docente cuyo detalle se está viendo, o `null` en el listado.
   const [docenteAbierto, setDocenteAbierto] = useState(null)
   const queryClient = useQueryClient()
@@ -115,9 +135,6 @@ export default function MantenimientoUsuarios() {
     queryClient.invalidateQueries({ queryKey: ['auditoria', 'usuarios'] })
   }
 
-  const mismosGrados = (a, b) =>
-    (a ?? []).map(String).sort().join() === (b ?? []).map(String).sort().join()
-
   const guardado = useMutation({
     mutationFn: ({ valores, popup }) => {
       if (popup.modo === 'editar') {
@@ -128,11 +145,10 @@ export default function MantenimientoUsuarios() {
         const registro = popup.registro
         const inicial = queryClient.getQueryData(['detalle', 'usuarios', registro.id ?? registro.id_usuario]) ?? registro
         const cambioAsignacion =
-          Boolean(valores.id_colegio) &&
-          (String(valores.id_colegio) !== String(inicial.id_colegio ?? '') ||
-            !mismosGrados(valores.grados, inicial.grados) ||
+          Boolean(valores.colegios?.length) &&
+          (!mismosColegios(valores.colegios, inicial.colegios) ||
             String(valores.anio_escolar ?? '').trim() !== String(inicial.anio_escolar ?? '').trim())
-        const datos = cambioAsignacion ? valores : { ...valores, id_colegio: '', grados: [], anio_escolar: '' }
+        const datos = cambioAsignacion ? valores : { ...valores, colegios: [], anio_escolar: '' }
         return actualizarUsuario(registro.id_usuario, datos)
       }
       // Un solo POST para los tres roles: con id_rol de Docente, el backend
@@ -213,52 +229,34 @@ export default function MantenimientoUsuarios() {
         ayuda: 'Cambiarlo renueva su asignación',
         visible: esDocente,
       },
-      {
-        nombre: 'id_colegio',
-        etiqueta: 'Colegio asignado',
-        tipo: 'select',
-        ancho: 'completo',
-        opciones: colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre })),
-        ayuda: 'Define a qué alumnos accede',
-        visible: esDocente,
-      },
-      {
-        nombre: 'grados',
-        etiqueta: 'Grados',
-        tipo: 'multiple',
-        ancho: 'completo',
-        opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
-        ayuda: 'Un aula (colegio y grado) solo puede tener un docente',
-        visible: esDocente,
-      },
       /**
-       * DESDE QUÉ PERIODO, pero SOLO si ese colegio está hoy en receso.
+       * D67 — VARIOS COLEGIOS, cada uno con sus grados y su inicio.
        *
-       * Es la pregunta que no se puede evitar: durante un PR, asignar a un
-       * docente puede significar dos cosas muy distintas —que entre a
-       * regularizar el periodo que acaba de terminar, o que empiece en el que
-       * viene— y el backend responde 422 si no se dice cuál.
+       * Antes eran tres campos sueltos —colegio, grados y "Desde qué
+       * periodo"— y solo admitían UN colegio. Al editar a un Docente con dos,
+       * el segundo no se veía, y al guardar se lo quitaba: en la edición
+       * `colegios` es la lista COMPLETA del año, así que lo que no viene se
+       * libera.
        *
-       * En un PA no aparece: ahí no hay ambigüedad y el servidor lo ignora.
-       * Cada colegio tiene su propio calendario, así que esto depende del
-       * colegio elegido, no de una fecha global.
+       * El inicio de asignación es POR COLEGIO porque cada uno tiene su
+       * calendario: uno puede estar en un PA y otro en receso.
        */
       {
-        nombre: 'inicio_asignacion',
-        etiqueta: 'Desde qué periodo',
-        tipo: 'select',
-        ancho: 'completo',
+        nombre: 'colegios',
+        etiqueta: 'Colegios asignados',
         requerido: true,
-        visible: (valores) => esDocente(valores) && Boolean(recesoDe(valores.id_colegio)),
-        opciones: (valores) => opcionesDeInicio(recesoDe(valores.id_colegio)),
-        ayuda: (valores) => {
-          const receso = recesoDe(valores.id_colegio)
-          if (!receso) return undefined
-          const hasta = receso.fecha_fin ? ` hasta el ${formatearFecha(receso.fecha_fin)}` : ''
-          return receso.es_pr4
-            ? `Este colegio está en receso (PR${receso.numero})${hasta}. Para asignarlo al año siguiente, cambia el año escolar.`
-            : `Este colegio está en receso (PR${receso.numero})${hasta}.`
+        ancho: 'completo',
+        visible: esDocente,
+        componente: ColegiosDelDocente,
+        opciones: colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre })),
+        // Los grados los ofrece el COLEGIO, no un catálogo global: no todos
+        // los colegios dictan los seis.
+        gradosDe: (idColegio) => {
+          const suyos = colegios.find((c) => String(c.id_colegio) === String(idColegio))?.grados
+          const lista = Array.isArray(suyos) && suyos.length ? suyos : grados
+          return lista.map((g) => ({ value: String(g.id_grado ?? g), label: g.nombre ?? `${g}.°` }))
         },
+        recesoDe,
       },
     ],
     [colegios, grados, recesoDe],
@@ -300,6 +298,19 @@ export default function MantenimientoUsuarios() {
           aplicaA: esDocente,
           etiqueta: 'Otorgar permisos',
         }}
+        /**
+         * D68 — Dos cuentas que NO se pueden inactivar, y el botón lo dice.
+         *
+         * El backend ya las rechaza: `auto_desactivacion` con la propia y la
+         * protección del Supervisor original, que CU001 declara que "no puede
+         * ser eliminada, no puede ser desactivada". Pero el botón se veía
+         * habilitado y había que pulsarlo para enterarse.
+         */
+        protegida={(fila) => {
+          if (fila.es_supervisor_original) return 'La cuenta del Supervisor original no se puede desactivar.'
+          if (Number(fila.id_usuario) === idUsuarioActual) return 'No puedes desactivar tu propia cuenta.'
+          return undefined
+        }}
         consulta={consulta}
         campos={campos}
         guardando={guardado.isPending}
@@ -328,7 +339,7 @@ export default function MantenimientoUsuarios() {
              * CU001/CU016: una cuenta recién creada arrastra una contraseña
              * temporal de 48 horas hasta su primer ingreso. Saberlo le importa
              * al Supervisor: si expira sin usarse, él no puede reenviarla y la
-             * persona tiene que pasar por "¿Olvidó su contraseña?".
+             * persona tiene que pasar por "¿Olvidaste tu contraseña?".
              */
             key: 'debe_cambiar_contrasena',
             header: 'Acceso',

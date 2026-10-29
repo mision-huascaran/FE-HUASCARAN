@@ -184,31 +184,29 @@ export function erroresDeCampo(error) {
  * se nombra como lo que es, porque con la disponibilidad del 70 % de RN-017
  * pasa a menudo y el docente necesita saber que su dato quedó en la cola local.
  */
-export function mensajeDeError(error, porDefecto = 'Intente nuevamente.') {
+export function mensajeDeError(error, porDefecto = 'Inténtalo nuevamente.') {
   if (!error) return porDefecto
 
   const detalle = error?.response?.data?.detail
 
-  // 422 de validación: se juntan los mensajes, nombrando el campo cuando se puede.
+  /**
+   * EL NOMBRE DEL CAMPO NO SE ANTEPONE. NUNCA.
+   *
+   * Esto es D62 y D74: el probador veía "periodos.2.fecha_fin: La fecha de
+   * fin debe ser posterior..." y "pertenece_desde: ...", y creía que el
+   * backend mandaba ese prefijo. No lo manda: el backend responde
+   * `{detail, motivo, errores: [{campo, mensaje}]}` y el "campo: mensaje" lo
+   * armaba aquí esta función.
+   *
+   * Cada `errores[].mensaje` va DEBAJO DE SU CONTROL, y de eso se encarga el
+   * formulario con `erroresDeCampo(error)`. Esta función solo devuelve el
+   * texto general, que es el `detail` tal como llega.
+   */
   if (Array.isArray(detalle)) {
-    const mensajes = detalle
-      .map((item) => {
-        const campo = Array.isArray(item?.loc) ? item.loc.filter((p) => p !== 'body').join('.') : null
-        return campo ? `${campo}: ${item?.msg ?? 'dato inválido'}` : (item?.msg ?? null)
-      })
-      .filter(Boolean)
+    // Formato antiguo de FastAPI, que algún endpoint sin migrar todavía puede
+    // devolver: se juntan los mensajes, también sin nombrar el campo.
+    const mensajes = detalle.map((item) => item?.msg).filter(Boolean)
     return mensajes.length ? mensajes.join(' · ') : porDefecto
-  }
-
-  // 422 unificado del backend: `detail` es genérico ("Los datos enviados no
-  // son válidos.") y lo útil viene en `errores`. Sin esto el usuario no sabía
-  // qué campo corregir.
-  const errores = error?.response?.data?.errores
-  if (typeof detalle === 'string' && detalle.trim() && Array.isArray(errores) && errores.length) {
-    const porCampo = errores
-      .map((item) => (item?.campo ? `${item.campo}: ${item?.mensaje ?? 'dato inválido'}` : item?.mensaje))
-      .filter(Boolean)
-    return porCampo.length ? `${detalle} ${porCampo.join(' · ')}` : detalle
   }
 
   if (typeof detalle === 'string' && detalle.trim()) return detalle

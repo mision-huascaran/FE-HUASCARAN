@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   ClipboardList,
   GraduationCap,
+  LayoutDashboard,
   History,
   Home,
   Plane,
@@ -19,6 +20,7 @@ import { seccionesDeMenu } from '../../auth/permisos'
 
 const ICONOS = {
   inicio: Home,
+  dashboard: LayoutDashboard,
   alumnos: GraduationCap,
   usuarios: Users,
   colegios: School,
@@ -42,6 +44,9 @@ export const NAV_BY_ROLE = {
 /** Etiqueta de cada segmento de URL para las migas de pan (P2). */
 export const ETIQUETAS_RUTA = {
   inicio: 'Inicio',
+  dashboard: 'Dashboard',
+  // CU034 cuelga de CU033: su miga de pan es Dashboard → Libros leídos.
+  libros: 'Consolidado de libros leídos',
   alumnos: 'Alumnos',
   usuarios: 'Usuarios',
   colegios: 'Colegios',

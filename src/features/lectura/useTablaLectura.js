@@ -14,12 +14,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import {
+  CONFLICTO_TABLA,
+  cambiarClaseReferencia,
   crearTabla,
   datosParaCrear,
   esTablaPorCrear,
-  marcarNoRealizada,
   obtenerTabla,
 } from '../../api/resources/lectura'
+import { encolar } from '../../lib/colaOffline'
+import { TIPOS_ENVIO } from '../../hooks/useOfflineQueue'
 import { ahora } from '../../lib/relojServidor'
 import { nuevoUuid } from '../../lib/uuid'
 import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
@@ -44,7 +47,21 @@ export default function useTablaLectura(filtros) {
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
   const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
-  const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana }]
+  /**
+   * EL MES NO ENTRA EN LA CLAVE, y no es un descuido.
+   *
+   * La tabla es grupo × subprograma × SEMANA. El `mes` viaja en la peticion
+   * porque el contrato lo exige, pero desde la tanda B el servidor devuelve la
+   * tabla aunque el mes enviado no sea el suyo: una semana que cae en dos meses
+   * tiene UNA sola tabla, y su mes es el de su clase de referencia.
+   *
+   * Si el mes estuviera en la clave, ajustar el filtro al mes que responde el
+   * servidor cambiaría la clave y dispararía otra consulta por los MISMOS
+   * datos. Y mientras esa consulta vuelve, `data` queda en `undefined` y la
+   * tabla desaparece de la pantalla: el docente vería su trabajo parpadear por
+   * un filtro que solo sirve para ubicarse.
+   */
+  const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, idSemana }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
@@ -83,8 +100,15 @@ export default function useTablaLectura(filtros) {
       )
     },
     onError: (error) => {
-      // Que ya exista no es un fallo que haya que explicar: alguien la creó
-      // entre medias. Se recarga y se sigue trabajando sobre la que hay.
+      /**
+       * Que ya exista no es un fallo que haya que explicar: alguien la creó
+       * entre medias, o se creó desde el OTRO MES de una semana partida. Se
+       * recarga y se sigue trabajando sobre la que hay.
+       *
+       * Recargar basta porque el GET devuelve la tabla aunque el `mes` que se
+       * manda no sea el suyo (tanda B), y la pantalla ajusta el filtro al mes
+       * que venga en la respuesta.
+       */
       if (motivoDe(error) === 'tabla_existente') {
         refrescar()
         return
@@ -93,21 +117,171 @@ export default function useTablaLectura(filtros) {
     },
   })
 
+  /**
+   * Los dos conflictos de CU026 se resuelven igual: volver a pedir la tabla.
+   *
+   * Y NO SE REINTENTAN SOLOS. Un choque de versiones reintentado se vuelve a
+   * chocar, y `declaracion_no_vigente` significa que otra operación ya hizo
+   * lo que esta pedía: insistir lo desharia. Lo que se ofrece es consultar la
+   * versión actual, que es lo único que puede resolverlo una persona.
+   */
+  const avisarConflicto = (error, titulo) => {
+    const motivo = motivoDe(error)
+    const texto = CONFLICTO_TABLA[motivo]
+    if (!texto) return false
+    refrescar()
+    toast.error(titulo, mensajeDeError(error, texto))
+    return true
+  }
+
+  /**
+   * Las claves de la cola para ESTA tabla.
+   *
+   * Una por tipo: declarar dos veces no apila dos envíos, el segundo sustituye
+   * al primero. Y la reversión conoce la de la declaración porque DEPENDE de
+   * ella (CU026: "vinculada a la declaración original").
+   */
+  const claveDeclaracion = `lectura-no-realizada:${tabla.data?.id}`
+  const claveReversion = `lectura-habilitar:${tabla.data?.id}`
+
+  /** Lo que identifica al REGISTRO para el aviso de pendientes (E2). */
+  const registroDeTabla = tabla.data
+    ? {
+        id_colegio: Number(idColegio),
+        id_grado: Number(idGrado),
+        id_seccion: Number(idSeccion),
+        id_programa: Number(idPrograma),
+        id_semana: Number(idSemana),
+      }
+    : null
+
+  /**
+   * Declarar "no realizada" (CU026) — SE ENCOLA.
+   *
+   * El caso de uso tiene su propio flujo sin conexión: la declaración se
+   * guarda como "Pendiente de sincronización" y la tabla queda bloqueada
+   * mientras tanto. Durante un tiempo esto exigió conexión —se razonó que
+   * cambiar la tabla entera sin confirmación era arriesgado—, pero CU026 ya
+   * responde esa pregunta y dice lo contrario.
+   */
   const noRealizada = useMutation({
     mutationFn: (motivo) =>
-      marcarNoRealizada(tabla.data.id, {
-        idOperacion: nuevaOperacion(),
-        version: tabla.data.version,
-        realizadoEn: ahora().toISOString(),
-        motivo,
+      encolar({
+        clave: claveDeclaracion,
+        tipo: TIPOS_ENVIO.LECTURA_NO_REALIZADA,
+        payload: {
+          idTabla: tabla.data.id,
+          version: tabla.data.version,
+          realizadoEn: ahora().toISOString(),
+          idActividad,
+          motivo,
+        },
+        registro: registroDeTabla,
+        idActividad,
+        descripcion: 'Lectura no realizada',
+        // Perder esto en silencio dejaría la semana reclamándole al docente un
+        // trabajo que ya declaró que no se hizo.
+        exigePersistencia: true,
       }),
+    /**
+     * `networkMode: 'always'` porque EL OFFLINE LO LLEVA LA COLA.
+     *
+     * Por defecto TanStack Query pausa una mutación cuando no hay red y no
+     * llega a ejecutar su función. Aquí eso significaba que, sin conexión,
+     * `encolar` ni se llamaba: el docente pulsaba y no pasaba nada. La cola
+     * ya sabe esperar y reintentar; la mutación solo tiene que entregarle el
+     * envío.
+     */
+    networkMode: 'always',
     onSuccess: (actualizada) => {
-      queryClient.setQueryData(clave, actualizada)
+      if (actualizada?.id) queryClient.setQueryData(clave, actualizada)
       toast.success('Lectura marcada como no realizada', 'Ninguna fila queda pendiente para esta semana.')
     },
     onError: (error) => {
-      if (motivoDe(error) === 'modificacion_concurrente') refrescar()
+      if (avisarConflicto(error, 'No se pudo marcar la semana')) return
       toast.error('No se pudo marcar la semana', mensajeDeError(error))
+    },
+  })
+
+  /**
+   * Habilitar el registro: deshacer la declaración de "no realizada" (CU026).
+   *
+   * EXIGE CONEXIÓN, igual que declararla. Las dos operaciones cambian el estado
+   * de la tabla ENTERA y recalculan todas sus filas, así que encolarlas
+   * dejaría al docente registrando sobre un estado que el servidor aún no ha
+   * aceptado. El contrato contempla encolarlas en orden; aquí se mantiene la
+   * decisión que ya tomaba `no-realizada`, por coherencia: o las dos se
+   * encolan o ninguna.
+   */
+  const habilitar = useMutation({
+    mutationFn: (motivo) =>
+      encolar({
+        clave: claveReversion,
+        tipo: TIPOS_ENVIO.LECTURA_HABILITAR,
+        payload: {
+          idTabla: tabla.data.id,
+          version: tabla.data.version,
+          realizadoEn: ahora().toISOString(),
+          idActividad,
+          motivo,
+        },
+        registro: registroDeTabla,
+        idActividad,
+        descripcion: 'Habilitar registro de lectura',
+        /**
+         * DEPENDE DE LA DECLARACIÓN, y por eso va enlazada (CU026).
+         *
+         * Si la tabla se declaró sin conexión y se revierte antes de
+         * sincronizar, las dos esperan en la cola. Si el servidor rechaza la
+         * declaración, la reversión ya no tiene sentido: revertiría algo que
+         * nunca llegó a existir, así que la cola la descarta con ella.
+         */
+        dependeDe: claveDeclaracion,
+        exigePersistencia: true,
+      }),
+    /**
+     * `networkMode: 'always'` porque EL OFFLINE LO LLEVA LA COLA.
+     *
+     * Por defecto TanStack Query pausa una mutación cuando no hay red y no
+     * llega a ejecutar su función. Aquí eso significaba que, sin conexión,
+     * `encolar` ni se llamaba: el docente pulsaba y no pasaba nada. La cola
+     * ya sabe esperar y reintentar; la mutación solo tiene que entregarle el
+     * envío.
+     */
+    networkMode: 'always',
+    onSuccess: (actualizada) => {
+      if (actualizada?.id) queryClient.setQueryData(clave, actualizada)
+      toast.success('El registro de lectura fue habilitado.')
+    },
+    onError: (error) => {
+      if (avisarConflicto(error, 'No se pudo habilitar el registro')) return
+      toast.error('No se pudo habilitar el registro', mensajeDeError(error))
+    },
+  })
+
+  /**
+   * Cambiar la clase de referencia (CU024, tanda B).
+   *
+   * Acepta cualquier clase de la semana, incluso de OTRO MES: una semana que
+   * cae en dos meses tiene una sola tabla. Si la clase nueva es de otro mes, la
+   * respuesta trae el `mes` nuevo y la pantalla ajusta el filtro.
+   */
+  const cambiarClase = useMutation({
+    mutationFn: ({ idClase, fecha }) =>
+      cambiarClaseReferencia(tabla.data.id, {
+        idOperacion: nuevaOperacion(),
+        version: tabla.data.version,
+        idClase,
+        fecha,
+      }),
+    onSuccess: (actualizada) => {
+      queryClient.setQueryData(clave, actualizada)
+      refrescar()
+      toast.success('Clase de referencia actualizada', 'Las filas se rehicieron con la lista de esa clase.')
+    },
+    onError: (error) => {
+      if (avisarConflicto(error, 'No se pudo cambiar la clase')) return
+      toast.error('No se pudo cambiar la clase', mensajeDeError(error))
     },
   })
 
@@ -142,8 +316,25 @@ export default function useTablaLectura(filtros) {
     })
   }
 
+  /**
+   * La respuesta del servidor, con sus listas SIEMPRE como listas (D48).
+   *
+   * El contrato dice que vienen como arreglos, pero cuando no llega lo esperado
+   * —un endpoint a medio migrar, un `null` donde iba `[]`— un `.map()` o un
+   * `.length` revientan el render y la pantalla acaba en el error genérico "No
+   * se pudo mostrar esta pantalla". Eso fue D48: el probador veía ese cartel en
+   * Registro de Vuelo y, como Supervisora, en Rúbrica y Seguimiento de Lectura,
+   * sin forma de saber qué había pasado.
+   *
+   * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
+   * vacío, que es lo que el caso de uso pide.
+   */
+  const datosTabla = tabla.data
+    ? { ...tabla.data, filas: tabla.data.filas ?? [], declaraciones: tabla.data.declaraciones ?? [] }
+    : null
+
   return {
-    tabla: tabla.data ?? null,
+    tabla: datosTabla,
     cargando: tabla.isLoading,
     // Un error de verdad: ni el 404 de "no existe", que es una respuesta.
     error: tabla.isError && !porCrear ? tabla.error : null,
@@ -152,6 +343,11 @@ export default function useTablaLectura(filtros) {
     creando: crear.isPending,
     marcarNoRealizada: noRealizada.mutate,
     marcando: noRealizada.isPending,
+    habilitarRegistro: habilitar.mutate,
+    habilitando: habilitar.isPending,
+    errorAlHabilitar: habilitar.error,
+    cambiarClase: cambiarClase.mutate,
+    cambiandoClase: cambiarClase.isPending,
     guardarFila,
   }
 }

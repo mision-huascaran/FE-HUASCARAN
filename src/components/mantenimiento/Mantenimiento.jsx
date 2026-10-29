@@ -6,7 +6,7 @@
 // condicionales por pantalla: si la matriz no da `N`, no hay botón de Nuevo.
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ban, ClipboardList, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
@@ -19,7 +19,8 @@ import ProponerActividad from './ProponerActividad'
 import FiltrosMantenimiento from './FiltrosMantenimiento'
 import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
-import { mensajeDeError } from '../../api/client'
+import { erroresDeCampo, mensajeDeError } from '../../api/client'
+import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
 import useActividad from '../../features/inicio/useActividad'
@@ -37,13 +38,24 @@ function avisoDeBloqueo(seccion, { sinConexion, exigeActividad }) {
   if (sinConexion) return avisoSinConexion(seccion)
   // CU010 da este mensaje PALABRA POR PALABRA. No es una sugerencia de
   // redacción: el probador lo compara carácter a carácter.
-  if (exigeActividad) return 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+  // CU014 adopta el MISMO texto que los módulos operativos: antes decía
+  // "Debe iniciar una actividad para realizar cambios." y el servidor ya
+  // responde el unificado, así que tener dos era contradecirse solo.
+  if (exigeActividad) return SIN_ACTIVIDAD
   return undefined
 }
 
 export default function Mantenimiento({
   seccion,
   entidad,
+  /**
+   * Por qué ESTA fila no se puede inactivar, o `undefined` si se puede.
+   *
+   * Lo decide cada pantalla porque la razón es suya: en Usuarios son la
+   * propia cuenta y el Supervisor original; en Colegios y Alumnos no hay
+   * ninguna. El texto que devuelve va al tooltip.
+   */
+  protegida,
   titulo,
   consulta,
   columnas = [],
@@ -114,13 +126,31 @@ export default function Mantenimiento({
    * el usuario escribió, que es lo que permite corregir y reintentar.
    */
   const guardar = async (valores) => {
+    setErroresServidor({})
     try {
       await onGuardar(valores, popup)
       setPopup(null)
-    } catch {
-      // El toast de la pantalla ya explica qué pasó.
+    } catch (error) {
+      /**
+       * Los errores por campo del 422, para pintarlos DEBAJO de su control.
+       *
+       * Antes se perdían: el toast mostraba "campo: mensaje" todo junto y el
+       * usuario tenía que adivinar cuál de los diez campos era. El backend ya
+       * los manda separados en `errores: [{campo, mensaje}]`; lo único que
+       * faltaba era traerlos hasta el formulario.
+       */
+      setErroresServidor(erroresDeCampo(error))
     }
   }
+  /**
+   * Lo que el servidor rechazó, por campo.
+   *
+   * Lo limpia quien lo tiene, no el formulario: son de UN intento concreto, y
+   * dejarlos puestos al abrir otro registro señalaría campos que están bien.
+   */
+  const [erroresServidor, setErroresServidor] = useState({})
+  useEffect(() => setErroresServidor({}), [popup])
+
   // S4 — Inactivar/Activar pide confirmación: cambia el estado de un registro
   // que otros pueden estar usando, y conviene que sea deliberado.
   const [confirmando, setConfirmando] = useState(null)
@@ -133,7 +163,7 @@ export default function Mantenimiento({
    * a pulsar otro botón y que vuelva a empezar era la parte molesta.
    */
   const [pendientePorActividad, setPendientePorActividad] = useState(null)
-  const { iniciar, sinAsignaciones } = useActividad()
+  const { iniciar } = useActividad()
   const [iniciando, setIniciando] = useState(false)
 
   const iniciarYContinuar = async () => {
@@ -152,9 +182,16 @@ export default function Mantenimiento({
   }
 
   /**
-   * Envuelve una acción de escritura: si falta la actividad, propone abrirla
-   * en vez de dejar el botón muerto. Sin asignaciones no hay nada que
-   * proponer, así que ahí sí se deshabilita.
+   * D59 — SIN ACTIVIDAD, LOS BOTONES DE ESCRITURA ESTÁN DESHABILITADOS.
+   *
+   * Antes seguían habilitados y, al pulsarlos, se ofrecía abrir la actividad.
+   * Suena mejor de lo que era: el botón prometía una acción que el servidor
+   * iba a rechazar, y el probador lo marcó porque el estado visible mentía
+   * sobre lo que se podía hacer. Ahora se ven en gris con el tooltip que
+   * explica por qué, igual que ya hacía el modo sin conexión (CU013).
+   *
+   * El atajo de proponer la actividad sigue aquí para cuando se pulse una
+   * acción que no pasa por un botón deshabilitado.
    */
   const alEscribir = (accion, seguir) => () => {
     if (exigeActividad) {
@@ -232,8 +269,8 @@ export default function Mantenimiento({
               variant="ghost"
               iconLeft={Pencil}
               aria-label={`Editar ${fila.nombre ?? entidad}`}
-              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? aviso : undefined}
+              disabled={bloqueado}
+              title={aviso}
               onClick={alEscribir(`editar ${entidad}`, () => setPopup({ modo: 'editar', registro: fila }))}
             >
               Editar
@@ -246,8 +283,14 @@ export default function Mantenimiento({
               iconLeft={fila.activo === false ? RotateCcw : Ban}
               className={fila.activo === false ? undefined : 'text-danger-600'}
               aria-label={`${fila.activo === false ? 'Activar' : 'Inactivar'} ${fila.nombre ?? entidad}`}
-              disabled={sinConexion || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? aviso : undefined}
+              /*
+               * D68 — Hay filas que NO se pueden inactivar, y el botón tiene
+               * que decirlo antes de pulsarlo. El backend las rechaza con
+               * `auto_desactivacion` y `supervisor_original`, pero llegar al
+               * error para enterarse es enterarse tarde.
+               */
+              disabled={bloqueado || Boolean(protegida?.(fila))}
+              title={aviso ?? protegida?.(fila)}
               onClick={alEscribir(
                 `${fila.activo === false ? 'activar' : 'inactivar'} ${entidad}`,
                 () => setConfirmando({ fila, activo: fila.activo === false }),
@@ -295,8 +338,8 @@ export default function Mantenimiento({
           {puedeCrear && (
             <Button
               iconLeft={Plus}
-              disabled={Boolean(sinConexion ? motivoNuevo : motivoSinNuevo) || (exigeActividad && sinAsignaciones)}
-              title={sinConexion ? motivoNuevo : motivoSinNuevo ?? undefined}
+              disabled={Boolean(motivoNuevo)}
+              title={motivoNuevo}
               onClick={alEscribir(`agregar ${entidad}`, () => setPopup({ modo: 'nuevo', registro: null }))}
             >
               Agregar
@@ -373,6 +416,7 @@ export default function Mantenimiento({
         cargarDetalle={cargarDetalle}
         genero={genero}
         onGuardar={guardar}
+        erroresServidor={erroresServidor}
         onCerrar={() => setPopup(null)}
       />
     </div>

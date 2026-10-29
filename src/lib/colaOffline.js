@@ -21,6 +21,7 @@ import { idDeDispositivo } from './dispositivo'
 import { nuevoUuid } from './uuid'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
+import useRechazosStore from '../store/rechazosStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
 const ESPERAS_MS = [1000, 4000, 9000]
@@ -159,6 +160,18 @@ async function avisarDeLoPendiente() {
       modulo: modulos.get(item.tipo),
       realizado_en: item.creado,
       ...(item.idActividad ? { id_actividad: item.idActividad } : {}),
+      /**
+       * E2 — Los datos naturales del REGISTRO que la operación toca.
+       *
+       * Sin esto el backend cuenta un pendiente por `id_operacion`, así que
+       * tres correcciones de la misma asistencia salían como tres registros
+       * en riesgo y la Salud del Sistema bajaba sin motivo. Con `registro`
+       * calcula la clave y cuenta UNA vez por registro.
+       *
+       * Va solo si el envío lo declaró: `alumnos` y `actividad` no lo
+       * admiten, y un campo de más es un 422 del lote entero.
+       */
+      ...(item.registro ? { registro: item.registro } : {}),
     }))
     // El contrato admite 500 por lote. Es muchísimo más de lo que cabe en una
     // jornada, pero si alguna vez se pasara, el recorte deja pasar el aviso de
@@ -218,11 +231,33 @@ async function resolverConocida(item, conocida) {
   if (conocida.estado === 'rechazada') {
     const error = new Error(conocida.motivo ?? 'rechazada')
     error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
+    // Llegó y fue rechazada: también queda anotada (D69). Que el rechazo se
+    // descubra al verificar y no al enviar no lo hace menos rechazo.
+    anotarRechazo(item, error)
     descartarDependientes(item.clave, error)
     rechazarPromesa(item.idOperacion, error)
   } else {
     resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
   }
+}
+
+/**
+ * Deja constancia de un envío que el servidor rechazó.
+ *
+ * `clave` es la del item, que identifica el REGISTRO: un rechazo nuevo del
+ * mismo alumno y la misma fila sustituye al anterior en vez de apilarse.
+ */
+function anotarRechazo(item, error) {
+  const datos = error?.response?.data ?? {}
+  useRechazosStore.getState().agregar({
+    clave: item.clave,
+    modulo: modulos.get(item.tipo) ?? item.tipo,
+    nombre: item.descripcion ?? item.clave,
+    idOperacion: item.idOperacion,
+    motivo: datos.motivo ?? null,
+    detail: datos.detail ?? mensajeDeError(error),
+    registro: item.registro ?? null,
+  })
 }
 
 /** Un envío falló. Devuelve si la cola sigue con el siguiente. */
@@ -234,6 +269,19 @@ async function trasFalloDeEnvio(item, error) {
 
   if (!esReintentable(error)) {
     cola.shift()
+    /**
+     * D69 — UN RECHAZO NO SE BORRA EN SILENCIO.
+     *
+     * Antes el envío se quitaba de la cola y solo se rechazaba su promesa.
+     * Si la pantalla seguía abierta, se veía el aviso; si estaba cerrada
+     * —y un envío hecho sin señal puede rechazarse horas después, con el
+     * docente en otra cosa—, el dato desaparecía sin que nadie se enterara.
+     *
+     * Queda anotado con su motivo y su `detail`, y sigue en "Error" hasta que
+     * el docente lo corrija o lo descarte. Es la diferencia entre "veo que mi
+     * dato no subió" y "mi dato ya no está".
+     */
+    anotarRechazo(item, error)
     // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
     // daría otro error y ensuciaría la cola con fallos encadenados.
     descartarDependientes(item.clave, error)
@@ -354,6 +402,15 @@ export function encolar({
   dependeDe = null,
   exigePersistencia = false,
   idActividad = null,
+  /**
+   * E2 — Los datos naturales del registro que esta operación crea o modifica.
+   *
+   * Lo declara quien encola, porque solo él sabe de qué registro se trata:
+   * para una asistencia es (colegio, grado, sección, fecha, alumno); para una
+   * fila de lectura, (colegio, grado, sección, subprograma, semana, alumno).
+   * `alumnos` y `actividad` NO lo admiten: mandarlo ahí es un 422 del lote.
+   */
+  registro = null,
   fusionar = null,
 }) {
   // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
@@ -361,6 +418,7 @@ export function encolar({
   const item = {
     clave,
     tipo,
+    registro,
     payload: anterior >= 0 && fusionar ? fusionar(cola[anterior].payload, payload) : payload,
     descripcion,
     dependeDe,

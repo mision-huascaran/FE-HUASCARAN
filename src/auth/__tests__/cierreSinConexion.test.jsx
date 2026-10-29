@@ -73,7 +73,16 @@ beforeEach(() => {
 })
 
 describe('Cerrar sesión sin conexión (D05, D03)', () => {
-  it('deja el cierre de la actividad pendiente, con la hora real de salida', async () => {
+  it('deja pendiente el cierre de la SESIÓN, con la hora real de salida (D44)', async () => {
+    /**
+     * Antes se encolaba el cierre de la ACTIVIDAD, y son cosas distintas: una
+     * actividad que el docente ya dio por terminada NO se reescribe, así que
+     * quedaba como "Manual por finalización de actividad" y la sesión seguía
+     * abierta en el servidor, con su fin y su causa en null.
+     *
+     * `POST /me/sesiones/{id}/cerrar` cierra las dos, y la actividad como
+     * "Forzado por cierre de sesión", que es lo que de verdad pasó.
+     */
     logout.mockResolvedValue({ ok: false, sinRespuesta: true })
     const abierta = useActividadStore.getState().iniciar({ idDocente: 1 })
     const { result } = renderHook(() => useAuth(), { wrapper: envoltorio })
@@ -81,14 +90,31 @@ describe('Cerrar sesión sin conexión (D05, D03)', () => {
     const antes = Date.now()
     await act(() => result.current.salir())
 
-    const cierre = encolados.find((e) => e.tipo === 'actividad-cierre')
+    const cierre = encolados.find((e) => e.tipo === 'sesion-cierre')
     expect(cierre).toBeTruthy()
-    expect(cierre.payload.id).toBe(abierta.id)
-    expect(new Date(cierre.payload.fin).getTime()).toBeGreaterThanOrEqual(antes - 1000)
     expect(cierre.payload.id_sesion).toBe('sesion-1')
-    // Y la sesión se cierra igual, borrando la precarga y los filtros (D03).
+    expect(cierre.payload.id_actividad).toBe(abierta.id)
+    expect(new Date(cierre.payload.fin).getTime()).toBeGreaterThanOrEqual(antes - 1000)
+
+    // Y NO se manda el cierre de la actividad por su cuenta: es justo lo que
+    // la dejaba como "Manual".
+    expect(encolados.find((e) => e.tipo === 'actividad-cierre')).toBeUndefined()
+
+    // La sesión se cierra igual, borrando la precarga y los filtros (D03).
     expect(limpiarLocal).toHaveBeenCalled()
     expect(useSessionStore.getState().token).toBeNull()
+  })
+
+  it('sin actividad abierta también encola el cierre de la sesión', async () => {
+    // La sesión queda abierta en el servidor igual, haya actividad o no.
+    logout.mockResolvedValue({ ok: false, sinRespuesta: true })
+    const { result } = renderHook(() => useAuth(), { wrapper: envoltorio })
+
+    await act(() => result.current.salir())
+
+    const cierre = encolados.find((e) => e.tipo === 'sesion-cierre')
+    expect(cierre).toBeTruthy()
+    expect(cierre.payload.id_actividad).toBeNull()
   })
 
   it('con conexión no encola nada: el servidor ya cerró la actividad', async () => {

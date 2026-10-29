@@ -21,21 +21,54 @@ import EmptyState from '../ui/EmptyState'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 
-/** El sujeto de la frase: "al alumno", "el colegio", "la cuenta". */
+/**
+ * El sujeto de la frase: "al alumno", "el colegio", "la cuenta".
+ *
+ * Va por ENTIDAD, en singular. Antes se buscaba por sección —"alumnos"—, que
+ * no está en esta tabla, así que toda la auditoría decía "modificó el
+ * registro" en vez de la frase de CU015.
+ */
 const SUJETO = { alumno: 'al alumno', colegio: 'el colegio', usuario: 'la cuenta' }
 
 /**
- * La acción tal como la manda el servidor ("creó", "editó", "inactivó"…).
+ * `accion` ES UN CÓDIGO, no una frase.
  *
- * No se traduce ni se normaliza: el contrato la entrega ya redactada y
- * reescribirla aquí sería inventar un vocabulario paralelo.
+ * El contrato manda `crear` | `editar` | `activar` | `inactivar`, como cualquier
+ * otro código: el front decide por códigos, nunca por textos. Aquí se pintaba
+ * tal cual, y con el servidor de verdad la línea salía "Patricia Velásquez
+ * (Docente) EDITAR al alumno el 20/11/2026". No se vio antes porque el
+ * simulador devolvía el verbo ya conjugado.
+ *
+ * Los verbos son los de CU014, y el de editar NO es "editó al alumno": es
+ * "editó la información del alumno". Por eso la frase entera se arma aquí y no
+ * concatenando un sujeto común.
  */
-const accionDe = (evento) => evento.accion ?? 'modificó'
+/** "del alumno", o "de" y el sujeto tal cual. */
+const deSujeto = (sujeto) => (sujeto === 'al alumno' ? 'del alumno' : `de ${sujeto}`)
 
-export default function PestanaAuditoria({ seccion, registro, cargarAuditoria }) {
-  const id = registro?.id ?? registro?.[`id_${seccion}`] ?? null
+const FRASE = {
+  crear: (sujeto) => `creó ${sujeto}`,
+  editar: (sujeto) => `editó la información ${deSujeto(sujeto)}`,
+  activar: (sujeto) => `activó ${sujeto}`,
+  inactivar: (sujeto) => `inactivó ${sujeto}`,
+}
+
+/**
+ * Qué hizo, ya redactado.
+ *
+ * Un código que no esté en la tabla se dice en genérico en vez de pintarse en
+ * crudo: inventaría una conjugación que nadie escribió.
+ */
+const fraseDe = (evento, entidad) => {
+  const sujeto = SUJETO[entidad] ?? 'el registro'
+  const armar = FRASE[evento?.accion]
+  return armar ? armar(sujeto) : `modificó ${sujeto}`
+}
+
+export default function PestanaAuditoria({ entidad, registro, cargarAuditoria }) {
+  const id = registro?.id ?? registro?.[`id_${entidad}`] ?? null
   const consulta = useQuery({
-    queryKey: ['auditoria', seccion, id],
+    queryKey: ['auditoria', entidad, id],
     queryFn: () => cargarAuditoria(id),
     enabled: Boolean(id && cargarAuditoria),
   })
@@ -69,7 +102,7 @@ export default function PestanaAuditoria({ seccion, registro, cargarAuditoria })
             <span className="font-medium text-ink-900">
               {evento.usuario}
               {evento.rol ? <span className="font-normal text-ink-500">{` (${evento.rol})`}</span> : null}
-              {` ${accionDe(evento)} ${SUJETO[seccion] ?? 'el registro'}`}
+              {` ${fraseDe(evento, entidad)}`}
             </span>
           ),
         },

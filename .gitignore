@@ -22,3 +22,6 @@ test-results/
 
 # Reportes del escaneo OWASP ZAP (stage de Jenkins en qa).
 zap-reports/
+
+# Reportes del escaneo Trivy (stage de Jenkins).
+trivy-reports/

@@ -20,6 +20,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MOTIVO, TEXTO_MOTIVO, habilitacionPara } from '../auth/habilitaciones'
 import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
+import { SIN_ACTIVIDAD } from '../api/resources/sincronizacion'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../lib/relojServidor'
 import useActividadStore from '../store/actividadStore'
 import useConexion from './useConexion'
@@ -30,9 +31,9 @@ export const MOTIVO_LOCAL = {
   SIN_REFERENCIA: 'sin_referencia_temporal',
 }
 
-// Literal de CU010, el mismo que usan las cuatro pantallas de registro.
-const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
-
+// El texto de "falta la actividad" es el MISMO que responde el servidor: así
+// el docente lee lo mismo cuando la pantalla se lo adelanta y cuando el
+// servidor se lo rechaza.
 const TEXTOS = {
   ...TEXTO_MOTIVO,
   [MOTIVO_LOCAL.SIN_ACTIVIDAD]: SIN_ACTIVIDAD,

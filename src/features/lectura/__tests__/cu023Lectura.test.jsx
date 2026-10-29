@@ -81,6 +81,22 @@ function errorPorCrear(claseSugerida = CLASE) {
 }
 
 
+/**
+ * jsdom NO TIENE IndexedDB, y declarar "no realizada" exige quedar apuntado en
+ * local antes de darlo por bueno (CU026: "Pendiente de sincronización"). Sin
+ * este simulador, la cola descarta el envío y la prueba mediría el fallo de
+ * persistencia en vez del flujo.
+ */
+vi.mock('idb-keyval', () => {
+  const almacen = new Map()
+  return {
+    get: vi.fn(async (k) => almacen.get(k)),
+    set: vi.fn(async (k, v) => {
+      almacen.set(k, v)
+    }),
+    del: vi.fn(async (k) => almacen.delete(k)),
+  }
+})
 // "Cargar versión actual" descarta la operación rechazada (P4 §1).
 const descartarOperacion = vi.fn(async () => ({ estado: 'descartada' }))
 vi.mock('../../../api/resources/sincronizacion', async (importOriginal) => ({
@@ -513,7 +529,7 @@ describe('Quién puede escribir', () => {
 
     montar()
 
-    await screen.findByText('Inicia una actividad de trabajo para habilitar el registro de datos.', {}, ESPERA)
+    await screen.findByText('Debes iniciar una actividad de trabajo para registrar o modificar información.', {}, ESPERA)
     expect(await screen.findByLabelText(/título del LSN/i, {}, ESPERA)).toBeDisabled()
   })
 })

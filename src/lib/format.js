@@ -25,20 +25,52 @@ const MESES = [
 ]
 
 /** "14 – 18 set" para el selector de semanas del reporte semanal (P4). */
+/**
+ * Los campos de una semana, con los DOS nombres (D58).
+ *
+ * `GET /semanas` pasó a devolver `numero_semana`, `fecha_inicio` y
+ * `fecha_fin`; antes eran `numero`, `inicio` y `fin`. Leer solo los viejos era
+ * lo que pintaba "Semana undefined · 22 – 22 oct" en el Inicio: el número no
+ * existía y las dos fechas caían en `Invalid Date`, que dayjs resuelve al día
+ * de hoy sin quejarse.
+ */
+const campoSemana = (semana, nuevo, viejo) => semana?.[nuevo] ?? semana?.[viejo]
+
 export function formatearRangoSemana(semana) {
   if (!semana) return ''
-  const inicio = dayjs(semana.inicio)
-  const fin = dayjs(semana.fin)
-  const mesInicio = MESES[inicio.month()].slice(0, 3)
-  const mesFin = MESES[fin.month()].slice(0, 3)
-  return inicio.month() === fin.month()
-    ? `${inicio.date()} – ${fin.date()} ${mesFin}`
-    : `${inicio.date()} ${mesInicio} – ${fin.date()} ${mesFin}`
+  const desde = campoSemana(semana, 'fecha_inicio', 'inicio')
+  const hasta = campoSemana(semana, 'fecha_fin', 'fin')
+  // `dayjs(undefined)` es AHORA, y `isValid()` dice que sí: por eso una
+  // semana sin fechas se pintaba como "28 – 28 oct" en vez de callarse.
+  if (!desde || !hasta) return ''
+  const inicio = dayjs(desde)
+  const fin = dayjs(hasta)
+  if (!inicio.isValid() || !fin.isValid()) return ''
+
+  /**
+   * Una semana que CRUZA DE MES se escribe con las fechas completas.
+   *
+   * Desde la tanda B una semana vive en un solo mes, aunque sus días caigan
+   * en dos (lunes 29/06 a viernes 03/07). Escribirla "29 jun – 3 jul" se lee
+   * bien, pero el caso de uso pide las fechas completas justo ahí, porque es
+   * donde la gente se pierde al buscar en qué mes está su tabla.
+   */
+  if (inicio.year() !== fin.year() || inicio.month() !== fin.month()) {
+    return `${inicio.format('DD/MM/YYYY')} – ${fin.format('DD/MM/YYYY')}`
+  }
+  return `${inicio.date()} – ${fin.date()} ${MESES[fin.month()].slice(0, 3)}`
 }
 
-/** "Semana 12 · 14 – 18 set" */
-export const etiquetaDeSemana = (semana) =>
-  semana ? `Semana ${semana.numero} · ${formatearRangoSemana(semana)}` : ''
+/** "Semana 12 · 14 – 18 set", o "Semana 27 · 29/06/2026 – 03/07/2026". */
+export const etiquetaDeSemana = (semana) => {
+  if (!semana) return ''
+  const numero = campoSemana(semana, 'numero_semana', 'numero')
+  const rango = formatearRangoSemana(semana)
+  // Sin número no se escribe "Semana undefined": se dice solo el rango, que
+  // es lo que de verdad ubica a la persona.
+  if (numero == null) return rango
+  return rango ? `Semana ${numero} · ${rango}` : `Semana ${numero}`
+}
 
 /** Día de calendario: se muestra tal cual, SIN convertir zona. */
 export const formatearFecha = (valor) => {

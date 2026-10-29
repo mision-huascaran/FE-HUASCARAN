@@ -79,10 +79,19 @@ export const MOTIVO_RUBRICA = {
   valor_no_permitido: 'Selecciona una valoración permitida para esta dimensión.',
   sin_habilitacion:
     'No tienes una habilitación vigente para registrar o modificar las rúbricas del grupo y mes seleccionados.',
-  actividad_requerida: 'Debes iniciar una actividad de trabajo para registrar o modificar las rúbricas.',
   modificacion_concurrente:
     'Esta evaluación fue modificada desde que la consultaste. Revisa la versión actual antes de guardar nuevamente.',
   alumno_fuera_del_grupo: 'El estudiante no pertenecía a este grupo en el mes seleccionado.',
+  /**
+   * UNA SOLA EVALUACIÓN POR ALUMNO Y MES, en cualquier grupo (tanda 0).
+   *
+   * Sale al intentar CREAR la de un alumno que ya tiene la de ese año y mes
+   * en otro grupo. No se ofrece reintento: insistir daría el mismo rechazo.
+   * La que existe se corrige en SU grupo original, aunque el alumno ya no
+   * pertenezca a él, y eso lo hace quien la registró o el Supervisor.
+   */
+  evaluacion_en_otro_grupo:
+    'Este alumno ya tiene una evaluación registrada para este mes. Para corregirla, contacta al Docente que la registró o a tu Supervisor.',
   mes_futuro: 'No es posible evaluar meses futuros.',
   mes_sin_actividad:
     'El mes seleccionado no tiene días lectivos de un periodo académico en el calendario del colegio.',

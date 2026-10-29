@@ -497,11 +497,26 @@ function cuerpoDeAlumno(cambios) {
   const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
   if (idPrograma) cuerpo.id_programa = Number(idPrograma)
   /**
+   * EL INICIO DE PERTENENCIA, cuando el alumno no tenía ninguno (D65, tanda L1).
+   *
+   * El campo se pedía en el formulario pero **no viajaba**: se quedaba aquí.
+   * Ahora el `PATCH` lo acepta para el alumno activo que llega con
+   * `pertenece_desde: null`, y con él el backend abre su primer intervalo.
+   */
+  if (cambios.pertenece_desde) cuerpo.pertenece_desde = cambios.pertenece_desde
+  /**
    * Cambiar de GRUPO —colegio, grado, sección o subprograma— exige decir desde
    * cuándo. Corregir solo el nombre, no: por eso viaja aparte y solo cuando la
    * pantalla lo manda.
+   *
+   * NO VIAJA JUNTO A `pertenece_desde`: si el alumno aún no tiene pertenencia,
+   * el backend abre el intervalo con el grupo final y mandar los dos responde
+   * 422 ("Este alumno todavía no tiene un inicio de pertenencia: usa 'Pertenece
+   * al grupo desde'"). Son dos formas de decir lo mismo y solo una vale.
    */
-  if (cambios.cambio_grupo_desde) cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
+  if (cambios.cambio_grupo_desde && !cuerpo.pertenece_desde) {
+    cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
+  }
   return cuerpo
 }
 
@@ -525,6 +540,28 @@ export const cambiaDeGrupo = (antes, ahora) =>
     return String(previo ?? '') !== String(nuevo)
   })
 
+/**
+ * Cuándo se creó el alumno, en `YYYY-MM-DD` (D65).
+ *
+ * Es la fecha que el formulario propone cuando al alumno le falta el inicio de
+ * su pertenencia: la única que se sabe cierta.
+ *
+ * SE LLAMA `fecha_registro`, y es la que CU014 propone para "Pertenece al grupo
+ * desde". Aquí se leyeron un tiempo `creado_en`, `fecha_creacion` y `creado`
+ * —el nombre no estaba publicado y se adivinó—, con el resultado de que
+ * contra el backend real el campo salía SIEMPRE vacío. Se dejan como respaldo
+ * porque no cuesta nada, pero el bueno es el primero.
+ *
+ * Si no llega ninguno se devuelve vacío y la elige la persona: proponer hoy
+ * sería inventar un historial que no ocurrió.
+ */
+export const fechaDeCreacion = (registro) => {
+  const valor =
+    registro?.fecha_registro ?? registro?.creado_en ?? registro?.fecha_creacion ?? registro?.creado ?? null
+  if (!valor) return ''
+  // Llega como día suelto (`2026-03-02`), pero un instante también vale.
+  return String(valor).slice(0, 10)
+}
 
 /**
  * Activar o inactivar a un alumno. AHORA LLEVA CUERPO, y es obligatorio.
@@ -678,35 +715,75 @@ async function idAnioEscolar(anio) {
   return elegido?.id ?? anioVigente(anios)?.id ?? null
 }
 
-/** `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde. */
+/**
+ * `asignacion` de `UsuarioCrear` / `UsuarioEditar`, o null si no corresponde.
+ *
+ * UN DOCENTE PUEDE TENER VARIOS COLEGIOS (D67, tanda G1). El contrato cambió
+ * de forma, no se amplió: `desde_periodo` ya no existe, ni `id_colegio` ni
+ * `grados` sueltos en la raíz. Un cuerpo con la forma vieja responde 422.
+ *
+ *   {"id_anio_escolar": 2,
+ *    "colegios": [{"id_colegio": 1, "grados": [1, 2]},
+ *                 {"id_colegio": 4, "grados": [5], "inicio_asignacion": "retroactivo"}]}
+ *
+ * En la EDICIÓN, `colegios` es la lista COMPLETA del año: el colegio que no
+ * venga se libera de sus PA no terminados. No es un añadido incremental, y por
+ * eso el formulario manda siempre todos los que tiene puestos.
+ */
 async function asignacionDe(datos, { obligatoria }) {
   if (Number(datos.id_rol) !== 1 && obligatoria) return null
-  if (!datos.id_colegio) return null
-  const grados = (Array.isArray(datos.grados) ? datos.grados : []).map(Number).filter(Boolean)
-  const asignacion = {
-    id_colegio: Number(datos.id_colegio),
-    id_anio_escolar: await idAnioEscolar(datos.anio_escolar),
-  }
-  // Sin grados elegidos se OMITE el campo y el backend asigna todos los que
-  // ofrece el colegio. `grados: null` responde 422 ("no puede ser nulo") y
-  // `grados: []` también ("al menos un elemento"), aunque openapi diga otra cosa.
-  if (grados.length) asignacion.grados = grados
+
   /**
-   * DESDE QUÉ PERIODO empieza la asignación, solo si ese colegio está HOY en
-   * receso (T4).
-   *
-   * En un PA o en un año que todavía no ha empezado el backend lo ignora, así
-   * que no se manda: el formulario tampoco lo pregunta. Pero si el colegio
-   * está en PR y falta, responde 422 `inicio_asignacion_requerido`.
-   *
-   *   · `retroactivo` — crea además la fila del PA recién culminado, para
-   *     regularizarlo. Solo habilita escribir mientras dure ese receso.
-   *   · `proximo` — desde el PA siguiente. En el PR4 no existe un PA
-   *     siguiente, y el backend lo rechaza diciendo que hay que elegir el año
-   *     escolar que viene.
+   * Se acepta la forma nueva (`colegios`) y, mientras queden pantallas sin
+   * migrar, también un colegio suelto en la raíz, que se convierte aquí.
    */
-  if (datos.inicio_asignacion) asignacion.inicio_asignacion = datos.inicio_asignacion
-  return asignacion
+  let crudos = []
+  if (Array.isArray(datos.colegios) && datos.colegios.length) crudos = datos.colegios
+  else if (datos.id_colegio) {
+    crudos = [{ id_colegio: datos.id_colegio, grados: datos.grados, inicio_asignacion: datos.inicio_asignacion }]
+  }
+
+  if (!crudos.length) return null
+
+  const colegios = crudos
+    /**
+     * D80 — LOS QUE SON SOLO HISTORIAL NO SE REENVÍAN.
+     *
+     * La lista del `PATCH` es el conjunto DESEADO, no un diff: un colegio
+     * reenviado se reasigna en el PA en curso. Así, editar cualquier otra cosa
+     * del Docente le devolvía colegios en los que ya había terminado, sin que
+     * nadie lo pidiera y sin que nada lo dijera en pantalla.
+     *
+     * Quitarlos no borra nada: sus PA culminados siguen siendo historial.
+     */
+    .filter((c) => !c.solo_historial)
+    .map((c) => {
+      const grados = (Array.isArray(c.grados) ? c.grados : []).map(Number).filter(Boolean)
+      const bloque = { id_colegio: Number(c.id_colegio) }
+      // Sin grados elegidos se OMITE el campo y el backend decide. NUNCA se
+      // manda `[]` ni `null`: los dos responden 422.
+      if (grados.length) bloque.grados = grados
+      /**
+       * DESDE QUÉ PERIODO empieza, y es POR COLEGIO: cada uno tiene su
+       * calendario, así que uno puede estar en receso y otro en un PA.
+       *
+       *   · `retroactivo` — crea además la fila del PA recién culminado para
+       *     regularizarlo. Solo habilita escribir mientras dure ese receso.
+       *   · `proximo` — desde el PA siguiente. En el PR4 no hay PA siguiente
+       *     y el backend lo rechaza: hay que elegir el año escolar que viene.
+       *
+       * En un PA o en un año sin empezar el backend lo ignora, así que no se
+       * manda; si el colegio está en PR y falta, responde 422
+       * `inicio_asignacion_requerido` con el índice de SU bloque.
+       */
+      if (c.inicio_asignacion) bloque.inicio_asignacion = c.inicio_asignacion
+      return bloque
+    })
+    .filter((c) => Number.isFinite(c.id_colegio) && c.id_colegio > 0)
+
+  if (!colegios.length) return null
+
+  return { id_anio_escolar: await idAnioEscolar(datos.anio_escolar), colegios }
 }
 
 /**
@@ -841,18 +918,52 @@ export const obtenerUsuario = async (idUsuario) => {
   })
   if (!usuario) return usuario
   const asignacion = usuario.asignacion ?? null
-  const periodos = asignacion?.periodos ?? []
-  const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+
   let anio = ''
   if (asignacion?.id_anio_escolar != null) {
     const anios = (await api.get(ENDPOINTS.catalogos.anios))?.data ?? []
     const nombre = anios.find((a) => a.id === asignacion.id_anio_escolar)?.nombre
     anio = /\d{4}/.exec(String(nombre ?? ''))?.[0] ?? ''
   }
+
+  /**
+   * `asignacion` viene AGRUPADA POR COLEGIO (tanda G1).
+   *
+   * Antes era `asignacion.periodos[]` con un `id_colegio` dentro de cada
+   * periodo, y aquí se aplanaba a UN colegio: el Docente con dos perdía el
+   * segundo al abrir su ficha, y al guardar se lo quitaba sin que nadie lo
+   * pidiera. Ahora cada elemento de `colegios` es un colegio seleccionado, y
+   * sus grados salen del periodo vigente o, si no hay, del primero.
+   */
+  const colegios = (asignacion?.colegios ?? []).map((c) => {
+    const periodos = c.periodos ?? []
+    const periodo = periodos.find((p) => p.vigente) ?? periodos[0]
+    return {
+      id_colegio: String(c.id_colegio),
+      nombre: c.colegio,
+      grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+      // `retroactiva: true` significa que ese PA está habilitado con
+      // "Retroactivo", y el formulario lo propone al reabrirlo.
+      inicio_asignacion: periodo?.retroactiva ? 'retroactivo' : '',
+      /**
+       * D80 — SOLO HISTORIAL: todos sus periodos ya terminaron.
+       *
+       * El formulario lo enseñaba como un bloque vigente más y, al guardar
+       * cualquier otra cosa, lo reenviaba en la lista; como el `PATCH` toma esa
+       * lista por el conjunto DESEADO, el backend volvía a asignar al Docente
+       * en el PA en curso un colegio que ya había terminado. Ese era el
+       * defecto: no un error de guardado, sino una reasignación silenciosa.
+       */
+      solo_historial: Boolean(c.solo_historial),
+    }
+  })
+
   return {
     ...usuario,
-    id_colegio: periodo?.id_colegio == null ? '' : String(periodo.id_colegio),
-    grados: (periodo?.grados ?? []).map((g) => String(g.id_grado)),
+    colegios,
+    // La forma plana se conserva para lo que todavía la lee (el primero).
+    id_colegio: colegios[0]?.id_colegio ?? '',
+    grados: colegios[0]?.grados ?? [],
     anio_escolar: anio,
   }
 }

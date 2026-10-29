@@ -5,6 +5,8 @@ import ProtectedRoute from './auth/ProtectedRoute'
 import RoleRoute from './auth/RoleRoute'
 import ForbiddenPage from './features/errores/ForbiddenPage'
 import InicioPage from './features/inicio/InicioPage'
+import DashboardPage from './features/dashboard/DashboardPage'
+import LibrosPage from './features/dashboard/LibrosPage'
 import MantenimientoColegios from './features/colegios/MantenimientoColegios'
 import AlumnosPage from './features/alumnos/AlumnosPage'
 import MantenimientoUsuarios from './features/usuarios/MantenimientoUsuarios'
@@ -33,6 +35,18 @@ const { PROFESOR, JEFA, DIRECTIVOS } = ROLES
 export const RUTAS_PROTEGIDAS = [
   // ── Las 9 secciones de la matriz de permisos del sprint de cierre ──────────
   { path: '/inicio', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Inicio', elemento: <InicioPage /> },
+  /**
+   * CU033 y CU035 — Dashboard del Supervisor y del Directivo.
+   *
+   * Es la décima sección: la matriz del sprint de cierre tenía nueve y es
+   * anterior a estos casos de uso (ver el bloque `dashboard` de
+   * `auth/permisos.js`). Una ruta, dos pantallas distintas por rol.
+   *
+   * CU034 cuelga de ella y es SOLO del Supervisor: trae nombres de alumnos, y
+   * sus endpoints le responden 403 al Directivo.
+   */
+  { path: '/dashboard', allow: [JEFA, DIRECTIVOS], titulo: 'Dashboard', elemento: <DashboardPage /> },
+  { path: '/dashboard/libros', allow: [JEFA], titulo: 'Consolidado de libros leídos', elemento: <LibrosPage /> },
   { path: '/alumnos', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <AlumnosPage /> },
   { path: '/usuarios', allow: [JEFA], titulo: 'Usuarios', elemento: <MantenimientoUsuarios /> },
   { path: '/colegios', allow: [JEFA], titulo: 'Colegios', elemento: <MantenimientoColegios /> },

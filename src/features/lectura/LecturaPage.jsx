@@ -16,7 +16,7 @@
 // referencia no hay libros que registrar. La asistencia se muestra pero no se
 // edita aquí; su sitio es el módulo de Asistencia, y duplicar el control haría
 // que el docente marcara la falta dos veces.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BookOpenCheck, CalendarPlus } from 'lucide-react'
 import AvisoActividades from '../../components/layout/AvisoActividades'
@@ -29,11 +29,13 @@ import FilterBar from '../../components/ui/FilterBar'
 import Select from '../../components/ui/Select'
 import ModalObservacionLectura from './ModalObservacionLectura'
 import ModalNoRealizada from './ModalNoRealizada'
+import ModalHabilitarRegistro from './ModalHabilitarRegistro'
+import ModalCambiarClase from './ModalCambiarClase'
 import TablaLectura from './TablaLectura'
 import useFiltrosDeGrupo, { MESES, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
-import { mensajeDeError } from '../../api/client'
+import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
@@ -56,6 +58,8 @@ export default function LecturaPage() {
 
   const [observando, setObservando] = useState(null)
   const [justificando, setJustificando] = useState(false)
+  const [habilitando, setHabilitando] = useState(false)
+  const [cambiandoClase, setCambiandoClase] = useState(false)
 
   // El año escolar en curso. La tabla lo exige, y no se puede deducir del mes:
   // enero y febrero pertenecen al año anterior en algunos colegios.
@@ -80,8 +84,35 @@ export default function LecturaPage() {
     creando,
     marcarNoRealizada,
     marcando,
+    habilitarRegistro,
+    habilitando: habilitandoRegistro,
+    errorAlHabilitar,
+    cambiarClase,
+    cambiandoClase: guardandoClase,
     guardarFila,
   } = useTablaLectura(filtros)
+
+  /**
+   * EL MES SE AJUSTA AL DE LA TABLA (tanda B).
+   *
+   * Una semana que cae en dos meses —lunes 29/06 a viernes 03/07— tiene UNA
+   * sola tabla, y su mes es el de su clase de referencia. El servidor devuelve
+   * la tabla aunque el `mes` que se mande no sea el suyo, justamente para que
+   * no haga falta adivinarlo; lo que toca aquí es poner el filtro donde de
+   * verdad está la tabla, o la pantalla diría julio mientras enseña la tabla
+   * de junio.
+   *
+   * También cubre el cambio de clase a otra de otro mes y el 409
+   * `tabla_existente` de una tabla creada desde el otro mes.
+   */
+  useEffect(() => {
+    if (tabla?.mes && String(tabla.mes) !== String(filtros.mes)) cambiar('mes', String(tabla.mes))
+  }, [tabla?.mes, filtros.mes, cambiar])
+
+  const semanaElegida = useMemo(
+    () => semanas.find((s) => String(s.id_semana) === String(filtros.idSemana)) ?? null,
+    [semanas, filtros.idSemana],
+  )
 
   const listos = Boolean(
     filtros.idColegio &&
@@ -230,10 +261,13 @@ export default function LecturaPage() {
           tabla={tabla}
           soloLectura={soloLectura}
           marcando={marcando}
+          habilitando={habilitandoRegistro}
           sinConexion={!enLinea}
           onGuardarFila={guardar}
           onObservar={setObservando}
           onNoRealizada={() => setJustificando(true)}
+          onHabilitarRegistro={() => setHabilitando(true)}
+          onCambiarClase={() => setCambiandoClase(true)}
         />
       )}
 
@@ -256,6 +290,32 @@ export default function LecturaPage() {
           marcarNoRealizada(motivo)
         }}
         onCerrar={() => setJustificando(false)}
+      />
+
+      <ModalHabilitarRegistro
+        open={habilitando}
+        guardando={habilitandoRegistro}
+        // El 422 llega en `errores[].campo = "motivo"`, así que el mensaje va
+        // debajo de su campo y no en un aviso general (D62).
+        error={erroresDeCampo(errorAlHabilitar).motivo}
+        onConfirmar={(motivo) => {
+          setHabilitando(false)
+          habilitarRegistro(motivo)
+        }}
+        onCerrar={() => setHabilitando(false)}
+      />
+
+      <ModalCambiarClase
+        open={cambiandoClase}
+        semana={semanaElegida}
+        filtros={filtros}
+        claseActual={tabla?.clase_referencia}
+        guardando={guardandoClase}
+        onConfirmar={(eleccion) => {
+          setCambiandoClase(false)
+          cambiarClase(eleccion)
+        }}
+        onCerrar={() => setCambiandoClase(false)}
       />
     </div>
   )

@@ -2,7 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef } fr
 import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
-import { limpiarDatosLocalesDeSesion } from '../lib/datosLocales'
+import {
+  guardarPerfilLocal,
+  limpiarDatosLocalesDeSesion,
+  limpiarSiEsOtroUsuario,
+  perfilLocalDe,
+} from '../lib/datosLocales'
+import { ahora } from '../lib/relojServidor'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
@@ -31,6 +37,8 @@ export function AuthProvider({ children }) {
   const setToken = useSessionStore((s) => s.setToken)
   const setUsuario = useSessionStore((s) => s.setUsuario)
   const setCargando = useSessionStore((s) => s.setCargando)
+  const servidorInalcanzable = useSessionStore((s) => s.servidorInalcanzable)
+  const setServidorInalcanzable = useSessionStore((s) => s.setServidorInalcanzable)
   const limpiarSesion = useSessionStore((s) => s.cerrarSesion)
   // El motivo del cierre vive en el store: lo escribe el interceptor de axios
   // al recibir un 401 `sesion_expirada`, que ocurre fuera de React.
@@ -55,20 +63,67 @@ export function AuthProvider({ children }) {
       limpiarSesion()
       return
     }
-    if (usuario || perfilPedidoPara.current === token) return
+    // Mientras la marca de servidor caído siga puesta no se reintenta solo:
+    // reintentar en bucle contra un servidor que no contesta no arregla nada
+    // y llena la consola. Lo desbloquea el botón "Reintentar".
+    if (usuario || servidorInalcanzable || perfilPedidoPara.current === token) return
 
     perfilPedidoPara.current = token
     setCargando(true)
     obtenerPerfil()
       .then((perfil) => {
         setUsuario(perfil)
+        // D82 — Una copia, para poder recargar sin conexión.
+        guardarPerfilLocal(perfil)
         setCargando(false)
       })
-      .catch(() => {
-        // Token vencido o inválido: se vuelve a empezar.
-        limpiarSesion()
+      .catch((error) => {
+        /**
+         * UN SERVIDOR CAÍDO NO ES UNA SESIÓN TERMINADA (D52).
+         *
+         * Antes cualquier fallo de `/me` borraba la sesión, así que con el
+         * backend caído recargar echaba al usuario al login y le hacía creer
+         * que su sesión había expirado. Son dos cosas distintas y se tratan
+         * distinto:
+         *
+         *   · 401 o 403 → el token no sirve. Se cierra, que es lo correcto.
+         *   · sin respuesta o 5xx → el servidor no contesta. El token sigue
+         *     siendo válido: se conserva y la pantalla lo dice.
+         */
+        const estado = error?.response?.status
+        if (estado === 401 || estado === 403) {
+          limpiarSesion()
+          return
+        }
+
+        /**
+         * D82 — SIN SEÑAL SE SIGUE TRABAJANDO CON LA COPIA.
+         *
+         * El perfil vive en memoria y la recarga lo pierde. Pedirlo otra vez
+         * sin red falla, y la aplicación se quedaba en "No se pudo contactar
+         * con el servidor": el Docente que recargaba en el aula perdía el
+         * acceso a todo, incluida la cola de pendientes que ya tenía guardada.
+         *
+         * Con la copia se entra igual. No se usa para un 401 ni un 403 —eso
+         * ya se resolvió arriba—, solo cuando el servidor no contesta, que es
+         * cuando el token sigue siendo bueno.
+         */
+        const guardado = perfilLocalDe(null)
+        if (guardado) {
+          setUsuario(guardado)
+          setCargando(false)
+          return
+        }
+        /**
+         * Se suelta la marca de "ya pedí el perfil para este token" para que
+         * el reintento pueda volver a pedirlo. Sin esto, el botón
+         * "Reintentar" bajaba la bandera y el efecto se encontraba con que
+         * ese token ya se había pedido, así que no hacía nada.
+         */
+        perfilPedidoPara.current = null
+        setServidorInalcanzable(true)
       })
-  }, [token, usuario, setUsuario, setCargando, limpiarSesion])
+  }, [token, usuario, servidorInalcanzable, setUsuario, setCargando, limpiarSesion, setServidorInalcanzable])
 
   const entrar = useCallback(
     async ({ correo, password }) => {
@@ -78,6 +133,18 @@ export function AuthProvider({ children }) {
       perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
+      /**
+       * D51 — Si entra OTRA cuenta, lo guardado no es suyo.
+       *
+       * El cierre de sesión ya limpia, pero solo cuando se pulsa "Cerrar
+       * sesión". Si la pestaña se cierra, el token caduca o alguien lo borra,
+       * esa limpieza nunca corre y la siguiente persona ve el resumen, los
+       * filtros y las consultas de la anterior como si fueran suyos.
+       *
+       * Va ANTES de `setUsuario`: la pantalla no debe llegar a pintar nada con
+       * datos ajenos, ni siquiera un instante.
+       */
+      await limpiarSiEsOtroUsuario(perfil?.id_usuario)
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -98,6 +165,7 @@ export function AuthProvider({ children }) {
       perfilPedidoPara.current = accessToken
       setToken(accessToken)
       const perfil = await obtenerPerfil()
+      await limpiarSiEsOtroUsuario(perfil?.id_usuario)
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -125,13 +193,28 @@ export function AuthProvider({ children }) {
 
     const { sinRespuesta } = await cerrarSesionEnServidor()
 
-    if (abierta && sinRespuesta && motivo !== 'expiracion') {
+    if (sinRespuesta && motivo !== 'expiracion' && idSesion) {
+      /**
+       * D44 — SE ENCOLA EL CIERRE DE LA SESIÓN, NO EL DE LA ACTIVIDAD.
+       *
+       * Antes se mandaba `POST /actividades/{id}/finalizar`, y una actividad
+       * que el docente ya dio por terminada NO se reescribe: quedaba como
+       * "Manual por finalización de actividad" y la sesión seguía abierta en
+       * el servidor, con su fin y su causa en null.
+       *
+       * `POST /me/sesiones/{id}/cerrar` cierra las dos, y la actividad como
+       * "Forzado por cierre de sesión", que es lo que de verdad pasó. Va con
+       * la hora REAL en que el docente salió, no la de la sincronización: lo
+       * que se registra es cuándo ocurrió.
+       */
       encolar({
-        clave: `actividad-cierre-${abierta.id}`,
-        tipo: TIPOS_ENVIO.ACTIVIDAD_CIERRE,
-        payload: { id: abierta.id, fin: abierta.fin, id_sesion: idSesion },
-        descripcion: 'Cierre de actividad (cierre de sesión sin conexión)',
-        dependeDe: `actividad-inicio-${abierta.id}`,
+        clave: `sesion-cierre-${idSesion}`,
+        tipo: TIPOS_ENVIO.SESION_CIERRE,
+        payload: { id_sesion: idSesion, fin: abierta?.fin ?? ahora().toISOString(), id_actividad: abierta?.id ?? null },
+        descripcion: 'Cierre de sesión sin conexión',
+        // Si la actividad se inició sin conexión y todavía no subió, primero
+        // tiene que existir en el servidor: cerrarla antes daría un 404.
+        ...(abierta ? { dependeDe: `actividad-inicio-${abierta.id}` } : {}),
       }).catch(() => {
         // El resultado se ve en el panel de sincronización, no aquí.
       })

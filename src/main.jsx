@@ -11,6 +11,17 @@ import '@fontsource/inter/700.css'
 import '@fontsource/poppins/600.css'
 import '@fontsource/poppins/700.css'
 import './styles/index.css'
+import { registrarServiceWorker } from './lib/actualizacion'
+
+/**
+ * D43 — El Service Worker, para que la aplicación ABRA sin conexión.
+ *
+ * Se registra después de pintar, no antes: instalarlo no debe retrasar el
+ * primer render, y si falla —navegador sin soporte, desarrollo— la aplicación
+ * funciona igual, solo que recargar sin señal volverá a dar el error del
+ * navegador.
+ */
+registrarServiceWorker()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

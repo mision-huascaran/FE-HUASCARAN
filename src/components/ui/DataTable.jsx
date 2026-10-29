@@ -52,6 +52,21 @@ export default function DataTable({
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(initialPageSize)
 
+  /**
+   * EL ORDEN DE ENTRADA ES EL DEL SERVIDOR Y NO SE TOCA.
+   *
+   * Desde la tanda H el backend entrega todos los listados ordenados sin
+   * distinguir mayúsculas ni tildes (la Ñ como N) y con desempate por id:
+   * `ALVA`, `álvarez`, `Ávila`, `Ñahui`, `nuñez`, `Pérez`. Por eso
+   * `orden.key` nace en `null` y las filas se pintan tal como llegan.
+   *
+   * Lo de abajo solo entra cuando la PERSONA pulsa una cabecera, que es otra
+   * cosa. Y ojo con una condición que hoy se cumple y conviene no romper:
+   * ordena el conjunto COMPLETO porque los listados de mantenimiento piden
+   * todas las páginas (`todasLasPaginas`) y paginan aquí. Si alguna pantalla
+   * pasara a recibir UNA página del servidor, este orden reordenaría solo esas
+   * 40 filas y mentiría: ahí habría que quitarle `sortable` a sus columnas.
+   */
   const ordenadas = useMemo(() => {
     if (!orden.key) return rows
     const col = columns.find((c) => c.key === orden.key)

@@ -21,7 +21,12 @@ import Select from '../../components/ui/Select'
 import DetalleDocente from './DetalleDocente'
 import { listarSeguimiento } from '../../api/resources/seguimiento'
 import { listarColegiosAdmin } from '../../api/resources/administracion'
-import { AYUDA_SINCRONIZACION, ETIQUETA_SINCRONIZACION, TONO_SINCRONIZACION } from '../../api/resources/actividades'
+import {
+  AVISO_SINCRONIZACION,
+  AYUDA_SINCRONIZACION,
+  ETIQUETA_SINCRONIZACION,
+  TONO_SINCRONIZACION,
+} from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
@@ -167,6 +172,12 @@ export default function SeguimientoPage() {
             loading={consulta.isLoading}
             rows={consulta.data?.items ?? []}
             getRowId={(d) => d.id_docente}
+            /**
+             * CU020 — El alcance de la columna, dicho una vez para toda la
+             * tabla. Lo que se ve es lo que el servidor sabe, y lo que un
+             * dispositivo no ha comunicado todavía no aparece en ninguna fila.
+             */
+            footNote={AVISO_SINCRONIZACION}
             empty={<EmptyState icon={Users} title="Sin docentes que mostrar" description="Pruebe a quitar algún filtro." />}
             columns={[
               {

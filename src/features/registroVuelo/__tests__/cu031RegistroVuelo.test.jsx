@@ -284,6 +284,41 @@ describe('Lo que calcula el servidor', () => {
   })
 })
 
+describe('Un alumno trasladado (tanda A3)', () => {
+  it('destaca "Registrado antes del traslado" y no enlaza al colegio de origen', async () => {
+    /**
+     * La letra viene de una decisión tomada en otro colegio: el alumno no
+     * tiene ningún registro anterior en este, así que sin el aviso la entrada
+     * parece salida de la nada. Y no se enlaza: ver la letra como antecedente
+     * no da permiso sobre las evaluaciones del colegio de procedencia.
+     */
+    listarRegistroVuelo.mockResolvedValue(
+      respuesta({
+        items: [
+          alumno({
+            periodos: [
+              periodo(2, {
+                entrada: {
+                  nivel: { id: 7, letra: 'F' },
+                  origen: 'periodo_anterior',
+                  de_otro_colegio: true,
+                  texto:
+                    'Proviene del nivel colocado en el periodo anterior. Registrado antes del traslado.',
+                },
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+
+    montar()
+    const aviso = await screen.findByText('Registrado antes del traslado', {}, ESPERA)
+    expect(aviso.closest('td')).toHaveTextContent('F')
+    expect(screen.queryByRole('link', { name: /colegio/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('Lo que decide el docente', () => {
   it('manda SOLO los tres campos suyos: nada calculado', async () => {
     /**

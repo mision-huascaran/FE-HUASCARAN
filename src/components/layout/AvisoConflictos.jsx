@@ -26,13 +26,23 @@ export default function AvisoConflictos({ modulo }) {
     }
   }
 
+  /*
+   * UN RECHAZO, UNA TARJETA.
+   *
+   * Antes iban todos dentro de la misma caja, y con dos o tres se leían como
+   * un solo aviso largo: costaba ver dónde acababa uno y empezaba el
+   * siguiente, y a qué alumno pertenecía cada botón "Descartar". Cada uno
+   * es un registro distinto que se resuelve por separado, así que se
+   * presenta por separado.
+   */
   return (
-    <div
-      role="alert"
-      className="flex flex-col gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700"
-    >
+    <div className="flex flex-col gap-2">
       {visibles.map((r) => (
-        <div key={r.clave} className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          key={r.clave}
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700"
+        >
           <span className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-600" aria-hidden="true" />
             <span>

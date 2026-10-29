@@ -85,7 +85,7 @@ export default function SesionesPage() {
           <EmptyState
             icon={WifiOff}
             title="Módulo no disponible sin conexión"
-            description="Conéctese a internet para consultar su historial de sesiones."
+            description="Conéctate a internet para consultar tu historial de sesiones."
           />
         </Card>
       </div>

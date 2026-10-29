@@ -9,6 +9,7 @@
 // es el servidor en cada petición. Es para avisar a tiempo.
 import { useEffect } from 'react'
 import { caducaEn } from './jwt'
+import { ahora, hayContinuidad } from '../lib/relojServidor'
 
 export default function useExpiracionSesion({ token, onExpirar }) {
   useEffect(() => {
@@ -17,11 +18,28 @@ export default function useExpiracionSesion({ token, onExpirar }) {
     const vence = caducaEn(token)
     if (!vence) return undefined
 
-    const faltan = vence.getTime() - Date.now()
+    /**
+     * LA HORA ES LA DEL SERVIDOR, NO LA DEL EQUIPO (D57).
+     *
+     * Con `Date.now()` a secas, un reloj adelantado hacía que `faltan` saliera
+     * negativo y la sesión se cerrara nada más recargar: el docente entraba,
+     * la aplicación lo echaba al login y no había forma de saber por qué.
+     * `ahora()` va anclado a la cabecera `Date` del servidor y avanza con un
+     * contador monotónico, así que cambiar el reloj a mano no lo mueve —que
+     * es justo lo que CU007 exige—.
+     */
+    const faltan = vence.getTime() - ahora().getTime()
 
-    // Ya vencido al montar: se cierra en el acto, sin esperar al temporizador.
+    /**
+     * Vencido al montar, pero solo se cierra si la hora es FIABLE.
+     *
+     * Sin referencia del servidor —primer arranque sin conexión, o
+     * `localStorage` bloqueado— `ahora()` se apoya en el reloj del equipo, y
+     * cerrar por eso sería volver al defecto por otra puerta. Se deja decidir
+     * al servidor: su 401 llega en la primera petición y ahí sí se cierra.
+     */
     if (faltan <= 0) {
-      onExpirar()
+      if (hayContinuidad()) onExpirar()
       return undefined
     }
 

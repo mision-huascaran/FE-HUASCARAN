@@ -5,7 +5,24 @@ import useOnEscape from '../../hooks/useOnEscape'
 import cn from '../../lib/cn'
 
 /** Modal centrado, cierre por Escape y por clic fuera (§4.5). */
-export default function Modal({ open, onClose, title, subtitle, footer, size = 'max-w-2xl', children }) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  footer,
+  size = 'max-w-2xl',
+  /**
+   * ¿Pulsar fuera lo cierra? (D78)
+   *
+   * Por defecto sí, que es lo habitual y lo que la mayoría de los modales
+   * quiere. Los que recogen datos pasan `false`: CU028 lo exige para otorgar
+   * y revocar, porque un clic distraído fuera del cuadro no puede tirar un
+   * formulario a medio llenar.
+   */
+  cierreExterior = true,
+  children,
+}) {
   useOnEscape(open, onClose)
 
   useEffect(() => {
@@ -21,13 +38,15 @@ export default function Modal({ open, onClose, title, subtitle, footer, size = '
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-navy-900/50 p-0 animate-fade-in sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Cerrar"
-        tabIndex={-1}
-        onClick={onClose}
-        className="absolute inset-0 h-full w-full cursor-default"
-      />
+      {cierreExterior && (
+        <button
+          type="button"
+          aria-label="Cerrar"
+          tabIndex={-1}
+          onClick={onClose}
+          className="absolute inset-0 h-full w-full cursor-default"
+        />
+      )}
       <div
         role="dialog"
         aria-modal="true"

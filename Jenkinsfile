@@ -2,7 +2,12 @@
 //
 //   development → despliegue
 //   qa, uat     → pruebas (lint + Vitest con cobertura), SonarQube, Quality Gate y despliegue
+//   qa          → además, Build imagen y Trivy antes del despliegue, y E2E Tests, OWASP ZAP
+//                 y Security Headers - CSP contra el despliegue
 //   main        → todavía no despliega
+//
+// En qa, Trivy escanea la imagen candidata antes del despliegue: solo se permiten hallazgos
+// LOW. Uno MEDIUM, HIGH, CRITICAL o UNKNOWN, o un escaneo que no termina, detiene el pipeline.
 //
 // El .env de cada entorno está en Jenkins como credencial "Secret file":
 // HUASCARAN_FRONTEND_DEV, _QA y _UAT. Nunca se imprime en el log.
@@ -20,6 +25,12 @@ pipeline {
     environment {
         ENTORNO  = "${env.BRANCH_NAME == 'development' ? 'dev' : env.BRANCH_NAME}"
         PROYECTO = "huascaran_fe_${env.BRANCH_NAME == 'development' ? 'dev' : env.BRANCH_NAME}"
+        // Una imagen por entorno para que dev, qa y uat no se pisen. docker-compose.yml la
+        // usa como ${IMAGEN}:actual; en qa el build la deja como :candidata hasta pasar Trivy.
+        IMAGEN   = "huascaran-fe-${ENTORNO}"
+        // Trivy 0.76.1 fijado por digest, el mismo del backend. Nunca usar `latest` ni
+        // 0.69.4, 0.69.5 o 0.69.6: fueron versiones comprometidas (GHSA-69fq-xp46-6x23).
+        TRIVY_IMAGEN = 'aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c'
     }
 
     stages {
@@ -98,6 +109,129 @@ pipeline {
             }
         }
 
+        stage('Build imagen') {
+            when {
+                branch 'qa'
+            }
+            steps {
+                // Las VITE_* del .env se fijan al construir (Dockerfile): el build lo necesita.
+                // --pull: cada build trae los últimos parches de las imágenes base.
+                withCredentials([
+                    file(credentialsId: "HUASCARAN_FRONTEND_${env.ENTORNO.toUpperCase()}", variable: 'ENV_FILE')
+                ]) {
+                    sh '''
+                        rm -f .env
+                        cp "$ENV_FILE" .env
+                        IMAGEN_ETIQUETA=candidata docker compose -p "$PROYECTO" build --pull frontend
+                        rm -f .env
+                    '''
+                }
+            }
+        }
+
+        // Trivy sobre la imagen candidata, antes del despliegue. Solo se permiten hallazgos
+        // LOW: MEDIUM, HIGH, CRITICAL o UNKNOWN detienen el pipeline, sin excepciones (ni
+        // .trivyignore ni filtros). Un escaneo que no termina también lo detiene.
+        //
+        // Como en ZAP, nada se monta desde el workspace: la imagen entra a un volumen con
+        // nombre como tarball (Trivy no necesita el socket de Docker) y los reportes vuelven
+        // con `docker cp`. Un solo escaneo deja el JSON completo; de ese mismo JSON salen el
+        // HTML (con los LOW), la tabla del log y la regla.
+        stage('Trivy - Imagen') {
+            when {
+                branch 'qa'
+            }
+            options {
+                timeout(time: 20, unit: 'MINUTES')
+            }
+            environment {
+                TRIVY_CONTENEDOR = "${PROYECTO}-trivy-${BUILD_NUMBER}"
+                TRIVY_VOLUMEN    = "${PROYECTO}-trivy-${BUILD_NUMBER}-wrk"
+                // Caché de la base de vulnerabilidades, una por entorno: unos cientos de MB que
+                // no crecen con cada build (se actualizan en el lugar). Es una caché, no un
+                // artefacto: no se borra en el post. Si queda inconsistente, Trivy falla y el
+                // pipeline se detiene; nunca se salta el escaneo.
+                TRIVY_CACHE      = "${PROYECTO}-trivy-cache"
+            }
+            steps {
+                script {
+                    def status = sh(
+                        returnStatus: true,
+                        script: '''
+                            rm -rf trivy-reports
+                            mkdir -p trivy-reports
+                            docker volume create "$TRIVY_VOLUMEN" >/dev/null
+                            docker volume create "$TRIVY_CACHE" >/dev/null
+
+                            # Imagen candidata al volumen. Un fallo sale con 3 (error de ejecución),
+                            # nunca con el 5 que se leería como "tiene vulnerabilidades". Si
+                            # `docker save` fallara a mitad, el tarball queda incompleto y Trivy
+                            # termina con error: el pipeline se detiene igual.
+                            if ! docker image inspect "$IMAGEN:candidata" >/dev/null; then
+                                echo "ERROR: no existe la imagen $IMAGEN:candidata"
+                                exit 3
+                            fi
+                            if ! docker save "$IMAGEN:candidata" | docker run -i --rm -v "$TRIVY_VOLUMEN:/w" \
+                                    --entrypoint sh "$TRIVY_IMAGEN" -c 'cat > /w/imagen.tar'; then
+                                echo "ERROR: no se pudo pasar la imagen al volumen de Trivy"
+                                exit 3
+                            fi
+
+                            # Jenkins corre `sh -xe`: sin el `||`, un fallo cortaría el script antes
+                            # de copiar los reportes. Cada paso corre solo si el anterior salió con 0.
+                            ESTADO=0
+                            docker run --name "$TRIVY_CONTENEDOR" -v "$TRIVY_VOLUMEN:/w" -v "$TRIVY_CACHE:/root/.cache" \
+                                "$TRIVY_IMAGEN" image --input /w/imagen.tar --scanners vuln,secret \
+                                --format json --output /w/frontend-trivy.json --no-progress || ESTADO=$?
+                            if [ "$ESTADO" -eq 0 ]; then
+                                docker run --rm -v "$TRIVY_VOLUMEN:/w" "$TRIVY_IMAGEN" convert --format template \
+                                    --template "@contrib/html.tpl" --output /w/frontend-trivy.html /w/frontend-trivy.json || ESTADO=$?
+                            fi
+                            # Tabla completa en el log. --scanners solo agrega el resumen por target:
+                            # sin él, una imagen sin hallazgos no deja nada en el log.
+                            if [ "$ESTADO" -eq 0 ]; then
+                                docker run --rm -v "$TRIVY_VOLUMEN:/w" "$TRIVY_IMAGEN" convert --format table \
+                                    --scanners vuln,secret /w/frontend-trivy.json || ESTADO=$?
+                            fi
+                            # La regla: 5 si hay algún hallazgo que no sea LOW (1 queda para errores de Trivy).
+                            if [ "$ESTADO" -eq 0 ]; then
+                                docker run --rm -v "$TRIVY_VOLUMEN:/w" "$TRIVY_IMAGEN" convert \
+                                    --severity UNKNOWN,MEDIUM,HIGH,CRITICAL --exit-code 5 --format table \
+                                    /w/frontend-trivy.json || ESTADO=$?
+                            fi
+
+                            docker cp "$TRIVY_CONTENEDOR:/w/frontend-trivy.html" trivy-reports/ || echo "AVISO: no se pudo copiar frontend-trivy.html"
+                            docker cp "$TRIVY_CONTENEDOR:/w/frontend-trivy.json" trivy-reports/ || echo "AVISO: no se pudo copiar frontend-trivy.json"
+                            exit $ESTADO
+                        '''
+                    )
+
+                    // 0 = solo hallazgos LOW (o ninguno) · 5 = algún hallazgo MEDIUM, HIGH,
+                    // CRITICAL o UNKNOWN · cualquier otro = el escaneo no terminó.
+                    if (status == 5) {
+                        error('Trivy: la imagen tiene vulnerabilidades MEDIUM, HIGH, CRITICAL o UNKNOWN. No se despliega.')
+                    } else if (status != 0) {
+                        error("Trivy: el escaneo no terminó (${status}). No se despliega.")
+                    }
+                }
+            }
+            post {
+                always {
+                    // También si el timeout cortó el escaneo: no quedan contenedores ni volumen
+                    // de trabajo. La caché (TRIVY_CACHE) se conserva.
+                    sh '''
+                        docker rm -f "$TRIVY_CONTENEDOR" >/dev/null 2>&1 || true
+                        docker volume rm -f "$TRIVY_VOLUMEN" >/dev/null 2>&1 || true
+                    '''
+                    // Se archiva también cuando falla: ese HTML es el que hay que revisar.
+                    archiveArtifacts(
+                        artifacts: 'trivy-reports/**',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
         stage('Deploy') {
             when {
                 anyOf {
@@ -110,10 +244,17 @@ pipeline {
                 withCredentials([
                     file(credentialsId: "HUASCARAN_FRONTEND_${env.ENTORNO.toUpperCase()}", variable: 'ENV_FILE')
                 ]) {
+                    // En qa solo se marca como "actual" y se despliega la imagen que pasó Trivy,
+                    // sin volver a construir. development y uat construyen al desplegar.
                     sh '''
                         rm -f .env
                         cp "$ENV_FILE" .env
-                        docker compose -p "$PROYECTO" up -d --build --remove-orphans
+                        if [ "$BRANCH_NAME" = "qa" ]; then
+                            docker tag "$IMAGEN:candidata" "$IMAGEN:actual"
+                            docker compose -p "$PROYECTO" up -d --no-build --remove-orphans
+                        else
+                            docker compose -p "$PROYECTO" up -d --build --remove-orphans
+                        fi
                     '''
                 }
             }

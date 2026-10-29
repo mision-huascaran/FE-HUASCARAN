@@ -41,6 +41,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import AvisoActividades from '../../components/layout/AvisoActividades'
+import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
@@ -49,6 +50,8 @@ import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
+import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
+import { ahora } from '../../lib/relojServidor'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
@@ -58,7 +61,6 @@ import useSessionStore from '../../store/sessionStore'
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 // Literales de CU022, tal cual los da el caso de uso.
-const SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
 const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
 const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
 
@@ -102,13 +104,45 @@ export default function AsistenciaPage() {
   // `GET /colegios` es de administración: pedirlo como Docente sería un 403.
   const { data: todosLosColegios = [] } = useColegiosReales(!esDocente)
 
-  const colegios = useMemo(
-    () =>
-      esDocente
-        ? asignaciones.map((a) => ({ id_colegio: a.id_colegio, nombre: a.colegio }))
-        : todosLosColegios,
-    [esDocente, asignaciones, todosLosColegios],
-  )
+  /**
+   * EL AULA DE UN PERMISO VIGENTE TAMBIÉN ES SUYA (D56).
+   *
+   * El contrato es explícito: "los grupos a los que solo llega por un permiso
+   * NO suman a `asignaciones`". Como estos filtros se armaban solo con
+   * `GET /me/asignaciones`, el colegio del permiso no salía en el desplegable
+   * y el Docente no tenía forma de abrir la pantalla donde usarlo, que es lo
+   * único para lo que se le dio.
+   *
+   * Salen del paquete offline, que desde la tanda I trae los nombres: así el
+   * aula se ofrece también sin conexión, que es cuando hace falta.
+   */
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
+    enabled: esDocente,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  /** Solo los VIGENTES ahora: un permiso programado todavía no habilita nada. */
+  const permisos = useMemo(() => {
+    const momento = ahora().getTime()
+    return (habilitaciones?.permisos ?? []).filter(
+      (p) => Date.parse(p.inicio) <= momento && momento <= Date.parse(p.fin),
+    )
+  }, [habilitaciones])
+
+  const colegios = useMemo(() => {
+    if (!esDocente) return todosLosColegios
+    const vistos = new Map()
+    asignaciones.forEach((a) => vistos.set(String(a.id_colegio), { id_colegio: a.id_colegio, nombre: a.colegio }))
+    permisos.forEach((p) => {
+      const id = p.colegio?.id ?? p.id_colegio
+      if (id == null || vistos.has(String(id))) return
+      vistos.set(String(id), { id_colegio: id, nombre: p.colegio?.nombre ?? `Colegio ${id}` })
+    })
+    return [...vistos.values()]
+  }, [esDocente, asignaciones, permisos, todosLosColegios])
 
   // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
   const { data: colegio } = useQuery({
@@ -125,10 +159,21 @@ export default function AsistenciaPage() {
 
   const grados = useMemo(() => {
     const delColegio = colegio?.grados ?? []
-    if (!esDocente || !asignacion) return delColegio
-    const mios = new Set((asignacion.grados ?? []).map(String))
-    return delColegio.filter((g) => mios.has(String(g.id_grado)))
-  }, [colegio, esDocente, asignacion])
+    if (!esDocente) return delColegio
+
+    const mios = new Set((asignacion?.grados ?? []).map(String))
+    // Y los grados de sus permisos vigentes EN ESTE colegio (D56).
+    permisos
+      .filter((p) => String(p.colegio?.id ?? p.id_colegio ?? '') === String(filtros.idColegio))
+      .forEach((p) => {
+        const id = p.grado?.id ?? p.id_grado
+        if (id != null) mios.add(String(id))
+      })
+
+    if (!mios.size) return delColegio
+    const cruce = delColegio.filter((g) => mios.has(String(g.id_grado)))
+    return cruce.length ? cruce : delColegio
+  }, [colegio, esDocente, asignacion, permisos, filtros.idColegio])
 
   /**
    * Las secciones del grado elegido, que solo trae el detalle del colegio.
@@ -285,7 +330,24 @@ export default function AsistenciaPage() {
    */
   const datosClase = clase.data?.clase
   const escritura = clase.data?.escritura
-  const autoguardado = Boolean(escritura?.permitida) && puedeEditar && conActividad
+
+  /**
+   * ESA FECHA NO TIENE CLASE (CU022, flujo "Identificar la clase seleccionada").
+   *
+   * El servidor lo dice con `etiqueta: null`. Entonces no se habilita la lista:
+   * primero hay que decidir que se va a registrar una CLASE ADICIONAL, y eso lo
+   * decide el Docente, no la pantalla. Marcar sin decidirlo acababa en un
+   * rechazo `sin_clase_programada` después de haber rellenado media tabla.
+   */
+  const sinClase = Boolean(clase.data) && !datosClase?.etiqueta
+  const [registrandoAdicional, setRegistrandoAdicional] = useState(false)
+
+  // La decisión es de ESTA clase: cambiar de fecha o de aula la olvida, o se
+  // registrarían adicionales en días que el docente ni miró.
+  useEffect(() => setRegistrandoAdicional(false), [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha])
+
+  const autoguardado =
+    Boolean(escritura?.permitida) && puedeEditar && conActividad && (!sinClase || registrandoAdicional)
   const soloLectura = !autoguardado
 
   /**
@@ -306,6 +368,10 @@ export default function AsistenciaPage() {
     idGrado: filtros.idGrado,
     idSeccion: filtros.idSeccion,
     activo: autoguardado,
+    // CU022: la clase adicional se crea AL GUARDAR la primera asistencia, no
+    // al pulsar el botón. Por eso la marca viaja con el aviso, y pulsar no
+    // deja ningún registro vacío detrás.
+    adicional: sinClase && registrandoAdicional,
     claveClase,
   })
 
@@ -334,7 +400,7 @@ export default function AsistenciaPage() {
         </p>
       </header>
 
-      {puedeEditar && !conActividad && <AvisoActividades mensaje={SIN_ACTIVIDAD} />}
+      {puedeEditar && !conActividad && <AvisoActividades />}
 
       {/*
         El servidor dice POR QUÉ no se puede escribir, con el texto ya
@@ -352,6 +418,16 @@ export default function AsistenciaPage() {
       {/* Una corrección excepcional SÍ hay que anunciarla: el docente está
           escribiendo en un periodo cerrado y con fecha de caducidad. */}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
+
+      {/*
+        Lo que el servidor rechazó y sigue sin resolverse.
+
+        Faltaba aquí, y era el único de los cuatro módulos sin él: una marca
+        rechazada después de recargar la página no la veía nadie, y el docente
+        solo se enteraba mirando Sesiones, donde su actividad salía en "Error"
+        sin decir de qué.
+      */}
+      <AvisoConflictos modulo="asistencias" />
 
       <FiltrosAsistencia
         filtros={filtros}
@@ -381,10 +457,32 @@ export default function AsistenciaPage() {
         asistencia de la trasladada. Eso último es justo lo que un docente
         daría por supuesto al contrario, así que se dice.
       */}
-      {datosClase?.etiqueta && (
+      {(datosClase?.etiqueta || datosClase?.aviso || registrandoAdicional) && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">{datosClase.etiqueta}</span>
-          {datosClase.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
+          {/*
+            La etiqueta del servidor o, si todavía no hay clase y el Docente
+            decidió registrar una adicional, la que tendrá al guardarse.
+          */}
+          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">
+            {datosClase?.etiqueta ?? 'Clase adicional'}
+          </span>
+          {datosClase?.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
+
+          {/*
+            CU022: "Antes de habilitar la lista para escritura, presenta el
+            botón 'Registrar clase adicional'".
+
+            La clase se crea AL GUARDAR la primera asistencia, no al pulsar:
+            pulsar no deja ningún registro vacío detrás. Y no sustituye
+            ninguna validación —sesión, actividad, calendario, habilitación
+            siguen decidiendo—, por eso solo sale cuando lo demás ya deja
+            escribir.
+          */}
+          {sinClase && !registrandoAdicional && puedeEditar && conActividad && escritura?.permitida && (
+            <Button size="sm" variant="secondary" onClick={() => setRegistrandoAdicional(true)}>
+              Registrar clase adicional
+            </Button>
+          )}
         </div>
       )}
 

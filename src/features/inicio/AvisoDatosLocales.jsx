@@ -14,11 +14,11 @@ import EmptyState from '../../components/ui/EmptyState'
 const LITERALES = {
   supervisor: {
     sinConexion: 'No existe información operativa disponible sin conexión.',
-    sinServidor: 'No hay conexión con el servidor ni un resumen local guardado. Intente más tarde.',
+    sinServidor: 'No hay conexión con el servidor ni un resumen local guardado. Inténtalo más tarde.',
   },
   directivo: {
     sinConexion: 'No existe información institucional disponible sin conexión.',
-    sinServidor: 'No se pudieron cargar los indicadores y no hay datos locales. Intente más tarde.',
+    sinServidor: 'No se pudieron cargar los indicadores y no hay datos locales. Inténtalo más tarde.',
   },
 }
 

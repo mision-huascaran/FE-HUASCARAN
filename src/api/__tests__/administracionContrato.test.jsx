@@ -106,7 +106,7 @@ describe('Auditoría de entidades sin historial en el backend', () => {
   it('la pestaña muestra "Sin cambios registrados", no un error', async () => {
     render(
       <QueryClientProvider client={clienteDePrueba()}>
-        <PestanaAuditoria seccion="colegio" registro={{ id_colegio: 4 }} cargarAuditoria={(id) => listarAuditoria('colegio', id)} />
+        <PestanaAuditoria entidad="colegio" registro={{ id_colegio: 4 }} cargarAuditoria={(id) => listarAuditoria('colegio', id)} />
       </QueryClientProvider>,
     )
     expect(await screen.findByText('Sin cambios registrados')).toBeInTheDocument()
@@ -140,11 +140,19 @@ describe('Editar un Docente en Usuarios', () => {
     dni: '12345678',
     correo: EDICION.correo,
     rol: 'Docente',
+    // Tanda G1: `asignacion` viene agrupada por colegio, no como
+    // `periodos[]` con un `id_colegio` dentro. Los grados salen del periodo
+    // vigente o, si no hay, del primero.
     asignacion: {
       id_anio_escolar: 2,
-      periodos: [
-        { id_periodo: 1, numero: 1, vigente: false, id_colegio: 8, colegio: 'I.E. Dos', grados: [{ id_grado: 1, nombre: '1.°' }] },
-        { id_periodo: 2, numero: 2, vigente: true, id_colegio: 7, colegio: 'I.E. Uno', grados: [{ id_grado: 3, nombre: '3.°' }, { id_grado: 2, nombre: '2.°' }] },
+      colegios: [
+        {
+          id_colegio: 7,
+          colegio: 'I.E. Uno',
+          periodos: [
+            { id_periodo: 2, numero: 2, vigente: true, retroactiva: false, grados: [{ id_grado: 3, nombre: '3.°' }, { id_grado: 2, nombre: '2.°' }] },
+          ],
+        },
       ],
     },
   }
@@ -173,10 +181,12 @@ describe('Editar un Docente en Usuarios', () => {
     const popup = await screen.findByRole('dialog')
     await waitFor(() => expect(within(popup).getByLabelText(/año escolar/i)).toHaveValue('2026'))
     expect(get).toHaveBeenCalledWith('/usuarios/15')
-    await waitFor(() => expect(within(popup).getByLabelText(/colegio asignado/i)).toHaveValue('7'))
-    expect(within(popup).getByRole('checkbox', { name: '2.°' })).toBeChecked()
-    expect(within(popup).getByRole('checkbox', { name: '3.°' })).toBeChecked()
-    expect(within(popup).getByRole('checkbox', { name: '1.°' })).not.toBeChecked()
+    // D67 — Ahora es un bloque por colegio: el desplegable trae el suyo y
+    // sus grados van marcados dentro de ESE bloque.
+    await waitFor(() => expect(within(popup).getAllByRole('combobox').some((c) => c.value === '7')).toBe(true))
+    expect(within(popup).getByRole('checkbox', { name: /2\.° en el colegio 1/ })).toBeChecked()
+    expect(within(popup).getByRole('checkbox', { name: /3\.° en el colegio 1/ })).toBeChecked()
+    expect(within(popup).getByRole('checkbox', { name: /1\.° en el colegio 1/ })).not.toBeChecked()
 
     fireEvent.change(within(popup).getByLabelText(/^dni/i), { target: { value: '87654321' } })
     fireEvent.click(within(popup).getByRole('button', { name: /guardar/i }))

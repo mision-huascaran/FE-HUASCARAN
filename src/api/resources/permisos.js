@@ -92,6 +92,24 @@ export const obtenerPermiso = (idUsuario, idPermiso) =>
  * inicio a mano y tarda un minuto en darle a guardar, el servidor la rechaza
  * por estar en el pasado. Con `desde_ahora: true` la pone él.
  */
+/**
+ * La fecha y hora de un `<input type="datetime-local">`, CON ZONA.
+ *
+ * El control devuelve "2026-10-27T12:39": hora local y sin offset. Mandarlo
+ * así era D76, el defecto que impedía otorgar cualquier permiso —el servidor
+ * no podía comparar una fecha sin zona con una con zona y respondía 500—.
+ *
+ * El backend ya lo tolera e interpreta esas horas como de Lima, pero se sigue
+ * mandando con zona: `new Date(valor)` lo lee en la zona del equipo, que es la
+ * del Supervisor que lo escribe, y `toISOString()` lo convierte al instante
+ * exacto. Así no dependemos de cómo decida interpretarlo el servidor.
+ */
+const conZona = (valor) => {
+  if (!valor) return valor
+  const instante = new Date(valor)
+  return Number.isNaN(instante.getTime()) ? valor : instante.toISOString()
+}
+
 export const otorgarPermiso = (idUsuario, datos) =>
   resolver({
     mock: () => handlers.permisos.otorgar(idUsuario, datos),
@@ -102,12 +120,64 @@ export const otorgarPermiso = (idUsuario, datos) =>
         id_grado: Number(datos.id_grado),
         id_periodo_academico: Number(datos.id_periodo_academico),
         modulo: datos.modulo,
-        ...(datos.desde_ahora ? { desde_ahora: true } : { inicio: datos.inicio }),
-        fin: datos.fin,
+        // `desde_ahora` viaja siempre, también en false: es el campo con el
+        // que el servidor decide si la hora de inicio la pone él.
+        desde_ahora: Boolean(datos.desde_ahora),
+        ...(datos.desde_ahora ? {} : { inicio: conZona(datos.inicio) }),
+        fin: conZona(datos.fin),
         motivo: datos.motivo,
       }),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * `POST /usuarios/{id}/permisos/lote` — varios de una vez (tanda I).
+ *
+ * SIGUE CREANDO UN PERMISO POR COMBINACIÓN: CU028 exige que cada uno
+ * autorice un solo módulo. Lo que cambia es que se piden juntos, con el
+ * alcance común —año, colegio, periodo, vigencia y motivo— una sola vez.
+ *
+ * ES ATÓMICO (todos o ninguno), y por eso existe en vez de un bucle en el cliente. Con N
+ * peticiones sueltas, que la cuarta choque con un permiso superpuesto deja
+ * tres creados que el Supervisor no pidió y que **no se pueden deshacer**:
+ * un permiso no se borra, se revoca.
+ */
+export const otorgarPermisosEnLote = (idUsuario, datos) =>
+  resolver({
+    mock: () => handlers.permisos.otorgarLote(idUsuario, datos),
+    real: () =>
+      api.post(permisos.otorgarLote(idUsuario), {
+        id_anio_escolar: Number(datos.id_anio_escolar),
+        id_colegio: Number(datos.id_colegio),
+        id_periodo_academico: Number(datos.id_periodo_academico),
+        desde_ahora: Boolean(datos.desde_ahora),
+        ...(datos.desde_ahora ? { inicio: null } : { inicio: conZona(datos.inicio) }),
+        fin: conZona(datos.fin),
+        motivo: datos.motivo,
+        combinaciones: (datos.combinaciones ?? []).map(({ id_grado: idGrado, modulo }) => ({
+          id_grado: Number(idGrado),
+          modulo,
+        })),
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Las combinaciones que el servidor rechazó, por índice.
+ *
+ * Un lote fallido responde con el motivo de la PRIMERA que falló, pero trae
+ * `combinaciones_rechazadas[]` con todas. Se devuelve un mapa por `indice`
+ * para poder señalar **cada** fila del modal y no solo una: si fallan tres,
+ * corregir una y reintentar volvería a fallar por las otras dos.
+ */
+export const combinacionesRechazadas = (error) => {
+  const lista = error?.response?.data?.combinaciones_rechazadas
+  if (!Array.isArray(lista)) return {}
+  return lista.reduce((mapa, item) => {
+    if (item?.indice == null) return mapa
+    return { ...mapa, [item.indice]: item.detail ?? item.motivo ?? 'No se pudo crear.' }
+  }, {})
+}
 
 /**
  * `POST /usuarios/{id}/permisos/{id}/revocar`.

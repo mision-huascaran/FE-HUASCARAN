@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 
 // https://vite.dev/config/
@@ -26,7 +27,56 @@ export default defineConfig(({ mode }) => {
   const destinoApi = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8000'
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      /**
+       * D43 — Service Worker y Application Shell.
+       *
+       * Hasta ahora recargar sin conexión daba el error del navegador
+       * (`ERR_INTERNET_DISCONNECTED`): toda la aplicación offline dependía de
+       * que la pestaña no se cerrara nunca, lo que en un aula de Yungay no es
+       * una suposición razonable.
+       *
+       * DOS DECISIONES QUE IMPORTAN:
+       *
+       *   · `registerType: 'prompt'` y no `autoUpdate`. Un despliegue nuevo
+       *     no puede cambiar la aplicación bajo los pies de un docente a
+       *     mitad de jornada: se avisa y lo decide él.
+       *   · `/api/` NO se cachea. Los datos los gestionan IndexedDB y la cola
+       *     de envíos, que saben qué está pendiente y qué no. Mezclar las dos
+       *     cachés es la forma más rápida de enseñar datos viejos creyendo
+       *     que son nuevos.
+       */
+      VitePWA({
+        registerType: 'prompt',
+        includeAssets: ['favicon.svg'],
+        manifest: {
+          name: 'SICEDU · Misión Huascarán',
+          short_name: 'SICEDU',
+          description: 'Registro académico de Misión Huascarán',
+          lang: 'es-PE',
+          start_url: '/',
+          display: 'standalone',
+          background_color: '#ffffff',
+          theme_color: '#1d4ed8',
+        },
+        workbox: {
+          // El Application Shell: el HTML, el JS y el CSS del build.
+          globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+          // Cualquier ruta de navegación se sirve con `index.html`: es una
+          // SPA, así que /asistencia o /alumnos no son documentos distintos.
+          navigateFallback: 'index.html',
+          // Salvo las de la API, que no son navegación y no se cachean.
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [],
+        },
+        devOptions: {
+          // En desarrollo estorba más que ayuda: deja JS viejo pegado entre
+          // recargas y cuesta ver si un cambio llegó.
+          enabled: false,
+        },
+      }),
+    ],
     resolve: {
       alias: { '@': path.resolve(process.cwd(), 'src') },
     },

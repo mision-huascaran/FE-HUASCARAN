@@ -20,6 +20,7 @@ import { ERROR_LOCAL, ERROR_SERVIDOR } from '../useAutoguardado'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import useSyncStore from '../../../store/syncStore'
+import useRechazosStore from '../../../store/rechazosStore'
 import { _reiniciarCola } from '../../../lib/colaOffline'
 import { ROLES } from '../../../auth/roles'
 
@@ -49,13 +50,28 @@ vi.mock('idb-keyval', () => {
 const marcar = vi.fn()
 // Sin red, pedir la clase falla como falla axios sin respuesta.
 let sinRed = false
+/** Para forzar el caso "esa fecha no tiene clase" (`etiqueta: null`). */
+let claseSinProgramar = false
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
   return {
     ...original,
     guardarAsistencia: (...args) => marcar(...args),
-    obtenerClase: (...args) =>
-      sinRed ? Promise.reject(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })) : original.obtenerClase(...args),
+    obtenerClase: async (...args) => {
+      if (sinRed) throw Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+      const datos = await original.obtenerClase(...args)
+      if (!claseSinProgramar) return datos
+      return {
+        ...datos,
+        clase: {
+          ...datos.clase,
+          id_clase: null,
+          tipo: null,
+          etiqueta: null,
+          aviso: 'No hay una clase programada para esta fecha.',
+        },
+      }
+    },
   }
 })
 
@@ -99,6 +115,7 @@ beforeEach(() => {
   _reiniciarCola()
   fallaElDisco = false
   sinRed = false
+  claseSinProgramar = false
   marcar.mockReset()
   // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
   // `aplicado` ya no existe; lo que hay es `estado: 'aceptada' | 'rechazada'`.
@@ -112,6 +129,7 @@ beforeEach(() => {
       registro: { id_clase: 12, id_alumno: r.id_alumno, estado: r.estado ?? null, observacion: r.observacion ?? null },
     })),
   }))
+  useRechazosStore.getState().limpiar()
   useActividadStore.getState().iniciar({ idDocente: 1 })
 })
 
@@ -262,7 +280,7 @@ describe('Asistencia (CU022)', () => {
     await abrirClase()
 
     expect(
-      screen.getByText('Inicia una actividad de trabajo para habilitar el registro de datos.'),
+      screen.getByText('Debes iniciar una actividad de trabajo para registrar o modificar información.'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
     expect(ladoPresente(controles()[0])).toBeDisabled()
@@ -399,5 +417,176 @@ describe('Asistencia (CU022)', () => {
     // feriado, una suspensión— que el front no tiene forma de saber.
     await screen.findByText(/d[ií]a no lectivo/i, {}, ESPERA)
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('La marca se atribuye a SU actividad', () => {
+  /**
+   * El contrato dice que `id_actividad` es opcional y que "por defecto, la
+   * activa". Darlo por bueno era el fallo: la operación se envía cuando la
+   * cola puede, y eso puede ser después de que el Docente cerrara la
+   * actividad o al recuperar la señal horas más tarde. Sin actividad activa
+   * el servidor no tenía a qué atribuir la marca, y en Sesiones la actividad
+   * salía con 0 cambios y la sincronización en "Error".
+   *
+   * Los otros tres módulos ya lo mandaban. Asistencias era el único que no.
+   */
+  it('manda el id_actividad DENTRO del registro', async () => {
+    montar()
+    await abrirClase()
+
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+
+    const { id } = useActividadStore.getState().sesion
+    expect(marcar.mock.calls[0][0].registros[0]).toMatchObject({ id_actividad: id })
+  })
+})
+
+describe('Un rechazo no desaparece en silencio (D69)', () => {
+  /**
+   * El lote responde 200 aunque un ítem venga rechazado, así que para la cola
+   * el envío fue bien. La pantalla lo atiende mientras siga abierta, pero si
+   * el docente recargó la página esa promesa ya no existe: el rechazo se
+   * perdía y solo se veía, sin explicación, en Sesiones.
+   */
+  it('queda anotado con su texto y se puede descartar', async () => {
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: null,
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(1), ESPERA)
+    const [rechazo] = useRechazosStore.getState().rechazos
+    expect(rechazo).toMatchObject({ modulo: 'asistencias', motivo: 'sin_habilitacion' })
+    // Con el texto del módulo, no uno genérico.
+    expect(rechazo.detail).toMatch(/habilitación vigente para registrar o corregir asistencias/i)
+    // Y de quién era la marca, para poder encontrarla.
+    expect(rechazo.nombre).toEqual(expect.any(String))
+
+    // Se ve en la pantalla, que es lo que faltaba.
+    expect(await screen.findByRole('alert', {}, ESPERA)).toHaveTextContent(/habilitación vigente/i)
+  })
+
+  it('cada rechazo va en SU tarjeta, con su propio Descartar', async () => {
+    /**
+     * Con dos o tres dentro de la misma caja se leían como un solo aviso
+     * largo, y no se veía a qué alumno pertenecía cada botón. Son registros
+     * distintos que se resuelven por separado.
+     */
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_clase_programada',
+        detail: null,
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+    fireEvent.click(ladoPresente(controles()[1]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(2), ESPERA)
+    // Dos tarjetas, no una con dos renglones dentro.
+    const avisos = await screen.findAllByRole('alert', {}, ESPERA)
+    expect(avisos).toHaveLength(2)
+    // Y cada una con su botón, que es lo que permite resolverlas por separado.
+    avisos.forEach((aviso) => expect(within(aviso).getByRole('button', { name: 'Descartar' })).toBeInTheDocument())
+  })
+
+  it('una marca ACEPTADA después borra el rechazo anterior', async () => {
+    // Primero una que el servidor rechaza, con la clave de verdad.
+    const rechazar = async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'sin_habilitacion',
+        detail: null,
+        registro: null,
+      })),
+    })
+    const aceptar = marcar.getMockImplementation()
+    marcar.mockImplementation(rechazar)
+
+    montar()
+    await abrirClase()
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(1), ESPERA)
+
+    // Y ahora el docente corrige: la misma fila, aceptada.
+    marcar.mockImplementation(aceptar)
+    fireEvent.click(ladoAusente(controles()[0]))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos).toHaveLength(0), ESPERA)
+  })
+})
+
+describe('Una fecha SIN clase programada (CU022)', () => {
+  beforeEach(() => {
+    claseSinProgramar = true
+  })
+
+  it('ENSEÑA el aviso del servidor, que antes se escondía', async () => {
+    /**
+     * El aviso vivía dentro de un bloque condicionado a que hubiera
+     * `etiqueta`, y sin clase la etiqueta llega `null`: justo en el caso
+     * donde el aviso importa, no se pintaba. El docente marcaba media tabla
+     * y se enteraba por el rechazo.
+     */
+    montar()
+    await abrirClase()
+    expect(
+      await screen.findByText('No hay una clase programada para esta fecha.', {}, ESPERA),
+    ).toBeInTheDocument()
+  })
+
+  it('NO deja marcar hasta decidir que es una clase adicional', async () => {
+    // CU022: "Antes de habilitar la lista para escritura, presenta el botón
+    // 'Registrar clase adicional'".
+    montar()
+    await abrirClase()
+
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeDisabled(), ESPERA)
+    expect(screen.getByRole('button', { name: 'Registrar clase adicional' })).toBeInTheDocument()
+  })
+
+  it('al registrarla, habilita la lista y la marca viaja con `adicional`', async () => {
+    montar()
+    await abrirClase()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+
+    // La etiqueta que tendrá al guardarse.
+    expect(screen.getByText('Clase adicional')).toBeInTheDocument()
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+
+    fireEvent.click(ladoPresente(controles()[0]))
+    await waitFor(() => expect(marcar).toHaveBeenCalled(), ESPERA)
+    // CU022: la clase se crea AL GUARDAR, así que el aviso viaja con la
+    // marca. Pulsar el botón no manda nada por su cuenta.
+    expect(marcar.mock.calls[0][0]).toMatchObject({ adicional: true })
+  })
+
+  it('pulsar el botón NO crea nada por sí solo', async () => {
+    montar()
+    await abrirClase()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+    expect(marcar).not.toHaveBeenCalled()
   })
 })

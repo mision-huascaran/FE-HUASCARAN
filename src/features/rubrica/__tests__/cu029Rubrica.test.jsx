@@ -288,7 +288,40 @@ describe('Guardar una evaluación', () => {
     montar()
     fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
 
-    expect(await screen.findByText(/valoración permitida para esta dimensión/i, {}, ESPERA)).toBeInTheDocument()
+    // Sale DOS veces a propósito (tanda 0): en la fila del alumno, que es
+    // donde se encuentra en una tabla de cuarenta, y en el aviso de arriba,
+    // que es el que lleva la acción de descartarlo.
+    const avisos = await screen.findAllByText(/valoración permitida para esta dimensión/i, {}, ESPERA)
+    expect(avisos).toHaveLength(2)
+    expect(avisos.some((n) => n.closest('tr'))).toBe(true)
+  })
+})
+
+describe('Una sola evaluación por alumno y mes (tanda 0)', () => {
+  it('el rechazo sale en la FILA del alumno y no se reintenta', async () => {
+    /**
+     * El alumno ya tiene su evaluación de este mes en otro grupo. Insistir
+     * daría el mismo rechazo: la que existe se corrige en su grupo original,
+     * y eso lo hace quien la registró o el Supervisor.
+     */
+    guardarRubricas.mockResolvedValue([
+      {
+        id_operacion: 'op',
+        estado: 'rechazada',
+        motivo: 'evaluacion_en_otro_grupo',
+        detail:
+          'Este alumno ya tiene una evaluación registrada para este mes. Para corregirla, contacta al Docente que la registró o a tu Supervisor.',
+        registro: null,
+      },
+    ])
+
+    montar()
+    fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
+
+    const avisos = await screen.findAllByText(/ya tiene una evaluación registrada para este mes/i, {}, ESPERA)
+    expect(avisos.some((n) => n.closest('tr'))).toBe(true)
+    // Una sola llamada: no hay reintento automático.
+    expect(guardarRubricas).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -328,7 +361,12 @@ describe('Sin conexión (RNF-001)', () => {
     fireEvent.change(fluidez, { target: { value: '2' } })
     await reconectar()
 
-    expect(await screen.findByText(/iniciar una actividad de trabajo para registrar o modificar las rúbricas/i, {}, ESPERA)).toBeInTheDocument()
+    const avisos = await screen.findAllByText(
+      /iniciar una actividad de trabajo para registrar o modificar las rúbricas/i,
+      {},
+      ESPERA,
+    )
+    expect(avisos.some((n) => n.closest('tr'))).toBe(true)
     expect(screen.getByRole('button', { name: 'Descartar' })).toBeInTheDocument()
   })
 
@@ -417,7 +455,7 @@ describe('Quién puede escribir', () => {
 
     montar()
 
-    await screen.findByText('Inicia una actividad de trabajo para habilitar el registro de datos.', {}, ESPERA)
+    await screen.findByText('Debes iniciar una actividad de trabajo para registrar o modificar información.', {}, ESPERA)
     expect(await screen.findByLabelText(/fluidez de/i, {}, ESPERA)).toBeDisabled()
   })
 })
