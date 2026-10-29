@@ -53,7 +53,7 @@ export default function ModalObservacionVuelo({ contexto, guardando, soloLectura
         hint={
           soloLectura
             ? undefined
-            : 'Por ejemplo: por qué se colocó un nivel distinto del sugerido. Déjelo vacío para quitarla.'
+            : 'Por ejemplo: por qué se colocó un nivel distinto del sugerido. Déjalo vacío para quitarla.'
         }
         onChange={(e) => setTexto(e.target.value)}
       />

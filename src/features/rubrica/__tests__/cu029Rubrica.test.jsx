@@ -17,6 +17,7 @@ import { QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import RubricaPage from '../RubricaPage'
+import { SIN_COPIA_LOCAL, SIN_COPIA_LOCAL_DETALLE } from '../useRubricaMensual'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import { ROLES } from '../../../auth/roles'
@@ -194,6 +195,21 @@ describe('Guardar una evaluación', () => {
     // `null` porque el alumno todavía no tenía evaluación.
     expect(enviado.version).toBeNull()
     expect(enviado.id_operacion).toEqual(expect.any(String))
+  })
+
+  /**
+   * D108 — CP-RUB-09. jsdom no tiene IndexedDB: es justo el caso de un equipo
+   * donde falla. El cambio sigue saliendo, pero solo vive en esta pestaña, y
+   * antes no se avisaba.
+   */
+  it('si no se puede guardar en el dispositivo, lo avisa', async () => {
+    montar()
+
+    fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
+
+    expect(await screen.findByText(SIN_COPIA_LOCAL, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText(SIN_COPIA_LOCAL_DETALLE)).toBeInTheDocument()
+    await waitFor(() => expect(guardarRubricas).toHaveBeenCalled(), ESPERA)
   })
 
   it('el 0 se manda como 0, no como vacío', async () => {

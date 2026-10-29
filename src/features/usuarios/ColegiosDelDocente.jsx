@@ -32,6 +32,15 @@ export function opcionesDeInicio(receso) {
   ]
 }
 
+/**
+ * D67 — Los textos de ayuda de CU016, uno debajo de CADA opción y palabra por
+ * palabra ("Helper Text"). Antes era un desplegable sin ellos.
+ */
+export const AYUDA_INICIO = {
+  retroactivo: 'Aplica para el periodo culminado, permitiendo regularizar registros pasados.',
+  proximo: 'Inicia estrictamente en el siguiente periodo académico.',
+}
+
 /** El texto de ayuda del bloque, según en qué receso esté el colegio. */
 function ayudaDelReceso(receso) {
   const hasta = receso.fecha_fin ? ` hasta el ${formatearFecha(receso.fecha_fin)}` : ''
@@ -190,17 +199,42 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                 un PR. En un PA no hay ambigüedad y el servidor lo ignora.
               */}
               {receso && (
-                <div className="mt-3 rounded-lg bg-surface-100 p-3">
-                  <Select
-                    label="Inicio de asignación"
-                    required
-                    placeholder="Seleccione"
-                    value={c.inicio_asignacion ?? ''}
-                    options={opcionesDeInicio(receso)}
-                    error={erroresPorIndice[`${pos}.inicio_asignacion`]}
-                    hint={ayudaDelReceso(receso)}
-                    onChange={(e) => actualizar(i, { inicio_asignacion: e.target.value })}
-                  />
+                <div
+                  role="radiogroup"
+                  aria-label="Inicio de asignación"
+                  aria-required="true"
+                  className="mt-3 rounded-lg bg-surface-100 p-3"
+                >
+                  {/* CU016 pide Radio Buttons, cada uno con su texto de ayuda debajo. */}
+                  <p className="text-sm font-medium text-ink-700">
+                    Inicio de asignación <span className="text-danger-600">*</span>
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {opcionesDeInicio(receso).map((opcion) => (
+                      <label
+                        key={opcion.value}
+                        className={`flex items-start gap-2 text-sm ${opcion.disabled ? 'opacity-50' : 'cursor-pointer'}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`inicio-asignacion-${i}`}
+                          value={opcion.value}
+                          checked={c.inicio_asignacion === opcion.value}
+                          disabled={soloLectura || opcion.disabled}
+                          onChange={() => actualizar(i, { inicio_asignacion: opcion.value })}
+                          className="mt-0.5 h-4 w-4 accent-brand-600"
+                        />
+                        <span>
+                          <span className="font-medium text-ink-900">{opcion.label}</span>
+                          <span className="block text-xs text-ink-500">{AYUDA_INICIO[opcion.value]}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-ink-500">{ayudaDelReceso(receso)}</p>
+                  {erroresPorIndice[`${pos}.inicio_asignacion`] && (
+                    <p className="mt-1 text-sm text-danger-600">{erroresPorIndice[`${pos}.inicio_asignacion`]}</p>
+                  )}
                 </div>
               )}
             </div>

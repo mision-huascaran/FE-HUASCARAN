@@ -56,7 +56,7 @@ export default function ModalObservacionLectura({ fila, guardando, soloLectura =
         hint={
           soloLectura
             ? undefined
-            : 'Se puede registrar aunque el alumno no asistiera. Déjelo vacío para quitarla.'
+            : 'Se puede registrar aunque el alumno no asistiera. Déjalo vacío para quitarla.'
         }
         onChange={(e) => setTexto(e.target.value)}
       />

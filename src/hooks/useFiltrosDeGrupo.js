@@ -18,9 +18,9 @@
 // semana sin clase no tiene tabla ni obligación, así que ofrecerla sería mandar
 // al docente a una pantalla donde solo podía encontrarse un 422. La Rúbrica no
 // pide semana, así que con `conSemana: false` no se pide esa lista.
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
 import { obtenerSemanas } from '../api/resources/catalogos'
 import { obtenerInicioDocente } from '../api/resources/inicio'
@@ -29,6 +29,7 @@ import { useColegiosReales } from './useCatalogos'
 import useSessionStore from '../store/sessionStore'
 import { etiquetaDeSemana } from '../lib/format'
 import { ahora } from '../lib/relojServidor'
+import { PREFIJO_FILTROS } from './useFiltrosGuardados'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -59,8 +60,38 @@ export const MESES = [
  */
 export const etiquetaDeSemanaDeGrupo = (s) => etiquetaDeSemana(s) || `Semana ${s?.id_semana ?? ''}`.trim()
 
+/**
+ * D105 — LOS FILTROS SE CONSERVAN AL VOLVER AL MÓDULO.
+ *
+ * Viven en la URL, y entrar desde el menú la trae vacía: los valores por
+ * defecto elegían otra vez el primer subprograma, y una Docente que estaba en
+ * Comprensión Lectora volvía a Rúbrica y se encontraba en Alfabetización. La
+ * última búsqueda de cada módulo se guarda con el prefijo de los filtros
+ * (que el cierre de sesión borra) y se usa como valor por defecto: una URL con
+ * parámetros —un enlace desde la ficha del alumno— sigue mandando.
+ */
+const claveDeBusqueda = (ruta) => `${PREFIJO_FILTROS}grupo:${ruta}`
+
+function busquedaGuardada(ruta) {
+  try {
+    return localStorage.getItem(claveDeBusqueda(ruta)) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana = true }) {
-  const [params, setParams] = useSearchParams()
+  const { pathname } = useLocation()
+  const [guardada] = useState(() => busquedaGuardada(pathname))
+  const [params, setParams] = useSearchParams(guardada)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(claveDeBusqueda(pathname), params.toString())
+    } catch {
+      // Sin almacenamiento, los filtros duran lo que dure la URL.
+    }
+  }, [pathname, params])
 
   /**
    * Memoizado a propósito: los efectos de abajo lo usan como dependencia y una

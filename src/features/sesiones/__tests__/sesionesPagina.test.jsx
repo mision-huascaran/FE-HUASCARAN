@@ -4,7 +4,7 @@
 // INDEPENDIENTES, una sesión en curso dice "No aplica" en vez de dejar huecos,
 // y el módulo es estrictamente en línea.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
@@ -143,5 +143,31 @@ describe('Detalle de una sesión (CU019)', () => {
     montar()
     fireEvent.click(await screen.findByRole('button', { name: /ver detalle/i }, ESPERA))
     expect(await screen.findByText('Sin cambios en esta sesión', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  /**
+   * D98 — CP-SES-04. Con el servidor caído se veían guiones y "Cambios 0"
+   * mientras se reintentaba, y no había forma de recuperarlo al volver.
+   */
+  it('con el servidor caído no inventa una ficha y deja reintentar', async () => {
+    detalle.mockRejectedValue({ response: { status: 502, data: {} } })
+    montar({ sinReintentos: true })
+    fireEvent.click(await screen.findByRole('button', { name: /ver detalle/i }, ESPERA))
+
+    expect(await screen.findByText('No se pudo obtener la información de la sesión', {}, ESPERA)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).queryByText('Cambios')).not.toBeInTheDocument()
+
+    // Vuelve el servidor.
+    detalle.mockResolvedValue({ id: 'a1', estado: 'finalizada', cambios: 2, cambios_por_modulo: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByText('Sin cambios en esta sesión', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('mientras carga no enseña "Cambios 0"', async () => {
+    detalle.mockReturnValue(new Promise(() => {}))
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: /ver detalle/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    expect(within(dialogo).queryByText('Cambios')).not.toBeInTheDocument()
   })
 })

@@ -204,7 +204,7 @@ export default function LecturaPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="La tabla se arma con colegio, grado, sección, subprograma, mes y semana."
           />
         </Card>

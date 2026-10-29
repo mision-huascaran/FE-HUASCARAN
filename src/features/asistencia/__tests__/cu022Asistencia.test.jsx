@@ -564,6 +564,10 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
     // Con una observación, el texto queda en la tarjeta del rechazo.
     fireEvent.click(screen.getAllByRole('button', { name: /observación/i })[0])
     const dialogo = await screen.findByRole('dialog', { name: 'Observación' }, ESPERA)
+    // D90 — El modal nombra al alumno, no "undefined undefined".
+    const nombre = controles()[0].getAttribute('aria-label').replace('Asistencia de ', '')
+    expect(dialogo).not.toHaveTextContent('undefined')
+    expect(dialogo).toHaveTextContent(nombre)
     fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Llegó con fiebre' } })
     fireEvent.click(within(dialogo).getByRole('button', { name: /guardar/i }))
 

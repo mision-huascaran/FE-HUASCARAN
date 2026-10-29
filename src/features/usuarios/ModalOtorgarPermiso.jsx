@@ -235,6 +235,9 @@ function PieDelModal({ confirmandoDescarte, procesando, completo, onSeguir, onDe
   )
 }
 
+/** CU028, motivo vacío o solo espacios. */
+export const MOTIVO_AUTORIZACION_VACIO = 'Ingresa el motivo de la autorización.'
+
 export default function ModalOtorgarPermiso({
   abierto,
   idUsuario,
@@ -347,6 +350,8 @@ export default function ModalOtorgarPermiso({
 
   /** Las combinaciones que el servidor rechazó, por su índice en el lote. */
   const [rechazadas, setRechazadas] = useState({})
+  /** D77 — Para decir "Ingresa el motivo…" al salir del campo vacío. */
+  const [motivoTocado, setMotivoTocado] = useState(false)
 
   const otorgar = useMutation({
     mutationFn: () => {
@@ -354,7 +359,8 @@ export default function ModalOtorgarPermiso({
       setRechazadas({})
       return otorgarPermisosEnLote(idUsuario, { ...datos, combinaciones })
     },
-    onSuccess: onOtorgado,
+    // Con lo otorgado, para decir si coincide con los filtros de la lista (D77).
+    onSuccess: () => onOtorgado(datos),
     onError: (error) => {
       const porCampo = erroresDeCampo(error)
       setErroresCampo(porCampo)
@@ -562,8 +568,9 @@ export default function ModalOtorgarPermiso({
             required
             maxLength={300}
             value={datos.motivo}
-            error={erroresCampo.motivo}
+            error={erroresCampo.motivo ?? (motivoTocado && !datos.motivo.trim() ? MOTIVO_AUTORIZACION_VACIO : undefined)}
             hint="Queda registrado junto a quién lo otorgó. Por ejemplo: faltó registrar la lectura de marzo."
+            onBlur={() => setMotivoTocado(true)}
             onChange={(e) => cambiar('motivo', e.target.value)}
           />
         </div>

@@ -476,6 +476,12 @@ export function encolar({
    */
   registro = null,
   fusionar = null,
+  /**
+   * D108 — Se llama si el envío NO quedó guardado en IndexedDB y tampoco se
+   * exigía: sigue en memoria y se manda mientras la pestaña viva, pero cerrarla
+   * lo perdería. La pantalla tiene que poder decirlo.
+   */
+  alNoPersistir = null,
 }) {
   // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
   const usuario = usuarioActual()
@@ -526,6 +532,7 @@ export function encolar({
       rechazarPromesa(item.idOperacion, errorDePersistencia())
       return
     }
+    if (!guardado) alNoPersistir?.()
     procesar()
   })
   return promesa

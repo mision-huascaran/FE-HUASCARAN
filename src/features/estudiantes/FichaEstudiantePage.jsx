@@ -11,7 +11,7 @@
 // del dispositivo. Sin señal no se pide nada y se explica por qué; las demás
 // pestañas siguen navegables, que es justo lo que pide el flujo alternativo.
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
@@ -63,12 +63,36 @@ const nombreDeMes = (mes) => MESES.find((m) => m.value === Number(mes))?.label ?
 /** `null` es "Sin evaluar"/"Sin registrar", nunca un 0. */
 const oGuion = (valor) => (valor == null || valor === '' ? '-' : valor)
 
+/** El id de un campo que llega como `{id, nombre}` (backend) o suelto (simulador). */
+const idDe = (valor, suelto) => (valor && typeof valor === 'object' ? valor.id : (suelto ?? null))
+
+/**
+ * D64 — CP-ALU-08. Seleccionar una fila de las mini-grillas abre SU módulo
+ * con el grupo del alumno ya filtrado: los filtros de Lectura, Rúbrica y
+ * Registro de Vuelo viven en la URL (`useFiltrosDeGrupo`), así que basta el
+ * enlace. `extra` añade lo propio de la fila (el mes, el subprograma).
+ */
+export function enlaceAlModulo(ruta, alumno, extra = {}) {
+  const params = {
+    colegio: idDe(alumno?.colegio, alumno?.id_colegio),
+    grado: idDe(alumno?.grado, alumno?.id_grado),
+    seccion: idDe(alumno?.seccion, alumno?.id_seccion),
+    subprograma: idDe(alumno?.programa, alumno?.id_programa),
+    ...extra,
+  }
+  const consulta = new URLSearchParams(
+    Object.entries(params).filter(([, valor]) => valor != null && valor !== ''),
+  ).toString()
+  return consulta ? `${ruta}?${consulta}` : ruta
+}
+
 /** Error de una pestaña: el `detail` del servidor, no un texto inventado. */
 function ErrorDePestana({ error }) {
   return <EmptyState title="No se pudo cargar" description={mensajeDeError(error)} />
 }
 
-function PestanaLectura({ idAlumno }) {
+function PestanaLectura({ idAlumno, alumno }) {
+  const navigate = useNavigate()
   const { data = [], isLoading, error } = useQuery({
     queryKey: ['alumno', idAlumno, 'lectura'],
     queryFn: () => obtenerLecturaAlumno(idAlumno),
@@ -110,12 +134,16 @@ function PestanaLectura({ idAlumno }) {
       loading={isLoading}
       paginated={false}
       empty={SIN_REGISTROS}
-      footNote="Las 5 semanas más recientes del año escolar."
+      onRowClick={(f) =>
+        navigate(enlaceAlModulo('/seguimiento-lectura', alumno, { subprograma: f.id_programa, mes: f.mes }))
+      }
+      footNote="Las 5 semanas más recientes del año escolar. Selecciona una para abrirla en Seguimiento de Lectura."
     />
   )
 }
 
-function PestanaRubrica({ idAlumno }) {
+function PestanaRubrica({ idAlumno, alumno }) {
+  const navigate = useNavigate()
   const { data, isLoading, error } = useQuery({
     queryKey: ['alumno', idAlumno, 'rubrica'],
     queryFn: () => obtenerRubricaAlumno(idAlumno),
@@ -142,12 +170,14 @@ function PestanaRubrica({ idAlumno }) {
       loading={isLoading}
       paginated={false}
       empty={SIN_REGISTROS}
-      footNote="Las 5 evaluaciones mensuales más recientes del año escolar."
+      onRowClick={(e) => navigate(enlaceAlModulo('/rubrica', alumno, { mes: e.mes }))}
+      footNote="Las 5 evaluaciones mensuales más recientes del año escolar. Selecciona una para abrirla en Rúbrica."
     />
   )
 }
 
-function PestanaVuelo({ idAlumno }) {
+function PestanaVuelo({ idAlumno, alumno }) {
+  const navigate = useNavigate()
   const { data = [], isLoading, error } = useQuery({
     queryKey: ['alumno', idAlumno, 'registro-vuelo'],
     queryFn: () => obtenerRegistroVueloAlumno(idAlumno),
@@ -200,6 +230,8 @@ function PestanaVuelo({ idAlumno }) {
         loading={isLoading}
         paginated={false}
         empty={SIN_REGISTROS}
+        onRowClick={() => navigate(enlaceAlModulo('/registro-vuelo', alumno))}
+        footNote="Selecciona un periodo para abrirlo en Registro de Vuelo."
       />
     </div>
   )
@@ -319,9 +351,9 @@ export default function FichaEstudiantePage() {
         <Tabs items={PESTANAS} value={pestana} onChange={setPestana} className="px-2" />
         <div className="p-4">
           {pestana === 'resumen' && <ResumenFicha idAlumno={id} />}
-          {pestana === 'lectura' && <PestanaLectura idAlumno={id} />}
-          {pestana === 'rubrica' && <PestanaRubrica idAlumno={id} />}
-          {pestana === 'vuelo' && <PestanaVuelo idAlumno={id} />}
+          {pestana === 'lectura' && <PestanaLectura idAlumno={id} alumno={alumno} />}
+          {pestana === 'rubrica' && <PestanaRubrica idAlumno={id} alumno={alumno} />}
+          {pestana === 'vuelo' && <PestanaVuelo idAlumno={id} alumno={alumno} />}
           {pestana === 'historial' && <PestanaHistorial idAlumno={id} />}
         </div>
       </Card>

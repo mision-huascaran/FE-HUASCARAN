@@ -8,7 +8,7 @@
 // `modificacion_concurrente` manda el registro VIGENTE: queda como rechazo con
 // "Cargar versión actual" (ver `lib/registrosOffline`). Reintentar pisaría el
 // cambio de la otra persona.
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -26,8 +26,15 @@ const esDefinitivo = (error) => {
   return estado != null && estado >= 400 && estado < 500
 }
 
+/** D108 — El cambio no quedó guardado en el equipo (IndexedDB falló). */
+export const SIN_COPIA_LOCAL = 'No se pudo guardar el cambio en este dispositivo.'
+export const SIN_COPIA_LOCAL_DETALLE =
+  'Se enviará mientras esta pestaña siga abierta. Si la cierras antes de que se sincronice, se perderá.'
+
 export default function useRubricaMensual({ filtros, pagina }) {
   const toast = useToast()
+  // El aviso de D108 una vez por pantalla: repetirlo en cada cambio no añade nada.
+  const avisadoSinCopia = useRef(false)
   const queryClient = useQueryClient()
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
@@ -89,6 +96,12 @@ export default function useRubricaMensual({ filtros, pagina }) {
       local: cambios,
       descripcion: `Rúbrica · ${fila.nombre}`,
       idActividad,
+      // D108 — Con IndexedDB fallando el cambio solo vive en esta pestaña.
+      alNoPersistir: () => {
+        if (avisadoSinCopia.current) return
+        avisadoSinCopia.current = true
+        toast.warning(SIN_COPIA_LOCAL, SIN_COPIA_LOCAL_DETALLE)
+      },
     }).catch((error) => {
       if (!esDefinitivo(error)) return
       queryClient.invalidateQueries({ queryKey: ['rubricas'] })

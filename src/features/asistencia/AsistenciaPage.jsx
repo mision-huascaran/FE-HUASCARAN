@@ -97,8 +97,8 @@ const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo váli
  */
 const RECHAZO = {
   aula_fuera_de_alcance: {
-    titulo: 'Esa aula no está a su cargo',
-    texto: 'Solo puede registrar la asistencia de los colegios y grados que tiene asignados este periodo.',
+    titulo: 'Esa aula no está a tu cargo',
+    texto: 'Solo puedes registrar la asistencia de los colegios y grados que tienes asignados este periodo.',
   },
   colegio_inexistente: { titulo: 'El colegio no existe' },
   grado_no_ofrecido: { titulo: 'Ese grado no se dicta en este colegio' },
@@ -487,7 +487,7 @@ export default function AsistenciaPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="La clase se arma con colegio, grado, sección y fecha."
           />
         </Card>

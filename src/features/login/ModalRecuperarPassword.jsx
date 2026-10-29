@@ -130,7 +130,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
       })
       // CU006: el restablecimiento invalida TODAS las sesiones del usuario, así
       // que hay que volver a entrar aunque ya se estuviera dentro.
-      toast.success('Contraseña actualizada', 'Vuelva a iniciar sesión con la nueva contraseña.')
+      toast.success('Contraseña actualizada', 'Vuelve a iniciar sesión con la nueva contraseña.')
       cerrar()
     } catch (error) {
       if (motivoDe(error) === 'intentos_agotados') {

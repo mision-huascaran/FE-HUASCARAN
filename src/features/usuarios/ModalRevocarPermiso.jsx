@@ -30,8 +30,16 @@ function Dato({ etiqueta, children }) {
   )
 }
 
+export const MOTIVO_REVOCACION_VACIO = 'Ingresa el motivo de la revocación.'
+
 export default function ModalRevocarPermiso({ permiso, docente, revocando, error, onRevocar, onCerrar }) {
   const [motivo, setMotivo] = useState('')
+  /**
+   * D77 — Motivo vacío o solo espacios: se dice con el texto de CU028 en vez
+   * de dejar el botón en gris sin explicación. Aparece al salir del campo.
+   */
+  const [motivoTocado, setMotivoTocado] = useState(false)
+  const motivoVacio = motivoTocado && !motivo.trim() ? MOTIVO_REVOCACION_VACIO : undefined
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
 
   useEffect(() => {
@@ -111,7 +119,8 @@ export default function ModalRevocarPermiso({ permiso, docente, revocando, error
             maxLength={300}
             autoFocus
             value={motivo}
-            error={error}
+            error={error ?? motivoVacio}
+            onBlur={() => setMotivoTocado(true)}
             onChange={(e) => setMotivo(e.target.value)}
           />
         </>
