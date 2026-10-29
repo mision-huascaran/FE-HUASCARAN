@@ -2,9 +2,9 @@
 
 **Para:** **analistas** (lo que necesita decisión de caso de uso) y **backend**
 (lo que falta publicar o corregir del lado del servidor).
-**Actualizado:** 29/10/2026, con la respuesta del backend (Paris, tandas I y
-L), lo que abrió la **ronda 6** del tester y el **Dashboard** (CU033 a CU035),
-que ya está implementado.
+**Actualizado:** 29/10/2026, con la respuesta del backend (Paris, tandas I,
+L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
+(CU033 a CU035), que ya está implementado.
 
 > ## Del backend no queda nada
 >
@@ -20,9 +20,16 @@ que ya está implementado.
 > `/dashboard/*` tiene su adaptador en `src/api/resources/dashboard.js`, el
 > simulador devuelve la forma real y una prueba de contrato lo vigila.
 >
-> **Lo que queda abierto del ANALISTA**: ocho puntos, cinco del sprint y
-> **tres que abrió la ronda 6** (S20, S21 y S22). Uno de ellos, S20, necesita
-> también al backend, pero la decisión va primero.
+> **La Tanda M del backend** (`34c6191`) resolvió D100 y D101 y aplicó dos
+> **decisiones provisionales** para no esperar al analista antes de la
+> exposición: **DP-1** (S20, D88) y **DP-2** (S21). El front ya trabaja contra
+> ellas.
+>
+> **Lo que queda abierto del ANALISTA**: siete puntos. Los cinco del sprint,
+> **S22** y **validar DP-1 y DP-2** después de la exposición. Además, la
+> **siguiente fase del front** espera a la v8 de los CU: D85, D86, D102, D106
+> y D107 (rediseño de Rúbrica, Registro de Vuelo, Seguimiento de Lectura,
+> Sesiones y Seguimiento).
 >
 > **Dos decisiones cambiaron de sentido**: **S12** estaba mal y el CU ya la
 > respondía (retirada, y corregida en el código), y **S1** —"el Dashboard no
@@ -46,9 +53,10 @@ que ya está implementado.
 | [2. Pantallas del mockup antiguo](#anexo-pantallas-del-mockup-antiguo--%E2%9C%85-resuelto) | ✅ Resuelto: las nueve rutas sin caso de uso ya no existen | — |
 | [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s23) | S1 a S23: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
 
-**Lo que queda.** Los ocho son de Carlos (analista): los cinco primeros
-venían del sprint y los tres siguientes los abrió la **ronda 6** del tester.
-Del backend no queda nada (S23 se resolvió en el front):
+**Lo que queda.** Los siete son de Carlos (analista): los cinco primeros
+venían del sprint y los dos siguientes los abrió la **ronda 6** del tester.
+Del backend no queda nada (S23 se resolvió en el front y la Tanda M cerró
+D100 y D101):
 
 1. **CU028** — si el modal de permisos pide varios grados y módulos a la vez,
    hay que cambiar sus dropdowns de "selección única". El endpoint de lote ya
@@ -60,13 +68,11 @@ Del backend no queda nada (S23 se resolvió en el front):
 4. **CU010 (S4)** — el texto del tooltip de "Iniciar actividad" deshabilitado.
    Es el único de los tres que seguía sin literal.
 5. **CU022 (S3)** — dejar por escrito el acceso del Supervisor en solo lectura.
-6. **S20 (D88)** — la regla R1 deja la rúbrica de octubre en el PA3, sin
-   Docente habilitado y sin vencimiento. Con el backend.
-7. **S21** — si los vencidos deben seguir viéndose durante el receso, que es
-   cuando se regularizan.
-8. **S22** — qué pasa con un alumno que cambia de grupo a mitad de mes.
+6. **Validar DP-1 y DP-2** (S20 y S21) — decisiones provisionales del
+   backend en la Tanda M, aplicadas para la exposición.
+7. **S22** — qué pasa con un alumno que cambia de grupo a mitad de mes.
 
-**S1 (Dashboard) cambió de respuesta: ya está implementado.** CU033, CU034 y
+**S1 (Dashboard) — ✅ RESUELTO: ya está implementado.** CU033, CU034 y
 CU035 llegaron completos en los casos de uso actualizados y el backend publicó
 los once endpoints de `/dashboard/*` (serie D1–D7). Está en `development`, en
 el commit `59eb6a9`, y la Fase 8 de `docs/plan-semana12-front.md` cuenta qué
@@ -339,8 +345,18 @@ respaldo.
 
 </details>
 
-**S20. Regla R1: la rúbrica de octubre queda sin nadie que la evalúe (D88).**
-Lo abrió la ronda 6 y es **del analista y del backend**, no del front. Por la
+**S20 (D88) — ✅ DECISIÓN PROVISIONAL DP-1 (backend, Tanda M, `34c6191`).**
+R1 no cambia: octubre sigue asociado al PA3. Pero lo puede evaluar cualquier
+Docente con habilitación en cualquiera de los PA con días lectivos en el mes
+(PA3 o PA4), y octubre figura vencido el 01/11. El front lo refleja también
+sin conexión: con red obedece `escritura.permitida` de `GET /rubricas`, y sin
+red usa el bloque `escritura` de la copia guardada, que ya viene calculado con
+DP-1 (el cliente no recalcula el PA del mes; el servidor revalida al
+sincronizar). **Pendiente de validar con el analista después de la
+exposición.**
+
+*Planteamiento original:* lo abrió la ronda 6 y es **del analista y del
+backend**, no del front. Por la
 regla R1 —el mes pertenece al PA con más días lectivos— octubre cae en el
 **PA3**. Consecuencia: un Docente con asignación solo en el PA4 **no puede**
 evaluar la rúbrica de octubre sin un permiso excepcional, y esas rúbricas
@@ -348,7 +364,13 @@ evaluar la rúbrica de octubre sin un permiso excepcional, y esas rúbricas
 debería reclamarlas. El front solo pinta lo que llega: no hay nada que
 arreglar aquí hasta que la regla se decida.
 
-**S21. Los vencidos desaparecen al empezar el PR.**
+**S21 — ✅ DECISIÓN PROVISIONAL DP-2 (backend, Tanda M, `34c6191`).**
+Durante el receso, los vencidos e incompletos del Inicio se calculan sobre el
+PA que se regulariza; ya no caen a 0 el 19/12. Incumplimiento de Sede no
+cambia. Misma forma de respuesta: el front no cambia. **Pendiente de validar
+con el analista.**
+
+*Planteamiento original:* los vencidos desaparecen al empezar el PR.
 De la ronda 6 (CP-INI-29): al pasar del 18/12 al 19/12, los vencidos de
 Asistencias, Lectura y Rúbrica del PA4 pasan de **60, 70 y 68 a 0**. Es
 coherente con que el PA terminó, pero el receso es justo cuando se
@@ -356,12 +378,22 @@ regulariza: si lo pendiente deja de verse, nadie sabe qué regularizar.
 **¿Deben seguir visibles durante el PR?** Es una decisión de CU011, no del
 front.
 
-**S22. Un alumno que cambia de grupo a mitad de mes.**
+**S22 — sin cambio.** Se mantiene el comportamiento actual hasta que decida
+el analista.
+
+*Planteamiento:* un alumno que cambia de grupo a mitad de mes.
 También de la ronda 6: un alumno evaluado en un grupo **no aparece en el
 grupo nuevo** dentro del mismo mes, así que el aviso que CU030 prevé para
 ese caso solo se puede ver por la API, nunca en pantalla. Hay que decidir si
 el alumno debe salir en el grupo nuevo (y con qué evaluación) o si el aviso
 sobra.
+
+**D100 y D101 — ✅ resueltos en el backend (Tanda M, `34c6191`):** las
+clases adicionales cuentan en el % de asistencia del alumno (misma forma, el
+front no cambia), y Lectura responde `422 sin_alumnos` con el mensaje de
+CU024 cuando la semana tiene clase pero el grupo no tenía alumnos en esa
+fecha. El front decide por `motivo` y muestra el `detail` como estado del
+bloque, sin "Crear tabla" (`5ab840c`).
 
 ## Lo que falta del BACKEND
 
@@ -570,3 +602,10 @@ periodo académico es un 422.
   propio, Service Worker, copia en `localStorage` y literales por rol. Está
   construido, funciona y no estorba: se queda.
 - **El aviso de pendientes del Docente.** Ya existe y cumple CU010.
+
+## Versión para la ronda 7
+
+- **Frontend:** `development` en el commit final de la ronda 6, segunda parte
+  (ver la tabla "Ronda 6 (segunda parte)" de `docs/plan-semana12-front.md`).
+- **Backend:** `development` en `34c6191` ("Tanda M: decisiones provisionales
+  documentadas, API.md y Sonar") o posterior.

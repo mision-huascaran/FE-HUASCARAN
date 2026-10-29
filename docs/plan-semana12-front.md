@@ -1380,6 +1380,47 @@ verdad:
 
 ---
 
+### RONDA 6 (segunda parte) — 29/10/2026
+
+Sobre `79d8e61` (que ya traía `409c09b` y el Dashboard). Cada corrección lleva
+su prueba, que falla con el código anterior y pasa con el nuevo. Vitest pasa de
+902 a **943 pruebas** (100 archivos); lint con 0 errores y los mismos 279
+avisos de la línea base. Contra el backend de la **Tanda M** (`34c6191`).
+
+| Defecto | Estado | Commit | Qué se hizo |
+|---|---|---|---|
+| D92 (Crítico) | Corregido | `e8f097e` | Un 401 ya no saca la operación de la cola: espera a la siguiente autenticación. Cada operación guarda su dueño y solo se envía con la sesión de esa cuenta (CU007) |
+| D91 | Corregido | `e8f097e` | El resultado de Asistencias se busca por `id_operacion`: un rechazo sin `registro` revierte la fila, avisa y conserva la observación en la tarjeta |
+| D69 | Corregido | `e8f097e` | Los rechazos se respaldan en `localStorage` y siguen en "Error" tras recargar; el cierre de sesión los borra |
+| D96 | Corregido | `e8f097e` | El LSN viaja entero (título, nota y máximo) o vacío entero; a medias se conserva en la fila con el texto de `lsn_incompleto` |
+| D87 | Corregido | `5ab840c` | Lectura vuelve a pedir la tabla al entrar (`staleTime: 0`), como Rúbrica y Vuelo desde `409c09b` |
+| D97 | Corregido | `5ab840c` | Sesiones, Seguimiento, bitácora y registros de una actividad piden todas las páginas (`todasLasPaginas`) |
+| D95 | Corregido | `5ab840c` | Sin conexión y sin `/me/habilitaciones` en el equipo, Asistencias bloquea con "No se puede verificar tu habilitación sin conexión. Conéctate a Internet para actualizar los datos y continuar." (el final del texto no estaba en el CU disponible: se tomó del literal hermano de CU024) |
+| D103 | Corregido | `5ab840c` | Sin `page`, `/colegios/{id}/clases` responde un arreglo y el modal leía `items`: ahora acepta las dos formas y ofrece solo clases con asistencias |
+| Tanda M · `sin_alumnos` | Hecho | `5ab840c` | `422 sin_alumnos` (al consultar o al crear) se muestra con su `detail` como estado del bloque, sin "Crear tabla" |
+| Tanda M · DP-1 sin conexión | Anotado | — | El cliente no valida el PA del mes sin conexión: usa el `escritura` de la copia guardada (ya calculado con DP-1) y el servidor decide al sincronizar. No se inventó una regla local |
+| D104, D57 | Corregido | `3ccbd60` | `tokenCaducado` usa la hora del servidor y, sin referencia (al recargar), no decide: lo hace el 401 |
+| D99 | Corregido | `3ccbd60` | El ancla del reloj suma el segundo truncado de `Date` y la mitad del viaje; el inicio de actividad y el `realizado_en` del aviso salen de `ahora()` |
+| D61, D70 | Corregido | `0c58e3f` | Colegios y Usuarios ya no son "solo en línea": copia con aviso, el modal conserva lo escrito y bloquea "Guardar" con el texto de CU013/CU016, y se llega al Calendario sin conexión. `admin` entra en la caché persistida |
+| D52 | Corregido | `0c58e3f` | Con el servidor caído el Inicio usa la copia y avisa que puede estar desactualizada (CU011, CU012) |
+| D75 | Corregido | `0c58e3f` | Un 502/503/504 del proxy al guardar el calendario se trata como "sin respuesta": aviso y "Guardar" bloqueado |
+| D90 | Corregido | `1c215aa` | El modal de observación usa `nombre` |
+| D62 | Corregido | `1c215aa` | "Queda 1 cambio… llegó" en singular y textos con tuteo (los literales de CU no se tocaron) |
+| D64 | Corregido | `1c215aa` | Una fila de Lectura, Rúbrica o Vuelo en la ficha abre su módulo con el grupo filtrado |
+| D67 | Corregido | `1c215aa` | "Inicio de asignación" son radios con los textos de ayuda de CU016 |
+| D77 | Corregido | `1c215aa` | Filtros restaurados por usuario, motivo vacío en otorgar y revocar, fechas del permiso superpuesto y aviso si lo creado no coincide con los filtros |
+| D71, D73, D74 | Corregido | `1c215aa` | Sin general no se ofrece "Crear fechas particulares"; aviso de CU027 al crearlas; "Guardar" dice qué campos faltan |
+| D105 | Corregido | `1c215aa` | Los filtros de grupo (Rúbrica, Lectura, Vuelo) se restauran al volver al módulo |
+| D108 | Corregido | `1c215aa` | Rúbrica avisa (una vez) si el cambio no quedó guardado en el dispositivo |
+| D98 | Corregido | `1c215aa` | El detalle de sesión no pinta guiones ni "Cambios 0" mientras carga, y el error ofrece "Reintentar" |
+| D82, D93, D81, D56, D94, D80, D65, D83, D84, D89, D51 | Ya estaba | `409c09b`, `04db3be`, `7ea5261` | Verificados en el código. D93 y D56/D94 tienen prueba; D82, D80, D83 y D89, no |
+| D49 | Ya estaba | `59eb6a9` | El Directivo tiene Dashboard |
+| D85, D86, D102, D106, D107 | Siguiente fase | — | Rediseño según la v8 de los CU (modos "Registrar…/Guardar", columnas y textos) |
+
+**Sin hacer en esta tanda:** el Sonar del código nuevo frente a `qa`
+(`FE-HUASCARAN-qa-sim`) necesita un token que no estaba en la máquina; queda
+pendiente. Lint con las reglas `sonarjs` no tiene avisos nuevos.
+
 ## 4. Matriz: defecto → fase
 
 | Defecto | Sev. | Módulo | Fase |
