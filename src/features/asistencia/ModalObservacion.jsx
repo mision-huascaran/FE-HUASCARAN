@@ -20,7 +20,9 @@ export default function ModalObservacion({ alumno, guardando, soloLectura = fals
     if (alumno) setTexto(alumno.observacion ?? '')
   }, [alumno])
 
-  const nombre = alumno ? `${alumno.nombres} ${alumno.apellidos}` : ''
+  // D90 — La clase trae `nombre` entero; `nombres` y `apellidos` ya no
+  // existen y el subtítulo salía "undefined undefined".
+  const nombre = alumno?.nombre ?? [alumno?.nombres, alumno?.apellidos].filter(Boolean).join(' ')
 
   return (
     <Modal
@@ -52,7 +54,7 @@ export default function ModalObservacion({ alumno, guardando, soloLectura = fals
         autoFocus={!soloLectura}
         readOnly={soloLectura}
         value={texto}
-        hint={soloLectura ? undefined : 'Por ejemplo: falta por enfermedad, tardanza por transporte. Déjelo vacío para quitarla.'}
+        hint={soloLectura ? undefined : 'Por ejemplo: falta por enfermedad, tardanza por transporte. Déjalo vacío para quitarla.'}
         onChange={(e) => setTexto(e.target.value)}
       />
     </Modal>

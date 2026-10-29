@@ -206,6 +206,29 @@ describe('Listados paginados', () => {
   })
 })
 
+describe('Sesiones y Seguimiento traen todas las páginas (D97)', () => {
+  /** El servidor pagina de 40 en 40: 46 actividades son dos páginas. */
+  const paginado = (pagina, ids) => ({
+    data: { items: ids.map((id) => ({ id })), total: 46, page: pagina, page_size: 40, total_pages: 2 },
+  })
+  const porPagina = (config) =>
+    config.params.page === 2 ? paginado(2, [41, 42, 43, 44, 45, 46]) : paginado(1, Array.from({ length: 40 }, (_, i) => i + 1))
+
+  it.each([
+    ['Sesiones del Docente', () => listarActividades({})],
+    ['Seguimiento de Docentes', () => listarSeguimiento({})],
+    ['bitácora de un Docente', () => listarActividadesDe(4, {})],
+  ])('%s: pide la segunda página y enseña las 46', async (_, listar) => {
+    get.mockImplementation((_url, config) => Promise.resolve(porPagina(config)))
+
+    const { items, total } = await listar()
+
+    expect(get.mock.calls.map((c) => c[1].params.page ?? 1)).toEqual([1, 2])
+    expect(items).toHaveLength(46)
+    expect(total).toBe(46)
+  })
+})
+
 describe('Primer ingreso (CU001)', () => {
   // Las Recovery Keys se retiraron: `/password/recuperar-con-llave` responde
   // 404. El Supervisor original recupera su cuenta por el PIN como todos.
@@ -354,7 +377,10 @@ describe('Contrato real de Usuarios (CU016)', () => {
       dni: '12345678',
       correo: 'rosa@sicedu.test',
       id_rol: 1,
-      asignacion: { id_colegio: 7, id_anio_escolar: 3, grados: [1, 2] },
+      // Tanda G1: la asignación va AGRUPADA POR COLEGIO. `desde_periodo`
+      // ya no existe, ni `id_colegio`/`grados` sueltos en la raíz: un
+      // cuerpo con la forma vieja responde 422.
+      asignacion: { id_anio_escolar: 3, colegios: [{ id_colegio: 7, grados: [1, 2] }] },
     })
   })
 
@@ -368,14 +394,17 @@ describe('Contrato real de Usuarios (CU016)', () => {
     get.mockResolvedValueOnce({ data: [{ id: 1, nombre: '2026', vigente: true }] })
     await actualizarUsuario(4, { nombres: 'Docente', apellidos: 'Desactivado', dni: '76355221', correo: 'd@sicedu.test', id_colegio: '1', grados: [], anio_escolar: '' })
     const [, cuerpo] = patch.mock.calls.at(-1)
-    expect(cuerpo.asignacion).toEqual({ id_colegio: 1, id_anio_escolar: 1 })
-    expect(cuerpo.asignacion).not.toHaveProperty('grados')
+    expect(cuerpo.asignacion).toEqual({ id_anio_escolar: 1, colegios: [{ id_colegio: 1 }] })
+    expect(cuerpo.asignacion.colegios[0]).not.toHaveProperty('grados')
   })
 
   it('el año escolar escrito se traduce a su id del catálogo', async () => {
     get.mockResolvedValueOnce({ data: [{ id: 1, nombre: '2026', vigente: true }, { id: 2, nombre: '2027', vigente: false }] })
     await actualizarUsuario(2, { nombres: 'Docente', apellidos: 'de Prueba', dni: '00000002', correo: 'p@sicedu.test', id_colegio: '1', grados: ['1'], anio_escolar: '2027' })
-    expect(patch.mock.calls.at(-1)[1].asignacion).toEqual({ id_colegio: 1, id_anio_escolar: 2, grados: [1] })
+    expect(patch.mock.calls.at(-1)[1].asignacion).toEqual({
+      id_anio_escolar: 2,
+      colegios: [{ id_colegio: 1, grados: [1] }],
+    })
   })
 
   it('editar no manda `id_rol` vacío ni campos sueltos del Docente', async () => {

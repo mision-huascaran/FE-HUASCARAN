@@ -15,9 +15,10 @@
 // TRES ESTADOS, NO TRES BOTONES A LA VEZ: consulta, creación y edición. El CU
 // lo pide expresamente ("no aparecen todos simultáneamente"), y tiene sentido:
 // con los cuatro visibles nadie sabe en cuál está.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CalendarDays, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { ahora } from '../../lib/relojServidor'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -30,13 +31,22 @@ import {
   actualizarCalendario,
   crearCalendarioGeneral,
   crearCalendarioParticular,
+  esPeriodoActual,
   nombreDePeriodo,
   obtenerCalendario,
   ochoPeriodos,
+  textoDePeriodoActual,
   volverAlGeneral,
 } from '../../api/resources/calendarios'
+import {
+  ModalConfirmarActualizacion,
+  ModalDescartarCambios,
+  ModalUsarGeneral,
+  ModalVersionActual,
+} from './ModalesDelCalendario'
+import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
-import { mensajeDeError, motivoDe } from '../../api/client'
+import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
@@ -56,24 +66,70 @@ const periodosParaGuardar = (periodos) =>
 const estaCompleto = (periodos, dias) =>
   periodos.every((p) => p.fecha_inicio && p.fecha_fin) && dias.every((d) => d.motivo?.trim())
 
+/**
+ * D74 — POR QUÉ "Guardar" está deshabilitado, nombrando los campos vacíos.
+ * Antes se apagaba sin decir nada y había que revisar las ocho filas.
+ */
+export function camposPorCompletar(periodos, dias) {
+  const faltan = periodos.flatMap((p) => [
+    ...(p.fecha_inicio ? [] : [`Inicio de ${nombreDePeriodo(p)}`]),
+    ...(p.fecha_fin ? [] : [`Fin de ${nombreDePeriodo(p)}`]),
+  ])
+  dias.forEach((d, i) => {
+    if (!d.motivo?.trim()) faltan.push(`Motivo del día no lectivo ${i + 1}`)
+  })
+  return faltan
+}
+
+/** D73 — CU027, al crear las fechas particulares de un colegio (precargadas del general). */
+export const AVISO_FECHAS_PARTICULARES =
+  'Al guardar, este colegio tendrá un calendario propio para el año escolar seleccionado. Los cambios posteriores del calendario general no se aplicarán automáticamente.'
+
 /** Lo que se edita al empezar: vacío para crear, lo vigente para editar. */
 function borradorPara(modo, calendario) {
   if (modo === 'crear') return { periodos: periodosVacios(), dias: [] }
   return { periodos: ochoPeriodos(calendario?.periodos), dias: calendario?.dias_no_lectivos ?? [] }
 }
 
+/** Respuestas del proxy cuando el servidor no contesta: no dicen qué pasó con el envío. */
+const SIN_SERVIDOR = new Set([502, 503, 504])
+
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
 
-  const [alcance, setAlcance] = useState('general')
-  const [idColegio, setIdColegio] = useState('')
-  const [anio, setAnio] = useState('')
+  /**
+   * Los filtros se guardan y se restauran (CU027, D70).
+   *
+   * Volver al calendario y encontrarlo en "General" del año vigente cuando se
+   * estaba mirando un colegio concreto obliga a rehacer la selección cada vez.
+   */
+  const [filtros, setFiltros] = useFiltrosGuardados('calendario', {
+    alcance: 'general',
+    idColegio: '',
+    anio: '',
+  })
+  const { alcance, idColegio, anio } = filtros
+  const cambiarFiltro = (cambio) => setFiltros((previos) => ({ ...previos, ...cambio }))
+  const setAlcance = (valor) => cambiarFiltro({ alcance: valor, idColegio: '' })
+  const setIdColegio = (valor) => cambiarFiltro({ idColegio: valor })
+  const setAnio = (valor) => cambiarFiltro({ anio: valor })
+
   const [modo, setModo] = useState('consulta')
   const [periodos, setPeriodos] = useState(periodosVacios)
   const [dias, setDias] = useState([])
+  /** Con lo que se entró a editar, para saber si algo cambió de verdad (D84). */
+  const [borradorOriginal, setBorradorOriginal] = useState(null)
   const [incompatibilidades, setIncompatibilidades] = useState([])
+  /** Mensajes del 422 por campo: cada uno va junto al suyo (D74). */
+  const [erroresCampo, setErroresCampo] = useState({})
+  /** Cuál de los modales está abierto, o `null`. */
+  const [confirmando, setConfirmando] = useState(null)
+  /** Otro Supervisor guardó entre medias: hasta resolverlo no se guarda (D75). */
+  const [conflicto, setConflicto] = useState(false)
+  /** Se envió y no se supo el resultado: no se reintenta a ciegas. */
+  const [sinConfirmar, setSinConfirmar] = useState(false)
 
   const { data: anios = [] } = useQuery({
     queryKey: ['catalogo', 'anios-escolares'],
@@ -81,10 +137,35 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     staleTime: Infinity,
   })
 
+  /**
+   * EL FILTRO ES UN AÑO CALENDARIO, NO UN AÑO ESCOLAR YA CREADO (D81, tanda C1).
+   *
+   * Era una lista de los años escolares existentes, así que **el año siguiente
+   * no se podía elegir** y no había forma de crear su calendario desde la
+   * pantalla: para configurar 2027 hacía falta que 2027 ya existiera, y lo que
+   * lo crea es justo este formulario.
+   *
+   * Se ofrecen los años con calendario más el siguiente al último. Elegir uno
+   * **no crea nada**: si no existe, el GET responde 404 y la pantalla ofrece
+   * "Crear calendario", que es lo que lo crea todo de una vez (tanda C2).
+   */
+  const aniosOfrecidos = useMemo(() => {
+    const existentes = anios
+      .map((a) => /\d{4}/.exec(String(a.nombre ?? ''))?.[0])
+      .filter(Boolean)
+      .map(Number)
+    const base = existentes.length ? existentes : [ahora().getFullYear()]
+    const siguiente = Math.max(...base) + 1
+    return [...new Set([...base, siguiente])].sort((a, b) => b - a).map(String)
+  }, [anios])
+
   // El año arranca en el vigente. CU027: se inicializa con el año actual.
   useEffect(() => {
-    if (!anio && anios.length) setAnio(String(anioVigente(anios)?.id ?? ''))
-  }, [anios, anio])
+    if (anio || !anios.length) return
+    const vigente = anioVigente(anios)?.nombre
+    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0] ?? aniosOfrecidos[0]
+    if (propuesto) setAnio(String(propuesto))
+  }, [anios, anio, aniosOfrecidos])
 
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
@@ -92,7 +173,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   const consulta = useQuery({
     queryKey: ['calendario', anio, colegioConsultado ?? null],
-    queryFn: () => obtenerCalendario({ idAnioEscolar: anio, idColegio: colegioConsultado }),
+    // Por AÑO CALENDARIO: así se puede consultar uno que todavía no existe y
+    // recibir el 404 que ofrece crearlo.
+    queryFn: () => obtenerCalendario({ anio, idColegio: colegioConsultado }),
     enabled: listo && modo === 'consulta',
     retry: false,
   })
@@ -104,27 +187,79 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['calendario'] })
 
   const alFallar = (error) => {
+    setConfirmando(null)
+
+    /**
+     * Sin respuesta NO se reintenta (CU027).
+     *
+     * La solicitud pudo llegar y aplicarse: volver a mandarla escribiría dos
+     * veces. Se bloquea "Guardar" hasta comprobar con el servidor qué pasó.
+     *
+     * D75 — Con el backend CAÍDO también es "sin respuesta", aunque haya una:
+     * la da el proxy (502, 503 o 504), no el servidor. Antes caía en el
+     * mensaje genérico y "Guardar" seguía activo para reintentar a ciegas.
+     */
+    if (!error?.response || SIN_SERVIDOR.has(error.response.status)) {
+      setSinConfirmar(true)
+      return
+    }
+
+    /**
+     * 409 `modificacion_concurrente`: otro Supervisor guardó mientras este
+     * editaba. No se combina ni se sobrescribe: se bloquea el guardado y se
+     * ofrece ver qué hay (D75).
+     */
+    if (motivoDe(error) === 'modificacion_concurrente') {
+      setConflicto(true)
+      return
+    }
+
     // `calendario_incompatible` trae la lista de qué registros estorban. Es
     // una decisión que tomar, no un error que descartar: se muestra entera.
     setIncompatibilidades(error?.response?.data?.incompatibilidades ?? [])
-    toast.error('No se pudo guardar el calendario', mensajeDeError(error))
+
+    // Cada mensaje de validación junto a su campo, sin prefijo (D74).
+    const porCampo = erroresDeCampo(error)
+    setErroresCampo(porCampo)
+    if (!Object.keys(porCampo).length) {
+      toast.error('No se pudo guardar el calendario', mensajeDeError(error))
+    }
   }
 
+  /**
+   * El texto de éxito es el de CU027, PALABRA POR PALABRA.
+   *
+   * Antes decía "Calendario creado" + "Las fechas ya rigen para los módulos
+   * que dependen de ellas.", que suena bien pero se lo inventó el front: el
+   * backend no manda texto de éxito y el caso de uso sí lo da. El probador lo
+   * compara carácter a carácter (D62).
+   */
   const alGuardar = (mensaje) => () => {
     setIncompatibilidades([])
+    setErroresCampo({})
+    setConfirmando(null)
+    setConflicto(false)
+    setSinConfirmar(false)
     setModo('consulta')
     refrescar()
-    toast.success(mensaje, 'Las fechas ya rigen para los módulos que dependen de ellas.')
+    toast.success(mensaje)
   }
 
   const crear = useMutation({
     mutationFn: () => {
-      const cuerpo = { id_anio_escolar: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: dias }
+      /**
+       * Se manda `anio`, no `id_anio_escolar` (tanda C2).
+       *
+       * Con él el backend crea el año escolar en la MISMA transacción: o queda
+       * el año con su calendario, o no queda nada. El contrato exige
+       * exactamente uno de los dos campos.
+       */
+      const cuerpo = { anio: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: dias }
       return porColegio
         ? crearCalendarioParticular({ ...cuerpo, id_colegio: Number(idColegio) })
         : crearCalendarioGeneral(cuerpo)
     },
-    onSuccess: alGuardar('Calendario creado'),
+    onSuccess: alGuardar('Calendario académico creado correctamente.'),
     onError: alFallar,
   })
 
@@ -137,23 +272,81 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         periodos: periodosParaGuardar(periodos),
         dias_no_lectivos: dias,
       }),
-    onSuccess: alGuardar('Calendario actualizado'),
+    onSuccess: alGuardar('Calendario académico actualizado correctamente.'),
     onError: alFallar,
   })
 
   const restablecer = useMutation({
     mutationFn: () => volverAlGeneral(calendario.id_calendario, calendario.version),
-    onSuccess: alGuardar('El colegio vuelve al calendario general'),
+    onSuccess: alGuardar('Calendario académico actualizado correctamente.'),
     onError: alFallar,
   })
 
   const empezar = (siguiente) => {
-    const borrador = borradorPara(siguiente, calendario)
+    /**
+     * D73 — Las fechas particulares NO empiezan vacías.
+     *
+     * Se precargan con las del calendario general, que es sobre lo que se
+     * ajusta: un colegio que empieza una semana más tarde cambia dos fechas,
+     * no las dieciséis. Antes había que reescribirlas todas.
+     */
+    const particularNuevo = siguiente === 'crear' && porColegio && calendario
+    const borrador = particularNuevo ? borradorPara('editar', calendario) : borradorPara(siguiente, calendario)
+
     setIncompatibilidades([])
+    setErroresCampo({})
+    setConflicto(false)
+    setSinConfirmar(false)
     setPeriodos(borrador.periodos)
     setDias(borrador.dias)
+    // D84 — Con qué comparar para saber si de verdad se tocó algo.
+    setBorradorOriginal(borrador)
     setModo(siguiente)
   }
+
+  /** Vuelve a consulta descartando lo escrito. */
+  const descartar = () => {
+    setConfirmando(null)
+    setConflicto(false)
+    setSinConfirmar(false)
+    setErroresCampo({})
+    setModo('consulta')
+  }
+
+  /**
+   * ¿SE TOCÓ ALGO? (D84)
+   *
+   * Antes bastaba con estar en modo edición para preguntar "¿descartar
+   * cambios?", así que entrar a editar y arrepentirse sin escribir nada ya
+   * pedía confirmación. Una confirmación que no protege nada entrena a
+   * pulsarla sin leerla, y así deja de proteger el caso en que sí importa.
+   *
+   * Se compara contra el borrador con el que se entró, no contra el
+   * calendario: en "Crear fechas particulares" el borrador ya viene precargado
+   * con el general (D73) y eso no es un cambio del Supervisor.
+   */
+  const hayCambios = () =>
+    JSON.stringify({ periodos, dias }) !== JSON.stringify(borradorOriginal ?? { periodos, dias })
+
+  /** Cancelar o salir: si hay algo escrito, se pregunta antes (D72). */
+  const salir = (accion) => {
+    if (modo === 'consulta' || !hayCambios()) {
+      accion()
+      return
+    }
+    setConfirmando({ tipo: 'descartar', accion })
+  }
+
+  /** Guardar: crear va directo; editar el GENERAL pasa por confirmación. */
+  const pedirGuardar = () => {
+    if (modo === 'editar' && !porColegio) {
+      setConfirmando({ tipo: 'actualizar' })
+      return
+    }
+    ejecutarGuardado()
+  }
+
+  const ejecutarGuardado = () => (modo === 'crear' ? crear.mutate() : editar.mutate())
 
   const editando = modo !== 'consulta'
 
@@ -162,7 +355,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <Button variant="ghost" iconLeft={ArrowLeft} onClick={onVolver} className="self-start">
+      {/* Salir con cambios sin guardar pregunta antes: el calendario no se
+          encola ni se guarda en localStorage, así que lo escrito se pierde. */}
+      <Button variant="ghost" iconLeft={ArrowLeft} onClick={() => salir(onVolver)} className="self-start">
         Volver a Colegios
       </Button>
 
@@ -183,18 +378,43 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           enLinea={enLinea}
           restableciendo={restablecer.isPending}
           guardando={crear.isPending || editar.isPending}
-          completo={estaCompleto(periodos, dias)}
+          // Con un conflicto o un envío sin confirmar, "Guardar" se bloquea:
+          // volver a mandarlo pisaría lo ajeno o escribiría dos veces (D75).
+          completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar}
+          faltan={camposPorCompletar(periodos, dias)}
           onEmpezar={empezar}
-          onRestablecer={() => restablecer.mutate()}
-          onCancelar={() => setModo('consulta')}
-          onGuardar={() => (modo === 'crear' ? crear.mutate() : editar.mutate())}
+          onRestablecer={() => setConfirmando({ tipo: 'usarGeneral' })}
+          onCancelar={() => salir(descartar)}
+          onGuardar={pedirGuardar}
         />
       </header>
 
       {!enLinea && (
         <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
-          Sin conexión se muestra la última versión guardada, que puede no incluir cambios recientes. Para
-          crear o modificar el calendario hace falta conexión.
+          Sin conexión. Estás consultando la última versión guardada del calendario. Conéctate a Internet para
+          gestionar el calendario.
+        </p>
+      )}
+
+      {/*
+        D75 — Otro Supervisor guardó mientras este editaba. No se combina ni
+        se sobrescribe: se bloquea el guardado y se ofrece ver qué hay.
+      */}
+      {conflicto && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700"
+        >
+          <span>El calendario fue modificado por otro Supervisor. Consulta la versión actual antes de volver a guardar.</span>
+          <Button size="sm" variant="outline" onClick={() => setConfirmando({ tipo: 'versionActual' })}>
+            Consultar versión actual
+          </Button>
+        </div>
+      )}
+
+      {sinConfirmar && (
+        <p role="alert" className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          No se pudo confirmar el guardado. Se verificará el calendario al recuperar la comunicación con el servidor.
         </p>
       )}
 
@@ -207,7 +427,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
               // En creación queda fijo: cambiarlo a medias dejaría las fechas
               // escritas colgando de otro año (CU027).
               disabled={editando}
-              options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
+              options={aniosOfrecidos.map((a) => ({ value: a, label: a }))}
               onChange={(e) => setAnio(e.target.value)}
             />
           </div>
@@ -238,6 +458,18 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           )}
         </div>
 
+        {/*
+          D70 — En qué periodo estamos HOY, con sus fechas completas.
+          "Receso posterior al cuarto periodo: 21/12/2026 al 15/02/2027", no
+          "PR4": el código no significa nada para quien lo lee, y un receso
+          que cruza al año siguiente confunde si no se ven las dos fechas.
+        */}
+        {listo && !sinConfigurar && (
+          <p className="border-b border-line px-4 py-2 text-sm text-ink-500">
+            {textoDePeriodoActual(calendario?.periodo_actual)}
+          </p>
+        )}
+
         <ContenidoDelCalendario
           listo={listo}
           cargando={consulta.isLoading}
@@ -250,8 +482,51 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           dias={editando ? dias : (calendario?.dias_no_lectivos ?? [])}
           onFecha={ponerFecha}
           onDias={setDias}
+          erroresCampo={erroresCampo}
+          periodoActual={calendario?.periodo_actual}
+          onIrAlGeneral={() => setAlcance('general')}
+          creandoParticular={porColegio && modo === 'crear'}
         />
       </Card>
+
+      <ModalConfirmarActualizacion
+        open={confirmando?.tipo === 'actualizar'}
+        guardando={editar.isPending}
+        onConfirmar={ejecutarGuardado}
+        onSeguirEditando={() => setConfirmando(null)}
+      />
+
+      <ModalUsarGeneral
+        open={confirmando?.tipo === 'usarGeneral'}
+        colegio={colegios.find((c) => String(c.id_colegio) === String(idColegio))?.nombre}
+        anio={anio}
+        procesando={restablecer.isPending}
+        onConfirmar={() => restablecer.mutate()}
+        onCancelar={() => setConfirmando(null)}
+      />
+
+      <ModalDescartarCambios
+        open={confirmando?.tipo === 'descartar'}
+        onSeguirEditando={() => setConfirmando(null)}
+        onDescartar={() => {
+          const accion = confirmando?.accion
+          descartar()
+          accion?.()
+        }}
+      />
+
+      <ModalVersionActual
+        open={confirmando?.tipo === 'versionActual'}
+        calendario={consulta.data}
+        onCerrar={() => setConfirmando(null)}
+        onCargar={() => {
+          // Cargar lo del servidor DESCARTA la propuesta: son dos versiones y
+          // el sistema no combina ninguna por su cuenta.
+          setConfirmando(null)
+          descartar()
+          refrescar()
+        }}
+      />
     </div>
   )
 }
@@ -269,26 +544,40 @@ function AccionesDelCalendario({
   restableciendo,
   guardando,
   completo,
+  faltan = [],
   onEmpezar,
   onRestablecer,
   onCancelar,
   onGuardar,
 }) {
   if (modo !== 'consulta') {
+    const porQue = faltan.length ? `Completa para guardar: ${faltan.join(', ')}.` : undefined
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" onClick={onCancelar}>
-          Cancelar
-        </Button>
-        <Button loading={guardando} disabled={!completo} onClick={onGuardar}>
-          Guardar
-        </Button>
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={onCancelar}>
+            Cancelar
+          </Button>
+          <Button loading={guardando} disabled={!completo} title={porQue} onClick={onGuardar}>
+            Guardar
+          </Button>
+        </div>
+        {porQue && (
+          <p role="note" className="max-w-md text-right text-xs text-ink-500">
+            {porQue}
+          </p>
+        )}
       </div>
     )
   }
 
   const origen = calendario?.origen
-  const puedeCrear = sinConfigurar || (porColegio && origen === 'general')
+  /**
+   * D71 — Sin calendario general, "Por colegio" NO ofrece crear fechas
+   * particulares: el estado vacío ya dice que primero va el general y lleva
+   * allí. Ofrecer las dos cosas a la vez se contradecía.
+   */
+  const puedeCrear = (sinConfigurar && !porColegio) || (porColegio && origen === 'general')
   return (
     <div className="flex flex-wrap items-center gap-2">
       {calendario && (
@@ -324,12 +613,34 @@ function ContenidoDelCalendario({
   dias,
   onFecha,
   onDias,
+  erroresCampo = {},
+  periodoActual,
+  onIrAlGeneral,
+  creandoParticular = false,
 }) {
   if (!listo) {
-    return <EmptyState title="Complete los filtros" description="Elija el año escolar y, si procede, el colegio." />
+    return <EmptyState title="Completa los filtros" description="Elige el año escolar y, si corresponde, el colegio." />
   }
   if (cargando) return <Skeleton className="m-4 h-64" />
   if (sinConfigurar && !editando) {
+    /**
+     * D71 — Sin calendario general no se pueden definir fechas particulares.
+     *
+     * Antes el estado vacío ofrecía "Crear fechas particulares" igualmente, y
+     * el servidor lo rechazaba: el colegio no puede apartarse de un general
+     * que no existe. Ahora se dice qué falta y se lleva allí, cambiando el
+     * alcance en la misma vista y conservando el año.
+     */
+    if (porColegio) {
+      return (
+        <EmptyState
+          icon={CalendarDays}
+          title="Sin calendario configurado"
+          description="Primero debes configurar el calendario general para poder definir fechas particulares de este colegio."
+          action={<Button onClick={onIrAlGeneral}>Ir al calendario general</Button>}
+        />
+      )
+    }
     return (
       <EmptyState
         icon={CalendarDays}
@@ -342,6 +653,12 @@ function ContenidoDelCalendario({
   const particular = calendario?.origen === 'particular'
   return (
     <div className="flex flex-col gap-6 p-4">
+      {/* D73 — Crear las particulares parte del general: se avisa qué implica guardar. */}
+      {creandoParticular && (
+        <p role="note" className="rounded-xl border border-info-600/20 bg-info-100 px-4 py-3 text-sm text-ink-700">
+          {AVISO_FECHAS_PARTICULARES}
+        </p>
+      )}
       {/* Con alcance "Por colegio", decir CUÁL se está viendo: editar
           creyendo que son fechas propias cuando es el general afectaría
           a todos los demás colegios. */}
@@ -370,15 +687,21 @@ function ContenidoDelCalendario({
         </div>
       )}
 
-      <TablaPeriodos filas={filas} editando={editando} onCambio={onFecha} />
+      <TablaPeriodos
+        filas={filas}
+        editando={editando}
+        onCambio={onFecha}
+        erroresCampo={erroresCampo}
+        periodoActual={periodoActual}
+      />
 
-      <DiasNoLectivos dias={dias} editando={editando} onCambio={onDias} />
+      <DiasNoLectivos dias={dias} editando={editando} onCambio={onDias} erroresCampo={erroresCampo} />
     </div>
   )
 }
 
 /** Los ocho periodos. En consulta son texto; en edición, selectores de fecha. */
-function TablaPeriodos({ filas, editando, onCambio }) {
+function TablaPeriodos({ filas, editando, onCambio, erroresCampo = {}, periodoActual }) {
   return (
     <div>
       <h2 className="mb-2 text-sm font-semibold text-ink-900">Periodos</h2>
@@ -392,12 +715,26 @@ function TablaPeriodos({ filas, editando, onCambio }) {
             </tr>
           </thead>
           <tbody>
-            {filas.map((p, i) => (
-              <tr key={nombreDePeriodo(p)} className="border-t border-line">
+            {filas.map((p, i) => {
+              // D70 — La fila del periodo de HOY va señalada: es la que se
+              // busca al abrir la pantalla, y contarlas a ojo entre ocho
+              // fechas es justo lo que la tabla debería evitar.
+              const esDeHoy = esPeriodoActual(p, periodoActual)
+              return (
+              <tr
+                key={nombreDePeriodo(p)}
+                className={`border-t border-line ${esDeHoy ? 'bg-brand-100/60' : ''}`}
+                aria-current={esDeHoy ? 'date' : undefined}
+              >
                 <td className="px-4 py-2 font-medium text-ink-900">
                   {nombreDePeriodo(p)}
                   {p.tipo === 'PR' && (
                     <span className="ml-2 text-xs font-normal text-ink-500">receso posterior a PA{p.numero}</span>
+                  )}
+                  {esDeHoy && (
+                    <span className="ml-2 whitespace-nowrap rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      Periodo actual
+                    </span>
                   )}
                 </td>
                 {['fecha_inicio', 'fecha_fin'].map((campo) => (
@@ -407,6 +744,10 @@ function TablaPeriodos({ filas, editando, onCambio }) {
                         type="date"
                         aria-label={`${campo === 'fecha_inicio' ? 'Inicio' : 'Fin'} de ${nombreDePeriodo(p)}`}
                         value={p[campo] ?? ''}
+                        // D74 — El mensaje del 422 va DEBAJO de su campo:
+                        // `periodos.3.fecha_fin` señala esta celda y no un
+                        // aviso general con el nombre técnico delante.
+                        error={erroresCampo[`periodos.${i}.${campo}`]}
                         onChange={(e) => onCambio(i, campo, e.target.value)}
                       />
                     ) : (
@@ -415,7 +756,8 @@ function TablaPeriodos({ filas, editando, onCambio }) {
                   </td>
                 ))}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -429,7 +771,7 @@ function TablaPeriodos({ filas, editando, onCambio }) {
 }
 
 /** Feriados y suspensiones. Solo cuentan dentro de un PA. */
-function DiasNoLectivos({ dias, editando, onCambio }) {
+function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
   const cambiar = (i, campo, valor) => onCambio(dias.map((d, n) => (n === i ? { ...d, [campo]: valor } : d)))
 
   return (
@@ -471,6 +813,7 @@ function DiasNoLectivos({ dias, editando, onCambio }) {
                       <Input
                         aria-label={`Motivo del día no lectivo ${i + 1}`}
                         value={d.motivo ?? ''}
+                        error={erroresCampo[`dias_no_lectivos.${i}.motivo`]}
                         onChange={(e) => cambiar(i, 'motivo', e.target.value)}
                       />
                     ) : (
@@ -491,6 +834,14 @@ function DiasNoLectivos({ dias, editando, onCambio }) {
                           type="date"
                           aria-label={`${campo === 'fecha_inicio' ? 'Inicio' : 'Fin'} del día no lectivo ${i + 1}`}
                           value={d[campo] ?? ''}
+                          /*
+                           * El backend señala el día entero con
+                           * `dias_no_lectivos.N`: "Debe estar comprendido
+                           * dentro de los periodos (PA o PR) del calendario."
+                           * Se pinta en las dos fechas porque el rango es el
+                           * que está fuera, no una de ellas.
+                           */
+                          error={erroresCampo[`dias_no_lectivos.${i}`] ?? erroresCampo[`dias_no_lectivos.${i}.${campo}`]}
                           onChange={(e) => cambiar(i, campo, e.target.value)}
                         />
                       ) : (

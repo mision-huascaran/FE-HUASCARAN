@@ -25,7 +25,7 @@ export default function ForbiddenPage() {
           description={
             nombreRol
               ? `Ingresó con el rol ${nombreRol}, que no tiene habilitada esta pantalla.`
-              : 'Su sesión no tiene un rol válido. Vuelva a iniciar sesión.'
+              : 'Tu sesión no tiene un rol válido. Vuelve a iniciar sesión.'
           }
           action={
             <Button onClick={() => navegar(usuario ? rutaInicioDe(usuario.id_rol) : '/login', { replace: true })}>

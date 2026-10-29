@@ -8,7 +8,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
-import { normalizarPaginado } from './administracion'
+import { normalizarPaginado, todasLasPaginas } from './administracion'
 
 const { actividades } = ENDPOINTS
 
@@ -79,22 +79,28 @@ export const finalizarActividad = (id, { fin } = {}) =>
  * 422 con `motivo: "rango_fechas_invalido"`.
  */
 export const listarActividades = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.sesiones.listar(filtros),
-    real: () =>
-      api.get(actividades.listar, {
-        params: {
-          desde: filtros.desde || undefined,
-          hasta: filtros.hasta || undefined,
-          estado: filtros.estado || undefined,
-          sincronizacion: filtros.sincronizacion || undefined,
-          tipo_cierre: filtros.tipo_cierre || undefined,
-          page: filtros.pagina || undefined,
-        },
-      }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarPaginado(datos)
+  /**
+   * TODAS LAS PÁGINAS (D97). El servidor entrega de 40 en 40 y la tabla
+   * pagina en el cliente: pedir solo la primera dejaba a un Docente con 46
+   * actividades viendo "Mostrando 1 a 40 de 40", sin forma de llegar al resto.
+   */
+  const pedir = (pagina) =>
+    resolver({
+      mock: () => handlers.sesiones.listar(filtros),
+      real: () =>
+        api.get(actividades.listar, {
+          params: {
+            desde: filtros.desde || undefined,
+            hasta: filtros.hasta || undefined,
+            estado: filtros.estado || undefined,
+            sincronizacion: filtros.sincronizacion || undefined,
+            tipo_cierre: filtros.tipo_cierre || undefined,
+            page: pagina || undefined,
+          },
+        }),
+      forzarReal: adminContraApiReal,
+    })
+  return normalizarPaginado(await todasLasPaginas(pedir, { pagina: filtros.pagina }))
 }
 
 /**
@@ -146,9 +152,25 @@ export const ETIQUETA_SINCRONIZACION = {
   sincronizada: 'Sincronizada',
   pendiente: 'Pendiente',
   error: 'Error',
-  al_dia: 'Al día',
+  /**
+   * "AL DÍA SEGÚN EL SERVIDOR", con el matiz dentro.
+   *
+   * Es el literal de CU020, y el matiz no es retórico: significa "sin
+   * pendientes QUE EL SERVIDOR CONOZCA", que no es lo mismo que "sin trabajo en
+   * riesgo". Un docente que trabajó una semana sin señal sale igual de verde
+   * que uno que no tiene nada pendiente, y la celda que más se mira de la
+   * pantalla no puede decir lo contrario de lo que pasa.
+   */
+  al_dia: 'Al día según el servidor',
   sin_informacion: 'Sin información',
 }
+
+/**
+ * Lo que la tabla de Seguimiento advierte, una vez, sobre toda la columna
+ * (CU020). Literal del caso de uso.
+ */
+export const AVISO_SINCRONIZACION =
+  'La información de sincronización corresponde a los datos comunicados al servidor. Puede haber operaciones pendientes únicamente en los dispositivos.'
 
 /**
  * El color de cada estado. `sin_informacion` va en NEUTRO, no en verde: no es

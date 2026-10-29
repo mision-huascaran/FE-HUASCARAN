@@ -172,3 +172,26 @@ export const establecerPasswordPrimerIngreso = ({ correo, temporal, passwordNuev
       }),
     forzarReal: authContraApiReal,
   })
+
+/**
+ * `POST /me/sesiones/{id}/cerrar` — cierre DIFERIDO de la sesión (CU008, D44).
+ *
+ * Es lo que se encola cuando se cierra sesión sin conexión. Y NO es lo mismo
+ * que finalizar la actividad: una actividad que el docente ya dio por
+ * terminada no se reescribe, así que mandarla por ahí la dejaba como "Manual
+ * por finalización de actividad" y la sesión seguía abierta en el servidor con
+ * su fin y su causa en null. Este endpoint cierra la sesión Y su actividad en
+ * curso, como "Forzado por cierre de sesión".
+ *
+ * `fin` es la hora REAL del cierre, no la de la sincronización: lo que se
+ * registra es cuándo ocurrió. Si no se puede verificar esa hora, el contrato
+ * admite `fin_minimo` en su lugar —nunca los dos—, y el servidor toma el
+ * instante más tardío que pueda confirmar.
+ */
+export const cerrarSesionDiferido = (idSesion, { fin, finMinimo } = {}) =>
+  resolver({
+    forzarReal: authContraApiReal,
+    mock: () => handlers.auth.logout(),
+    real: () =>
+      api.post(ENDPOINTS.sesiones.cerrar(idSesion), fin ? { fin } : { fin_minimo: finMinimo }),
+  })

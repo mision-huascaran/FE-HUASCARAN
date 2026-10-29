@@ -69,7 +69,9 @@ export default function InicioSupervisor() {
     enabled: enLinea,
   })
 
-  const { resumen, desactualizado } = useResumenLocal('supervisor', consulta.data, enLinea)
+  const { resumen, desactualizado } = useResumenLocal('supervisor', consulta.data, enLinea, {
+    falloServidor: consulta.isError,
+  })
 
   if (!resumen) {
     return consulta.isLoading ? (
@@ -88,7 +90,7 @@ export default function InicioSupervisor() {
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
       </header>
 
-      {desactualizado && <AvisoDatosLocales />}
+      {desactualizado && <AvisoDatosLocales enLinea={enLinea} />}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={School} label="Colegios registrados" value={resumen.colegios} />

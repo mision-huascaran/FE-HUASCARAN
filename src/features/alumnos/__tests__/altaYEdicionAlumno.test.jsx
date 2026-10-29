@@ -12,6 +12,7 @@ import { ToastProvider } from '../../../components/ui'
 import AlumnosPage from '../AlumnosPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
+import handlers from '../../../api/mock/handlers'
 import { ROLES } from '../../../auth/roles'
 import { hoy } from '../../../lib/relojServidor'
 
@@ -75,7 +76,25 @@ beforeEach(() => {
 
 afterEach(() => {
   useActividadStore.getState().limpiar()
+  vi.restoreAllMocks()
 })
+
+/** El detalle que devuelve el simulador, con los campos que pide la prueba. */
+function conDetalle(extra) {
+  const original = handlers.administracion.alumno
+  vi.spyOn(handlers.administracion, 'alumno').mockImplementation(async (id) => ({
+    ...(await original(id)),
+    ...extra,
+  }))
+}
+
+/** Abre "Editar" de la primera fila y devuelve su diálogo. */
+async function abrirEdicion() {
+  montar(ROLES.SUPERVISOR)
+  const [editar] = await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)
+  fireEvent.click(editar)
+  return screen.findByRole('dialog', {}, ESPERA)
+}
 
 describe('Alumnos — guardar desde el popup', () => {
   it('"Nuevo alumno" llama a crearAlumno con lo escrito y la sección única ya puesta', async () => {
@@ -114,6 +133,50 @@ describe('Alumnos — guardar desde el popup', () => {
         cambio_grupo_desde: '',
       }),
     )
+  })
+
+  /**
+   * D65 — Un alumno ACTIVO al que le falta el inicio de su pertenencia.
+   *
+   * No debería existir, pero existe: son los alumnos cargados antes de que el
+   * backend modelara el historial. Sin esa fecha no se sabe quién estaba en el
+   * aula el día de una clase, así que el alumno se cae de las tablas
+   * históricas, y el formulario es el único sitio donde se puede arreglar.
+   */
+  it('al editar SIN pertenencia se pide la fecha, propuesta con la de creación', async () => {
+    conDetalle({ activo: true, pertenece_desde: null, creado_en: '2026-03-02T08:15:00-05:00' })
+    const dialogo = await abrirEdicion()
+
+    const campo = await within(dialogo).findByLabelText(/^Pertenece al grupo desde/, {}, ESPERA)
+    // Propuesta, no impuesta: es la única fecha que se sabe cierta. Poner hoy
+    // inventaría un historial que no ocurrió.
+    //
+    // Se ESPERA el valor: el campo se vuelve visible en el render en que llega
+    // el detalle, y la propuesta se pone en el efecto siguiente. Con la máquina
+    // cargada (Jenkins con cobertura) la prueba lo leía vacío entre los dos.
+    await waitFor(() => expect(campo).toHaveValue('2026-03-02'), ESPERA)
+
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Guardar' }))
+    await waitFor(() => expect(actualizar).toHaveBeenCalledTimes(1), ESPERA)
+    expect(actualizar.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ pertenece_desde: '2026-03-02' }),
+    )
+  })
+
+  it('al editar CON pertenencia no se pregunta otra vez', async () => {
+    // Para moverlo de grupo hay otro campo, con otra regla.
+    conDetalle({ activo: true, pertenece_desde: '2026-03-02' })
+    const dialogo = await abrirEdicion()
+    await within(dialogo).findByLabelText(/^Grado/, {}, ESPERA)
+    expect(within(dialogo).queryByLabelText(/^Pertenece al grupo desde/)).not.toBeInTheDocument()
+  })
+
+  it('a un alumno INACTIVO no se le pide: eso lo hace "Activar" con su fecha', async () => {
+    // Pedirlo en los dos sitios daría dos fechas para un mismo hecho.
+    conDetalle({ activo: false, pertenece_desde: null, creado_en: '2026-03-02T08:15:00-05:00' })
+    const dialogo = await abrirEdicion()
+    await within(dialogo).findByLabelText(/^Grado/, {}, ESPERA)
+    expect(within(dialogo).queryByLabelText(/^Pertenece al grupo desde/)).not.toBeInTheDocument()
   })
 
   it('"Editar" cambiando el grado pide y envía cambio_grupo_desde', async () => {

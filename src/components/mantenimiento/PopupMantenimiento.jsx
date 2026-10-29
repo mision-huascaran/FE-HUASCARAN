@@ -4,7 +4,7 @@
 // Es el MISMO popup en los tres modos, como pide la plantilla: cambia el título
 // y qué campos se bloquean, no el formulario. Así "Editar" y "Visualizar"
 // muestran exactamente lo mismo y no hay dos sitios donde se desincronice.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
@@ -41,8 +41,16 @@ const tituloDe = (modo, entidad, genero) =>
 const resolver = (valor, valores, contexto) =>
   typeof valor === 'function' ? valor(valores, contexto) : valor
 
-const visiblesEn = (campos, valores, modo, registro) => {
-  const contexto = { modo, registro }
+const visiblesEn = (campos, valores, modo, registro, detalleListo = true) => {
+  /**
+   * `detalleListo` dice si el registro del contexto es ya el COMPLETO.
+   *
+   * Hace falta para los campos que aparecen por lo que el registro NO tiene:
+   * "Pertenece al grupo desde" se pide cuando el alumno no tiene pertenencia,
+   * y la fila de la tabla no trae ese dato, solo el detalle. Sin esperarlo, el
+   * campo se asomaba un instante en cada edición y desaparecía después.
+   */
+  const contexto = { modo, registro, detalleListo }
   return (
     campos
       /**
@@ -137,6 +145,13 @@ function validar(campos, valores, modo) {
 }
 
 export default function PopupMantenimiento({
+  /**
+   * Lo que el SERVIDOR rechazó, por campo (`errores[{campo, mensaje}]`).
+   *
+   * Pesa más que la validación local: el backend sabe cosas que el formulario
+   * no puede saber, como que ese nombre de colegio ya existe.
+   */
+  erroresServidor = {},
   abierto,
   modo = 'nuevo',
   entidad,
@@ -149,6 +164,8 @@ export default function PopupMantenimiento({
   // se mostró.
   cargarDetalle = null,
   guardando = false,
+  // Por qué no se puede guardar ahora (sin conexión); lo escrito se conserva.
+  motivoSinGuardar = null,
   genero = 'm',
   puedeVerAuditoria = false,
   cargarAuditoria,
@@ -171,7 +188,16 @@ export default function PopupMantenimiento({
   const camposRef = useRef(campos)
   camposRef.current = campos
 
-  const idRegistro = registro?.id ?? registro?.[`id_${seccion}`] ?? null
+  /**
+   * El id del registro, probando los nombres con que puede venir.
+   *
+   * `entidad` ES SINGULAR y `seccion` PLURAL: la fila del alumno trae
+   * `id_alumno`, no `id_alumnos`. Mirar solo la sección dejaba el id en `null`
+   * en Alumnos, así que el popup NUNCA pedía el detalle —y con él
+   * `pertenece_desde`— y la pestaña de auditoría salía siempre vacía, sin dar
+   * ninguna señal de que faltaba el dato.
+   */
+  const idRegistro = registro?.id ?? registro?.[`id_${entidad}`] ?? registro?.[`id_${seccion}`] ?? null
   const detalle = useQuery({
     queryKey: ['detalle', seccion, idRegistro],
     queryFn: () => cargarDetalle(idRegistro),
@@ -182,19 +208,51 @@ export default function PopupMantenimiento({
   const [errores, setErrores] = useState({})
   const [pestana, setPestana] = useState('datos')
 
+  /**
+   * La fila COMPLETADA con el detalle, que es lo que manda.
+   *
+   * Un `undefined` del detalle NO BORRA lo que trae la fila. Con un spread a
+   * secas, un detalle que omite una clave la dejaba vacía: en Alumnos el
+   * detalle no trae `id_seccion` y la sección se perdía, con lo que el
+   * formulario creía que el alumno cambiaba de grupo y pedía la fecha del
+   * cambio en cada edición, aunque no se hubiera tocado nada.
+   */
+  const completo = useMemo(() => {
+    const base = { ...registro }
+    for (const [clave, valor] of Object.entries(detalle.data ?? {})) {
+      if (valor !== undefined) base[clave] = valor
+    }
+    return base
+  }, [registro, detalle.data])
+
+  /**
+   * ¿Es `completo` ya el registro de verdad?
+   *
+   * Sin detalle que pedir, lo es desde el primer render. Con detalle, no: hasta
+   * que llega, lo que hay es la fila recortada de la tabla.
+   */
+  const detalleListo = !cargarDetalle || !idRegistro || detalle.isSuccess
+
   // Solo al abrir, cuando cambia el registro, y una vez más si llega el
   // detalle: lo que trae el servidor completa (y pisa) lo de la fila.
   useEffect(() => {
     if (!abierto) return
-    const completo = { ...registro, ...detalle.data }
     const base = {}
     for (const campo of camposRef.current) {
-      base[campo.nombre] = completo[campo.nombre] ?? campo.porDefecto ?? (campo.tipo === 'multiple' ? [] : '')
+      /**
+       * `porDefecto` puede ser una FUNCIÓN del registro completo.
+       *
+       * Lo pide CU014 con "Pertenece al grupo desde": cuando el alumno no
+       * tiene pertenencia, el valor propuesto es su fecha de creación, que
+       * solo se sabe mirando el registro.
+       */
+      const propuesto = typeof campo.porDefecto === 'function' ? campo.porDefecto(completo) : campo.porDefecto
+      base[campo.nombre] = completo[campo.nombre] ?? propuesto ?? (campo.tipo === 'multiple' ? [] : '')
     }
     setValores(base)
     setErrores({})
     setPestana('datos')
-  }, [abierto, registro, detalle.data])
+  }, [abierto, completo])
 
   const cambiar = (nombre, valor) => {
     setValores((v) => ({ ...v, [nombre]: valor }))
@@ -203,7 +261,7 @@ export default function PopupMantenimiento({
 
   // Lo que se ve y, por tanto, lo que se valida: exigir un campo escondido
   // dejaría el popup sin guardar y sin decir por qué.
-  const camposVisibles = visiblesEn(campos, valores, modo, registro)
+  const camposVisibles = visiblesEn(campos, valores, modo, completo, detalleListo)
 
   // Con una sola opción no hay nada que decidir: se deja puesta. Va por clave
   // de texto porque `camposVisibles` es un array nuevo en cada render.
@@ -234,8 +292,18 @@ export default function PopupMantenimiento({
           <Button variant="ghost" onClick={onCerrar}>
             {modo === 'ver' ? 'Cerrar' : 'Cancelar'}
           </Button>
+          {modo !== 'ver' && motivoSinGuardar && (
+            <span role="note" className="mr-auto text-xs text-ink-500">
+              {motivoSinGuardar}
+            </span>
+          )}
           {modo !== 'ver' && (
-            <Button loading={guardando} onClick={enviar}>
+            <Button
+              loading={guardando}
+              disabled={Boolean(motivoSinGuardar)}
+              title={motivoSinGuardar ?? undefined}
+              onClick={enviar}
+            >
               Guardar
             </Button>
           )}
@@ -255,7 +323,7 @@ export default function PopupMantenimiento({
 
       {pestana === 'auditoria' && conAuditoria ? (
         <div className="mt-4">
-          <PestanaAuditoria seccion={seccion} registro={registro} cargarAuditoria={cargarAuditoria} />
+          <PestanaAuditoria entidad={entidad} registro={registro} cargarAuditoria={cargarAuditoria} />
         </div>
       ) : null}
 
@@ -286,7 +354,7 @@ export default function PopupMantenimiento({
               campo={campo}
               modo={modo}
               valor={valores[campo.nombre]}
-              error={errores[campo.nombre]}
+              error={errores[campo.nombre] ?? erroresServidor[campo.nombre]}
               onCambio={cambiar}
             />
           ))}

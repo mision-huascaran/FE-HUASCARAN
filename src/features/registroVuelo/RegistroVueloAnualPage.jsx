@@ -151,7 +151,7 @@ export default function RegistroVueloAnualPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="El Registro de Vuelo se arma con colegio, grado, sección y subprograma."
           />
         </Card>

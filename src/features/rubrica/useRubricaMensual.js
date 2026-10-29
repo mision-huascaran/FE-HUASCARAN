@@ -8,7 +8,7 @@
 // `modificacion_concurrente` manda el registro VIGENTE: queda como rechazo con
 // "Cargar versión actual" (ver `lib/registrosOffline`). Reintentar pisaría el
 // cambio de la otra persona.
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -26,8 +26,15 @@ const esDefinitivo = (error) => {
   return estado != null && estado >= 400 && estado < 500
 }
 
+/** D108 — El cambio no quedó guardado en el equipo (IndexedDB falló). */
+export const SIN_COPIA_LOCAL = 'No se pudo guardar el cambio en este dispositivo.'
+export const SIN_COPIA_LOCAL_DETALLE =
+  'Se enviará mientras esta pestaña siga abierta. Si la cierras antes de que se sincronice, se perderá.'
+
 export default function useRubricaMensual({ filtros, pagina }) {
   const toast = useToast()
+  // El aviso de D108 una vez por pantalla: repetirlo en cada cambio no añade nada.
+  const avisadoSinCopia = useRef(false)
   const queryClient = useQueryClient()
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
@@ -41,6 +48,22 @@ export default function useRubricaMensual({ filtros, pagina }) {
     queryKey: clave,
     queryFn: () => listarRubricas({ ...filtros, pagina }),
     enabled: listos,
+    /**
+     * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87).
+     *
+     * Con el `staleTime` global de 60 s, volver a esta pantalla servía lo que
+     * había en memoria —incluida la copia optimista de lo que este equipo
+     * acababa de escribir— sin preguntarle al servidor. Lo guardado desde
+     * otro dispositivo no aparecía, y editar encima terminaba en un conflicto
+     * de versión: la `version` que se manda es la que vio el docente, y la
+     * suya estaba vieja.
+     *
+     * Estos dos módulos los escriben varias personas sobre los mismos
+     * alumnos, así que la copia en memoria no vale como verdad. Sin conexión
+     * no cambia nada: la consulta falla y se sigue viendo lo guardado.
+     */
+    staleTime: 0,
+    refetchOnMount: 'always',
     // Un mes futuro o sin días lectivos es una RESPUESTA, no un fallo:
     // reintentarlo tres veces solo retrasaría el cartel que lo explica.
     retry: (intentos, error) => !esMotivoDeMes(motivoDe(error)) && intentos < 2,
@@ -73,6 +96,12 @@ export default function useRubricaMensual({ filtros, pagina }) {
       local: cambios,
       descripcion: `Rúbrica · ${fila.nombre}`,
       idActividad,
+      // D108 — Con IndexedDB fallando el cambio solo vive en esta pestaña.
+      alNoPersistir: () => {
+        if (avisadoSinCopia.current) return
+        avisadoSinCopia.current = true
+        toast.warning(SIN_COPIA_LOCAL, SIN_COPIA_LOCAL_DETALLE)
+      },
     }).catch((error) => {
       if (!esDefinitivo(error)) return
       queryClient.invalidateQueries({ queryKey: ['rubricas'] })
@@ -81,8 +110,23 @@ export default function useRubricaMensual({ filtros, pagina }) {
 
   const motivoDelMes = esMotivoDeMes(motivoDe(rubrica.error)) ? motivoDe(rubrica.error) : null
 
+  /**
+   * La respuesta del servidor, con sus listas SIEMPRE como listas (D48).
+   *
+   * El contrato dice que vienen como arreglos, pero cuando no llega lo esperado
+   * —un endpoint a medio migrar, un `null` donde iba `[]`— un `.map()` o un
+   * `.length` revientan el render y la pantalla acaba en el error genérico "No
+   * se pudo mostrar esta pantalla". Eso fue D48: el probador veía ese cartel en
+   * Registro de Vuelo y, como Supervisora, en Rúbrica y Seguimiento de Lectura,
+   * sin forma de saber qué había pasado.
+   *
+   * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
+   * vacío, que es lo que el caso de uso pide.
+   */
+  const datos = rubrica.data ? { ...rubrica.data, items: rubrica.data.items ?? [] } : null
+
   return {
-    datos: rubrica.data ?? null,
+    datos,
     cargando: rubrica.isLoading,
     motivoDelMes,
     // Un error de verdad: ni el mes futuro ni el mes sin días lectivos.

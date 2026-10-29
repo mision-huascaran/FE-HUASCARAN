@@ -68,7 +68,6 @@ export const MOTIVO_VUELO = {
   periodo_inexistente: 'El periodo académico no existe.',
   alumno_fuera_del_grupo: 'El estudiante no pertenecía a este grupo en el periodo seleccionado.',
   sin_habilitacion: 'No tienes autorización vigente para registrar o modificar este periodo.',
-  actividad_requerida: 'Debes iniciar una actividad de trabajo para registrar o modificar el Registro de Vuelo.',
 }
 
 /** Cada PA con nivel colocado vale 25 puntos del avance anual. */

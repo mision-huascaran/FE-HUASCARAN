@@ -9,21 +9,26 @@ import { mensajeDeError } from '../client'
 const errorHttp = (status, detail) => ({ response: { status, data: { detail } } })
 
 describe('mensajeDeError', () => {
-  it('convierte el array de validación de un 422 en texto legible', () => {
+  it('convierte el array de validación de un 422 en texto legible, SIN nombrar el campo', () => {
+    /**
+     * Es el formato antiguo de FastAPI, que algún endpoint sin migrar todavía
+     * puede devolver. Lo que importa es que no reviente React pintando
+     * objetos, y que NO anteponga el nombre del campo: ese va debajo de su
+     * control, no dentro del texto general (D62, D74).
+     */
     const error = errorHttp(422, [
-      { type: 'missing', loc: ['body', 'correo'], msg: 'Field required', input: {} },
-      { type: 'missing', loc: ['body', 'password'], msg: 'Field required', input: {} },
+      { type: 'missing', loc: ['body', 'correo'], msg: 'Falta el correo', input: {} },
+      { type: 'missing', loc: ['body', 'password'], msg: 'Falta la contraseña', input: {} },
     ])
     const mensaje = mensajeDeError(error)
-    expect(typeof mensaje).toBe('string')
-    expect(mensaje).toContain('correo')
-    expect(mensaje).toContain('password')
+    expect(mensaje).toBe('Falta el correo · Falta la contraseña')
     expect(mensaje).not.toContain('[object Object]')
+    expect(mensaje).not.toContain('correo:')
   })
 
-  it('omite el segmento "body" al nombrar el campo', () => {
+  it('no antepone el nombre del campo ni con el formato antiguo', () => {
     const mensaje = mensajeDeError(errorHttp(422, [{ loc: ['body', 'aciertos'], msg: 'Input should be a valid integer' }]))
-    expect(mensaje).toBe('aciertos: Input should be a valid integer')
+    expect(mensaje).toBe('Input should be a valid integer')
   })
 
   it('devuelve tal cual el detail string de un HTTPException', () => {

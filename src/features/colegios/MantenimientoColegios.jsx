@@ -4,7 +4,7 @@
 // estado y deja auditoría (D5 — se descarta "Eliminar" de todas las secciones).
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Eye } from 'lucide-react'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -17,15 +17,20 @@ import {
   obtenerColegio,
   listarGradosAdmin,
   listarProgramasAdmin,
+  listarUbicaciones,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import CalendarioAcademico from './CalendarioAcademico'
+import DetalleColegio from './DetalleColegio'
 import GradosConDiaDeClase from './GradosConDiaDeClase'
 import { comoGradosConDia, sinDiaDeClase } from '../../lib/gradosColegio'
 
 
+
+/** El texto de ayuda del ojo, tal como lo nombra CU013. */
+const VER_DETALLE = 'Ver detalle'
 
 export default function MantenimientoColegios() {
   const toast = useToast()
@@ -34,6 +39,22 @@ export default function MantenimientoColegios() {
   const [filtros, setFiltros] = useState({ estado: 'activo' })
   // El calendario académico se ve en vez del listado, sin cambiar de ruta.
   const [verCalendario, setVerCalendario] = useState(false)
+  /**
+   * El colegio cuyo detalle se está viendo, o `null` en el listado.
+   *
+   * Vive aquí y no en la URL a propósito (CU013): al volver, el listado
+   * conserva sus filtros y su página porque nunca llegó a desmontarse.
+   */
+  const [colegioAbierto, setColegioAbierto] = useState(null)
+
+  // Las opciones de los filtros de ubicación salen del catálogo, no de los
+  // colegios cargados: así se puede filtrar por un distrito que no esté en la
+  // página actual.
+  const { data: ubicaciones } = useQuery({
+    queryKey: ['colegios', 'ubicaciones'],
+    queryFn: listarUbicaciones,
+    staleTime: Infinity,
+  })
 
   const { data: grados = [] } = useQuery({
     queryKey: ['admin', 'catalogo', 'grados'],
@@ -142,6 +163,11 @@ export default function MantenimientoColegios() {
     return <CalendarioAcademico colegios={consulta.data ?? []} onVolver={() => setVerCalendario(false)} />
   }
 
+  // Lo mismo con el detalle del colegio: vista interna, no ruta aparte.
+  if (colegioAbierto) {
+    return <DetalleColegio colegio={colegioAbierto} onVolver={() => setColegioAbierto(null)} />
+  }
+
   return (
     <Mantenimiento
       seccion="colegios"
@@ -157,7 +183,10 @@ export default function MantenimientoColegios() {
       valoresFiltro={filtros}
       onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
       guardando={guardado.isPending}
-      soloOnline
+      // D61 y D70 — Sin conexión se CONSULTA la última copia (CU013, CU027):
+      // antes la pantalla entera se cambiaba por "Requiere conexión", un
+      // modal abierto se cerraba con lo escrito y el calendario no se podía
+      // abrir. Escribir sigue exigiendo conexión.
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
       // El listado no trae grados ni programas: se piden al abrir el popup.
@@ -166,13 +195,43 @@ export default function MantenimientoColegios() {
         const c = await obtenerColegio(id)
         return c && { ...c, programas: (c.programas ?? []).map((p) => String(p.id_programa)) }
       }}
+      /*
+       * D50 — "Ver detalle" (el ojo) abre la vista interna del colegio con su
+       * Programación de clases. CU013 fija el orden de los controles de fila:
+       * Ver detalle, Editar, Estado.
+       */
+      verDetalle={{ abrir: setColegioAbierto, icono: Eye, etiqueta: VER_DETALLE }}
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
-      filtros={[{ nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' }]}
+      /*
+       * D60 — Faltaban los dos filtros de ubicación, que la API ya aceptaba.
+       * Sus opciones salen de `GET /colegios/ubicaciones`, no de los colegios
+       * cargados: así se puede filtrar por un distrito que no esté en la
+       * página actual.
+       */
+      filtros={[
+        { nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre del colegio' },
+        {
+          nombre: 'departamento',
+          etiqueta: 'Departamento',
+          tipo: 'select',
+          placeholder: 'Todos',
+          opciones: (ubicaciones?.departamentos ?? []).map((d) => ({ value: d, label: d })),
+        },
+        {
+          nombre: 'distrito',
+          etiqueta: 'Distrito',
+          tipo: 'select',
+          placeholder: 'Todos',
+          opciones: (ubicaciones?.distritos ?? []).map((d) => ({ value: d, label: d })),
+        },
+      ]}
       columnas={[
         { key: 'nombre', header: 'Colegio', sortable: true, className: 'font-medium text-ink-900' },
         { key: 'nivel_educativo', header: 'Nivel', align: 'center', render: (c) => etiquetaDe(c.nivel_educativo) },
         { key: 'departamento', header: 'Departamento', sortable: true, render: (c) => etiquetaDe(c.departamento) },
+        // D60 — Faltaba, y CU013 la pide entre Departamento y Distrito.
+        { key: 'provincia', header: 'Provincia', sortable: true, render: (c) => etiquetaDe(c.provincia) },
         { key: 'distrito', header: 'Distrito', sortable: true, render: (c) => etiquetaDe(c.distrito) },
       ]}
     />

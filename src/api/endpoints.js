@@ -73,6 +73,18 @@ export const ENDPOINTS = {
    * El id lo genera el CLIENTE (UUID) para poder reintentar sin duplicar: 201
    * si la crea, 200 si ese UUID ya era suyo.
    */
+  /**
+   * SEMANA 12 — Cierre diferido de la SESIÓN autenticada (CU008, D44).
+   *
+   * No es lo mismo que `/actividades/{id}/finalizar`: eso cierra la actividad
+   * de trabajo, y una actividad ya finalizada NO se reescribe. Por eso el
+   * cierre sin conexión tiene que ir por aquí, que además cierra la actividad
+   * en curso como "Forzado por cierre de sesión".
+   */
+  sesiones: {
+    cerrar: (idSesion) => `/me/sesiones/${idSesion}/cerrar`,
+  },
+
   actividades: {
     crear: '/actividades',
     finalizar: (id) => `/actividades/${id}/finalizar`,
@@ -181,6 +193,10 @@ export const ENDPOINTS = {
     deUsuario: (id) => `/usuarios/${id}/permisos`,
     detalle: (id, idPermiso) => `/usuarios/${id}/permisos/${idPermiso}`,
     otorgar: (id) => `/usuarios/${id}/permisos`,
+    // Varios permisos del mismo alcance de una vez, atómico: todos o ninguno (tanda I).
+    // Sigue creando uno por combinación de grado y módulo: CU028 exige que
+    // cada permiso autorice un solo módulo.
+    otorgarLote: (id) => `/usuarios/${id}/permisos/lote`,
     // POST, no PATCH: revocar es una acción, no una edición parcial.
     revocar: (id, idPermiso) => `/usuarios/${id}/permisos/${idPermiso}/revocar`,
     opciones: '/permisos/opciones', // ?id_colegio=&id_anio_escolar=
@@ -207,6 +223,9 @@ export const ENDPOINTS = {
     claseReferencia: (id) => `/lectura/tablas/${id}/clase-referencia`,
     filas: (id) => `/lectura/tablas/${id}/filas`,
     noRealizada: (id) => `/lectura/tablas/${id}/no-realizada`,
+    // Revierte la declaración de "no realizada" (CU026, tanda D). No la borra:
+    // la anterior queda en `declaraciones` con su motivo de corrección.
+    habilitarRegistro: (id) => `/lectura/tablas/${id}/habilitar-registro`,
   },
 
   // SEMANA 11 — Rúbrica mensual (CU029, CU030).
@@ -257,10 +276,37 @@ export const ENDPOINTS = {
     nivelesRubrica: '/niveles-rubrica', // ?programa=
   },
 
+  /**
+   * SEMANA 12 — Dashboard (CU033, CU034 y CU035), serie D1 a D7 del backend.
+   *
+   * ONCE endpoints, uno por bloque de pantalla. No hay un `/dashboard/resumen`
+   * que lo traiga todo: cada bloque se consulta aparte justamente porque los
+   * CU piden que un bloque que falla o que no tiene datos NO arrastre a los
+   * demás ("si el problema afecta únicamente a un bloque, el aviso aparece
+   * dentro de ese bloque").
+   *
+   * LAS RUTAS PROVISIONALES DE ROMINA YA NO EXISTEN y responden 404:
+   * `/dashboard/cumplimiento`, `/dashboard/niveles`, `/dashboard/aprendizaje`
+   * y `/dashboard/lectura`. `/dashboard/resumen`, `/dashboard/ejecutivo` y
+   * `/dashboard/ranking-aulas` eran del mockup viejo y tampoco: se retiraron
+   * con las nueve pantallas sin caso de uso.
+   *
+   * Cinco son SOLO del Supervisor (CU033 y CU034 nominales); los otros seis los
+   * comparte con el Directivo, cuya respuesta no trae nombres de alumnos.
+   */
   dashboard: {
-    resumen: '/dashboard/resumen',
-    ejecutivo: '/dashboard/ejecutivo',
-    rankingAulas: '/dashboard/ranking-aulas',
+    // Carga inicial: colegios autorizados, años con sus 4 PA y `seleccion_inicial`.
+    filtros: '/dashboard/filtros',
+    distribucionSubprograma: '/dashboard/distribucion-subprograma', // Supervisor
+    resultadosAprendizaje: '/dashboard/resultados-aprendizaje',
+    comparacionResultados: '/dashboard/comparacion-resultados', // Supervisor
+    asistencia: '/dashboard/asistencia',
+    asistenciaClases: '/dashboard/asistencia/clases', // Supervisor
+    libros: '/dashboard/libros',
+    librosDeColegio: (idColegio) => `/dashboard/libros/colegios/${idColegio}`, // Supervisor
+    librosDesglose: '/dashboard/libros/desglose', // Supervisor
+    evolucionAnual: '/dashboard/evolucion-anual',
+    comparacionColegios: '/dashboard/comparacion-colegios',
   },
 }
 

@@ -12,7 +12,25 @@
 import { del, get, set } from 'idb-keyval'
 
 const CLAVE = 'sicedu.cache-consultas'
-const RAICES = new Set(['anios-escolares', 'me', 'colegio', 'semanas', 'lectura', 'rubricas', 'registro-vuelo', 'catalogo'])
+// `calendario` y `clases` entran por CU027 y CU013: los dos casos de uso
+// piden expresamente poder CONSULTAR sin conexión la última versión guardada,
+// con su fecha y marcada como tal. Escribir sigue exigiendo conexión.
+// `admin` entra por D61: CU013 y CU016 piden consultar Colegios y Usuarios sin
+// conexión con la última copia, y sus listados y catálogos viven ahí.
+const RAICES = new Set([
+  'admin',
+  'anios-escolares',
+  'me',
+  'colegio',
+  'colegios',
+  'semanas',
+  'lectura',
+  'rubricas',
+  'registro-vuelo',
+  'catalogo',
+  'calendario',
+  'clases',
+])
 const ESPERA_MS = 300
 
 const seGuarda = (clave) => Array.isArray(clave) && RAICES.has(clave[0])

@@ -45,6 +45,37 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
     [DIRECTIVO]: { acciones: [VER], alcance: 'todos' },
   },
+  /**
+   * DASHBOARD (CU033, CU034 y CU035) — Supervisor y Directivo, solo lectura.
+   *
+   * No sale de la matriz del sprint de cierre: esa matriz es de octubre y el
+   * Dashboard no existía entonces. Era D49 —"módulo sin caso de uso ni
+   * implementación"— y se había decidido no construirlo (S1). Las dos cosas
+   * que lo cambian:
+   *
+   *   · los casos de uso actualizados traen CU033, CU034 y CU035 completos, y
+   *     los dos primeros dicen literalmente que el acceso es "desde el
+   *     sidebar";
+   *   · el backend publicó los once endpoints de `/dashboard/*`, y su matriz
+   *     de permisos da seis al Directivo y los once al Supervisor.
+   *
+   * EL DIRECTIVO ENTRA, y eso no contradice RN-033 ni RN-034: los cinco
+   * endpoints nominales —distribución, comparación de resultados, detalle de
+   * clases y los dos de libros por alumno— le responden 403, y su pantalla
+   * (CU035) no tiene ningún listado de alumnos. Ve totales y porcentajes.
+   *
+   * Es EN LÍNEA y de solo lectura por restricción expresa de los tres CU: "El
+   * dashboard requiere conexión a Internet. No dispone de un modo de consulta
+   * offline", y "no requiere una actividad de trabajo activa".
+   */
+  dashboard: {
+    ruta: '/dashboard',
+    etiqueta: 'Dashboard',
+    conectividad: CONECTIVIDAD.SOLO_ONLINE,
+    [DOCENTE]: null,
+    [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
+    [DIRECTIVO]: { acciones: [VER], alcance: 'todos' },
+  },
   alumnos: {
     ruta: '/alumnos',
     etiqueta: 'Alumnos',
@@ -74,22 +105,28 @@ export const MATRIZ = {
     [DIRECTIVO]: null,
   },
   /**
-   * Asistencia estaba oculta en el menú de los DOS roles porque RF-046 no la
-   * listaba (D08, D09). CU022 lo contradice y gana por ser posterior y
-   * explícito: su paso 1 dice "El Docente accede a la sección de Asistencias
-   * DESDE EL SIDEBAR".
+   * LOS CUATRO MÓDULOS OPERATIVOS ESTÁN EN EL MENÚ DE LOS DOS ROLES.
    *
-   * Para el Supervisor no cambia nada: CU022 describe su acceso como
-   * "derivado desde el CU021", es decir desde los atajos de solo lectura de
-   * Seguimiento, no desde la barra lateral.
+   * El Docente ya los tenía: CU022 dice "El Docente accede a la sección de
+   * Asistencias DESDE EL SIDEBAR".
+   *
+   * El Supervisor NO, y eso era D49. Se había decidido que entrara solo por
+   * los atajos de Seguimiento (CU021), leyendo CU022 como que su acceso era
+   * "derivado desde el CU021". Pero la matriz de permisos del backend
+   * (API.md) y los casos de uso actualizados coinciden en que el Supervisor
+   * CONSULTA los cuatro módulos académicos en solo lectura, y un acceso que
+   * existe pero no está en el menú es un acceso que nadie encuentra.
+   *
+   * Sigue sin poder escribir: sus acciones son VER y AUDITORIA, y el servidor
+   * le responde 403 en cualquier escritura.
    */
   asistencia: {
     ruta: '/asistencia',
-    etiqueta: 'Asistencia',
+    etiqueta: 'Asistencias',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
     // T22: el Supervisor ve la asistencia de todos los docentes, sin editarla.
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
   rubrica: {
@@ -100,7 +137,7 @@ export const MATRIZ = {
     // D3: el Supervisor mira, no edita ni crea grillas. Llega desde los atajos
     // de solo lectura de Seguimiento (CU021); RF-046 no le da entrada en el
     // menú (D09).
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
   lectura: {
@@ -108,7 +145,7 @@ export const MATRIZ = {
     etiqueta: 'Seguimiento de Lectura',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
   vuelo: {
@@ -116,7 +153,7 @@ export const MATRIZ = {
     etiqueta: 'Registro de Vuelo',
     conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
     [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos', ocultoEnMenu: true },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
   /**

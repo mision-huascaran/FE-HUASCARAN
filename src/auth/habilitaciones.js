@@ -166,3 +166,25 @@ export function habilitacionPara({ habilitaciones, modulo, idColegio, idGrado, f
 
   return { permitida: false, motivo: MOTIVO.SIN_HABILITACION, id_periodo_academico: idPeriodo }
 }
+
+/**
+ * ¿Hay ALGUNA habilitación con la que iniciar una actividad? (CU010, D56)
+ *
+ * Es el respaldo LOCAL de `puede_iniciar_actividad`: con conexión manda el
+ * servidor, que conoce el calendario de cada colegio. Esto responde cuando su
+ * respuesta todavía no ha llegado o no va a llegar.
+ *
+ * CU010 pide "al menos una de las habilitaciones", y eso incluye los PERMISOS
+ * excepcionales vigentes. Mirar solo las asignaciones dejaba sin iniciar —y
+ * por tanto sin poder corregir nada— justo al Docente al que se le acaba de
+ * conceder un permiso porque no tiene el aula asignada: el único caso en que
+ * el permiso existe.
+ */
+export function hayHabilitacionParaIniciar({ habilitaciones, instante }) {
+  const { asignaciones = [], permisos = [] } = habilitaciones ?? {}
+  if (asignaciones.length > 0) return true
+
+  const momento = instante instanceof Date ? instante.getTime() : Number(instante)
+  // Programado o vencido no habilita: solo el que está vigente AHORA.
+  return permisos.some((p) => Date.parse(p.inicio) <= momento && momento <= Date.parse(p.fin))
+}

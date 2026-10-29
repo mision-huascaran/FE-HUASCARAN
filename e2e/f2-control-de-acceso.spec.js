@@ -27,6 +27,9 @@ const PROHIBIDAS = {
     { ruta: '/usuarios', menu: 'Usuarios', api: 'usuarios' },
     { ruta: '/colegios', menu: 'Colegios', api: 'colegios' },
     { ruta: '/seguimiento', menu: 'Seguimiento', api: 'seguimiento' },
+    // CU033 y CU035 dan el Dashboard al Supervisor y al Directivo. El Docente
+    // no entra: sus indicadores son los de su Inicio (CU010).
+    { ruta: '/dashboard', menu: 'Dashboard', api: 'dashboard' },
   ],
   directivo: [
     { ruta: '/usuarios', menu: 'Usuarios', api: 'usuarios' },
@@ -36,6 +39,13 @@ const PROHIBIDAS = {
     { ruta: '/alumnos', menu: 'Alumnos', api: 'alumnos' },
     // CU022: Asistencias es del Docente (registra) y del Supervisor (lee).
     { ruta: '/asistencia', menu: 'Asistencia', api: 'asistencias' },
+    /**
+     * CU034 — El consolidado de libros leídos es SOLO del Supervisor: trae
+     * nombres de alumnos, y RN-033 se lo prohíbe al Directivo. Su /dashboard
+     * (CU035) sí es suyo, y por eso no está en esta lista: lo que no puede es
+     * bajar al detalle nominal.
+     */
+    { ruta: '/dashboard/libros', menu: 'Consolidado de libros leídos', api: 'dashboard/libros' },
   ],
 }
 

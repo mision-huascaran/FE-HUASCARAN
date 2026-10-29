@@ -6,7 +6,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
-import { normalizarPaginado } from './administracion'
+import { normalizarPaginado, todasLasPaginas } from './administracion'
 
 const { seguimiento } = ENDPOINTS
 
@@ -17,27 +17,33 @@ const { seguimiento } = ENDPOINTS
  * `pendiente` y después alfabéticamente. Es lo que hace útil la pantalla, así
  * que no se reordena en el cliente.
  */
+/**
+ * D97 — Los listados de este módulo piden TODAS las páginas: el servidor
+ * entrega de 40 en 40 y la tabla pagina en el cliente. Con solo la primera,
+ * 41 Docentes se veían como "Mostrando 1 a 40 de 40".
+ */
 export const listarSeguimiento = async (filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.sesiones.seguimiento(filtros),
-    real: () =>
-      api.get(seguimiento.docentes, {
-        params: {
-          id_colegio: filtros.id_colegio || undefined,
-          desde: filtros.desde || undefined,
-          hasta: filtros.hasta || undefined,
-          sincronizacion: filtros.sincronizacion || undefined,
-          // Explícito a propósito: `activo` es un boolean con `default: true`
-          // en el contrato, así que omitirlo NO trae a todos, trae solo a los
-          // activos. Esta pantalla no ofrece un "Todos", y mandarlo escrito
-          // evita que parezca que sí por no enviar nada.
-          activo: filtros.estado !== 'inactivo',
-          page: filtros.pagina || undefined,
-        },
-      }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarPaginado(datos)
+  const pedir = (pagina) =>
+    resolver({
+      mock: () => handlers.sesiones.seguimiento(filtros),
+      real: () =>
+        api.get(seguimiento.docentes, {
+          params: {
+            id_colegio: filtros.id_colegio || undefined,
+            desde: filtros.desde || undefined,
+            hasta: filtros.hasta || undefined,
+            sincronizacion: filtros.sincronizacion || undefined,
+            // Explícito a propósito: `activo` es un boolean con `default: true`
+            // en el contrato, así que omitirlo NO trae a todos, trae solo a los
+            // activos. Esta pantalla no ofrece un "Todos", y mandarlo escrito
+            // evita que parezca que sí por no enviar nada.
+            activo: filtros.estado !== 'inactivo',
+            page: pagina || undefined,
+          },
+        }),
+      forzarReal: adminContraApiReal,
+    })
+  return normalizarPaginado(await todasLasPaginas(pedir, { pagina: filtros.pagina }))
 }
 
 /** Cabecera del detalle: la misma forma que una fila del listado. */
@@ -53,20 +59,21 @@ export const obtenerDocenteSeguimiento = (idDocente) =>
  * mismos filtros que el listado propio del Docente.
  */
 export const listarActividadesDe = async (idDocente, filtros = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.sesiones.actividadesDe(idDocente, filtros),
-    real: () =>
-      api.get(seguimiento.actividadesDe(idDocente), {
-        params: {
-          desde: filtros.desde || undefined,
-          hasta: filtros.hasta || undefined,
-          estado: filtros.estado || undefined,
-          page: filtros.pagina || undefined,
-        },
-      }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarPaginado(datos)
+  const pedir = (pagina) =>
+    resolver({
+      mock: () => handlers.sesiones.actividadesDe(idDocente, filtros),
+      real: () =>
+        api.get(seguimiento.actividadesDe(idDocente), {
+          params: {
+            desde: filtros.desde || undefined,
+            hasta: filtros.hasta || undefined,
+            estado: filtros.estado || undefined,
+            page: pagina || undefined,
+          },
+        }),
+      forzarReal: adminContraApiReal,
+    })
+  return normalizarPaginado(await todasLasPaginas(pedir, { pagina: filtros.pagina }))
 }
 
 /**
@@ -95,13 +102,14 @@ export const MODULOS_DE_ACTIVIDAD = [
  * Solo el Supervisor: el Docente y el Directivo reciben 403.
  */
 export const listarRegistrosDeActividad = async (idDocente, idActividad, { modulo, pagina } = {}) => {
-  const datos = await resolver({
-    mock: () => handlers.sesiones.registrosDeActividad(idDocente, idActividad, { modulo, pagina }),
-    real: () =>
-      api.get(seguimiento.registrosDe(idDocente, idActividad), {
-        params: { modulo, page: pagina || undefined },
-      }),
-    forzarReal: adminContraApiReal,
-  })
-  return normalizarPaginado(datos)
+  const pedir = (pag) =>
+    resolver({
+      mock: () => handlers.sesiones.registrosDeActividad(idDocente, idActividad, { modulo, pagina: pag }),
+      real: () =>
+        api.get(seguimiento.registrosDe(idDocente, idActividad), {
+          params: { modulo, page: pag || undefined },
+        }),
+      forzarReal: adminContraApiReal,
+    })
+  return normalizarPaginado(await todasLasPaginas(pedir, { pagina }))
 }

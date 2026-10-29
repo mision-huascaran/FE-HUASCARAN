@@ -72,6 +72,19 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
         ) : (
           <span className="text-xs text-ink-500">{periodo.entrada?.texto ?? 'Pendiente'}</span>
         )}
+
+        {/*
+          TANDA A3 — La entrada viene de una decisión tomada en OTRO colegio,
+          antes del traslado. Se destaca porque explica una letra que, de otro
+          modo, parecería salida de la nada: el alumno no tiene ningún registro
+          anterior en este colegio.
+
+          Y NO SE ENLAZA a la decisión de origen: ver la letra como antecedente
+          no da permiso sobre las evaluaciones del colegio de procedencia.
+        */}
+        {periodo.entrada?.de_otro_colegio && (
+          <span className="mt-1 block whitespace-nowrap text-xs text-ink-500">Registrado antes del traslado</span>
+        )}
       </td>
 
       <td className="px-3 py-2 text-center">

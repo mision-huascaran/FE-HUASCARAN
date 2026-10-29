@@ -146,7 +146,11 @@ Object.entries(MODULOS).forEach(([modulo, { tipo, contrato, enviar }]) => {
     async ({ id_operacion: idOperacion, ...envio }) => {
       const conId = { ...envio, item: { ...envio.item, id_operacion: idOperacion } }
       const respuesta = await enviar(conId)
-      const resultado = Array.isArray(respuesta) ? respuesta[0] : null
+      // El de ESTA operación, por su `id_operacion` (D91): un rechazo puede no
+      // traer `registro` con el que reconocerlo.
+      const resultado = Array.isArray(respuesta)
+        ? (respuesta.find((r) => r?.id_operacion === idOperacion) ?? respuesta[0] ?? null)
+        : null
       procesarResultado(modulo, conId, resultado)
       return respuesta
     },
@@ -163,7 +167,7 @@ Object.entries(MODULOS).forEach(([modulo, { tipo, contrato, enviar }]) => {
  *   sin `id_operacion`, que pone la cola (el mismo en cada reintento).
  * @param local los campos que la fila muestra mientras espera.
  */
-export function guardarRegistro(modulo, { clave, envio, local, descripcion, idActividad }) {
+export function guardarRegistro(modulo, { clave, envio, local, descripcion, idActividad, alNoPersistir }) {
   const { tipo } = MODULOS[modulo]
   aplicarEnCache(modulo, envio, local)
   return encolar({
@@ -172,6 +176,7 @@ export function guardarRegistro(modulo, { clave, envio, local, descripcion, idAc
     payload: { ...envio, clave: `${tipo}:${clave}` },
     descripcion,
     idActividad,
+    alNoPersistir,
     // La versión es la que vio el docente ANTES de la primera edición: se
     // conserva la del envío que espera, y los campos se suman.
     fusionar: (anterior, nuevo) => ({

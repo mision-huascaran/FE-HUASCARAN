@@ -27,9 +27,13 @@ export const useColegiosReales = (habilitado = true) =>
     enabled: habilitado,
   })
 
-export const useGradosReales = () => useCatalogo(['catalogo', 'real', 'grados'], listarGradosAdmin)
+// `opciones` admite `{ enabled: false }` por el mismo motivo que los colegios:
+// `/grados` y `/programas` son de administración, y al Directivo —que no tiene
+// la sección— le responderían 403.
+export const useGradosReales = (opciones) => useCatalogo(['catalogo', 'real', 'grados'], listarGradosAdmin, opciones)
 
-export const useProgramasReales = () => useCatalogo(['catalogo', 'real', 'programas'], listarProgramasAdmin)
+export const useProgramasReales = (opciones) =>
+  useCatalogo(['catalogo', 'real', 'programas'], listarProgramasAdmin, opciones)
 
 /**
  * Niveles de rúbrica (P5). Con `idPrograma` trae los de ese programa; sin él,

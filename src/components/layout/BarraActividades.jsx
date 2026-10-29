@@ -11,7 +11,7 @@ import { useState } from 'react'
 import { PlayCircle, StopCircle, WifiOff } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
-import useActividad from '../../features/inicio/useActividad'
+import useActividad, { SIN_HABILITACIONES } from '../../features/inicio/useActividad'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
@@ -21,12 +21,16 @@ import { ROLES } from '../../auth/roles'
  * Los textos de CU010 para `motivo_no_puede_iniciar`, literales.
  *
  * `actividad_activa` no está: en ese caso el botón que se ve es "Finalizar
- * actividad", así que no hay nada que explicar.
+ * actividad", así que no hay nada que explicar. `fuera_de_periodo` tampoco:
+ * desapareció del contrato en T4, porque estar fuera del calendario ya es uno
+ * de los motivos por los que no hay ninguna habilitación vigente.
+ *
+ * Y el texto de `sin_asignaciones` MENCIONA LOS PERMISOS (D56): el que había
+ * aquí hablaba solo de asignaciones, así que al Docente que tiene un permiso
+ * vigente le decía algo que no era verdad.
  */
 const MOTIVO = {
-  sin_asignaciones:
-    'No puedes iniciar una actividad porque no tienes asignaciones activas, ya sea para el periodo académico actual o de receso.',
-  fuera_de_periodo: 'No puedes iniciar una actividad fuera del calendario operativo.',
+  sin_asignaciones: SIN_HABILITACIONES,
 }
 
 export default function BarraActividades() {
@@ -38,7 +42,8 @@ export default function BarraActividades() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const pendientes = useSyncStore((s) => s.pendientes)
   const enLinea = useConexion()
-  const { sesion, iniciar, finalizar, sinAsignaciones, motivoNoPuedeIniciar } = useActividad()
+  const { sesion, iniciar, finalizar, sinAsignaciones, motivoNoPuedeIniciar, textoNoPuedeIniciar } =
+    useActividad()
 
   // Solo el Docente trabaja en el aula: el Supervisor y el Directivo no abren
   // actividades, y así lo dicen CU011 y CU012.
@@ -82,8 +87,14 @@ export default function BarraActividades() {
             iconLeft={PlayCircle}
             className="shadow-sm ring-2 ring-success-600/20"
             disabled={sinAsignaciones}
-            // CU010: deshabilitado, NUNCA oculto, y con el motivo a la vista.
-            title={MOTIVO[motivoNoPuedeIniciar]}
+            /**
+             * CU010: deshabilitado, NUNCA oculto, y con el motivo a la vista.
+             *
+             * El texto del SERVIDOR va primero: lo redacta quien conoce el
+             * calendario de cada colegio y los permisos vigentes. El literal
+             * de aquí es el respaldo para cuando no llega.
+             */
+            title={textoNoPuedeIniciar ?? MOTIVO[motivoNoPuedeIniciar]}
             onClick={iniciar}
           >
             Iniciar actividad

@@ -115,7 +115,7 @@ describe('Errores del login (CU002)', () => {
   it.each([
     ['401: credenciales inválidas', errorHttp(401, {}, '/login'), MENSAJE.credenciales],
     ['429: demasiados intentos', errorHttp(429, {}, '/login'), MENSAJE.bloqueo],
-    ['500: error del servidor', errorHttp(500, {}, '/login'), 'No se pudo iniciar sesión. Intente nuevamente.'],
+    ['500: error del servidor', errorHttp(500, {}, '/login'), 'No se pudo iniciar sesión. Inténtalo nuevamente.'],
     ['sin respuesta del servidor', errorDeRed(), MENSAJE.sinConexion],
   ])('%s → muestra su texto y no deja sesión', async (_caso, error, texto) => {
     vi.spyOn(handlers.auth, 'login').mockRejectedValue(error)

@@ -85,7 +85,7 @@ export default function SesionesPage() {
           <EmptyState
             icon={WifiOff}
             title="Módulo no disponible sin conexión"
-            description="Conéctese a internet para consultar su historial de sesiones."
+            description="Conéctate a internet para consultar tu historial de sesiones."
           />
         </Card>
       </div>
@@ -96,7 +96,7 @@ export default function SesionesPage() {
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Sesiones</h1>
-        <p className="mt-1 text-sm text-ink-500">Su historial de actividades de trabajo.</p>
+        <p className="mt-1 text-sm text-ink-500">Tu historial de actividades de trabajo.</p>
       </header>
 
       <Card padded={false}>
@@ -156,7 +156,7 @@ export default function SesionesPage() {
               <EmptyState
                 icon={History}
                 title="No existen sesiones para consultar"
-                description="Cuando inicie una actividad de trabajo aparecerá aquí."
+                description="Cuando inicies una actividad de trabajo aparecerá aquí."
               />
             }
             columns={[

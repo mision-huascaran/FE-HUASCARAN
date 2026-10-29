@@ -13,6 +13,7 @@ import Button from '../../components/ui/Button'
 import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
+import Skeleton from '../../components/ui/Skeleton'
 import { ETIQUETA_ESTADO, ETIQUETA_SINCRONIZACION, etiquetaTipoCierre, obtenerActividad } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
@@ -46,6 +47,13 @@ export default function DetalleSesion({ sesion, onCerrar }) {
   })
 
   const d = consulta.data
+  /**
+   * D98 — CP-SES-04. Mientras no hay datos NO se pinta la ficha: con el
+   * servidor caído, los reintentos tardan y se veían guiones y "Cambios 0",
+   * que afirman algo que no se sabe. Y el error ofrece reintentar, porque con
+   * internet y el servidor de vuelta no hay ningún evento que lo recupere solo.
+   */
+  const esperando = consulta.isPending && !d
 
   return (
     <Modal
@@ -59,15 +67,25 @@ export default function DetalleSesion({ sesion, onCerrar }) {
         <EmptyState
           icon={WifiOff}
           title="Detalle no disponible sin conexión"
-          description="Conéctese a internet para visualizar la información de esta sesión."
+          description="Conéctate a internet para visualizar la información de esta sesión."
         />
       )}
 
       {enLinea && consulta.isError && (
-        <EmptyState title="No se pudo obtener la información de la sesión" description={mensajeDeError(consulta.error)} />
+        <EmptyState
+          title="No se pudo obtener la información de la sesión"
+          description={mensajeDeError(consulta.error)}
+          action={
+            <Button variant="outline" loading={consulta.isFetching} onClick={() => consulta.refetch()}>
+              Reintentar
+            </Button>
+          }
+        />
       )}
 
-      {enLinea && !consulta.isError && (
+      {enLinea && !consulta.isError && esperando && <Skeleton className="h-40 w-full" />}
+
+      {enLinea && !consulta.isError && !esperando && (
         <div className="flex flex-col gap-5">
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Dato etiqueta="Fecha">{d?.fecha}</Dato>

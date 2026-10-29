@@ -18,13 +18,18 @@
 // semana sin clase no tiene tabla ni obligación, así que ofrecerla sería mandar
 // al docente a una pantalla donde solo podía encontrarse un 422. La Rúbrica no
 // pide semana, así que con `conSemana: false` no se pide esa lista.
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
 import { obtenerSemanas } from '../api/resources/catalogos'
+import { obtenerInicioDocente } from '../api/resources/inicio'
+import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { useColegiosReales } from './useCatalogos'
+import useSessionStore from '../store/sessionStore'
+import { etiquetaDeSemana } from '../lib/format'
 import { ahora } from '../lib/relojServidor'
+import { PREFIJO_FILTROS } from './useFiltrosGuardados'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -43,14 +48,50 @@ export const MESES = [
   'diciembre',
 ].map((nombre, i) => ({ value: i + 1, label: nombre[0].toUpperCase() + nombre.slice(1) }))
 
-/** La semana, dicha como la lee una persona: "Sem. 23 · 15/06 al 19/06". */
-export const etiquetaDeSemanaDeGrupo = (s) => {
-  const corto = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '—')
-  return `Sem. ${s.numero_semana ?? s.id_semana} · ${corto(s.fecha_inicio)} al ${corto(s.fecha_fin)}`
+/**
+ * La semana, dicha como la lee una persona.
+ *
+ * Es la MISMA etiqueta que el resto de la aplicación (`lib/format`): "Semana
+ * 23 · 15 – 19 jun" y, cuando la semana CRUZA DE MES, con las fechas
+ * completas —"Semana 27 · 29/06/2026 – 03/07/2026"—, que es justo lo que
+ * pide la tanda B. Había aquí un segundo formato propio ("Sem. 23 · 15/06 al
+ * 19/06") que decia lo mismo de otra manera y, en una semana partida, no
+ * dejaba claro de qué año eran los días.
+ */
+export const etiquetaDeSemanaDeGrupo = (s) => etiquetaDeSemana(s) || `Semana ${s?.id_semana ?? ''}`.trim()
+
+/**
+ * D105 — LOS FILTROS SE CONSERVAN AL VOLVER AL MÓDULO.
+ *
+ * Viven en la URL, y entrar desde el menú la trae vacía: los valores por
+ * defecto elegían otra vez el primer subprograma, y una Docente que estaba en
+ * Comprensión Lectora volvía a Rúbrica y se encontraba en Alfabetización. La
+ * última búsqueda de cada módulo se guarda con el prefijo de los filtros
+ * (que el cierre de sesión borra) y se usa como valor por defecto: una URL con
+ * parámetros —un enlace desde la ficha del alumno— sigue mandando.
+ */
+const claveDeBusqueda = (ruta) => `${PREFIJO_FILTROS}grupo:${ruta}`
+
+function busquedaGuardada(ruta) {
+  try {
+    return localStorage.getItem(claveDeBusqueda(ruta)) ?? undefined
+  } catch {
+    return undefined
+  }
 }
 
 export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana = true }) {
-  const [params, setParams] = useSearchParams()
+  const { pathname } = useLocation()
+  const [guardada] = useState(() => busquedaGuardada(pathname))
+  const [params, setParams] = useSearchParams(guardada)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(claveDeBusqueda(pathname), params.toString())
+    } catch {
+      // Sin almacenamiento, los filtros duran lo que dure la URL.
+    }
+  }, [pathname, params])
 
   /**
    * Memoizado a propósito: los efectos de abajo lo usan como dependencia y una
@@ -80,12 +121,71 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   })
   const { data: todos = [] } = useColegiosReales(!esDocente)
 
+  /**
+   * LOS PERMISOS DE CORRECCIÓN VIGENTES, que también son aulas suyas (D56).
+   *
+   * El contrato es explícito: "los grupos a los que solo llega por un permiso
+   * NO suman a `asignaciones`". Entonces el aula de un permiso no salía en
+   * estos filtros, y el Docente no tenía forma de abrir la pantalla donde
+   * usarlo —que es justo lo único para lo que se le dio—.
+   *
+   * No se cachea para siempre, a diferencia de las asignaciones: un permiso
+   * vence a una hora concreta.
+   *
+   * SALEN DEL PAQUETE OFFLINE, no del Inicio. Desde la tanda I,
+   * `GET /me/habilitaciones` trae cada permiso con `colegio: {id, nombre}` y
+   * `grado: {id, nombre}`; antes solo tenía los ids, y por eso había que
+   * pedirle los nombres a `GET /inicio/docente`, que **exige conexión**. Con
+   * los nombres dentro, el aula de un permiso se puede ofrecer también sin
+   * red, que es justo cuando el Docente la necesita.
+   *
+   * El Inicio se queda como respaldo: si el paquete aún no está descargado,
+   * `permisos_vigentes` sirve igual mientras haya conexión.
+   */
+  const idDocente = useSessionStore((st) => st.usuario?.id_docente)
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
+    enabled: Boolean(esDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  const { data: inicio } = useQuery({
+    queryKey: ['inicio', 'docente', idDocente],
+    queryFn: obtenerInicioDocente,
+    enabled: Boolean(esDocente && idDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  /**
+   * Solo los VIGENTES ahora mismo. El paquete trae también los programados,
+   * que todavía no habilitan nada (CU010), así que ofrecer su aula sería
+   * mandar al Docente a una pantalla donde el servidor le dirá que no.
+   */
+  const permisos = useMemo(() => {
+    const delPaquete = habilitaciones?.permisos ?? []
+    if (delPaquete.length) {
+      const momento = ahora().getTime()
+      return delPaquete.filter((p) => Date.parse(p.inicio) <= momento && momento <= Date.parse(p.fin))
+    }
+    return inicio?.permisos_vigentes ?? []
+  }, [habilitaciones, inicio])
+
   const colegios = useMemo(() => {
     if (!esDocente) return todos.map((c) => ({ id_colegio: c.id_colegio ?? c.id, nombre: c.nombre }))
     const vistos = new Map()
     asignaciones.forEach((a) => vistos.set(a.id_colegio, { id_colegio: a.id_colegio, nombre: a.colegio }))
+    permisos.forEach((p) => {
+      const id = p.colegio?.id ?? p.id_colegio
+      if (id == null || vistos.has(id)) return
+      // Se marca de dónde viene: la pantalla ya explica el permiso con
+      // `escritura.aviso_permiso`, y aquí sirve para no confundirlo con una
+      // asignación si algún día hay que distinguirlos en el desplegable.
+      vistos.set(id, { id_colegio: id, nombre: p.colegio?.nombre ?? `Colegio ${id}`, soloPorPermiso: true })
+    })
     return [...vistos.values()]
-  }, [esDocente, asignaciones, todos])
+  }, [esDocente, asignaciones, permisos, todos])
 
   const idColegio = params.get('colegio') || ''
   const idGrado = params.get('grado') || ''
@@ -110,11 +210,21 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
 
   const grados = useMemo(() => {
     const delColegio = colegio?.grados ?? []
-    if (!esDocente || !asignacion) return delColegio
-    const suyos = new Set((asignacion.grados ?? []).map((g) => String(g.id_grado)))
+    if (!esDocente) return delColegio
+
+    const suyos = new Set((asignacion?.grados ?? []).map((g) => String(g.id_grado)))
+    // Y los grados de sus permisos vigentes EN ESTE colegio (D56).
+    permisos
+      .filter((p) => String(p.colegio?.id ?? p.id_colegio ?? '') === String(idColegio))
+      .forEach((p) => {
+        const id = p.grado?.id ?? p.id_grado
+        if (id != null) suyos.add(String(id))
+      })
+
+    if (!suyos.size) return delColegio
     const cruce = delColegio.filter((g) => suyos.has(String(g.id_grado)))
     return cruce.length ? cruce : delColegio
-  }, [colegio, esDocente, asignacion])
+  }, [colegio, esDocente, asignacion, permisos, idColegio])
 
   const secciones = useMemo(
     () => grados.find((g) => String(g.id_grado) === String(idGrado))?.secciones ?? [],
@@ -141,11 +251,17 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   /**
    * Las semanas DEL GRUPO Y DEL MES. Hacen falta los cinco datos: sin uno solo
    * la petición responde 422, así que ni se lanza.
+   *
+   * Y va también el SUBPROGRAMA cuando está elegido (tanda B). Es opcional en
+   * el contrato, pero sin él un grupo con clases de Alfabetización y de
+   * Comprensión Lectora ofrece semanas que, para el subprograma del filtro, no
+   * tienen ninguna clase: el docente la elige y se encuentra una semana sin
+   * nada que registrar.
    */
   const semanasListas = conSemana && Boolean(idAnioEscolar && mes && idColegio && idGrado && idSeccion)
   const { data: semanas = [] } = useQuery({
-    queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion }],
-    queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion }),
+    queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }],
+    queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }),
     enabled: semanasListas,
   })
 

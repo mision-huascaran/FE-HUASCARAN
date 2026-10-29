@@ -33,7 +33,10 @@ COPY . .
 RUN npm run build
 
 # ── Etapa 2: servidor estático ───────────────────────────────────────────────
-FROM nginx:1.27-alpine AS runtime
+# alpine-slim: solo nginx y lo que necesitan sus scripts de arranque (envsubst
+# incluido). La 1.27-alpine traía curl, openssl viejo y demás paquetes con
+# vulnerabilidades MEDIUM a CRITICAL que Trivy no deja desplegar.
+FROM nginx:1.30-alpine-slim AS runtime
 
 # La imagen oficial de Nginx procesa /etc/nginx/templates/*.template con
 # envsubst al arrancar: así el destino de /api se decide al desplegar, sin

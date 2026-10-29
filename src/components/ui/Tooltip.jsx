@@ -1,15 +1,38 @@
-import { useId, useState } from 'react'
+import { cloneElement, isValidElement, useId, useState } from 'react'
 import cn from '../../lib/cn'
 
 /**
- * Tooltip accesible por hover y por foco. Se usa para los descriptores oficiales
- * de la rúbrica (P5) y para explicar qué mide cada gráfico (P12).
+ * Tooltip accesible por hover, por foco Y POR TOQUE.
+ *
+ * Se usa para los descriptores oficiales de la rúbrica (P5), para explicar
+ * qué mide cada gráfico (P12) y para los íconos de información que CU015 pide
+ * consultables "mediante clic o toque". En un móvil no hay hover: sin el clic,
+ * ese texto simplemente no existía para la mitad de los dispositivos.
  */
 export default function Tooltip({ content, side = 'top', className, children }) {
   const [visible, setVisible] = useState(false)
   const id = useId()
 
   if (!content) return children
+
+  /*
+   * El clic (o el toque) y Escape van EN EL HIJO, que es el control: un botón
+   * de información, que ya recibe el foco y el teclado. Así el envoltorio no
+   * se hace pasar por un segundo control. Escape lo cierra, como pide el
+   * patrón de tooltip de WAI-ARIA.
+   */
+  const disparador = isValidElement(children)
+    ? cloneElement(children, {
+        onClick: (evento) => {
+          children.props.onClick?.(evento)
+          setVisible((previo) => !previo)
+        },
+        onKeyDown: (evento) => {
+          children.props.onKeyDown?.(evento)
+          if (evento.key === 'Escape') setVisible(false)
+        },
+      })
+    : children
 
   return (
     <span
@@ -19,7 +42,7 @@ export default function Tooltip({ content, side = 'top', className, children }) 
       onFocus={() => setVisible(true)}
       onBlur={() => setVisible(false)}
     >
-      <span aria-describedby={visible ? id : undefined}>{children}</span>
+      <span aria-describedby={visible ? id : undefined}>{disparador}</span>
       {visible && (
         <span
           id={id}

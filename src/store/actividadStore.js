@@ -67,7 +67,10 @@ const useActividadStore = create((set, get) => ({
     const sesion = {
       id: uuid(),
       id_docente: idDocente ?? null,
-      inicio: new Date().toISOString(),
+      // La hora del servidor, como `fin` (D99): con la del equipo, un reloj
+      // adelantado mandaba un inicio futuro y uno atrasado lo dejaba antes de
+      // tiempo.
+      inicio: ahora().toISOString(),
       fin: null,
     }
     guardar(sesion)
@@ -117,7 +120,16 @@ const useActividadStore = create((set, get) => ({
    */
   restaurar: ({ id, inicio, idDocente } = {}) => {
     if (!id || get().sesion || get().cerradas.includes(id)) return null
-    const sesion = { id, id_docente: idDocente ?? null, inicio, fin: null }
+    /**
+     * `delServidor` marca que esta actividad la conoce el BACKEND.
+     *
+     * Importa para lo contrario: si el servidor deja de nombrarla, es que se
+     * cerró en otra pestaña y hay que soltarla (D89). Una actividad abierta
+     * aquí y todavía sin confirmar —sin conexión, o entre la petición y su
+     * respuesta— NO se puede soltar por el silencio del servidor: todavía no
+     * ha tenido ocasión de saber que existe.
+     */
+    const sesion = { id, id_docente: idDocente ?? null, inicio, fin: null, delServidor: true }
     guardar(sesion)
     set({ sesion })
     return sesion

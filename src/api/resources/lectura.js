@@ -59,7 +59,6 @@ export const MOTIVO_FILA = {
   lsn_invalido: 'Selecciona un máximo de 5 o 10 e ingresa una nota entre 0 y ese máximo.',
   alumno_fuera_de_la_tabla: 'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
   sin_habilitacion: 'No tienes una habilitación vigente para registrar o corregir la lectura de esta semana.',
-  actividad_requerida: 'Debes iniciar una actividad de trabajo para registrar o modificar la lectura semanal.',
   lectura_no_realizada: 'La lectura semanal de esta tabla fue marcada como no realizada.',
   modificacion_concurrente:
     'Este registro de lectura fue modificado desde que lo consultaste. Revisa la versión actual antes de guardar nuevamente.',
@@ -202,7 +201,7 @@ export const guardarFilas = (idTabla, filas) =>
  * `no_aplica`: si no se dio la clase, no hay nada pendiente que reclamarle al
  * docente. El motivo es obligatorio.
  */
-export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, motivo }) =>
+export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }) =>
   resolver({
     mock: () => handlers.lectura.noRealizada(idTabla, { idOperacion, version, realizadoEn, motivo }),
     real: () =>
@@ -210,7 +209,49 @@ export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, 
         id_operacion: idOperacion,
         version,
         realizado_en: realizadoEn,
+        // La actividad en que se declaró, no la que haya abierta cuando la
+        // cola consiga enviarlo.
+        id_actividad: idActividad ?? null,
         motivo,
       }),
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * `POST /lectura/tablas/{id}/habilitar-registro` — deshacer la declaración de
+ * "no realizada" (CU026, tanda D).
+ *
+ * NO BORRA NADA. La declaración anterior se queda en `declaraciones` con su
+ * motivo de corrección, quién la revirtió y cuándo: el Supervisor que revise
+ * después tiene que poder ver que esa semana estuvo declarada y por qué dejó
+ * de estarlo.
+ *
+ * Tampoco amplía el plazo: si la semana ya venció, la tabla vuelve a contar
+ * como vencida en CU011. Habilitar el registro no es una prórroga.
+ */
+export const habilitarRegistroLectura = (idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }) =>
+  resolver({
+    mock: () => handlers.lectura.habilitarRegistro(idTabla, { idOperacion, version, realizadoEn, motivo }),
+    real: () =>
+      api.post(lectura.habilitarRegistro(idTabla), {
+        id_operacion: idOperacion,
+        version,
+        realizado_en: realizadoEn,
+        id_actividad: idActividad ?? null,
+        motivo,
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Los textos EXACTOS de los dos conflictos de CU026, y qué ofrecer ante ellos.
+ *
+ * Los dos se resuelven igual: volver a pedir la tabla. Ninguno se reintenta
+ * solo —reintentar un choque de versiones solo lo repite— y en los dos la
+ * salida es "Consultar versión actual".
+ */
+export const CONFLICTO_TABLA = {
+  declaracion_no_vigente: 'La lectura ya no figura como no realizada. Consulta la versión actual.',
+  modificacion_concurrente:
+    'Esta tabla de lectura semanal fue modificada desde que la consultaste. Revisa la versión actual antes de guardar nuevamente.',
+}

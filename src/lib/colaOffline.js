@@ -19,8 +19,11 @@ import { del, get, set } from 'idb-keyval'
 import { avisarPendientes, consultarOperacion } from '../api/resources/sincronizacion'
 import { idDeDispositivo } from './dispositivo'
 import { nuevoUuid } from './uuid'
+import { ahora } from './relojServidor'
+import { leerPayload } from '../auth/jwt'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
+import useRechazosStore from '../store/rechazosStore'
 
 const CLAVE_IDB = 'sicedu.cola-envios'
 const ESPERAS_MS = [1000, 4000, 9000]
@@ -61,9 +64,51 @@ export function registrarEnviador(tipo, enviar, { modulo } = {}) {
   if (modulo) modulos.set(tipo, modulo)
 }
 
+/**
+ * La cuenta de la sesión actual, según su token; null si no se puede leer.
+ *
+ * D92 — Cada operación recuerda de quién es. CU007 dice que lo pendiente se
+ * sincroniza "después de una nueva autenticación válida DEL USUARIO": si en el
+ * mismo navegador entra otra cuenta, lo de la anterior no se manda con el
+ * token de la nueva —el servidor lo atribuiría a quien no lo hizo— ni se
+ * borra —CU007 lo prohíbe—. Espera a que vuelva su dueño.
+ */
+const usuarioActual = () => {
+  const id = leerPayload(useSessionStore.getState().token)?.id_usuario
+  return id == null ? null : String(id)
+}
+
+/** Sin dueño conocido (colas de antes de D92, token del mock) vale para cualquiera. */
+const esDeLaSesion = (item, usuario = usuarioActual()) =>
+  item.usuario == null || usuario == null || item.usuario === usuario
+
+/** Lo que puede enviarse con la sesión actual, en el orden de la cola. */
+const propias = () => {
+  const usuario = usuarioActual()
+  return cola.filter((item) => esDeLaSesion(item, usuario))
+}
+
+/** Saca de la cola una operación concreta, esté donde esté. */
+function quitar(item) {
+  const i = cola.indexOf(item)
+  if (i >= 0) cola.splice(i, 1)
+}
+
+/**
+ * ¿El servidor dijo que la SESIÓN ya no vale?
+ *
+ * Un 401 no habla de la operación sino del token: la sesión expiró (las 8
+ * horas, a veces contadas por el servidor mientras el equipo estaba sin
+ * señal) o se cerró. La operación sigue siendo buena y tiene que esperar a la
+ * siguiente autenticación, no salir de la cola como un rechazo.
+ */
+const esSesionTerminada = (error) => error?.response?.status === 401
+
 function publicarEstado() {
+  // El panel de sincronización enseña lo de ESTA cuenta: lo de otra que espera
+  // en el mismo navegador no es trabajo suyo.
   useSyncStore.getState().setPendientes(
-    cola.map(({ clave, idOperacion, tipo, descripcion, intentos, error }) => ({ clave, idOperacion, tipo, descripcion, intentos, error })),
+    propias().map(({ clave, idOperacion, tipo, descripcion, intentos, error }) => ({ clave, idOperacion, tipo, descripcion, intentos, error })),
   )
 }
 
@@ -159,6 +204,18 @@ async function avisarDeLoPendiente() {
       modulo: modulos.get(item.tipo),
       realizado_en: item.creado,
       ...(item.idActividad ? { id_actividad: item.idActividad } : {}),
+      /**
+       * E2 — Los datos naturales del REGISTRO que la operación toca.
+       *
+       * Sin esto el backend cuenta un pendiente por `id_operacion`, así que
+       * tres correcciones de la misma asistencia salían como tres registros
+       * en riesgo y la Salud del Sistema bajaba sin motivo. Con `registro`
+       * calcula la clave y cuenta UNA vez por registro.
+       *
+       * Va solo si el envío lo declaró: `alumnos` y `actividad` no lo
+       * admiten, y un campo de más es un 422 del lote entero.
+       */
+      ...(item.registro ? { registro: item.registro } : {}),
     }))
     // El contrato admite 500 por lote. Es muchísimo más de lo que cabe en una
     // jornada, pero si alguna vez se pasara, el recorte deja pasar el aviso de
@@ -198,7 +255,7 @@ function programar(ms) {
 
 /** ¿Se puede vaciar la cola ahora? */
 function sePuedeProcesar() {
-  if (procesando || cola.length === 0) return false
+  if (procesando || propias().length === 0) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     useSyncStore.getState().terminarSincronizacion(null)
     return false
@@ -212,17 +269,39 @@ function sePuedeProcesar() {
 
 /** La operación ya había llegado: se cierra con lo que respondió entonces. */
 async function resolverConocida(item, conocida) {
-  cola.shift()
+  quitar(item)
   item.verificar = false
   await persistir()
   if (conocida.estado === 'rechazada') {
     const error = new Error(conocida.motivo ?? 'rechazada')
     error.response = { status: 422, data: { detail: conocida.detail, motivo: conocida.motivo } }
+    // Llegó y fue rechazada: también queda anotada (D69). Que el rechazo se
+    // descubra al verificar y no al enviar no lo hace menos rechazo.
+    anotarRechazo(item, error)
     descartarDependientes(item.clave, error)
     rechazarPromesa(item.idOperacion, error)
   } else {
     resolverPromesa(item.idOperacion, conocida.respuesta ?? conocida)
   }
+}
+
+/**
+ * Deja constancia de un envío que el servidor rechazó.
+ *
+ * `clave` es la del item, que identifica el REGISTRO: un rechazo nuevo del
+ * mismo alumno y la misma fila sustituye al anterior en vez de apilarse.
+ */
+function anotarRechazo(item, error) {
+  const datos = error?.response?.data ?? {}
+  useRechazosStore.getState().agregar({
+    clave: item.clave,
+    modulo: modulos.get(item.tipo) ?? item.tipo,
+    nombre: item.descripcion ?? item.clave,
+    idOperacion: item.idOperacion,
+    motivo: datos.motivo ?? null,
+    detail: datos.detail ?? mensajeDeError(error),
+    registro: item.registro ?? null,
+  })
 }
 
 /** Un envío falló. Devuelve si la cola sigue con el siguiente. */
@@ -232,8 +311,39 @@ async function trasFalloDeEnvio(item, error) {
   // Si no hubo respuesta, el próximo intento preguntará antes de mandar.
   item.verificar = sinRespuesta(error)
 
+  /**
+   * D92 — LA SESIÓN TERMINÓ: LA OPERACIÓN SE QUEDA.
+   *
+   * Antes un 401 se trataba como cualquier 4xx: la operación salía de la
+   * cola. Era justo el caso de CP-ASI-06 y CP-LEC-07: el Docente registraba
+   * sin señal, su sesión expiraba mientras tanto y, al volver la conexión,
+   * el primer envío recibía 401. La cola se vaciaba, el login decía que lo
+   * pendiente "se sincronizará al volver a entrar" y nunca llegaba.
+   *
+   * Ahora se detiene sin tocarla ni gastarle un intento: el interceptor cierra
+   * la sesión y el siguiente inicio de sesión de la misma cuenta la envía.
+   */
+  if (esSesionTerminada(error)) {
+    await persistir()
+    useSyncStore.getState().terminarSincronizacion(null)
+    return false
+  }
+
   if (!esReintentable(error)) {
-    cola.shift()
+    quitar(item)
+    /**
+     * D69 — UN RECHAZO NO SE BORRA EN SILENCIO.
+     *
+     * Antes el envío se quitaba de la cola y solo se rechazaba su promesa.
+     * Si la pantalla seguía abierta, se veía el aviso; si estaba cerrada
+     * —y un envío hecho sin señal puede rechazarse horas después, con el
+     * docente en otra cosa—, el dato desaparecía sin que nadie se enterara.
+     *
+     * Queda anotado con su motivo y su `detail`, y sigue en "Error" hasta que
+     * el docente lo corrija o lo descarte. Es la diferencia entre "veo que mi
+     * dato no subió" y "mi dato ya no está".
+     */
+    anotarRechazo(item, error)
     // Lo que dependía de este envío ya no tiene sentido: mandarlo solo
     // daría otro error y ensuciaría la cola con fallos encadenados.
     descartarDependientes(item.clave, error)
@@ -264,7 +374,7 @@ async function procesarUno(item) {
   const enviar = enviadores.get(item.tipo)
   if (!enviar) {
     // Tipo desconocido: se descarta para no dejar la cola trabada.
-    cola.shift()
+    quitar(item)
     rechazarPromesa(item.idOperacion, new Error(`Sin enviador para "${item.tipo}"`))
     await persistir()
     return true
@@ -317,9 +427,11 @@ async function procesar() {
   avisarDeLoPendiente()
 
   try {
-    while (cola.length > 0) {
-      const sigue = await procesarUno(cola[0])
+    let siguiente = propias()[0]
+    while (siguiente) {
+      const sigue = await procesarUno(siguiente)
       if (!sigue) return
+      siguiente = propias()[0]
     }
     useSyncStore.getState().terminarSincronizacion(null)
   } finally {
@@ -354,13 +466,34 @@ export function encolar({
   dependeDe = null,
   exigePersistencia = false,
   idActividad = null,
+  /**
+   * E2 — Los datos naturales del registro que esta operación crea o modifica.
+   *
+   * Lo declara quien encola, porque solo él sabe de qué registro se trata:
+   * para una asistencia es (colegio, grado, sección, fecha, alumno); para una
+   * fila de lectura, (colegio, grado, sección, subprograma, semana, alumno).
+   * `alumnos` y `actividad` NO lo admiten: mandarlo ahí es un 422 del lote.
+   */
+  registro = null,
   fusionar = null,
+  /**
+   * D108 — Se llama si el envío NO quedó guardado en IndexedDB y tampoco se
+   * exigía: sigue en memoria y se manda mientras la pestaña viva, pero cerrarla
+   * lo perdería. La pantalla tiene que poder decirlo.
+   */
+  alNoPersistir = null,
 }) {
   // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
-  const anterior = cola.findIndex((item) => item.clave === clave && item.idOperacion !== enVuelo)
+  const usuario = usuarioActual()
+  const anterior = cola.findIndex(
+    (item) => item.clave === clave && item.idOperacion !== enVuelo && esDeLaSesion(item, usuario),
+  )
   const item = {
     clave,
     tipo,
+    // D92 — De quién es: solo su dueño puede enviarla (CU007).
+    usuario,
+    registro,
     payload: anterior >= 0 && fusionar ? fusionar(cola[anterior].payload, payload) : payload,
     descripcion,
     dependeDe,
@@ -376,7 +509,8 @@ export function encolar({
     intentos: 0,
     error: null,
     verificar: false,
-    creado: new Date().toISOString(),
+    // Viaja como `realizado_en` del aviso de pendientes: la hora del servidor (D99).
+    creado: ahora().toISOString(),
   }
 
   if (anterior >= 0) {
@@ -398,6 +532,7 @@ export function encolar({
       rechazarPromesa(item.idOperacion, errorDePersistencia())
       return
     }
+    if (!guardado) alNoPersistir?.()
     procesar()
   })
   return promesa
@@ -482,8 +617,11 @@ export async function iniciarCola() {
   // Al iniciar sesión se envía lo que quedó pendiente de la sesión anterior
   // (por ejemplo, el cierre de una actividad hecho sin conexión).
   useSessionStore.subscribe((estado, previo) => {
+    if (estado.token === previo.token) return
+    // Otra cuenta ve otros pendientes (D92).
+    publicarEstado()
     // `procesar` ya maneja sus errores: el catch solo cierra la promesa.
-    if (estado.token && estado.token !== previo.token) procesar().catch(() => null)
+    if (estado.token) procesar().catch(() => null)
   })
 
   if (cola.length > 0) procesar().catch(() => null)

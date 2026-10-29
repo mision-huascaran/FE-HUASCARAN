@@ -27,9 +27,10 @@ import { fechaLima } from './support/fechas.js'
 import { esApi, iniciarSesion, irPorMenu } from './support/sesion.js'
 
 // Los textos que piden los casos de uso, ya corregidos en la pantalla: CU014
-// llama «Agregar» al botón y CU010 da su aviso palabra por palabra.
+// llama «Agregar» al botón, y sin actividad el aviso es el unificado con el
+// servidor (`actividad_requerida`), el mismo que CU014 adoptó.
 const BOTON_NUEVO = 'Agregar'
-const AVISO_SIN_ACTIVIDAD = 'Inicia una actividad de trabajo para habilitar el registro de datos.'
+const AVISO_SIN_ACTIVIDAD = 'Debes iniciar una actividad de trabajo para registrar o modificar información.'
 const PREFIJO = 'E2E-'
 
 /** El badge de estado, exacto: «Activo» como texto suelto también está dentro de «Inactivo». */
@@ -80,14 +81,12 @@ test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastr
   await test.step('Sin actividad, no se puede registrar: se ofrece iniciarla (CU010)', async () => {
     await irPorMenu(page, 'Alumnos', '/alumnos')
     await expect(page.getByRole('note')).toHaveText(AVISO_SIN_ACTIVIDAD)
-    // «Agregar» ya no está muerto: propone abrir la actividad. La regla no
-    // cambia: sin aceptar, no se abre el formulario.
-    await page.getByRole('button', { name: BOTON_NUEVO, exact: true }).click()
-    const propuesta = page.getByRole('dialog', { name: 'Necesitas una actividad de trabajo' })
-    await expect(propuesta).toBeVisible()
+    // D59: sin actividad «Agregar» se ve DESHABILITADO y dice por qué; no
+    // abre el formulario.
+    const agregar = page.getByRole('button', { name: BOTON_NUEVO, exact: true })
+    await expect(agregar).toBeDisabled()
+    await expect(agregar).toHaveAttribute('title', AVISO_SIN_ACTIVIDAD)
     await evidencia(page, 'alumnos-sin-actividad')
-    await propuesta.getByRole('button', { name: 'Ahora no' }).click()
-    await expect(propuesta).toBeHidden()
     await expect(page.getByRole('dialog', { name: 'Nuevo alumno' })).toHaveCount(0)
   })
 

@@ -42,7 +42,21 @@ export const useSessionStore = create((set, get) => ({
 
   motivoCierre: null,
 
-  setUsuario: (usuario) => set({ usuario }),
+  /**
+   * `GET /me` falló por algo que NO es la autenticación (D52).
+   *
+   * Un error de red o un 5xx no significan que la sesión haya terminado:
+   * significan que el servidor no contesta. Antes los dos caminos acababan
+   * igual —borrar la sesión y mandar al login—, así que con el backend caído
+   * la aplicación echaba al usuario y le hacía creer que su sesión expiró.
+   *
+   * Con esto, el token se conserva y la pantalla puede decir la verdad y
+   * ofrecer reintentar.
+   */
+  servidorInalcanzable: false,
+  setServidorInalcanzable: (valor) => set({ servidorInalcanzable: valor, cargando: false }),
+
+  setUsuario: (usuario) => set({ usuario, servidorInalcanzable: false }),
   setCargando: (cargando) => set({ cargando }),
 
   /**
@@ -61,7 +75,7 @@ export const useSessionStore = create((set, get) => ({
     } catch {
       // nada que limpiar
     }
-    set({ token: null, usuario: null, cargando: false, motivoCierre: motivo })
+    set({ token: null, usuario: null, cargando: false, motivoCierre: motivo, servidorInalcanzable: false })
   },
 
   limpiarMotivoCierre: () => set({ motivoCierre: null }),

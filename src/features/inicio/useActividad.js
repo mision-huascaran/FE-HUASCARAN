@@ -25,9 +25,12 @@ import {
   listarGradosAdmin,
   listarMisAsignaciones,
 } from '../../api/resources/administracion'
+import { hayHabilitacionParaIniciar } from '../../auth/habilitaciones'
+import { ahora } from '../../lib/relojServidor'
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
+import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
 import useActividadStore from '../../store/actividadStore'
@@ -54,6 +57,9 @@ export const SIN_HABILITACIONES =
  */
 const CON_ESCRITURA_DEL_SERVIDOR = [['asistencia', 'clase'], ['lectura', 'tabla'], ['rubricas'], ['registro-vuelo']]
 
+/** D62 — "Queda 1 cambio guardado", no "Quedan 1 cambios guardados". */
+const cambiosGuardados = (n) => (n === 1 ? 'Queda 1 cambio guardado' : `Quedan ${n} cambios guardados`)
+
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
@@ -77,11 +83,20 @@ export default function useActividad() {
 
   const itemsPendientes = useSyncStore((s) => s.items)
 
-  // `GET /me/asignaciones`: las del token, nunca por id de docente.
-  const { data: asignaciones = [] } = useQuery({
-    queryKey: ['me', 'asignaciones'],
-    queryFn: listarMisAsignaciones,
+  /**
+   * El paquete de habilitaciones, que es lo que de verdad decide (D56).
+   *
+   * Trae las asignaciones Y LOS PERMISOS excepcionales. Antes aquí se pedía
+   * solo `GET /me/asignaciones`, y por eso un Docente con un permiso vigente y
+   * sin asignaciones veía el botón deshabilitado: no podía iniciar la
+   * actividad y, sin actividad, no podía usar el permiso para nada.
+   */
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
     enabled: Boolean(idDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   })
 
   /**
@@ -91,7 +106,7 @@ export default function useActividad() {
    * desde otro equipo—, se adopta para que el Docente pueda finalizarla en vez
    * de chocar con un 409 al intentar iniciar otra.
    */
-  const { data: inicio } = useQuery({
+  const { data: inicio, dataUpdatedAt: inicioRespondidoEn } = useQuery({
     queryKey: ['inicio', 'docente', idDocente],
     queryFn: obtenerInicioDocente,
     enabled: Boolean(idDocente) && enLinea,
@@ -104,6 +119,40 @@ export default function useActividad() {
     if (itemsPendientes.some((item) => item.clave === `actividad-cierre-${remota.id}`)) return
     useActividadStore.getState().restaurar({ id: remota.id, inicio: remota.inicio, idDocente })
   }, [remota?.id, remota?.inicio, sesion, itemsPendientes, idDocente])
+
+  /**
+   * Y AL REVÉS: el servidor dice que NO hay actividad y aquí creíamos que sí (D89).
+   *
+   * Pasa al finalizarla desde otra pestaña o desde otro equipo. La barra seguía
+   * ofreciendo "Finalizar actividad" —incluso tras recargar— y cada registro se
+   * descartaba con "La operación se realizó fuera de una actividad de trabajo
+   * del docente", que es el servidor diciendo exactamente esto.
+   *
+   * Solo se suelta si el servidor PUDO saberlo: con conexión, con su respuesta
+   * en la mano y si el inicio de esta actividad no sigue esperando en la cola.
+   * Una actividad iniciada sin señal todavía no existe para él, y soltarla
+   * borraría algo que sí está abierto.
+   */
+  useEffect(() => {
+    if (!enLinea || !inicio || remota || !sesion) return
+    // Su inicio sigue esperando en la cola: el servidor todavía no sabe que
+    // existe, así que su silencio no significa que esté cerrada.
+    if (itemsPendientes.some((item) => item.clave === `actividad-inicio-${sesion.id}`)) return
+    /**
+     * Y LA RESPUESTA TIENE QUE SER POSTERIOR AL INICIO.
+     *
+     * Si no, se soltaba la actividad recién abierta: al iniciarla, la respuesta
+     * que hay en memoria es de hace un momento y todavía dice que no hay
+     * ninguna. Comparando contra `dataUpdatedAt` solo cuenta lo que el
+     * servidor respondió DESPUÉS de que esta actividad existiera.
+     */
+    const abiertaEn = Date.parse(sesion.inicio)
+    if (!Number.isNaN(abiertaEn) && inicioRespondidoEn <= abiertaEn) return
+    // Y solo una que el servidor LLEGÓ A CONOCER: si nunca supo de ella, su
+    // silencio no dice nada.
+    if (!sesion.delServidor) return
+    useActividadStore.getState().limpiar()
+  }, [enLinea, inicio, inicioRespondidoEn, remota, sesion, itemsPendientes])
 
   const iniciar = async () => {
     // El id y la hora real se fijan AQUÍ, antes de cualquier llamada: son los
@@ -128,7 +177,9 @@ export default function useActividad() {
       const creada = await iniciarActividad({ id: abierta.id })
       // El servidor manda la expiración de la SESIÓN, que es el límite real de
       // la actividad: una actividad no tiene 8 horas propias (CU009).
-      useActividadStore.setState({ sesion: { ...abierta, ...creada } })
+      // `delServidor`: a partir de aquí, que deje de nombrarla significa que
+      // se cerró en otro sitio (D89).
+      useActividadStore.setState({ sesion: { ...abierta, ...creada, delServidor: true } })
       refrescarTrasActividad()
     } catch (error) {
       // Si el servidor la rechaza, no puede quedarse abierta solo aquí: el
@@ -147,7 +198,19 @@ export default function useActividad() {
          */
         toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES))
       } else if (motivo === 'actividad_activa_existente') {
-        toast.error('Ya hay una actividad abierta', 'Finalice la actividad actual antes de iniciar otra.')
+        /**
+         * El texto del SERVIDOR primero, igual que en `sin_asignaciones`.
+         *
+         * D58 — El tester leyó aquí un texto nuestro donde esperaba el del CU.
+         * El respaldo es ahora el literal de CU009 ("Intento de iniciar una
+         * segunda actividad simultánea"), que es el mismo `detail` que manda el
+         * backend con `actividad_activa_existente`: coincidan o no, dicen lo
+         * mismo.
+         */
+        toast.error(
+          'Ya hay una actividad abierta',
+          mensajeDeError(error, 'Debes finalizar la actividad actual antes de iniciar una nueva.'),
+        )
       } else if (motivo === 'actividad_superpuesta') {
         // Puede pasar al sincronizar: el horario choca con otra actividad suya
         // de la misma sesión. No es culpa de lo que acaba de hacer.
@@ -169,6 +232,20 @@ export default function useActividad() {
       nivelesRubrica: () => obtenerNivelesRubrica(),
       nivelesRazkids: () => obtenerNivelesRazkids(),
       asignaciones: () => listarMisAsignaciones(),
+      /**
+       * D45 — SIN ESTO, LA ACTIVIDAD SE INICIABA A CIEGAS.
+       *
+       * La habilitación para escribir no depende solo de tener asignaciones:
+       * depende del CALENDARIO de cada colegio —en qué periodo está hoy, qué
+       * días son lectivos— y de los PERMISOS excepcionales vigentes. Nada de
+       * eso estaba en la precarga, así que sin conexión el cliente no podía
+       * comprobar nada y dejaba pasar lo que el servidor luego rechazaría.
+       *
+       * `GET /me/habilitaciones` trae las dos cosas ya resueltas, con el
+       * calendario de cada colegio dentro. `src/auth/habilitaciones.js` tiene
+       * la lógica pura que las lee sin conexión.
+       */
+      habilitaciones: () => obtenerMisHabilitaciones(),
     }, { propietario: propietarioDe(useSessionStore.getState().usuario) })
     queryClient.invalidateQueries({ queryKey: ['precarga'] })
 
@@ -194,7 +271,7 @@ export default function useActividad() {
       toast.info(
         'Actividad finalizada sin conexión',
         pendientes > 0
-          ? `Quedan ${pendientes} cambios guardados en este dispositivo. Se enviarán al recuperar la conexión.`
+          ? `${cambiosGuardados(pendientes)} en este dispositivo. Se enviarán al recuperar la conexión.`
           : 'Se registrará el cierre al recuperar la conexión.',
       )
       return
@@ -218,10 +295,18 @@ export default function useActividad() {
    * "fuera de periodo" sería adivinar. CU010 pide además que el botón se vea
    * DESHABILITADO, nunca oculto, con el motivo al lado.
    *
-   * Si el servidor no contesta todavía, se cae al dato local: sin asignaciones
-   * tampoco hay nada que iniciar.
+   * Si el servidor no contesta todavía, se cae al paquete local de
+   * habilitaciones, que incluye los permisos excepcionales (D56).
    */
-  const motivo = inicio?.motivo_no_puede_iniciar ?? (asignaciones.length === 0 ? 'sin_asignaciones' : null)
+  const puedeEnLocal = hayHabilitacionParaIniciar({ habilitaciones, instante: ahora() })
+  /**
+   * Mientras no se sabe NADA —ni el servidor ha contestado ni hay paquete
+   * local— el botón no se deshabilita. Deshabilitarlo "por si acaso" daría un
+   * motivo que nadie ha comprobado; dejándolo activo, como mucho el servidor
+   * responde su 422 con el texto bueno.
+   */
+  const motivo =
+    inicio?.motivo_no_puede_iniciar ?? (habilitaciones && !puedeEnLocal ? 'sin_asignaciones' : null)
 
   return {
     sesion,
