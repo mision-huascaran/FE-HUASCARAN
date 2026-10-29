@@ -14,18 +14,20 @@
 //  · LA AGRUPACIÓN ES POR PERTENENCIA HISTÓRICA: un cambio posterior de
 //    colegio, grado o subprograma no traslada las lecturas anteriores, y el
 //    estado actual del alumno no basta para excluir sus registros.
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import DataTable from '../../components/ui/DataTable'
+import Select from '../../components/ui/Select'
 import StatCard from '../../components/ui/StatCard'
 import { obtenerLibrosDeColegio } from '../../api/resources/dashboard'
 import BloqueDashboard from './BloqueDashboard'
 import DesgloseMensual from './DesgloseMensual'
 import Grafica from './graficas/Grafica'
 import GraficaBarras from './graficas/GraficaBarras'
+import { mesesDeGrado, resumenDeGrado } from './librosPorGrado'
 import {
   SIN_INFORMACION,
   TOTAL_PARCIAL,
@@ -110,9 +112,28 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
   })
 
   const datos = consulta.data
-  const meses = datos?.meses ?? []
-  const grados = datos?.grados ?? []
-  const sinInfo = datos?.sin_informacion ?? []
+  const todosLosGrados = useMemo(() => datos?.grados ?? [], [datos])
+  const sinInfoDelColegio = useMemo(() => datos?.sin_informacion ?? [], [datos])
+
+  /**
+   * El filtro por grado (CU034 paso 6) se aplica aquí, sobre la respuesta
+   * del colegio entero: así las opciones no se encogen al elegir una y
+   * siempre se puede volver a "Todos los grados".
+   */
+  const [idGrado, setIdGrado] = useState('')
+  const opcionesDeGrado = [...todosLosGrados, ...sinInfoDelColegio]
+  const elegido = opcionesDeGrado.find((g) => String(g.id_grado) === String(idGrado)) ?? null
+  const delGrado = (g) => !elegido || g.id_grado === elegido.id_grado
+  const grados = todosLosGrados.filter(delGrado)
+  const sinInfo = sinInfoDelColegio.filter(delGrado)
+
+  // Con un grado elegido, la tarjeta y el gráfico son SOLO de ese grado, y lo dicen.
+  const meses = useMemo(() => {
+    const delColegio = datos?.meses ?? []
+    return elegido ? mesesDeGrado(elegido, delColegio) : delColegio
+  }, [elegido, datos])
+  const resumen = elegido ? resumenDeGrado(elegido) : datos?.resumen
+  const consultado = elegido ? `${elegido.nombre} de ${colegio.nombre}` : colegio.nombre
 
   return (
     <>
@@ -128,18 +149,30 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
         }
       >
         <div className="flex flex-col gap-5">
+          {opcionesDeGrado.length > 0 && (
+            <div className="max-w-[220px]">
+              <Select
+                label="Grado"
+                placeholder="Todos los grados"
+                value={idGrado}
+                options={opcionesDeGrado.map((g) => ({ value: g.id_grado, label: g.nombre }))}
+                onChange={(e) => setIdGrado(e.target.value)}
+              />
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-3">
             <StatCard
               icon={BookOpen}
-              label={datos?.resumen?.provisional ? TOTAL_PARCIAL : `Total de libros leídos en ${colegio.nombre}`}
-              value={celda(datos?.resumen, 'total', formatearCantidad)}
+              label={resumen?.provisional ? `${TOTAL_PARCIAL} en ${consultado}` : `Total de libros leídos en ${consultado}`}
+              value={celda(resumen, 'total', formatearCantidad)}
             />
-            <StatCard label="Alumnos incluidos" value={celda(datos?.resumen, 'alumnos', formatearCantidad)} />
-            <StatCard label="Promedio por alumno" value={celda(datos?.resumen, 'promedio', formatearIndice)} />
+            <StatCard label="Alumnos incluidos" value={celda(resumen, 'alumnos', formatearCantidad)} />
+            <StatCard label="Promedio por alumno" value={celda(resumen, 'promedio', formatearIndice)} />
           </div>
 
           <Grafica
-            titulo={`Libros leídos por mes en ${colegio.nombre}`}
+            titulo={`Libros leídos por mes en ${consultado}`}
             contexto={contexto}
             anioEscolar={anioEscolar}
             hayDatos={meses.some((m) => !sinInformacion(m, 'cantidad'))}

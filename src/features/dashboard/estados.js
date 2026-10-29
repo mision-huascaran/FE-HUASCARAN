@@ -120,6 +120,16 @@ export const formatearCantidad = (valor) =>
   valor == null ? SIN_INFORMACION : new Intl.NumberFormat('es-PE').format(valor)
 
 /**
+ * "455 de 467" (CU035 paso 7): asistencias completadas sobre las esperadas en
+ * las clases registradas como dictadas. Sin esperadas no hay nada que contar,
+ * y "0 de 0" no es un dato.
+ */
+export const asistenciasCompletadas = (resumen) =>
+  resumen?.asistencias_esperadas
+    ? `${formatearCantidad(resumen.asistencias_completadas)} de ${formatearCantidad(resumen.asistencias_esperadas)}`
+    : SIN_INFORMACION
+
+/**
  * El valor de una celda, respetando la regla de arriba.
  *
  * `formato` es el que se aplica cuando el dato SÍ está confirmado. Un 0

@@ -14,8 +14,10 @@ import {
   formatearIndice,
   formatearPorcentaje,
   alcanceEnTexto,
+  asistenciasCompletadas,
   sinInformacion,
 } from '../estados'
+import { mesesDeGrado } from '../librosPorGrado'
 
 describe('sinInformacion', () => {
   it('un null, un sin_datos y un estado vacío son ausencia de información', () => {
@@ -88,5 +90,44 @@ describe('alcanceEnTexto', () => {
     expect(alcanceEnTexto({ todosLosColegios: true })).toBe('en todos los colegios')
     expect(alcanceEnTexto({ idColegios: ['1'], colegios })).toBe('en AMASHCA')
     expect(alcanceEnTexto({ idColegios: ['1', '4'], colegios })).toBe('en los 2 colegios seleccionados')
+  })
+})
+
+describe('asistenciasCompletadas', () => {
+  it('completadas de esperadas, y sin esperadas "Sin información", no "0 de 0"', () => {
+    expect(asistenciasCompletadas({ asistencias_completadas: 455, asistencias_esperadas: 467 })).toBe('455 de 467')
+    expect(asistenciasCompletadas({ asistencias_completadas: 0, asistencias_esperadas: 0 })).toBe(SIN_INFORMACION)
+    expect(asistenciasCompletadas(undefined)).toBe(SIN_INFORMACION)
+  })
+})
+
+describe('mesesDeGrado', () => {
+  const MESES = [
+    { anio: 2026, mes: 3, estado: 'completo', total: 9, cantidad: 9 },
+    { anio: 2026, mes: 4, estado: 'completo', total: 9, cantidad: 9 },
+    { anio: 2026, mes: 5, estado: 'completo', total: 9, cantidad: 9 },
+    { anio: 2026, mes: 12, estado: 'futuro', total: null, cantidad: null },
+  ]
+  const alumno = (totales) => ({
+    meses: totales.map((total, i) => ({
+      anio: 2026,
+      mes: MESES.at(i).mes,
+      estado: total == null ? 'sin_informacion' : 'completo',
+      total,
+    })),
+  })
+
+  it('suma los alumnos del grado; si a alguno le falta el mes, es incompleto, no un total confirmado', () => {
+    const [marzo, abril, mayo, diciembre] = mesesDeGrado({ alumnos: [alumno([1, 2, null, null]), alumno([0, null, null, null])] }, MESES)
+    expect(marzo).toMatchObject({ estado: 'completo', cantidad: 1 })
+    expect(abril).toMatchObject({ estado: 'incompleto', cantidad: 2 })
+    // Nadie tiene dato: "Sin información", nunca 0.
+    expect(mayo).toMatchObject({ estado: 'sin_informacion', cantidad: null })
+    expect(diciembre).toMatchObject({ estado: 'futuro', cantidad: null })
+  })
+
+  it('un grado sin alumnos no tiene información en ningún mes pasado', () => {
+    const meses = mesesDeGrado({ alumnos: [] }, MESES)
+    expect(meses.slice(0, 3).every((m) => m.cantidad === null && m.estado === 'sin_informacion')).toBe(true)
   })
 })

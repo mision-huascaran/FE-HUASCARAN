@@ -450,18 +450,16 @@ export const obtenerLibros = (filtros) =>
  *
  * Valida la MISMA selección de colegios que `/dashboard/libros` (el colegio
  * tiene que estar en ella), así que lleva los filtros aplicados enteros. El
- * backend no filtra por grado: si se pide uno, se filtra aquí sobre `grados`.
+ * backend no filtra por grado: ese filtro lo aplica `DetalleColegioLibros`
+ * sobre la respuesta del colegio entero.
  */
-export const obtenerLibrosDeColegio = async (idColegio, filtros, { idGrado } = {}) => {
+export const obtenerLibrosDeColegio = (idColegio, filtros) => {
   const params = parametrosDe(filtros, 'prohibido')
-  const datos = await pedir(
+  return pedir(
     () => handlers.dashboard.librosDeColegio(idColegio, params),
     () => api.get(dashboard.librosDeColegio(idColegio), { params, ...SERIALIZAR }),
     adaptarLibrosDeColegio,
   )
-  if (!idGrado) return datos
-  const delGrado = (g) => String(g.id_grado) === String(idGrado)
-  return { ...datos, grados: datos.grados.filter(delGrado), sin_informacion: datos.sin_informacion.filter(delGrado) }
 }
 
 /**

@@ -25,7 +25,13 @@ import BloqueDashboard from './BloqueDashboard'
 import DetalleClases from './DetalleClases'
 import Grafica from './graficas/Grafica'
 import GraficaLineas from './graficas/GraficaLineas'
-import { SIN_INFORMACION, etiquetaDeEstado, formatearPorcentaje, sinInformacion } from './estados'
+import {
+  SIN_INFORMACION,
+  asistenciasCompletadas,
+  etiquetaDeEstado,
+  formatearPorcentaje,
+  sinInformacion,
+} from './estados'
 
 const FORMULA = 'Porcentaje = (Presentes + Tardanzas) ÷ (Presentes + Tardanzas + Ausentes) × 100. La tardanza cuenta como asistencia; una asistencia sin marcar no es una ausencia y queda fuera del cálculo.'
 
@@ -85,7 +91,12 @@ export default function BloqueAsistencia({
           <StatCard label="Ausentes" value={resumen?.ausentes ?? SIN_INFORMACION} />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Asistencias completadas"
+            value={asistenciasCompletadas(resumen)}
+            hint="De las esperadas en las clases registradas como dictadas"
+          />
           <StatCard label="Clases registradas como dictadas" value={resumen?.clases_dictadas ?? SIN_INFORMACION} />
           <StatCard
             label="Con asistencias pendientes"

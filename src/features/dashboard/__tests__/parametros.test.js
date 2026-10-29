@@ -88,14 +88,6 @@ describe('el detalle y el desglose de libros llevan la selección de colegios', 
     expect(espia).toHaveBeenCalledWith(1, { id_anio_escolar: '2', id_colegios: [1, 4] })
   })
 
-  it('el filtro por grado se aplica en el cliente, sobre `grados`', async () => {
-    const espia = vi.spyOn(handlers.dashboard, 'librosDeColegio')
-    const datos = await obtenerLibrosDeColegio(1, TODOS, { idGrado: '2' })
-    expect(espia.mock.calls[0][1]).not.toHaveProperty('id_grado')
-    expect(datos.grados.length).toBeGreaterThan(0)
-    expect(datos.grados.every((g) => g.id_grado === 2)).toBe(true)
-  })
-
   it('`libros/desglose` manda alumno, mes y año con la selección de colegios', async () => {
     const espia = vi.spyOn(handlers.dashboard, 'librosDesglose')
     await obtenerDesgloseDeLibros(TODOS, { idAlumno: 1, mes: 4, anio: 2026 })

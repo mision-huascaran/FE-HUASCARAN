@@ -40,16 +40,20 @@ const enlaceDeClase = (colegio, clase) => {
 export default function DetalleClases({ filtros, colegio, periodo, contexto, onVolver }) {
   const [idGrado, setIdGrado] = useState('')
 
+  // Se pide el colegio ENTERO y el grado se filtra aquí: si el servidor
+  // filtrara, la respuesta traería un solo grado, las opciones del selector se
+  // quedarían en una y no se podría volver a "Todos".
   const consulta = useQuery({
-    queryKey: ['dashboard', 'asistencia-clases', filtros, colegio.id_colegio, idGrado],
-    queryFn: () => obtenerClasesDeAsistencia(filtros, { idColegio: colegio.id_colegio, idGrado: idGrado || undefined }),
+    queryKey: ['dashboard', 'asistencia-clases', filtros, colegio.id_colegio],
+    queryFn: () => obtenerClasesDeAsistencia(filtros, { idColegio: colegio.id_colegio }),
     enabled: Boolean(filtros),
   })
 
   // Dos listas desde el servidor: las sin registro no traen conteos.
-  const registradas = consulta.data?.clases ?? []
-  const sinRegistro = consulta.data?.clases_sin_registro ?? []
   const grados = consulta.data?.grados ?? []
+  const delGrado = (clase) => !idGrado || String(clase.grado?.id) === String(idGrado)
+  const registradas = (consulta.data?.clases ?? []).filter(delGrado)
+  const sinRegistro = (consulta.data?.clases_sin_registro ?? []).filter(delGrado)
 
   return (
     <BloqueDashboard

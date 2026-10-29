@@ -18,6 +18,8 @@ import { renderConProveedores } from '../../../test/renderConProveedores'
 import { CAMBIOS_SIN_APLICAR } from '../estados'
 
 const ESPERA = { timeout: 15000 }
+const ASISTENCIA = 'Asistencia de Alumnos'
+const VER_ASISTENCIA = 'Ver asistencia'
 
 const montar = (rol = ROLES.SUPERVISOR, ruta = '/dashboard') => renderConProveedores(null, { ruta, rol })
 
@@ -32,7 +34,7 @@ describe('Dashboard del Supervisor (CU033)', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Resultados de aprendizaje' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Comparación de resultados de aprendizaje' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Asistencia de Alumnos' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: ASISTENCIA })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Evolución de la cobertura de Alumnos' })).toBeInTheDocument()
 
     // El periodo se nombra por su nombre visible, nunca "PA3".
@@ -87,11 +89,32 @@ describe('Detalle de asistencia por clase (CU033, paso 8)', () => {
 
     // El enlace a CU022 lleva colegio, grado, sección y fecha: sin eso, el
     // Supervisor aterrizaría en el aula que miró la última vez.
-    const href = screen.getAllByRole('link', { name: 'Ver asistencia' })[0].getAttribute('href')
+    const href = screen.getAllByRole('link', { name: VER_ASISTENCIA })[0].getAttribute('href')
     expect(href).toMatch(/colegio=\d+/)
     expect(href).toMatch(/grado=\d+/)
     expect(href).toMatch(/seccion=\d+/)
     expect(href).toMatch(/fecha=\d{4}-\d{2}-\d{2}/)
+  })
+
+  it('el selector de grado no desaparece al filtrar y se puede volver a "Todos"', async () => {
+    montar()
+
+    const [primero] = await screen.findAllByRole('button', { name: /Ver grados y clases/ }, ESPERA)
+    await userEvent.click(primero)
+    const selector = await screen.findByRole('combobox', { name: 'Grado' }, ESPERA)
+    const opciones = within(selector).getAllByRole('option').length
+    expect(opciones).toBeGreaterThan(2)
+
+    // Elegir un grado deja solo sus clases, pero el selector sigue con todas
+    // sus opciones.
+    await userEvent.selectOptions(selector, '2')
+    const filas = screen.getAllByRole('link', { name: VER_ASISTENCIA })
+    expect(filas.every((a) => a.getAttribute('href').includes('grado=2'))).toBe(true)
+    expect(within(screen.getByRole('combobox', { name: 'Grado' })).getAllByRole('option')).toHaveLength(opciones)
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Grado' }), '')
+    const todas = screen.getAllByRole('link', { name: VER_ASISTENCIA })
+    expect(todas.some((a) => !a.getAttribute('href').includes('grado=2'))).toBe(true)
   })
 })
 
@@ -140,6 +163,31 @@ describe('Consolidado de libros leídos (CU034)', () => {
     expect(await screen.findByText('Clase de referencia', ESPERA)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Ver registro' }).length).toBeGreaterThan(0)
   })
+
+  it('el filtro por grado del detalle nombra el grado y el colegio en la tarjeta y el gráfico', async () => {
+    montar(ROLES.SUPERVISOR, RUTA)
+
+    const [primero] = await screen.findAllByRole('button', { name: /Ver grados/ }, ESPERA)
+    await userEvent.click(primero)
+    const titulo = await screen.findByRole('heading', { name: /Libros leídos en/ }, ESPERA)
+    const colegio = titulo.textContent.replace('Libros leídos en ', '')
+
+    // El título del bloque aparece antes que los datos: se espera al selector.
+    const selector = await screen.findByRole('combobox', { name: 'Grado' }, ESPERA)
+    expect(within(selector).getByRole('option', { name: 'Todos los grados' })).toBeInTheDocument()
+    await userEvent.selectOptions(selector, '3')
+
+    const enElGrado = `3.° de ${colegio}`
+    const tarjeta = screen.getByText((texto) => texto.endsWith(` en ${enElGrado}`) && texto.startsWith('Total'))
+    expect(tarjeta).toBeInTheDocument()
+    expect(screen.getAllByText(`Libros leídos por mes en ${enElGrado}`).length).toBeGreaterThan(0)
+    // Solo queda el grupo del grado elegido.
+    const detalle = titulo.closest('section')
+    expect(within(detalle).getAllByRole('button', { expanded: false })).toHaveLength(1)
+
+    await userEvent.selectOptions(selector, '')
+    expect(screen.getAllByText(`Libros leídos por mes en ${colegio}`).length).toBeGreaterThan(0)
+  })
 })
 
 describe('Dashboard del Directivo (CU035)', () => {
@@ -158,9 +206,19 @@ describe('Dashboard del Directivo (CU035)', () => {
   it('no le ofrece el detalle por clase, que es nominal', async () => {
     montar(ROLES.DIRECTIVO)
 
-    const asistencia = (await screen.findByRole('heading', { name: 'Asistencia de Alumnos' }, ESPERA)).closest(
+    const asistencia = (await screen.findByRole('heading', { name: ASISTENCIA }, ESPERA)).closest(
       'section',
     )
     expect(within(asistencia).queryByRole('button', { name: /Ver grados y clases/ })).not.toBeInTheDocument()
+  })
+
+  it('ve las asistencias completadas sobre las esperadas (CU035 paso 7)', async () => {
+    montar(ROLES.DIRECTIVO)
+
+    const asistencia = (await screen.findByRole('heading', { name: ASISTENCIA }, ESPERA)).closest(
+      'section',
+    )
+    expect(await within(asistencia).findByText('Asistencias completadas', {}, ESPERA)).toBeInTheDocument()
+    expect(within(asistencia).getByText(/^[\d,.]+ de [\d,.]+$/)).toBeInTheDocument()
   })
 })
