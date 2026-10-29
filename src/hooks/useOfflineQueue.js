@@ -93,27 +93,37 @@ registrarEnviador(
      */
     const rechazos = useRechazosStore.getState()
     const resultados = Array.isArray(respuesta?.resultados) ? respuesta.resultados : []
-    for (const resultado of resultados) {
-      if (resultado?.estado === 'rechazada') {
-        rechazos.agregar({
-          clave,
-          modulo: 'asistencias',
-          nombre: nombre ?? null,
-          idOperacion: resultado.id_operacion ?? idOperacion,
-          motivo: resultado.motivo ?? null,
-          detail: textoDeRechazo(resultado, MOTIVO_REGISTRO) ?? 'El servidor rechazó el registro.',
-          // Asistencias no tiene control de versión —gana la captura más
-          // reciente—, así que no hay "versión actual" que ofrecer: la salida
-          // es descartar la operación.
-          registro: null,
-        })
-      } else if (resultado?.estado === 'aceptada') {
-        // La marca buena sustituye al rechazo anterior del mismo registro.
-        rechazos.quitar(clave)
-      }
+    /**
+     * D91 — EL RESULTADO PROPIO SE BUSCA POR `id_operacion`.
+     *
+     * Antes la pantalla lo buscaba por `registro.id_alumno`, y un rechazo
+     * como `actividad_requerida` o `alumno_fuera_de_la_clase` llega SIN
+     * registro: no se encontraba, la fila se quedaba con un valor que el
+     * servidor no guardó y no había aviso. El `id_operacion` siempre vuelve.
+     */
+    const propio = resultados.find((r) => r?.id_operacion === idOperacion) ?? null
+    if (propio?.estado === 'rechazada') {
+      rechazos.agregar({
+        clave,
+        modulo: 'asistencias',
+        nombre: nombre ?? null,
+        idOperacion,
+        motivo: propio.motivo ?? null,
+        detail: textoDeRechazo(propio, MOTIVO_REGISTRO) ?? 'El servidor rechazó el registro.',
+        // Asistencias no tiene control de versión —gana la captura más
+        // reciente—, así que no hay "versión actual" que ofrecer: la salida
+        // es descartar la operación.
+        registro: null,
+        // D91 — Lo que el docente escribió no se pierde con el rechazo: queda
+        // en la tarjeta para poder copiarlo.
+        observacion: registros?.find((r) => r.observacion)?.observacion ?? null,
+      })
+    } else if (propio?.estado === 'aceptada') {
+      // La marca buena sustituye al rechazo anterior del mismo registro.
+      rechazos.quitar(clave)
     }
 
-    return respuesta
+    return { ...respuesta, propio }
   },
   { modulo: 'asistencias' },
 )

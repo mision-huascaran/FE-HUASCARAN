@@ -56,11 +56,34 @@ import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
+import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 // Literales de CU022, tal cual los da el caso de uso.
+/**
+ * D95 — CU009 y CU022: sin conexión y sin el paquete de habilitaciones en
+ * IndexedDB no hay con qué decidir si el Docente puede escribir aquí.
+ */
+export const SIN_HABILITACION_VERIFICABLE =
+  'No se puede verificar tu habilitación sin conexión. Conéctate a Internet para actualizar los datos y continuar.'
+/**
+ * D95 — SIN CONEXIÓN, LA HABILITACIÓN TIENE QUE PODER VERIFICARSE.
+ *
+ * La clase en caché trae el `escritura` de cuando había red, y con eso se
+ * dejaba registrar aunque el paquete de `/me/habilitaciones` no estuviera en
+ * el equipo. Sin ese paquete no hay forma de saber si sigue habilitado (un
+ * permiso pudo vencer, un periodo cerrarse): se bloquea y se dice.
+ *
+ * `porVerificar` bloquea ya mientras se busca; `noVerificable` es cuando la
+ * búsqueda terminó sin nada y toca explicarlo.
+ */
+function verificacionSinConexion({ esDocente, enLinea, habilitaciones, buscando }) {
+  const porVerificar = esDocente && !enLinea && !habilitaciones
+  return { porVerificar, noVerificable: porVerificar && !buscando }
+}
+
 const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
 const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
 
@@ -74,8 +97,8 @@ const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo váli
  */
 const RECHAZO = {
   aula_fuera_de_alcance: {
-    titulo: 'Esa aula no está a su cargo',
-    texto: 'Solo puede registrar la asistencia de los colegios y grados que tiene asignados este periodo.',
+    titulo: 'Esa aula no está a tu cargo',
+    texto: 'Solo puedes registrar la asistencia de los colegios y grados que tienes asignados este periodo.',
   },
   colegio_inexistente: { titulo: 'El colegio no existe' },
   grado_no_ofrecido: { titulo: 'Ese grado no se dicta en este colegio' },
@@ -87,6 +110,7 @@ export default function AsistenciaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const conActividad = Boolean(useActividadStore((s) => s.sesion))
   const puedeEditar = puede('asistencia', idRol, ACCION.EDITAR)
+  const enLinea = useConexion()
 
   const { filtros, cambiar } = useFiltrosAsistencia()
   const [observando, setObservando] = useState(null)
@@ -116,12 +140,18 @@ export default function AsistenciaPage() {
    * Salen del paquete offline, que desde la tanda I trae los nombres: así el
    * aula se ofrece también sin conexión, que es cuando hace falta.
    */
-  const { data: habilitaciones } = useQuery({
+  const { data: habilitaciones, isPending: buscandoHabilitaciones } = useQuery({
     queryKey: ['me', 'habilitaciones'],
     queryFn: obtenerMisHabilitaciones,
     enabled: esDocente,
     staleTime: 5 * 60 * 1000,
     retry: false,
+    /**
+     * Sin conexión TAMBIÉN se ejecuta: `obtenerMisHabilitaciones` falla la
+     * petición y devuelve lo guardado en IndexedDB, que es justo lo que hace
+     * falta para decidir sin red (D95). En pausa, nunca se sabría si existe.
+     */
+    networkMode: 'offlineFirst',
   })
 
   /** Solo los VIGENTES ahora: un permiso programado todavía no habilita nada. */
@@ -346,8 +376,20 @@ export default function AsistenciaPage() {
   // registrarían adicionales en días que el docente ni miró.
   useEffect(() => setRegistrandoAdicional(false), [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha])
 
-  const autoguardado =
-    Boolean(escritura?.permitida) && puedeEditar && conActividad && (!sinClase || registrandoAdicional)
+  const habilitacion = verificacionSinConexion({
+    esDocente,
+    enLinea,
+    habilitaciones,
+    buscando: buscandoHabilitaciones,
+  })
+
+  const autoguardado = [
+    escritura?.permitida,
+    puedeEditar,
+    conActividad,
+    !habilitacion.porVerificar,
+    !sinClase || registrandoAdicional,
+  ].every(Boolean)
   const soloLectura = !autoguardado
 
   /**
@@ -415,6 +457,8 @@ export default function AsistenciaPage() {
         <AvisoActividades mensaje={escritura.motivo} />
       )}
 
+      {habilitacion.noVerificable && conActividad && <AvisoActividades mensaje={SIN_HABILITACION_VERIFICABLE} />}
+
       {/* Una corrección excepcional SÍ hay que anunciarla: el docente está
           escribiendo en un periodo cerrado y con fecha de caducidad. */}
       {escritura?.permitida && escritura.aviso_permiso && <AvisoActividades mensaje={escritura.aviso_permiso} />}
@@ -443,7 +487,7 @@ export default function AsistenciaPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="La clase se arma con colegio, grado, sección y fecha."
           />
         </Card>

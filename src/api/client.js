@@ -4,7 +4,7 @@
 // solo los archivos de `resources/` usan `resolver()`.
 import axios from 'axios'
 import useSessionStore, { obtenerToken } from '../store/sessionStore'
-import { sincronizarReloj } from '../lib/relojServidor'
+import { instanteMonotonico, sincronizarReloj } from '../lib/relojServidor'
 
 export const usarMock = String(import.meta.env.VITE_USE_MOCK ?? 'true') === 'true'
 
@@ -87,6 +87,8 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = obtenerToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // Cuándo salió, para que el reloj descuente el viaje de la respuesta (D99).
+  config.relojEnviado = instanteMonotonico()
   return config
 })
 
@@ -94,7 +96,7 @@ api.interceptors.response.use(
   (respuesta) => {
     // CU022: cada respuesta recalibra el reloj de referencia. El dispositivo
     // puede tener la hora cambiada; la cabecera `Date` del servidor no.
-    sincronizarReloj(respuesta.headers?.date)
+    sincronizarReloj(respuesta.headers?.date, { enviadoEn: respuesta.config?.relojEnviado })
     return respuesta
   },
   (error) => {

@@ -225,9 +225,11 @@ export default function useAutoguardado({
 
         /**
          * El lote responde `resultados`, uno por OPERACIÓN, y puede mezclar
-         * aceptados con rechazados. Lo que importa aquí es el de este alumno.
+         * aceptados con rechazados. El enviador ya separó el de esta operación
+         * por su `id_operacion` (D91): un rechazo no trae `registro`, así que
+         * buscarlo por alumno lo dejaba sin encontrar y sin revertir.
          */
-        const mio = respuesta?.resultados?.find((r) => r.registro?.id_alumno === alumno.id_alumno)
+        const mio = respuesta?.propio
         const guardado = mio?.registro
 
         // Solo lo que el SERVIDOR confirmó: lo encolado offline no resuelve aún.

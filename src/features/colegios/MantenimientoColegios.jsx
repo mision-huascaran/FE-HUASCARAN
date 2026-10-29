@@ -183,7 +183,10 @@ export default function MantenimientoColegios() {
       valoresFiltro={filtros}
       onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
       guardando={guardado.isPending}
-      soloOnline
+      // D61 y D70 — Sin conexión se CONSULTA la última copia (CU013, CU027):
+      // antes la pantalla entera se cambiaba por "Requiere conexión", un
+      // modal abierto se cerraba con lo escrito y el calendario no se podía
+      // abrir. Escribir sigue exigiendo conexión.
       sinConexion={!enLinea}
       cargarAuditoria={(id) => listarAuditoria('colegio', id)}
       // El listado no trae grados ni programas: se piden al abrir el popup.

@@ -58,6 +58,22 @@ const diaDe = (fecha) => new Intl.DateTimeFormat('en-CA', { timeZone: LIMA }).fo
 const monotonico = () =>
   typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
 
+/** La lectura del contador al ENVIAR una petición, para medir cuánto tardó (D99). */
+export const instanteMonotonico = monotonico
+
+/**
+ * La cabecera `Date` trunca a SEGUNDOS: la hora real del servidor al
+ * responder está en [Date, Date + 1 s). Se toma el extremo de arriba.
+ */
+const TRUNCADO_MS = 1000
+
+/**
+ * Por debajo de esto, un ancla nueva que dé una hora MÁS TEMPRANA es ruido
+ * (otro truncado, otra latencia) y no corrige nada: se queda la anterior.
+ * Por encima es un salto de verdad —el reloj del servidor cambió— y manda.
+ */
+const RUIDO_MS = 5000
+
 function leerDesfase() {
   try {
     const guardado = Number(localStorage.getItem(CLAVE))
@@ -90,10 +106,33 @@ let desfaseMs = leerDesfase()
  * la primera respuesta tras recuperar la conexión vuelve a habilitar la
  * escritura sin que nadie tenga que hacer nada.
  */
-export function sincronizarReloj(fechaServidor) {
-  const instante = Date.parse(fechaServidor ?? '')
-  if (!Number.isFinite(instante)) return
-  ancla = { servidorMs: instante, monotonicoMs: monotonico() }
+/**
+ * D99 — EL ANCLA NO PUEDE IR ATRASADA.
+ *
+ * Antes se anclaba a la cabecera `Date` tal cual: truncada al segundo y
+ * emitida antes de viajar por la red, así que `ahora()` iba 1 a 2 s por
+ * detrás del servidor. El backend valida cada operación a su `realizado_en`,
+ * y con ese atraso un cambio hecho justo después de revocar un permiso o de
+ * finalizar la actividad se aceptaba. Ir un poco ADELANTADO no tiene ese
+ * riesgo: el servidor tolera 2 minutos.
+ *
+ * Por eso se suma el segundo del truncado y la mitad del viaje (`enviadoEn`,
+ * la lectura de `instanteMonotonico()` al mandar la petición).
+ */
+export function sincronizarReloj(fechaServidor, { enviadoEn = null } = {}) {
+  const declarado = Date.parse(fechaServidor ?? '')
+  if (!Number.isFinite(declarado)) return
+  const recibido = monotonico()
+  const viaje = Number.isFinite(enviadoEn) ? Math.max(0, recibido - enviadoEn) : 0
+  const instante = declarado + TRUNCADO_MS + viaje / 2
+
+  // Entre respuestas seguidas se queda la estimación más tardía: todas
+  // aproximan la misma hora y la diferencia es ruido de truncado y de red.
+  if (ancla) {
+    const actual = ancla.servidorMs + (recibido - ancla.monotonicoMs)
+    if (instante < actual && actual - instante < RUIDO_MS) return
+  }
+  ancla = { servidorMs: instante, monotonicoMs: recibido }
   desfaseMs = instante - Date.now()
   try {
     localStorage.setItem(CLAVE, String(desfaseMs))

@@ -15,7 +15,10 @@ const CLAVE = 'sicedu.cache-consultas'
 // `calendario` y `clases` entran por CU027 y CU013: los dos casos de uso
 // piden expresamente poder CONSULTAR sin conexión la última versión guardada,
 // con su fecha y marcada como tal. Escribir sigue exigiendo conexión.
+// `admin` entra por D61: CU013 y CU016 piden consultar Colegios y Usuarios sin
+// conexión con la última copia, y sus listados y catálogos viven ahí.
 const RAICES = new Set([
+  'admin',
   'anios-escolares',
   'me',
   'colegio',

@@ -9,6 +9,7 @@ import handlers from '../../../api/mock/handlers'
 import { ROLES } from '../../../auth/roles'
 import { errorHttp } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
+import { enlaceAlModulo } from '../FichaEstudiantePage'
 
 const ID = 1
 
@@ -116,6 +117,31 @@ describe('Detalle del alumno (CU015)', () => {
       await screen.findByText('Aún no hay datos suficientes para graficar el progreso'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Evolución del nivel/ })).not.toBeInTheDocument()
+  })
+
+  /**
+   * D64 — CP-ALU-08. Seleccionar una fila de las mini-grillas abre SU módulo
+   * con el grupo del alumno filtrado.
+   */
+  it('una fila de Rúbrica abre el módulo de Rúbrica', async () => {
+    await abrirFicha()
+    await userEvent.click(screen.getByRole('tab', { name: 'Rúbrica' }))
+    await userEvent.click((await screen.findByText('1.6')).closest('tr'))
+    expect(screen.getByLabelText('ruta actual')).toHaveTextContent('/rubrica')
+  })
+
+  it('el enlace lleva el grupo del alumno y lo propio de la fila', () => {
+    const alumno = {
+      colegio: { id: 1, nombre: 'AMASHCA' },
+      grado: { id: 2, nombre: '2.º' },
+      seccion: { id: 3, nombre: 'Única' },
+      programa: { id: 2, nombre: 'Comprensión Lectora' },
+    }
+    expect(enlaceAlModulo('/seguimiento-lectura', alumno, { mes: 6 })).toBe(
+      '/seguimiento-lectura?colegio=1&grado=2&seccion=3&subprograma=2&mes=6',
+    )
+    // El simulador manda ids sueltos.
+    expect(enlaceAlModulo('/registro-vuelo', { id_colegio: 4, id_grado: 1 })).toBe('/registro-vuelo?colegio=4&grado=1')
   })
 
   it('las pestañas van en el orden de CU015, con Historial al final', async () => {

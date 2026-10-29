@@ -18,7 +18,7 @@
 // que el docente marcara la falta dos veces.
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpenCheck, CalendarPlus } from 'lucide-react'
+import { BookOpenCheck, CalendarPlus, Users } from 'lucide-react'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import AvisoModoConsulta from '../../components/layout/AvisoModoConsulta'
 import AvisoConflictos from '../../components/layout/AvisoConflictos'
@@ -80,6 +80,7 @@ export default function LecturaPage() {
     cargando,
     error,
     porCrear,
+    sinAlumnos,
     crear,
     creando,
     marcarNoRealizada,
@@ -203,7 +204,7 @@ export default function LecturaPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="La tabla se arma con colegio, grado, sección, subprograma, mes y semana."
           />
         </Card>
@@ -247,6 +248,13 @@ export default function LecturaPage() {
               ) : null
             }
           />
+        </Card>
+      )}
+
+      {/* Tanda M (D101): el texto del servidor, tal cual, y sin "Crear tabla". */}
+      {listos && sinAlumnos && !cargando && (
+        <Card>
+          <EmptyState icon={Users} title={sinAlumnos} />
         </Card>
       )}
 

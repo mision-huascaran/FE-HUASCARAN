@@ -314,7 +314,8 @@ export default function MantenimientoUsuarios() {
         consulta={consulta}
         campos={campos}
         guardando={guardado.isPending}
-        soloOnline
+        // D61 — Sin conexión se consulta la última copia (CU016); escribir
+        // sigue exigiendo conexión.
         sinConexion={!enLinea}
         valoresFiltro={filtros}
         onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}

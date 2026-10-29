@@ -86,7 +86,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
         'contraseña_nueva': password,
         'confirmar_contraseña_nueva': confirmacion,
       })
-      toast.success('Contraseña actualizada', 'Úsela la próxima vez que inicie sesión.')
+      toast.success('Contraseña actualizada', 'Úsala la próxima vez que inicies sesión.')
       cerrar()
     } catch (error) {
       toast.error('No se pudo actualizar la contraseña', mensajeDeError(error))
@@ -145,7 +145,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
-            hint="Son 6 dígitos. Si no llegó, cierre y vuelva a pedirlo."
+            hint="Son 6 dígitos. Si no llegó, cierra y vuelve a pedirlo."
           />
         )}
 

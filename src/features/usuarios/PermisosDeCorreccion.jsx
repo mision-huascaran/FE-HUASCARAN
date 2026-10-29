@@ -39,8 +39,28 @@ import { anioVigente, listarAniosEscolares, obtenerUsuario } from '../../api/res
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
+import useSessionStore from '../../store/sessionStore'
 
 const SIN_FILTROS = { id_anio_escolar: '', id_colegio: '', id_periodo_academico: '', modulo: '', estado: '' }
+
+/** CU028: el éxito se dice igual, pero si lo creado no se verá en la lista, también eso. */
+export const NO_COINCIDE_CON_FILTROS = 'El permiso creado no coincide con los filtros seleccionados.'
+
+/**
+ * ¿Lo otorgado aparece con los filtros aplicados? Un filtro vacío es "Todos".
+ * El estado no se compara: un permiso recién otorgado es Programado o Vigente
+ * según su inicio, y eso lo decide el servidor.
+ */
+export function coincideConFiltros(otorgado, filtros) {
+  const igual = (filtro, valor) => !filtro || String(filtro) === String(valor ?? '')
+  return (
+    igual(filtros.id_anio_escolar, otorgado.id_anio_escolar) &&
+    igual(filtros.id_colegio, otorgado.id_colegio) &&
+    igual(filtros.id_periodo_academico, otorgado.id_periodo_academico) &&
+    (!filtros.modulo || (otorgado.modulos ?? []).includes(filtros.modulo))
+  )
+}
 
 /** El backend manda `{id, nombre}` donde la tabla quiere un texto. */
 const texto = (valor) => (valor != null && typeof valor === 'object' ? (valor.nombre ?? '—') : (valor ?? '—'))
@@ -71,8 +91,14 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
   const enLinea = useConexion()
   const queryClient = useQueryClient()
 
-  const [borrador, setBorrador] = useState(SIN_FILTROS)
-  const [filtros, setFiltros] = useState(SIN_FILTROS)
+  /**
+   * D77 — Los filtros se RESTAURAN al volver, por usuario autenticado (CU028).
+   * El borrador arranca en lo aplicado: lo que se ve y lo que dice la barra
+   * tienen que coincidir.
+   */
+  const idAutenticado = useSessionStore((s) => s.usuario?.id_usuario)
+  const [filtros, setFiltros] = useFiltrosGuardados(`permisos.${idAutenticado ?? 'anonimo'}`, SIN_FILTROS)
+  const [borrador, setBorrador] = useState(filtros)
   const [viendo, setViendo] = useState(null)
   const [otorgando, setOtorgando] = useState(false)
   /** El permiso que se está revocando, y el error de su motivo si lo hubo. */
@@ -103,7 +129,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     if (!vigente) return
     setBorrador((b) => (b.id_anio_escolar ? b : { ...b, id_anio_escolar: String(vigente.id) }))
     setFiltros((f) => (f.id_anio_escolar ? f : { ...f, id_anio_escolar: String(vigente.id) }))
-  }, [anios])
+  }, [anios, setFiltros])
 
   /**
    * Los PA que ofrece el filtro salen del COLEGIO y del AÑO.
@@ -343,10 +369,13 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         // disponible. Casi siempre se otorga para lo que se acaba de mirar.
         idAnioEscolar={filtros.id_anio_escolar}
         onCerrar={() => setOtorgando(false)}
-        onOtorgado={() => {
+        onOtorgado={(otorgado) => {
           setOtorgando(false)
           queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
-          toast.success('Permiso de corrección otorgado correctamente.')
+          toast.success(
+            'Permiso de corrección otorgado correctamente.',
+            otorgado && !coincideConFiltros(otorgado, filtros) ? NO_COINCIDE_CON_FILTROS : undefined,
+          )
         }}
       />
 

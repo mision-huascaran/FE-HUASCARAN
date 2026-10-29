@@ -45,14 +45,18 @@ export default function AvisoDatosLocales({ rol = 'directivo', sinDatos = false,
     )
   }
 
+  // D52 — Con conexión y el servidor caído la copia también se marca, pero
+  // decir "Sin conexión" a quien tiene internet sería falso.
+  const Icono = enLinea ? ServerCrash : WifiOff
   return (
     <div
       role="status"
       className="flex items-start gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-warning-600"
     >
-      <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <Icono className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>
-        Sin conexión: se muestra el último resumen guardado y <strong>puede estar desactualizado</strong>.
+        {enLinea ? 'No se pudo recuperar la información del servidor' : 'Sin conexión'}: se muestra el último
+        resumen guardado y <strong>puede estar desactualizado</strong>.
       </span>
     </div>
   )

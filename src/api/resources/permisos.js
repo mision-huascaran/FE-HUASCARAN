@@ -21,6 +21,7 @@ import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 import { normalizarPaginado } from './administracion'
+import { formatearFechaHora } from '../../lib/format'
 
 const { permisos } = ENDPOINTS
 
@@ -175,8 +176,20 @@ export const combinacionesRechazadas = (error) => {
   if (!Array.isArray(lista)) return {}
   return lista.reduce((mapa, item) => {
     if (item?.indice == null) return mapa
-    return { ...mapa, [item.indice]: item.detail ?? item.motivo ?? 'No se pudo crear.' }
+    return { ...mapa, [item.indice]: textoDeRechazoDeCombinacion(item) }
   }, {})
+}
+
+/**
+ * D77 — Una superposición dice CON QUÉ choca: CU028 pide las fechas del
+ * permiso existente, que el servidor manda en `permiso_existente`. Sin ellas
+ * el Supervisor tiene que salir del modal a buscarlo.
+ */
+function textoDeRechazoDeCombinacion(item) {
+  const texto = item.detail ?? item.motivo ?? 'No se pudo crear.'
+  const existente = item.permiso_existente
+  if (!existente?.inicio || !existente?.fin) return texto
+  return `${texto} Permiso existente: del ${formatearFechaHora(existente.inicio)} al ${formatearFechaHora(existente.fin)}.`
 }
 
 /**

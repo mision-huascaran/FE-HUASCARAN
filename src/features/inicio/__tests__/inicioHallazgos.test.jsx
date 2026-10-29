@@ -44,6 +44,25 @@ function montar(componente, idRol) {
 beforeEach(() => localStorage.clear())
 
 describe('Inicio — hallazgos del 09/10/2026', () => {
+  /**
+   * D52 — CP-INI-12. Con internet pero el servidor caído, CU011 y CU012 piden
+   * la copia guardada marcada como potencialmente desactualizada; solo se
+   * marcaba sin conexión.
+   */
+  it('D52: con el servidor caído muestra la copia y avisa de que puede estar desactualizada', async () => {
+    localStorage.setItem(
+      'sicedu.resumen.directivo.1',
+      JSON.stringify({ datos: { beneficiarios: 120, colegios: 9, salud: 95 }, fecha: '2026-10-28T12:00:00Z' }),
+    )
+    directivo.mockRejectedValue(Object.assign(new Error('Service Unavailable'), { response: { status: 503 } }))
+    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
+
+    const aviso = await screen.findByRole('status', {}, { timeout: 15000 })
+    expect(aviso).toHaveTextContent(/No se pudo recuperar la información del servidor/)
+    expect(aviso).toHaveTextContent(/puede estar desactualizado/)
+    expect(screen.getByText('120')).toBeInTheDocument()
+  }, 20000)
+
   it('D01: Salud del Sistema sin datos dice "Sin datos disponibles"', async () => {
     directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: null })
     montar(<InicioDirectivo />, ROLES.DIRECTIVO)

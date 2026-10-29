@@ -17,6 +17,7 @@ import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import AsistenciaPage from '../AsistenciaPage'
 import { ERROR_LOCAL, ERROR_SERVIDOR } from '../useAutoguardado'
+import { SIN_HABILITACION_VERIFICABLE } from '../AsistenciaPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import useSyncStore from '../../../store/syncStore'
@@ -58,7 +59,7 @@ vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
     ...original,
     guardarAsistencia: (...args) => marcar(...args),
     obtenerClase: async (...args) => {
-      if (sinRed) throw Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+      if (sinRed) throw errorDeRed()
       const datos = await original.obtenerClase(...args)
       if (!claseSinProgramar) return datos
       return {
@@ -71,6 +72,22 @@ vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
           aviso: 'No hay una clase programada para esta fecha.',
         },
       }
+    },
+  }
+})
+
+/** Lo que lanza axios cuando no hay red. */
+const errorDeRed = () => Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+
+/** Sin el paquete de `/me/habilitaciones` ni en el servidor ni en IndexedDB (D95). */
+let sinPaqueteDeHabilitaciones = false
+vi.mock('../../../api/resources/habilitaciones', async (importOriginal) => {
+  const original = await importOriginal()
+  return {
+    ...original,
+    obtenerMisHabilitaciones: async (...args) => {
+      if (sinPaqueteDeHabilitaciones) throw errorDeRed()
+      return original.obtenerMisHabilitaciones(...args)
     },
   }
 })
@@ -97,6 +114,29 @@ function montar(idRol = ROLES.DOCENTE) {
   )
 }
 
+/**
+ * Monta la pantalla con un cliente de consultas que sobrevive al desmontaje,
+ * para simular que el Docente sale y vuelve a entrar (`rerender(pantalla(otraClave))`).
+ */
+function montarParaVolver() {
+  useSessionStore.setState({
+    token: 'mock.4.2026',
+    usuario: { id_usuario: 4, id_rol: ROLES.DOCENTE, id_docente: 1, nombres: 'Prueba' },
+    cargando: false,
+  })
+  const client = crearQueryClient()
+  const pantalla = (clave) => (
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <MemoryRouter>
+          <AsistenciaPage key={clave} />
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>
+  )
+  return { ...render(pantalla('con-red')), pantalla }
+}
+
 /** Deja los cuatro filtros puestos y devuelve la lista ya pintada. */
 async function abrirClase() {
   await abrirFiltros()
@@ -116,6 +156,7 @@ beforeEach(() => {
   fallaElDisco = false
   sinRed = false
   claseSinProgramar = false
+  sinPaqueteDeHabilitaciones = false
   marcar.mockReset()
   // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
   // `aplicado` ya no existe; lo que hay es `estado: 'aceptada' | 'rechazada'`.
@@ -360,22 +401,7 @@ describe('Asistencia (CU022)', () => {
   it('sin conexión, volver a la pantalla sigue mostrando la clase: no la vacía ni avisa de error', async () => {
     // La clase se pide fresca cada vez que se entra. Sin red, ese pedido no
     // puede borrar lo que ya se tenía: se sigue viendo la última lista.
-    useSessionStore.setState({
-      token: 'mock.4.2026',
-      usuario: { id_usuario: 4, id_rol: ROLES.DOCENTE, id_docente: 1, nombres: 'Prueba' },
-      cargando: false,
-    })
-    const client = crearQueryClient()
-    const pantalla = (clave) => (
-      <QueryClientProvider client={client}>
-        <ToastProvider>
-          <MemoryRouter>
-            <AsistenciaPage key={clave} />
-          </MemoryRouter>
-        </ToastProvider>
-      </QueryClientProvider>
-    )
-    const { rerender } = render(pantalla('con-red'))
+    const { rerender, pantalla } = montarParaVolver()
     await abrirClase()
     const antes = controles().length
     expect(antes).toBeGreaterThan(0)
@@ -391,6 +417,34 @@ describe('Asistencia (CU022)', () => {
     expect(controles()).toHaveLength(antes)
     expect(screen.queryByText(/sin alumnos en esta clase/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/no se pudo/i)).not.toBeInTheDocument()
+
+    sinRed = false
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('online'))
+  })
+
+  /**
+   * D95 — CP-ASI-06, CP-INI-28. La clase en caché trae el `escritura` de
+   * cuando había red; sin el paquete de habilitaciones en el equipo, eso
+   * dejaba registrar sin conexión con normalidad.
+   */
+  it('sin conexión y sin habilitaciones guardadas no deja registrar y lo explica', async () => {
+    sinPaqueteDeHabilitaciones = true
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    // Con conexión manda el servidor: se puede marcar.
+    expect(ladoPresente(controles()[0])).not.toBeDisabled()
+
+    sinRed = true
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+    rerender(pantalla('sin-red'))
+    await abrirFiltros()
+    await screen.findByRole('table', {}, ESPERA)
+
+    expect(await screen.findByText(SIN_HABILITACION_VERIFICABLE, {}, ESPERA)).toBeInTheDocument()
+    expect(ladoPresente(controles()[0])).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
 
     sinRed = false
     Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
@@ -476,6 +530,49 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
 
     // Se ve en la pantalla, que es lo que faltaba.
     expect(await screen.findByRole('alert', {}, ESPERA)).toHaveTextContent(/habilitación vigente/i)
+  })
+
+  /**
+   * D91 — Un rechazo SIN `registro` (actividad_requerida,
+   * alumno_fuera_de_la_clase) no se encontraba: la pantalla lo buscaba por
+   * `registro.id_alumno`. La fila se quedaba con un valor que no estaba
+   * guardado, no había aviso y la observación escrita se perdía.
+   */
+  it('un rechazo sin registro revierte la fila, avisa y conserva la observación', async () => {
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'actividad_requerida',
+        detail: 'Debes iniciar una actividad de trabajo para registrar o modificar información.',
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    const control = controles()[0]
+    fireEvent.click(ladoPresente(control))
+
+    // Vuelve atrás y lo dice con el motivo del servidor.
+    await waitFor(() => expect(ladoPresente(controles()[0])).toHaveAttribute('aria-pressed', 'false'), ESPERA)
+    expect((await screen.findAllByText(/Debes iniciar una actividad de trabajo/i, {}, ESPERA)).length).toBeGreaterThan(0)
+    expect(useRechazosStore.getState().rechazos[0]).toMatchObject({ motivo: 'actividad_requerida' })
+    expect(useSyncStore.getState().pendientes).toBe(0)
+
+    // Con una observación, el texto queda en la tarjeta del rechazo.
+    fireEvent.click(screen.getAllByRole('button', { name: /observación/i })[0])
+    const dialogo = await screen.findByRole('dialog', { name: 'Observación' }, ESPERA)
+    // D90 — El modal nombra al alumno, no "undefined undefined".
+    const nombre = controles()[0].getAttribute('aria-label').replace('Asistencia de ', '')
+    expect(dialogo).not.toHaveTextContent('undefined')
+    expect(dialogo).toHaveTextContent(nombre)
+    fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Llegó con fiebre' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /guardar/i }))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos[0]?.observacion).toBe('Llegó con fiebre'), ESPERA)
+    expect(await screen.findByText(/Observación sin guardar: «Llegó con fiebre»/, {}, ESPERA)).toBeInTheDocument()
   })
 
   it('cada rechazo va en SU tarjeta, con su propio Descartar', async () => {

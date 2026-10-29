@@ -8,8 +8,10 @@
 // Y el inicio de asignación es POR COLEGIO, no del formulario: cada uno tiene
 // su calendario, así que uno puede estar en un PA y otro en receso.
 import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import ColegiosDelDocente, { opcionesDeInicio } from '../ColegiosDelDocente'
+
+const ETIQUETA = 'Colegios asignados'
 
 const OPCIONES = [
   { value: '1', label: 'I.E. Amashca' },
@@ -37,7 +39,7 @@ function montar(valor, modo = 'nuevo') {
       onCambio={(nombre, siguiente) => cambios.push(siguiente)}
       campo={{
         nombre: 'colegios',
-        etiqueta: 'Colegios asignados',
+        etiqueta: ETIQUETA,
         requerido: true,
         opciones: OPCIONES,
         gradosDe: () => GRADOS,
@@ -81,6 +83,33 @@ describe('El bloque de cada colegio', () => {
 
     const inicios = screen.getAllByLabelText(/inicio de asignación/i)
     expect(inicios).toHaveLength(1)
+  })
+
+  /** D67 — CP-USR-09. CU016: un Radio Button por opción, con su texto de ayuda literal. */
+  it('el inicio de asignación son radios con los textos de ayuda de CU016', () => {
+    const cambios = []
+    render(
+      <ColegiosDelDocente
+        modo="nuevo"
+        valor={[{ id_colegio: '4', grados: [], inicio_asignacion: '' }]}
+        onCambio={(_, valor) => cambios.push(valor)}
+        campo={{
+          nombre: 'colegios',
+          etiqueta: ETIQUETA,
+          opciones: OPCIONES,
+          gradosDe: () => GRADOS,
+          recesoDe: (id) => RECESOS[Number(id)] ?? null,
+        }}
+      />,
+    )
+
+    const grupo = screen.getByRole('radiogroup', { name: 'Inicio de asignación' })
+    expect(within(grupo).getByRole('radio', { name: /Retroactivo/ })).toBeInTheDocument()
+    expect(within(grupo).getByText('Aplica para el periodo culminado, permitiendo regularizar registros pasados.')).toBeInTheDocument()
+    expect(within(grupo).getByText('Inicia estrictamente en el siguiente periodo académico.')).toBeInTheDocument()
+
+    fireEvent.click(within(grupo).getByRole('radio', { name: /Próximo/ }))
+    expect(cambios.at(-1)[0].inicio_asignacion).toBe('proximo')
   })
 
   it('el aviso del receso nombra el periodo y hasta cuándo dura', () => {
@@ -140,7 +169,7 @@ describe('El bloque de cada colegio', () => {
         onCambio={() => {}}
         campo={{
           nombre: 'colegios',
-          etiqueta: 'Colegios asignados',
+          etiqueta: ETIQUETA,
           opciones: OPCIONES,
           gradosDe: () => GRADOS,
           recesoDe: (id) => RECESOS[Number(id)] ?? null,

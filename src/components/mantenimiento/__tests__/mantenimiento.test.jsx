@@ -8,7 +8,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../ui'
-import Mantenimiento from '../Mantenimiento'
+import Mantenimiento, { CONSULTA_SIN_CONEXION, avisoSinConexion } from '../Mantenimiento'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
 import { MOSTRAR_AUDITORIA } from '../../../config/funcionalidades'
@@ -231,6 +231,57 @@ describe('Plantilla de mantenimiento', () => {
     montar(ROLES.DOCENTE)
     expect(screen.queryByRole('button', { name: 'Agregar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^editar /i })).not.toBeInTheDocument()
+  })
+
+  /**
+   * D61 — CP-COL-04, CP-ALU-06. Sin conexión, Colegios y Usuarios se cambiaban
+   * por "Requiere conexión" y un modal abierto se cerraba perdiendo lo escrito.
+   */
+  it('sin conexión se consulta la copia y un modal abierto conserva lo escrito', () => {
+    const props = {
+      seccion: 'colegios',
+      entidad: 'colegio',
+      titulo: 'Colegios',
+      consulta: { data: FILAS, isLoading: false, isError: false },
+      campos: CAMPOS,
+      columnas: [{ key: 'nombre', header: 'Colegio' }],
+      valoresFiltro: { estado: 'activo' },
+      onFiltro: vi.fn(),
+      onGuardar: vi.fn(),
+      onCambiarEstado: vi.fn(),
+    }
+    useSessionStore.setState({
+      token: 'mock.4.2026',
+      usuario: { id_usuario: 4, id_rol: ROLES.SUPERVISOR, id_docente: null, nombre_completo: 'Prueba' },
+      cargando: false,
+    })
+    const cliente = crearQueryClient()
+    const pantalla = (sinConexion) => (
+      <QueryClientProvider client={cliente}>
+        <ToastProvider>
+          <Mantenimiento {...props} sinConexion={sinConexion} />
+        </ToastProvider>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(pantalla(false))
+
+    fireEvent.click(screen.getByRole('button', { name: /^editar I\.E\. 86021/i }))
+    const nombre = within(screen.getByRole('dialog')).getByLabelText(/nombre del colegio/i)
+    fireEvent.change(nombre, { target: { value: 'I.E. 86021 Ranrahirca Alta' } })
+
+    // Se va la conexión.
+    rerender(pantalla(true))
+
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByLabelText(/nombre del colegio/i)).toHaveValue('I.E. 86021 Ranrahirca Alta')
+    const guardar = within(dialogo).getByRole('button', { name: 'Guardar' })
+    expect(guardar).toBeDisabled()
+    expect(guardar).toHaveAttribute('title', avisoSinConexion('colegios'))
+    expect(within(dialogo).getByText(avisoSinConexion('colegios'))).toBeInTheDocument()
+
+    // Y la lista sigue a la vista, avisando de que es la copia guardada.
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByText(CONSULTA_SIN_CONEXION)).toBeInTheDocument()
   })
 
   it('sin conexión, una sección solo-online muestra "Requiere conexión"', () => {

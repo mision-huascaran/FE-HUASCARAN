@@ -28,6 +28,9 @@ const comoFecha = (iso) => (iso ? FECHA.format(new Date(`${iso}T12:00:00`)) : '�
 const etiqueta = (clase) =>
   `${comoFecha(clase.fecha)} · ${estaReprogramada(clase) ? 'Reprogramada' : (ETIQUETA_PROGRAMACION[clase.tipo] ?? 'Habitual')}`
 
+/** Una clase con fila se reconoce por su id; una habitual sin fila, por su fecha. */
+const claveDe = (clase) => (clase?.id_clase ? `id:${clase.id_clase}` : `fecha:${clase?.fecha}`)
+
 export default function ModalCambiarClase({
   open,
   semana,
@@ -53,13 +56,25 @@ export default function ModalCambiarClase({
     enabled: Boolean(open && semana?.fecha_inicio && semana?.fecha_fin),
   })
 
-  const clases = consulta.data?.items ?? []
-  // La que ya está puesta no se ofrece: elegirla no cambiaría nada y el
-  // servidor la rechazaría por fecha sin cambio.
-  const candidatas = clases.filter((c) => c.fecha !== claseActual?.fecha)
+  /**
+   * D103 — SIN `page` EL SERVIDOR RESPONDE UN ARREGLO, no un paginado. Leer
+   * solo `items` dejaba la lista vacía contra la API real, y el modal decía
+   * "No hay otra clase esta semana" aunque hubiera una adicional con
+   * asistencias. El simulador sí responde paginado: se aceptan las dos formas.
+   */
+  const clases = Array.isArray(consulta.data) ? consulta.data : (consulta.data?.items ?? [])
+  // Por id si las dos lo tienen; si no, por fecha.
+  const esLaActual = (c) =>
+    claseActual?.id_clase && c.id_clase ? c.id_clase === claseActual.id_clase : c.fecha === claseActual?.fecha
+  /**
+   * Solo las clases REALIZADAS: una sin asistencias la rechaza el servidor
+   * (`clase_no_realizada`). Si la respuesta no dice si tiene, se ofrece y que
+   * decida él. La que ya está puesta tampoco: elegirla no cambiaría nada.
+   */
+  const candidatas = clases.filter((c) => c.tiene_asistencias !== false && !esLaActual(c))
 
   const confirmar = () => {
-    const clase = candidatas.find((c) => c.fecha === elegida)
+    const clase = candidatas.find((c) => claveDe(c) === elegida)
     if (!clase) return
     // Con `id_clase` se manda el id; sin él, la fecha. Nunca los dos.
     onConfirmar(clase.id_clase ? { idClase: clase.id_clase } : { fecha: clase.fecha })
@@ -103,7 +118,7 @@ export default function ModalCambiarClase({
           placeholder="Seleccione"
           value={elegida}
           onChange={(e) => setElegida(e.target.value)}
-          options={candidatas.map((c) => ({ value: c.fecha, label: etiqueta(c) }))}
+          options={candidatas.map((c) => ({ value: claveDe(c), label: etiqueta(c) }))}
           hint="Se ofrecen todas las clases de la semana, aunque caigan en otro mes."
         />
       )}

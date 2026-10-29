@@ -14,6 +14,8 @@
  * stack de §2 no admite dependencias nuevas sin justificarlas.
  */
 
+import { ahora, hayContinuidad } from '../lib/relojServidor'
+
 /** Margen para no dar por válido un token que expira mientras viaja la petición. */
 const MARGEN_SEGUNDOS = 30
 
@@ -44,11 +46,19 @@ export function leerPayload(token) {
  * Solo responde `true` cuando hay un `exp` legible y quedó atrás. Un token que
  * no se puede leer —como el del modo mock— NO se declara caducado: de eso se
  * encarga el 401 del servidor.
+ *
+ * D104 y D57 — SE MIDE CON LA HORA DEL SERVIDOR, NUNCA CON LA DEL EQUIPO.
+ * Con `Date.now()`, un equipo adelantado daba por vencido el token que el
+ * servidor acababa de emitir: el `AuthProvider` lo borraba en pleno login,
+ * `GET /me` salía sin `Authorization` y el servidor contestaba "La sesión no
+ * es válida" (D104); y al recargar se volvía al login (D57). Sin referencia
+ * del servidor —al recargar, antes de la primera respuesta— no se decide
+ * nada: lo decide el 401 de la primera petición.
  */
 export function tokenCaducado(token) {
   const exp = leerPayload(token)?.exp
-  if (!Number.isFinite(exp)) return false
-  return exp - MARGEN_SEGUNDOS <= Math.floor(Date.now() / 1000)
+  if (!Number.isFinite(exp) || !hayContinuidad()) return false
+  return exp - MARGEN_SEGUNDOS <= Math.floor(ahora().getTime() / 1000)
 }
 
 /** Momento de caducidad como Date, o null si el token no lo declara. */

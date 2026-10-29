@@ -57,6 +57,9 @@ export const SIN_HABILITACIONES =
  */
 const CON_ESCRITURA_DEL_SERVIDOR = [['asistencia', 'clase'], ['lectura', 'tabla'], ['rubricas'], ['registro-vuelo']]
 
+/** D62 — "Queda 1 cambio guardado", no "Quedan 1 cambios guardados". */
+const cambiosGuardados = (n) => (n === 1 ? 'Queda 1 cambio guardado' : `Quedan ${n} cambios guardados`)
+
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
@@ -268,7 +271,7 @@ export default function useActividad() {
       toast.info(
         'Actividad finalizada sin conexión',
         pendientes > 0
-          ? `Quedan ${pendientes} cambios guardados en este dispositivo. Se enviarán al recuperar la conexión.`
+          ? `${cambiosGuardados(pendientes)} en este dispositivo. Se enviarán al recuperar la conexión.`
           : 'Se registrará el cierre al recuperar la conexión.',
       )
       return

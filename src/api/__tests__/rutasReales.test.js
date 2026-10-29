@@ -206,6 +206,29 @@ describe('Listados paginados', () => {
   })
 })
 
+describe('Sesiones y Seguimiento traen todas las páginas (D97)', () => {
+  /** El servidor pagina de 40 en 40: 46 actividades son dos páginas. */
+  const paginado = (pagina, ids) => ({
+    data: { items: ids.map((id) => ({ id })), total: 46, page: pagina, page_size: 40, total_pages: 2 },
+  })
+  const porPagina = (config) =>
+    config.params.page === 2 ? paginado(2, [41, 42, 43, 44, 45, 46]) : paginado(1, Array.from({ length: 40 }, (_, i) => i + 1))
+
+  it.each([
+    ['Sesiones del Docente', () => listarActividades({})],
+    ['Seguimiento de Docentes', () => listarSeguimiento({})],
+    ['bitácora de un Docente', () => listarActividadesDe(4, {})],
+  ])('%s: pide la segunda página y enseña las 46', async (_, listar) => {
+    get.mockImplementation((_url, config) => Promise.resolve(porPagina(config)))
+
+    const { items, total } = await listar()
+
+    expect(get.mock.calls.map((c) => c[1].params.page ?? 1)).toEqual([1, 2])
+    expect(items).toHaveLength(46)
+    expect(total).toBe(46)
+  })
+})
+
 describe('Primer ingreso (CU001)', () => {
   // Las Recovery Keys se retiraron: `/password/recuperar-con-llave` responde
   // 404. El Supervisor original recupera su cuenta por el PIN como todos.

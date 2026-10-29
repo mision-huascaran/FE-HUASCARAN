@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import { formatearFecha } from '../../../lib/format'
-import CalendarioAcademico from '../CalendarioAcademico'
+import CalendarioAcademico, { AVISO_FECHAS_PARTICULARES } from '../CalendarioAcademico'
 
 const obtenerCalendario = vi.fn()
 const crearGeneral = vi.fn(async () => ({}))
@@ -221,6 +221,26 @@ describe('CU027 · Calendario académico', () => {
     await screen.findByText('Lo que hay guardado en el servidor ahora mismo', {}, ESPERA)
   })
 
+  /**
+   * D75 — CP-CAL-07. Con el backend caído el proxy responde 502: el mensaje
+   * era genérico y "Guardar" seguía activo, invitando a reenviar algo que
+   * pudo haberse aplicado.
+   */
+  it('con el servidor caído no confirma el guardado y bloquea Guardar (D75)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    actualizar.mockRejectedValueOnce(errorHttp(502, '<html>Bad Gateway</html>'))
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-14' } })
+    fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
+
+    await screen.findByText(/No se pudo confirmar el guardado/i, {}, ESPERA)
+    expect(boton('Guardar')).toBeDisabled()
+    // Lo escrito sigue ahí.
+    expect(screen.getByLabelText(FIN_PA1)).toHaveValue('2026-05-14')
+  })
+
   it('sin calendario (404) ofrece crearlo y exige las ocho fechas', async () => {
     obtenerCalendario.mockRejectedValue(errorHttp(404, { detail: 'No hay calendario', motivo: 'calendario_no_configurado' }))
     montar()
@@ -229,6 +249,8 @@ describe('CU027 · Calendario académico', () => {
     fireEvent.click(boton('Crear calendario'))
     expect(screen.getByText('Ninguno. Los feriados nacionales los carga el sistema.')).toBeInTheDocument()
     expect(boton('Guardar')).toBeDisabled()
+    // D74 — CP-CAL-03. Deshabilitado, pero diciendo qué falta.
+    expect(screen.getByText(/Completa para guardar: Inicio de PA1, Fin de PA1/)).toBeInTheDocument()
 
     for (const { tipo, numero, fecha_inicio, fecha_fin } of PERIODOS) {
       fireEvent.change(screen.getByLabelText(`Inicio de ${tipo}${numero}`), { target: { value: fecha_inicio } })
@@ -271,7 +293,7 @@ describe('CU027 · Calendario académico', () => {
     await screen.findByText(INICIO_PA1, {}, ESPERA)
 
     fireEvent.change(screen.getByLabelText(/^Alcance/), { target: { value: 'colegio' } })
-    expect(await screen.findByText('Complete los filtros', {}, ESPERA)).toBeInTheDocument()
+    expect(await screen.findByText('Completa los filtros', {}, ESPERA)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/^Colegio/), { target: { value: '2' } })
 
     const usa = await screen.findByText(/Este colegio usa/, {}, ESPERA)
@@ -279,6 +301,8 @@ describe('CU027 · Calendario académico', () => {
     expect(obtenerCalendario).toHaveBeenLastCalledWith({ anio: '2026', idColegio: '2' })
 
     fireEvent.click(boton('Crear fechas particulares'))
+    // D73 — CP-CAL-05. Precargadas del general, y avisando qué implica guardar.
+    expect(screen.getByText(AVISO_FECHAS_PARTICULARES)).toBeInTheDocument()
     for (const { tipo, numero, fecha_inicio, fecha_fin } of PERIODOS) {
       fireEvent.change(screen.getByLabelText(`Inicio de ${tipo}${numero}`), { target: { value: fecha_inicio } })
       fireEvent.change(screen.getByLabelText(`Fin de ${tipo}${numero}`), { target: { value: fecha_fin } })
@@ -288,6 +312,19 @@ describe('CU027 · Calendario académico', () => {
     await waitFor(() => expect(crearParticular).toHaveBeenCalledTimes(1), ESPERA)
     expect(crearParticular.mock.calls[0][0]).toEqual(expect.objectContaining({ id_colegio: 2, anio: 2026 }))
     expect(await screen.findByText('Calendario académico creado correctamente.', {}, ESPERA)).toBeInTheDocument()
+  })
+
+  it('sin calendario general, "Por colegio" no ofrece crear fechas particulares (D71)', async () => {
+    obtenerCalendario.mockRejectedValue(errorHttp(404, { detail: 'No hay calendario', motivo: 'calendario_no_configurado' }))
+    montar()
+    await screen.findByText('Sin calendario configurado', {}, ESPERA)
+
+    fireEvent.change(screen.getByLabelText(/^Alcance/), { target: { value: 'colegio' } })
+    fireEvent.change(screen.getByLabelText(/^Colegio/), { target: { value: '2' } })
+
+    expect(await screen.findByText(/Primero debes configurar el calendario general/, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Crear fechas particulares' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ir al calendario general' })).toBeInTheDocument()
   })
 
   it('un colegio con fechas particulares puede volver al calendario general', async () => {

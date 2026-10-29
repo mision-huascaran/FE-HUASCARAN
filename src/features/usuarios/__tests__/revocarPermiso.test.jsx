@@ -8,7 +8,7 @@
 // no puede tirar un formulario a medio llenar.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import ModalRevocarPermiso from '../ModalRevocarPermiso'
+import ModalRevocarPermiso, { MOTIVO_REVOCACION_VACIO } from '../ModalRevocarPermiso'
 
 const PERMISO = {
   id: 3,
@@ -78,6 +78,14 @@ describe('El modal de revocación (D77)', () => {
       target: { value: 'Se otorgó por error' },
     })
     expect(boton('Confirmar revocación')).toBeEnabled()
+  })
+
+  it('motivo vacío o solo espacios: lo dice con el texto de CU028 (D77)', () => {
+    montar()
+    const campo = within(dialogo()).getAllByRole('textbox')[0]
+    fireEvent.change(campo, { target: { value: '   ' } })
+    fireEvent.blur(campo)
+    expect(within(dialogo()).getByText(MOTIVO_REVOCACION_VACIO)).toBeInTheDocument()
   })
 
   it('manda el motivo recortado', () => {

@@ -8,13 +8,14 @@ import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 
 export default function ConfirmarSalida({ abierto, pendientes, onSalir, onCerrar }) {
-  const plural = pendientes === 1 ? '' : 's'
+  // D62 — "Quedan 1 cambio… llegaron": la concordancia va entera, no solo la "s".
+  const uno = pendientes === 1
 
   return (
     <Modal
       open={abierto}
       onClose={onCerrar}
-      title="Tiene cambios sin sincronizar"
+      title="Tienes cambios sin sincronizar"
       footer={
         <>
           <Button variant="ghost" onClick={onCerrar}>
@@ -28,12 +29,13 @@ export default function ConfirmarSalida({ abierto, pendientes, onSalir, onCerrar
         <CloudOff className="mt-0.5 h-5 w-5 shrink-0 text-warning-600" aria-hidden="true" />
         <div className="text-sm text-ink-700">
           <p>
-            Quedan <strong>{pendientes} cambio{plural}</strong> guardado{plural} en este dispositivo que todavía
-            no llegaron al servidor.
+            {uno ? 'Queda' : 'Quedan'} <strong>{uno ? '1 cambio' : `${pendientes} cambios`}</strong>{' '}
+            {uno ? 'guardado' : 'guardados'} en este dispositivo que todavía no {uno ? 'llegó' : 'llegaron'} al
+            servidor.
           </p>
           <p className="mt-2">
             <strong>No se van a perder.</strong> Se conservan aquí y se enviarán solos la próxima vez que
-            inicie sesión con conexión.
+            inicies sesión con conexión.
           </p>
         </div>
       </div>

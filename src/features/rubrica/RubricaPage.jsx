@@ -156,7 +156,7 @@ export default function RubricaPage() {
       {!listos && (
         <Card>
           <EmptyState
-            title="Complete los filtros"
+            title="Completa los filtros"
             description="La rúbrica se arma con colegio, grado, sección, subprograma y mes."
           />
         </Card>

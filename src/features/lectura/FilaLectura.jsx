@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, MessageSquare, MessageSquareText } from 'lucide-react'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
-import { ESTADO_FILA, MAXIMOS_LSN } from '../../api/resources/lectura'
+import { ESTADO_FILA, MAXIMOS_LSN, MOTIVO_FILA } from '../../api/resources/lectura'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -34,6 +34,35 @@ const ASISTENCIA = {
 /** Vacío de verdad: `null` y `''` son lo mismo al escribir, 0 no lo es. */
 const aNumero = (valor) => (valor === '' || valor == null ? null : Number(valor))
 
+/**
+ * D96 — EL LSN ES UNA SOLA COSA: TÍTULO, NOTA Y MÁXIMO.
+ *
+ * Antes cada campo se mandaba al salir de él, y el servidor rechaza un LSN
+ * a medias (`lsn_incompleto`): el título solo, la nota sola o el máximo solo
+ * volvían rechazados y la fila se vaciaba. No había forma de registrar uno.
+ *
+ * Ahora los tres viajan JUNTOS cuando están completos, o los tres en `null`
+ * cuando se vacían (para borrarlo). A medias se quedan en la fila, sin enviar,
+ * con el aviso de qué falta.
+ */
+/** El LSN del borrador ya normalizado: título sin espacios y números. */
+const lsnDe = (b) => ({
+  lsn_titulo: String(b.lsn_titulo ?? '').trim() || null,
+  lsn_nota: aNumero(b.lsn_nota),
+  lsn_maximo: aNumero(b.lsn_maximo),
+})
+
+/** Ni vacío ni completo: el estado que el servidor no acepta. */
+const aMedias = (lsn) => {
+  const llenos = [lsn.lsn_titulo, lsn.lsn_nota, lsn.lsn_maximo].filter((v) => v != null).length
+  return llenos > 0 && llenos < 3
+}
+
+const mismoLsn = (lsn, fila) =>
+  lsn.lsn_titulo === (fila.lsn_titulo ?? null) &&
+  lsn.lsn_nota === (fila.lsn_nota ?? null) &&
+  lsn.lsn_maximo === (fila.lsn_maximo ?? null)
+
 export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, onObservar }) {
   const estado = ESTADO_FILA[fila.estado_fila] ?? ESTADO_FILA.pendiente
   const asistio = ['presente', 'tardanza'].includes(fila.asistencia)
@@ -48,12 +77,30 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
    * tecla: se manda al salir del campo, y solo si cambió.
    */
   const [borrador, setBorrador] = useState(fila)
-  useEffect(() => setBorrador(fila), [fila])
+  // Lo que llega del servidor (otro campo guardado, una recarga) no se come un
+  // LSN a medio escribir: ese todavía no se ha enviado y solo existe aquí.
+  useEffect(
+    () =>
+      setBorrador((previo) =>
+        aMedias(lsnDe(previo))
+          ? { ...fila, lsn_titulo: previo.lsn_titulo, lsn_nota: previo.lsn_nota, lsn_maximo: previo.lsn_maximo }
+          : fila,
+      ),
+    [fila],
+  )
 
   const alSalir = (campo, valor) => {
     if (valor === (fila[campo] ?? null)) return
     onGuardar(fila, { [campo]: valor })
   }
+
+  /** Guarda el LSN entero, con `cambio` aplicado sobre lo que hay escrito. */
+  const alSalirDelLsn = (cambio = {}) => {
+    const lsn = lsnDe({ ...borrador, ...cambio })
+    if (aMedias(lsn) || mismoLsn(lsn, fila)) return
+    onGuardar(fila, lsn)
+  }
+  const lsnIncompleto = !sinLibros && aMedias(lsnDe(borrador))
 
   return (
     <tr className="border-t border-line align-top">
@@ -92,8 +139,14 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
           disabled={sinLibros}
           placeholder={sinLibros ? '' : 'Título del libro'}
           onChange={(e) => setBorrador((b) => ({ ...b, lsn_titulo: e.target.value }))}
-          onBlur={(e) => alSalir('lsn_titulo', e.target.value.trim() || null)}
+          onBlur={(e) => alSalirDelLsn({ lsn_titulo: e.target.value })}
         />
+        {lsnIncompleto && (
+          <span role="status" className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-600">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {MOTIVO_FILA.lsn_incompleto}
+          </span>
+        )}
       </td>
 
       <td className="px-3 py-2">
@@ -107,7 +160,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
             value={borrador.lsn_nota ?? ''}
             disabled={sinLibros}
             onChange={(e) => setBorrador((b) => ({ ...b, lsn_nota: e.target.value }))}
-            onBlur={(e) => alSalir('lsn_nota', aNumero(e.target.value))}
+            onBlur={(e) => alSalirDelLsn({ lsn_nota: e.target.value })}
           />
           <span className="text-ink-400">/</span>
           {/* Solo 5 o 10: no hay otros máximos (CU024). */}
@@ -119,7 +172,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
             disabled={sinLibros}
             onChange={(e) => {
               setBorrador((b) => ({ ...b, lsn_maximo: e.target.value }))
-              alSalir('lsn_maximo', aNumero(e.target.value))
+              alSalirDelLsn({ lsn_maximo: e.target.value })
             }}
             options={MAXIMOS_LSN.map((m) => ({ value: m, label: String(m) }))}
           />

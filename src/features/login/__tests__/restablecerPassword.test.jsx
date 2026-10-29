@@ -38,7 +38,7 @@ describe('Restablecer la contraseña con el PIN (CU006)', () => {
     const restablecer = vi.spyOn(handlers.auth, 'restablecerPassword').mockResolvedValue({ detail: 'Contraseña actualizada' })
     await llenarSegundoPaso()
 
-    expect(await screen.findByText('Vuelva a iniciar sesión con la nueva contraseña.')).toBeInTheDocument()
+    expect(await screen.findByText('Vuelve a iniciar sesión con la nueva contraseña.')).toBeInTheDocument()
     expect(restablecer).toHaveBeenCalledWith({ correo: CORREO, codigo: '123456' })
     expect(onCerrar).toHaveBeenCalled()
   })

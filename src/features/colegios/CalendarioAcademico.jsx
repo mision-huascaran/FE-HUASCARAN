@@ -66,11 +66,33 @@ const periodosParaGuardar = (periodos) =>
 const estaCompleto = (periodos, dias) =>
   periodos.every((p) => p.fecha_inicio && p.fecha_fin) && dias.every((d) => d.motivo?.trim())
 
+/**
+ * D74 — POR QUÉ "Guardar" está deshabilitado, nombrando los campos vacíos.
+ * Antes se apagaba sin decir nada y había que revisar las ocho filas.
+ */
+export function camposPorCompletar(periodos, dias) {
+  const faltan = periodos.flatMap((p) => [
+    ...(p.fecha_inicio ? [] : [`Inicio de ${nombreDePeriodo(p)}`]),
+    ...(p.fecha_fin ? [] : [`Fin de ${nombreDePeriodo(p)}`]),
+  ])
+  dias.forEach((d, i) => {
+    if (!d.motivo?.trim()) faltan.push(`Motivo del día no lectivo ${i + 1}`)
+  })
+  return faltan
+}
+
+/** D73 — CU027, al crear las fechas particulares de un colegio (precargadas del general). */
+export const AVISO_FECHAS_PARTICULARES =
+  'Al guardar, este colegio tendrá un calendario propio para el año escolar seleccionado. Los cambios posteriores del calendario general no se aplicarán automáticamente.'
+
 /** Lo que se edita al empezar: vacío para crear, lo vigente para editar. */
 function borradorPara(modo, calendario) {
   if (modo === 'crear') return { periodos: periodosVacios(), dias: [] }
   return { periodos: ochoPeriodos(calendario?.periodos), dias: calendario?.dias_no_lectivos ?? [] }
 }
+
+/** Respuestas del proxy cuando el servidor no contesta: no dicen qué pasó con el envío. */
+const SIN_SERVIDOR = new Set([502, 503, 504])
 
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
   const toast = useToast()
@@ -172,8 +194,12 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
      *
      * La solicitud pudo llegar y aplicarse: volver a mandarla escribiría dos
      * veces. Se bloquea "Guardar" hasta comprobar con el servidor qué pasó.
+     *
+     * D75 — Con el backend CAÍDO también es "sin respuesta", aunque haya una:
+     * la da el proxy (502, 503 o 504), no el servidor. Antes caía en el
+     * mensaje genérico y "Guardar" seguía activo para reintentar a ciegas.
      */
-    if (!error?.response) {
+    if (!error?.response || SIN_SERVIDOR.has(error.response.status)) {
       setSinConfirmar(true)
       return
     }
@@ -355,6 +381,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           // Con un conflicto o un envío sin confirmar, "Guardar" se bloquea:
           // volver a mandarlo pisaría lo ajeno o escribiría dos veces (D75).
           completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar}
+          faltan={camposPorCompletar(periodos, dias)}
           onEmpezar={empezar}
           onRestablecer={() => setConfirmando({ tipo: 'usarGeneral' })}
           onCancelar={() => salir(descartar)}
@@ -458,6 +485,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           erroresCampo={erroresCampo}
           periodoActual={calendario?.periodo_actual}
           onIrAlGeneral={() => setAlcance('general')}
+          creandoParticular={porColegio && modo === 'crear'}
         />
       </Card>
 
@@ -516,26 +544,40 @@ function AccionesDelCalendario({
   restableciendo,
   guardando,
   completo,
+  faltan = [],
   onEmpezar,
   onRestablecer,
   onCancelar,
   onGuardar,
 }) {
   if (modo !== 'consulta') {
+    const porQue = faltan.length ? `Completa para guardar: ${faltan.join(', ')}.` : undefined
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" onClick={onCancelar}>
-          Cancelar
-        </Button>
-        <Button loading={guardando} disabled={!completo} onClick={onGuardar}>
-          Guardar
-        </Button>
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={onCancelar}>
+            Cancelar
+          </Button>
+          <Button loading={guardando} disabled={!completo} title={porQue} onClick={onGuardar}>
+            Guardar
+          </Button>
+        </div>
+        {porQue && (
+          <p role="note" className="max-w-md text-right text-xs text-ink-500">
+            {porQue}
+          </p>
+        )}
       </div>
     )
   }
 
   const origen = calendario?.origen
-  const puedeCrear = sinConfigurar || (porColegio && origen === 'general')
+  /**
+   * D71 — Sin calendario general, "Por colegio" NO ofrece crear fechas
+   * particulares: el estado vacío ya dice que primero va el general y lleva
+   * allí. Ofrecer las dos cosas a la vez se contradecía.
+   */
+  const puedeCrear = (sinConfigurar && !porColegio) || (porColegio && origen === 'general')
   return (
     <div className="flex flex-wrap items-center gap-2">
       {calendario && (
@@ -574,9 +616,10 @@ function ContenidoDelCalendario({
   erroresCampo = {},
   periodoActual,
   onIrAlGeneral,
+  creandoParticular = false,
 }) {
   if (!listo) {
-    return <EmptyState title="Complete los filtros" description="Elija el año escolar y, si procede, el colegio." />
+    return <EmptyState title="Completa los filtros" description="Elige el año escolar y, si corresponde, el colegio." />
   }
   if (cargando) return <Skeleton className="m-4 h-64" />
   if (sinConfigurar && !editando) {
@@ -610,6 +653,12 @@ function ContenidoDelCalendario({
   const particular = calendario?.origen === 'particular'
   return (
     <div className="flex flex-col gap-6 p-4">
+      {/* D73 — Crear las particulares parte del general: se avisa qué implica guardar. */}
+      {creandoParticular && (
+        <p role="note" className="rounded-xl border border-info-600/20 bg-info-100 px-4 py-3 text-sm text-ink-700">
+          {AVISO_FECHAS_PARTICULARES}
+        </p>
+      )}
       {/* Con alcance "Por colegio", decir CUÁL se está viendo: editar
           creyendo que son fechas propias cuando es el general afectaría
           a todos los demás colegios. */}
