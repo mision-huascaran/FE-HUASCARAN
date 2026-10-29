@@ -146,9 +146,25 @@ export const ETIQUETA_SINCRONIZACION = {
   sincronizada: 'Sincronizada',
   pendiente: 'Pendiente',
   error: 'Error',
-  al_dia: 'Al día',
+  /**
+   * "AL DÍA SEGÚN EL SERVIDOR", con el matiz dentro.
+   *
+   * Es el literal de CU020, y el matiz no es retórico: significa "sin
+   * pendientes QUE EL SERVIDOR CONOZCA", que no es lo mismo que "sin trabajo en
+   * riesgo". Un docente que trabajó una semana sin señal sale igual de verde
+   * que uno que no tiene nada pendiente, y la celda que más se mira de la
+   * pantalla no puede decir lo contrario de lo que pasa.
+   */
+  al_dia: 'Al día según el servidor',
   sin_informacion: 'Sin información',
 }
+
+/**
+ * Lo que la tabla de Seguimiento advierte, una vez, sobre toda la columna
+ * (CU020). Literal del caso de uso.
+ */
+export const AVISO_SINCRONIZACION =
+  'La información de sincronización corresponde a los datos comunicados al servidor. Puede haber operaciones pendientes únicamente en los dispositivos.'
 
 /**
  * El color de cada estado. `sin_informacion` va en NEUTRO, no en verde: no es

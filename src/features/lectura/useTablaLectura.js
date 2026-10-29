@@ -19,10 +19,10 @@ import {
   crearTabla,
   datosParaCrear,
   esTablaPorCrear,
-  habilitarRegistroLectura,
-  marcarNoRealizada,
   obtenerTabla,
 } from '../../api/resources/lectura'
+import { encolar } from '../../lib/colaOffline'
+import { TIPOS_ENVIO } from '../../hooks/useOfflineQueue'
 import { ahora } from '../../lib/relojServidor'
 import { nuevoUuid } from '../../lib/uuid'
 import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
@@ -134,16 +134,67 @@ export default function useTablaLectura(filtros) {
     return true
   }
 
+  /**
+   * Las claves de la cola para ESTA tabla.
+   *
+   * Una por tipo: declarar dos veces no apila dos envíos, el segundo sustituye
+   * al primero. Y la reversión conoce la de la declaración porque DEPENDE de
+   * ella (CU026: "vinculada a la declaración original").
+   */
+  const claveDeclaracion = `lectura-no-realizada:${tabla.data?.id}`
+  const claveReversion = `lectura-habilitar:${tabla.data?.id}`
+
+  /** Lo que identifica al REGISTRO para el aviso de pendientes (E2). */
+  const registroDeTabla = tabla.data
+    ? {
+        id_colegio: Number(idColegio),
+        id_grado: Number(idGrado),
+        id_seccion: Number(idSeccion),
+        id_programa: Number(idPrograma),
+        id_semana: Number(idSemana),
+      }
+    : null
+
+  /**
+   * Declarar "no realizada" (CU026) — SE ENCOLA.
+   *
+   * El caso de uso tiene su propio flujo sin conexión: la declaración se
+   * guarda como "Pendiente de sincronización" y la tabla queda bloqueada
+   * mientras tanto. Durante un tiempo esto exigió conexión —se razonó que
+   * cambiar la tabla entera sin confirmación era arriesgado—, pero CU026 ya
+   * responde esa pregunta y dice lo contrario.
+   */
   const noRealizada = useMutation({
     mutationFn: (motivo) =>
-      marcarNoRealizada(tabla.data.id, {
-        idOperacion: nuevaOperacion(),
-        version: tabla.data.version,
-        realizadoEn: ahora().toISOString(),
-        motivo,
+      encolar({
+        clave: claveDeclaracion,
+        tipo: TIPOS_ENVIO.LECTURA_NO_REALIZADA,
+        payload: {
+          idTabla: tabla.data.id,
+          version: tabla.data.version,
+          realizadoEn: ahora().toISOString(),
+          idActividad,
+          motivo,
+        },
+        registro: registroDeTabla,
+        idActividad,
+        descripcion: 'Lectura no realizada',
+        // Perder esto en silencio dejaría la semana reclamándole al docente un
+        // trabajo que ya declaró que no se hizo.
+        exigePersistencia: true,
       }),
+    /**
+     * `networkMode: 'always'` porque EL OFFLINE LO LLEVA LA COLA.
+     *
+     * Por defecto TanStack Query pausa una mutación cuando no hay red y no
+     * llega a ejecutar su función. Aquí eso significaba que, sin conexión,
+     * `encolar` ni se llamaba: el docente pulsaba y no pasaba nada. La cola
+     * ya sabe esperar y reintentar; la mutación solo tiene que entregarle el
+     * envío.
+     */
+    networkMode: 'always',
     onSuccess: (actualizada) => {
-      queryClient.setQueryData(clave, actualizada)
+      if (actualizada?.id) queryClient.setQueryData(clave, actualizada)
       toast.success('Lectura marcada como no realizada', 'Ninguna fila queda pendiente para esta semana.')
     },
     onError: (error) => {
@@ -164,15 +215,42 @@ export default function useTablaLectura(filtros) {
    */
   const habilitar = useMutation({
     mutationFn: (motivo) =>
-      habilitarRegistroLectura(tabla.data.id, {
-        idOperacion: nuevaOperacion(),
-        version: tabla.data.version,
-        realizadoEn: ahora().toISOString(),
+      encolar({
+        clave: claveReversion,
+        tipo: TIPOS_ENVIO.LECTURA_HABILITAR,
+        payload: {
+          idTabla: tabla.data.id,
+          version: tabla.data.version,
+          realizadoEn: ahora().toISOString(),
+          idActividad,
+          motivo,
+        },
+        registro: registroDeTabla,
         idActividad,
-        motivo,
+        descripcion: 'Habilitar registro de lectura',
+        /**
+         * DEPENDE DE LA DECLARACIÓN, y por eso va enlazada (CU026).
+         *
+         * Si la tabla se declaró sin conexión y se revierte antes de
+         * sincronizar, las dos esperan en la cola. Si el servidor rechaza la
+         * declaración, la reversión ya no tiene sentido: revertiría algo que
+         * nunca llegó a existir, así que la cola la descarta con ella.
+         */
+        dependeDe: claveDeclaracion,
+        exigePersistencia: true,
       }),
+    /**
+     * `networkMode: 'always'` porque EL OFFLINE LO LLEVA LA COLA.
+     *
+     * Por defecto TanStack Query pausa una mutación cuando no hay red y no
+     * llega a ejecutar su función. Aquí eso significaba que, sin conexión,
+     * `encolar` ni se llamaba: el docente pulsaba y no pasaba nada. La cola
+     * ya sabe esperar y reintentar; la mutación solo tiene que entregarle el
+     * envío.
+     */
+    networkMode: 'always',
     onSuccess: (actualizada) => {
-      queryClient.setQueryData(clave, actualizada)
+      if (actualizada?.id) queryClient.setQueryData(clave, actualizada)
       toast.success('El registro de lectura fue habilitado.')
     },
     onError: (error) => {

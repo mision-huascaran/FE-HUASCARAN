@@ -66,21 +66,25 @@ export default function TablaLectura({
               registrar está bloqueado hasta que el servidor confirme.
             */}
             {bloqueada ? (
-              <Button
-                variant="secondary"
-                iconLeft={Undo2}
-                onClick={onHabilitarRegistro}
-                disabled={habilitando || sinConexion}
-              >
+              <Button variant="secondary" iconLeft={Undo2} onClick={onHabilitarRegistro} disabled={habilitando}>
                 Habilitar registro de lectura
               </Button>
             ) : (
-              <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando || sinConexion}>
+              <Button variant="secondary" iconLeft={Ban} onClick={onNoRealizada} disabled={marcando}>
                 Marcar como no realizada
               </Button>
             )}
-            {/* No se encola: cambia la semana entera y exige ver la versión vigente. */}
-            {sinConexion && <span className="text-xs text-ink-500">Esta acción requiere conexión</span>}
+            {/*
+              SIN CONEXIÓN TAMBIÉN SE PUEDE (CU026).
+
+              Las dos se encolan: el caso de uso tiene su propio flujo
+              "Registro sin conexión a Internet", donde la declaración queda
+              "Pendiente de sincronización" y la reversión va vinculada a ella.
+              Aquí estuvieron un tiempo deshabilitadas por prudencia —cambian la
+              tabla entera—, hasta que se leyó que el CU ya había resuelto esa
+              duda en sentido contrario.
+            */}
+            {sinConexion && <span className="text-xs text-ink-500">Se enviará al recuperar la conexión</span>}
           </span>
         ) : null
       }

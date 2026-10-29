@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { encolar, iniciarCola, registrarEnviador, reintentarAhora } from '../lib/colaOffline'
 import { cerrarSesionDiferido } from '../api/resources/auth'
 import { MOTIVO_REGISTRO, guardarAsistencia } from '../api/resources/asistencia'
+import { habilitarRegistroLectura, marcarNoRealizada } from '../api/resources/lectura'
 import { textoDeRechazo } from '../api/resources/sincronizacion'
 import { finalizarActividad, iniciarActividad } from '../api/resources/actividades'
 import useActividadStore from '../store/actividadStore'
@@ -26,6 +27,17 @@ export const TIPOS_ENVIO = {
    */
   SESION_CIERRE: 'sesion-cierre',
   ASISTENCIA: 'asistencia',
+  /**
+   * CU026 — Declarar la lectura "no realizada" y DESHACERLO.
+   *
+   * Se encolan las dos. El caso de uso tiene su propio flujo "Registro sin
+   * conexión a Internet": la declaración se guarda como "Pendiente de
+   * sincronización" y la reversión también, "vinculada a la declaración
+   * original". Por eso van separadas: la reversión DEPENDE de la declaración,
+   * y si aquella se rechaza, esta no se envía.
+   */
+  LECTURA_NO_REALIZADA: 'lectura-no-realizada',
+  LECTURA_HABILITAR: 'lectura-habilitar',
 }
 
 /**
@@ -104,6 +116,28 @@ registrarEnviador(
     return respuesta
   },
   { modulo: 'asistencias' },
+)
+
+/**
+ * Declarar "no realizada" y deshacerlo (CU026).
+ *
+ * Las dos cambian el estado de la TABLA entera, así que su clave es la tabla:
+ * declarar dos veces no apila dos envíos. `version` viaja con el payload —la
+ * que veía el docente— y el servidor la usa para detectar que alguien la
+ * cambió entre medias.
+ */
+registrarEnviador(
+  TIPOS_ENVIO.LECTURA_NO_REALIZADA,
+  ({ idTabla, version, realizadoEn, idActividad, motivo, id_operacion: idOperacion }) =>
+    marcarNoRealizada(idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }),
+  { modulo: 'lectura' },
+)
+
+registrarEnviador(
+  TIPOS_ENVIO.LECTURA_HABILITAR,
+  ({ idTabla, version, realizadoEn, idActividad, motivo, id_operacion: idOperacion }) =>
+    habilitarRegistroLectura(idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }),
+  { modulo: 'lectura' },
 )
 
 /**

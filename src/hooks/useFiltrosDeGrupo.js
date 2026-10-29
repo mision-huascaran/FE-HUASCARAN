@@ -24,6 +24,7 @@ import { useSearchParams } from 'react-router-dom'
 import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
 import { obtenerSemanas } from '../api/resources/catalogos'
 import { obtenerInicioDocente } from '../api/resources/inicio'
+import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { useColegiosReales } from './useCatalogos'
 import useSessionStore from '../store/sessionStore'
 import { etiquetaDeSemana } from '../lib/format'
@@ -100,10 +101,24 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
    * No se cachea para siempre, a diferencia de las asignaciones: un permiso
    * vence a una hora concreta.
    *
-   * Misma clave que `useActividad` a propósito: es la misma respuesta y no
-   * tiene sentido pedirla dos veces por pantalla.
+   * SALEN DEL PAQUETE OFFLINE, no del Inicio. Desde la tanda I,
+   * `GET /me/habilitaciones` trae cada permiso con `colegio: {id, nombre}` y
+   * `grado: {id, nombre}`; antes solo tenía los ids, y por eso había que
+   * pedirle los nombres a `GET /inicio/docente`, que **exige conexión**. Con
+   * los nombres dentro, el aula de un permiso se puede ofrecer también sin
+   * red, que es justo cuando el Docente la necesita.
+   *
+   * El Inicio se queda como respaldo: si el paquete aún no está descargado,
+   * `permisos_vigentes` sirve igual mientras haya conexión.
    */
   const idDocente = useSessionStore((st) => st.usuario?.id_docente)
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
+    enabled: Boolean(esDocente),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
   const { data: inicio } = useQuery({
     queryKey: ['inicio', 'docente', idDocente],
     queryFn: obtenerInicioDocente,
@@ -111,7 +126,20 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
-  const permisos = inicio?.permisos_vigentes ?? []
+
+  /**
+   * Solo los VIGENTES ahora mismo. El paquete trae también los programados,
+   * que todavía no habilitan nada (CU010), así que ofrecer su aula sería
+   * mandar al Docente a una pantalla donde el servidor le dirá que no.
+   */
+  const permisos = useMemo(() => {
+    const delPaquete = habilitaciones?.permisos ?? []
+    if (delPaquete.length) {
+      const momento = ahora().getTime()
+      return delPaquete.filter((p) => Date.parse(p.inicio) <= momento && momento <= Date.parse(p.fin))
+    }
+    return inicio?.permisos_vigentes ?? []
+  }, [habilitaciones, inicio])
 
   const colegios = useMemo(() => {
     if (!esDocente) return todos.map((c) => ({ id_colegio: c.id_colegio ?? c.id, nombre: c.nombre }))

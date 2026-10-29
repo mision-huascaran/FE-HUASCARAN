@@ -16,6 +16,8 @@ import { ToastProvider } from '../../../components/ui'
 import LecturaPage from '../LecturaPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
+import useSyncStore from '../../../store/syncStore'
+import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import { ROLES } from '../../../auth/roles'
 
 const ESPERA = { timeout: 8000 }
@@ -71,15 +73,33 @@ const DECLARACION = {
   fecha_registro_reversion: null,
 }
 
+/**
+ * jsdom NO TIENE IndexedDB, y declarar "no realizada" exige quedar apuntado en
+ * local antes de darlo por bueno (CU026: "Pendiente de sincronización"). Sin
+ * este simulador, la cola descarta el envío y la prueba mediría el fallo de
+ * persistencia en vez del flujo.
+ */
+vi.mock('idb-keyval', () => {
+  const almacen = new Map()
+  return {
+    get: vi.fn(async (k) => almacen.get(k)),
+    set: vi.fn(async (k, v) => {
+      almacen.set(k, v)
+    }),
+    del: vi.fn(async (k) => almacen.delete(k)),
+  }
+})
 const obtenerTabla = vi.fn()
 const habilitarRegistroLectura = vi.fn()
 const cambiarClaseReferencia = vi.fn()
+const marcarNoRealizada = vi.fn()
 
 vi.mock('../../../api/resources/lectura', async (importOriginal) => ({
   ...(await importOriginal()),
   obtenerTabla: (...a) => obtenerTabla(...a),
   habilitarRegistroLectura: (...a) => habilitarRegistroLectura(...a),
   cambiarClaseReferencia: (...a) => cambiarClaseReferencia(...a),
+  marcarNoRealizada: (...a) => marcarNoRealizada(...a),
 }))
 
 const listarClases = vi.fn()
@@ -133,6 +153,21 @@ function montar(idRol = ROLES.PROFESOR) {
   )
 }
 
+/** La conexión del navegador: la cola no envía sin ella. */
+function sinConexion() {
+  Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+  window.dispatchEvent(new Event('offline'))
+  onlineManager.setOnline(false)
+}
+
+/** Vuelve la señal y se vacía la cola, como al reconectar. */
+async function reconectar() {
+  Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+  window.dispatchEvent(new Event('online'))
+  onlineManager.setOnline(true)
+  await reintentarAhora()
+}
+
 /** Los filtros arrancan plegados en jsdom (RNF-002): hay que abrirlos. */
 const abrirFiltros = () => fireEvent.click(screen.getByRole('button', { name: /filtros/i }))
 
@@ -143,6 +178,8 @@ beforeEach(() => {
   obtenerTabla.mockReset()
   habilitarRegistroLectura.mockReset()
   cambiarClaseReferencia.mockReset()
+  marcarNoRealizada.mockReset()
+  _reiniciarCola()
   listarClases.mockReset()
   listarClases.mockResolvedValue({
     items: [
@@ -342,6 +379,37 @@ describe('"Habilitar registro de lectura" (CU026, tanda D)', () => {
       await screen.findByText('La lectura ya no figura como no realizada. Consulta la versión actual.', {}, ESPERA),
     ).toBeInTheDocument()
     expect(habilitarRegistroLectura).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Sin conexión, CU026 las ENCOLA (S12)', () => {
+  /**
+   * Durante un tiempo estas dos exigieron conexión: se razonó que cambiar la
+   * tabla entera sin confirmación del servidor era arriesgado. Pero CU026 ya
+   * responde esa pregunta con su flujo "Registro sin conexión a Internet": la
+   * declaración se guarda como "Pendiente de sincronización" y la reversión
+   * también, "vinculada a la declaración original".
+   */
+  it('la declaración se queda pendiente en vez de fallar', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    marcarNoRealizada.mockResolvedValue(tabla({ estado: 'no_realizada', version: 2 }))
+    montar()
+    await screen.findByText('Clase de esta semana: 29/06/2026', {}, ESPERA)
+
+    sinConexion()
+    fireEvent.click(screen.getByRole('button', { name: /marcar como no realizada/i }))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    fireEvent.change(within(dialogo).getByLabelText(/motivo/i), { target: { value: 'Paro' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /marcar como no realizada/i }))
+
+    // Espera en la cola: sin red no se manda, pero tampoco se pierde.
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBeGreaterThan(0), ESPERA)
+    expect(marcarNoRealizada).not.toHaveBeenCalled()
+
+    // Y al volver la señal sale sola, con la versión que vio el docente.
+    await reconectar()
+    await waitFor(() => expect(marcarNoRealizada).toHaveBeenCalled(), ESPERA)
+    expect(marcarNoRealizada.mock.calls[0][1]).toMatchObject({ version: 1, motivo: 'Paro' })
   })
 })
 

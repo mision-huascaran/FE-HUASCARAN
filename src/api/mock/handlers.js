@@ -1142,6 +1142,13 @@ export const handlers = {
               .map((p) => ({
                 id_colegio: idColegio,
                 id_grado: g.id_grado,
+                // Tanda I: ademas de los ids, los NOMBRES. Sin ellos el filtro
+                // no podia escribir el aula de un permiso sin conexion.
+                colegio: {
+                  id: idColegio,
+                  nombre: db.COLEGIOS.find((c) => c.id_colegio === idColegio)?.nombre ?? `Colegio ${idColegio}`,
+                },
+                grado: { id: g.id_grado, nombre: g.nombre },
                 id_periodo_academico: p.id_periodo_academico,
                 // La retroactiva la otorga el Supervisor caso por caso: el
                 // simulador no la inventa, para que se vea la diferencia.
@@ -2871,7 +2878,7 @@ export const handlers = {
       // menos campos que la fila, o editar borraría lo que no se mostró.
       return responder({
         ...alumnoDeAdministracion(alumno),
-        creado_en: `${inicio}T08:15:00-05:00`,
+        fecha_registro: inicio,
         pertenece_desde: alumno.activo && !sinPertenencia ? inicio : null,
       })
     },
@@ -2980,7 +2987,7 @@ export const handlers = {
             fecha: '2026-10-05T14:32:00-05:00',
             usuario: 'Docente de Prueba',
             rol: 'Docente',
-            accion: 'editó',
+            accion: 'editar',
             cambios: [
               { campo: 'Nombres', anterior: 'Ana', nuevo: 'Ana María' },
               { campo: 'Grado', anterior: '1.º', nuevo: '2.º' },
@@ -2990,7 +2997,7 @@ export const handlers = {
             fecha: '2026-10-04T09:10:00-05:00',
             usuario: 'Jefa de Prueba',
             rol: 'Supervisor',
-            accion: 'creó',
+            accion: 'crear',
             cambios: [],
           },
         ],

@@ -201,7 +201,7 @@ export const guardarFilas = (idTabla, filas) =>
  * `no_aplica`: si no se dio la clase, no hay nada pendiente que reclamarle al
  * docente. El motivo es obligatorio.
  */
-export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, motivo }) =>
+export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, idActividad, motivo }) =>
   resolver({
     mock: () => handlers.lectura.noRealizada(idTabla, { idOperacion, version, realizadoEn, motivo }),
     real: () =>
@@ -209,6 +209,9 @@ export const marcarNoRealizada = (idTabla, { idOperacion, version, realizadoEn, 
         id_operacion: idOperacion,
         version,
         realizado_en: realizadoEn,
+        // La actividad en que se declaró, no la que haya abierta cuando la
+        // cola consiga enviarlo.
+        id_actividad: idActividad ?? null,
         motivo,
       }),
     forzarReal: adminContraApiReal,

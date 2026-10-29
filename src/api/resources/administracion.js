@@ -529,15 +529,22 @@ export const cambiaDeGrupo = (antes, ahora) =>
  * Cuándo se creó el alumno, en `YYYY-MM-DD` (D65).
  *
  * Es la fecha que el formulario propone cuando al alumno le falta el inicio de
- * su pertenencia: la única que se sabe cierta. El nombre del campo no está en
- * el contrato publicado —se pidió al backend—, así que se aceptan las tres
- * formas en que suele venir y, si no viene ninguna, se devuelve vacío y la
- * elige la persona. Proponer hoy sería inventar un historial que no ocurrió.
+ * su pertenencia: la única que se sabe cierta.
+ *
+ * SE LLAMA `fecha_registro`, y es la que CU014 propone para "Pertenece al grupo
+ * desde". Aquí se leyeron un tiempo `creado_en`, `fecha_creacion` y `creado`
+ * —el nombre no estaba publicado y se adivinó—, con el resultado de que
+ * contra el backend real el campo salía SIEMPRE vacío. Se dejan como respaldo
+ * porque no cuesta nada, pero el bueno es el primero.
+ *
+ * Si no llega ninguno se devuelve vacío y la elige la persona: proponer hoy
+ * sería inventar un historial que no ocurrió.
  */
 export const fechaDeCreacion = (registro) => {
-  const valor = registro?.creado_en ?? registro?.fecha_creacion ?? registro?.creado ?? null
+  const valor =
+    registro?.fecha_registro ?? registro?.creado_en ?? registro?.fecha_creacion ?? registro?.creado ?? null
   if (!valor) return ''
-  // Puede llegar como instante (`2026-03-02T08:15:00-05:00`) o como día suelto.
+  // Llega como día suelto (`2026-03-02`), pero un instante también vale.
   return String(valor).slice(0, 10)
 }
 

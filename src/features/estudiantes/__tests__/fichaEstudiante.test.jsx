@@ -138,7 +138,9 @@ describe('Detalle del alumno (CU015)', () => {
     await abrirFicha()
     await userEvent.click(screen.getByRole('tab', { name: 'Historial' }))
 
-    expect(await screen.findByText(/editó al alumno/)).toBeInTheDocument()
+    // `accion` llega como CÓDIGO ("editar") y se traduce al verbo de CU014,
+    // que no es "editó al alumno" sino "editó la información del alumno".
+    expect(await screen.findByText(/editó la información del alumno/)).toBeInTheDocument()
     expect(screen.getByText(/Docente de Prueba/)).toBeInTheDocument()
     // El detalle visual de una edición: "Grado: 1.º → 2.º".
     expect(screen.getByText('Grado:')).toBeInTheDocument()

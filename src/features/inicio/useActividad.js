@@ -162,14 +162,15 @@ export default function useActividad() {
         /**
          * El texto del SERVIDOR primero, igual que en `sin_asignaciones`.
          *
-         * D58 — El tester leyó aquí un texto nuestro donde esperaba el de
-         * CU010. El contrato no publica el literal de este caso, así que lo
-         * que corresponde es decir lo que diga el servidor y dejar el nuestro
-         * como respaldo, no competir con él.
+         * D58 — El tester leyó aquí un texto nuestro donde esperaba el del CU.
+         * El respaldo es ahora el literal de CU009 ("Intento de iniciar una
+         * segunda actividad simultánea"), que es el mismo `detail` que manda el
+         * backend con `actividad_activa_existente`: coincidan o no, dicen lo
+         * mismo.
          */
         toast.error(
           'Ya hay una actividad abierta',
-          mensajeDeError(error, 'Finalice la actividad actual antes de iniciar otra.'),
+          mensajeDeError(error, 'Debes finalizar la actividad actual antes de iniciar una nueva.'),
         )
       } else if (motivo === 'actividad_superpuesta') {
         // Puede pasar al sincronizar: el horario choca con otra actividad suya
