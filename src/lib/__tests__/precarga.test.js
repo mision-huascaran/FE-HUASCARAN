@@ -4,6 +4,7 @@
 // pantalla vacía que parezca "no hay alumnos".
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { borrarPrecarga, leerPrecarga, precargarParaOffline } from '../precarga'
+import { _reiniciarReloj, sincronizarReloj } from '../relojServidor'
 
 vi.mock('idb-keyval', () => {
   let almacen = {}
@@ -37,6 +38,19 @@ describe('precarga', () => {
     const guardado = await leerPrecarga()
     expect(guardado.datos.alumnos).toHaveLength(1)
     expect(guardado.guardadoEn).toBeTruthy()
+  })
+
+  it('la fecha de guardado sale del reloj del servidor, como el inicio de la actividad (D99)', async () => {
+    // El equipo va una hora atrasado respecto del servidor.
+    const servidor = Date.now() + 60 * 60 * 1000
+    sincronizarReloj(new Date(servidor).toUTCString())
+    try {
+      await precargarParaOffline({ alumnos: async () => [{ id_alumno: 1 }] })
+      const { guardadoEn } = await leerPrecarga()
+      expect(Date.parse(guardadoEn)).toBeGreaterThanOrEqual(servidor - 1000)
+    } finally {
+      _reiniciarReloj()
+    }
   })
 
   it('un bloque que falla no tumba la precarga entera', async () => {
