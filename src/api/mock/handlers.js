@@ -1386,6 +1386,78 @@ export const handlers = {
       return responder(conEstado(PERMISOS_MOCK[id]), RETARDO_ESCRITURA_MS)
     },
 
+    /**
+     * `POST /usuarios/{id}/permisos/lote` — TODO O NADA (tanda I).
+     *
+     * Un permiso por combinación de grado y módulo, con el mismo alcance.
+     * Si una falla no se guarda NINGUNA, y la respuesta trae todas las
+     * rechazadas con su índice: con solo la primera, corregirla y reintentar
+     * volvería a fallar por las siguientes.
+     */
+    otorgarLote: async (idUsuario, datos) => {
+      const combinaciones = datos.combinaciones ?? []
+      if (!combinaciones.length || combinaciones.length > 24) {
+        throw errorMock(422, 'Revisa las combinaciones de grado y modulo.', 'validacion', [
+          {
+            campo: 'combinaciones',
+            mensaje: combinaciones.length
+              ? 'Debe tener como maximo 24 elementos.'
+              : 'Debe tener al menos un elemento.',
+          },
+        ])
+      }
+
+      const vistas = new Set()
+      for (const c of combinaciones) {
+        const clave = `${c.id_grado}|${c.modulo}`
+        if (vistas.has(clave)) {
+          throw errorMock(422, 'Hay combinaciones de grado y modulo repetidas.', 'validacion', [
+            { campo: 'combinaciones', mensaje: 'Hay combinaciones de grado y modulo repetidas.' },
+          ])
+        }
+        vistas.add(clave)
+      }
+
+      // La superposicion se mira ANTES de crear nada: es lo que hace que el
+      // todo o nada signifique algo.
+      const rechazadas = combinaciones
+        .map((c, indice) => {
+          const choca = Object.values(PERMISOS_MOCK).find(
+            (existente) =>
+              existente.id_usuario === Number(idUsuario) &&
+              !existente.revocado_en &&
+              existente.colegio.id === Number(datos.id_colegio) &&
+              existente.grado.id === Number(c.id_grado) &&
+              existente.modulo === c.modulo,
+          )
+          if (!choca) return null
+          return {
+            indice,
+            id_grado: Number(c.id_grado),
+            modulo: c.modulo,
+            motivo: 'permiso_superpuesto',
+            detail:
+              'Ya existe un permiso para este mismo alcance con una vigencia que coincide total o parcialmente con la propuesta.',
+            permiso_existente: { id: choca.id, inicio: choca.inicio, fin: choca.fin },
+          }
+        })
+        .filter(Boolean)
+
+      if (rechazadas.length) {
+        const error = errorMock(409, rechazadas[0].detail, rechazadas[0].motivo)
+        error.response.data.permiso_existente = rechazadas[0].permiso_existente
+        error.response.data.combinaciones_rechazadas = rechazadas
+        throw error
+      }
+
+      const creados = []
+      for (const c of combinaciones) {
+        // eslint-disable-next-line no-await-in-loop
+        creados.push(await handlers.permisos.otorgar(idUsuario, { ...datos, id_grado: c.id_grado, modulo: c.modulo }))
+      }
+      return responder(creados, RETARDO_ESCRITURA_MS)
+    },
+
     revocar: async (idUsuario, idPermiso, motivo) => {
       const permiso = PERMISOS_MOCK[idPermiso]
       if (!permiso) throw errorMock(404, 'No existe el permiso.', 'permiso_no_encontrado')

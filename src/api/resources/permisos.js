@@ -131,6 +131,55 @@ export const otorgarPermiso = (idUsuario, datos) =>
   })
 
 /**
+ * `POST /usuarios/{id}/permisos/lote` — varios de una vez (tanda I).
+ *
+ * SIGUE CREANDO UN PERMISO POR COMBINACIÓN: CU028 exige que cada uno
+ * autorice un solo módulo. Lo que cambia es que se piden juntos, con el
+ * alcance común —año, colegio, periodo, vigencia y motivo— una sola vez.
+ *
+ * ES TODO O NADA, y por eso existe en vez de un bucle en el cliente. Con N
+ * peticiones sueltas, que la cuarta choque con un permiso superpuesto deja
+ * tres creados que el Supervisor no pidió y que **no se pueden deshacer**:
+ * un permiso no se borra, se revoca.
+ */
+export const otorgarPermisosEnLote = (idUsuario, datos) =>
+  resolver({
+    mock: () => handlers.permisos.otorgarLote(idUsuario, datos),
+    real: () =>
+      api.post(permisos.otorgarLote(idUsuario), {
+        id_anio_escolar: Number(datos.id_anio_escolar),
+        id_colegio: Number(datos.id_colegio),
+        id_periodo_academico: Number(datos.id_periodo_academico),
+        desde_ahora: Boolean(datos.desde_ahora),
+        ...(datos.desde_ahora ? { inicio: null } : { inicio: conZona(datos.inicio) }),
+        fin: conZona(datos.fin),
+        motivo: datos.motivo,
+        combinaciones: (datos.combinaciones ?? []).map(({ id_grado: idGrado, modulo }) => ({
+          id_grado: Number(idGrado),
+          modulo,
+        })),
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * Las combinaciones que el servidor rechazó, por índice.
+ *
+ * Un lote fallido responde con el motivo de la PRIMERA que falló, pero trae
+ * `combinaciones_rechazadas[]` con todas. Se devuelve un mapa por `indice`
+ * para poder señalar **cada** fila del modal y no solo una: si fallan tres,
+ * corregir una y reintentar volvería a fallar por las otras dos.
+ */
+export const combinacionesRechazadas = (error) => {
+  const lista = error?.response?.data?.combinaciones_rechazadas
+  if (!Array.isArray(lista)) return {}
+  return lista.reduce((mapa, item) => {
+    if (item?.indice == null) return mapa
+    return { ...mapa, [item.indice]: item.detail ?? item.motivo ?? 'No se pudo crear.' }
+  }, {})
+}
+
+/**
  * `POST /usuarios/{id}/permisos/{id}/revocar`.
  *
  * POST y no PATCH porque es una ACCIÓN, no una edición parcial: no se cambia

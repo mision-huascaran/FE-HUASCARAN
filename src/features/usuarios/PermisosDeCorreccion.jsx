@@ -35,7 +35,7 @@ import {
   opcionesDePermiso,
   revocarPermiso,
 } from '../../api/resources/permisos'
-import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
+import { anioVigente, listarAniosEscolares, obtenerUsuario } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
@@ -46,6 +46,27 @@ const SIN_FILTROS = { id_anio_escolar: '', id_colegio: '', id_periodo_academico:
 const texto = (valor) => (valor != null && typeof valor === 'object' ? (valor.nombre ?? '—') : (valor ?? '—'))
 
 export default function PermisosDeCorreccion({ docente, colegios = [] }) {
+  /**
+   * LOS COLEGIOS Y GRADOS DEL DOCENTE, para agrupar el modal de otorgar.
+   *
+   * Es una pista, no un filtro: CU028 prohíbe limitar las opciones a sus
+   * asignaciones, porque el Supervisor puede autorizarlo para sustituir a otro.
+   * Sirve para que no tenga que buscar los suyos entre trece colegios.
+   *
+   * Se pide aquí y no se guarda: así, si se edita la asignación y se vuelve a
+   * otorgar, los grupos salen ya actualizados. Un Docente puede tener VARIOS
+   * colegios, cada uno con sus grados, y no son los mismos en todos.
+   */
+  const idDocente = docente?.id_usuario ?? docente?.id ?? null
+  const { data: ficha } = useQuery({
+    queryKey: ['detalle', 'usuario', idDocente],
+    queryFn: () => obtenerUsuario(idDocente),
+    enabled: Boolean(idDocente),
+    // Sin reintentos: si falla, el modal sigue sirviendo sin los grupos.
+    retry: false,
+  })
+  const asignados = ficha?.colegios ?? []
+
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -317,6 +338,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         idUsuario={idUsuario}
         docente={docente}
         colegios={colegios}
+        asignados={asignados}
         // CU028: el modal precarga el año que se está consultando, si sigue
         // disponible. Casi siempre se otorga para lo que se acaba de mirar.
         idAnioEscolar={filtros.id_anio_escolar}
