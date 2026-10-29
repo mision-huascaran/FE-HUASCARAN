@@ -8,6 +8,7 @@
 // niveles y las grillas de la semana y el periodo en curso. Los filtros van en
 // localStorage, que es para preferencias, no para registros.
 import { del, get, set } from 'idb-keyval'
+import { ahora } from './relojServidor'
 
 const CLAVE = 'sicedu.precarga'
 
@@ -58,7 +59,10 @@ export async function precargarParaOffline(fuentes = {}, { propietario = null } 
   const base = mismaPersona ? anterior : null
 
   const datos = completa ? nuevos : { ...(base?.datos ?? {}), ...nuevos }
-  const guardadoEn = completa ? new Date().toISOString() : (base?.guardadoEn ?? null)
+  // La hora del servidor, como el `inicio` de la actividad (D99): mezclar los
+  // dos relojes hacía que una precarga recién guardada pareciera anterior a
+  // la actividad que la pidió cuando el equipo iba unos segundos atrasado.
+  const guardadoEn = completa ? ahora().toISOString() : (base?.guardadoEn ?? null)
 
   try {
     await set(CLAVE, { datos, guardadoEn, propietario, completa: completa || Boolean(base?.completa) })
