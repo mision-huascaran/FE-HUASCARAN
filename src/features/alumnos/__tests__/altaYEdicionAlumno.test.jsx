@@ -150,7 +150,11 @@ describe('Alumnos — guardar desde el popup', () => {
     const campo = await within(dialogo).findByLabelText(/^Pertenece al grupo desde/, {}, ESPERA)
     // Propuesta, no impuesta: es la única fecha que se sabe cierta. Poner hoy
     // inventaría un historial que no ocurrió.
-    expect(campo).toHaveValue('2026-03-02')
+    //
+    // Se ESPERA el valor: el campo se vuelve visible en el render en que llega
+    // el detalle, y la propuesta se pone en el efecto siguiente. Con la máquina
+    // cargada (Jenkins con cobertura) la prueba lo leía vacío entre los dos.
+    await waitFor(() => expect(campo).toHaveValue('2026-03-02'), ESPERA)
 
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Guardar' }))
     await waitFor(() => expect(actualizar).toHaveBeenCalledTimes(1), ESPERA)
