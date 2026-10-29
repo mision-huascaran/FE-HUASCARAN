@@ -52,7 +52,7 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
   const clase = await test.step('Elegir el día de clase más reciente del periodo vigente', async () => {
     const candidatos = await diasDeClaseCandidatos(page)
     exigirDiaDeClase(candidatos)
-    await irPorMenu(page, 'Asistencia', '/asistencia')
+    await irPorMenu(page, 'Asistencias', '/asistencia')
     // Un feriado lo dice el servidor (422 `fecha_no_lectiva`): se prueba el
     // siguiente candidato, más antiguo. Tampoco sirve una clase que ya tiene
     // asistencia registrada (de otra corrida del mismo día): el servidor la
@@ -107,7 +107,7 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
   const actividad = await test.step('Iniciar la jornada (CU009)', async () => {
     // Al volver, la clase se pide de nuevo: ya tiene los 2 alumnos nuevos.
     const refresco = respuestaDeClase(page, clase.fecha)
-    await irPorMenu(page, 'Asistencia', '/asistencia')
+    await irPorMenu(page, 'Asistencias', '/asistencia')
     expect(await elegirClase(page, clase, { refresco })).toBe('lista')
     // Sin actividad la lista se ve pero no se escribe (CU010).
     await expect(page.getByRole('button', { name: MARCAR_TODOS })).toHaveCount(0)

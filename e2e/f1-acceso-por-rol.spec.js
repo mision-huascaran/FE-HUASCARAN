@@ -98,7 +98,7 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     expect(cuerpo.motivo).toBe('cuenta_desactivada')
 
     await expect(page.getByRole('alert')).toHaveText(
-      'Su cuenta se encuentra desactivada. Comuníquese con el Supervisor para solicitar su habilitación.',
+      'Tu cuenta se encuentra desactivada. Comunícate con el Supervisor para solicitar su habilitación.',
     )
     await expect(page).toHaveURL(/\/login$/)
     expect(await page.evaluate((clave) => sessionStorage.getItem(clave), CLAVE_TOKEN)).toBeNull()

@@ -31,7 +31,7 @@ const PANTALLAS = {
     inicio: (page) => expect(page.getByRole('heading', { name: 'Mis asignaciones' })).toBeVisible(),
     menu: [
       ['Alumnos', '/alumnos', (page) => conTabla(page, 'Alumnos')],
-      ['Asistencia', '/asistencia', (page) => expect(titulo(page, 'Asistencia')).toBeVisible()],
+      ['Asistencias', '/asistencia', (page) => expect(titulo(page, 'Asistencia')).toBeVisible()],
       ['Sesiones', '/sesiones', (page) => conTabla(page, 'Sesiones', 'No existen sesiones para consultar')],
     ],
   },
@@ -97,7 +97,7 @@ test.describe('F10 · CSP en el navegador', () => {
     await page.goto('/login')
     await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible()
     await esperarFuentesEImagenes(page)
-    await page.getByRole('button', { name: '¿Olvidó su contraseña?' }).click()
+    await page.getByRole('button', { name: '¿Olvidaste tu contraseña?' }).click()
     await expect(page.getByText('Recuperar contraseña')).toBeVisible()
     await esperarFuentesEImagenes(page)
 

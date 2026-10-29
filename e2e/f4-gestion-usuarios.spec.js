@@ -100,11 +100,14 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
       await popup.getByLabel('DNI').fill(dni)
       await popup.getByLabel('Correo institucional').fill(correo)
       await popup.getByLabel('Rol').selectOption({ label: 'Docente' })
-      await popup.getByLabel('Colegio asignado').selectOption({ label: SEED.colegio })
-      await popup.getByRole('checkbox', { name: '6.º' }).check()
+      // Un Docente puede tener varios colegios (CU016): un bloque por colegio.
+      const colegio = popup.getByRole('combobox', { name: /^Colegio\b/ })
+      if ((await colegio.count()) === 0) await popup.getByRole('button', { name: 'Añadir colegio' }).click()
+      await colegio.first().selectOption({ label: SEED.colegio })
+      await popup.getByRole('checkbox', { name: '6.º en el colegio 1' }).check()
       await expect(popup.getByLabel('Nombres')).toHaveValue(nombres)
       await expect(popup.getByLabel('DNI')).toHaveValue(dni)
-      await expect(popup.getByRole('checkbox', { name: '6.º' })).toBeChecked()
+      await expect(popup.getByRole('checkbox', { name: '6.º en el colegio 1' })).toBeChecked()
       await evidencia(page, 'usuario-formulario')
 
       const alta = page.waitForResponse((r) => esApi(r, '/usuarios', 'POST'))
