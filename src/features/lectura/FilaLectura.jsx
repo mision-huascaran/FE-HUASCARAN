@@ -142,10 +142,10 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
           onBlur={(e) => alSalirDelLsn({ lsn_titulo: e.target.value })}
         />
         {lsnIncompleto && (
-          <span role="status" className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-600">
+          <output className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-600">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {MOTIVO_FILA.lsn_incompleto}
-          </span>
+          </output>
         )}
       </td>
 
