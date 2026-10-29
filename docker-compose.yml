@@ -15,6 +15,9 @@ services:
         VITE_USE_MOCK: ${VITE_USE_MOCK:-false}
         VITE_AUTH_REAL: ${VITE_AUTH_REAL:-true}
         VITE_ADMIN_REAL: ${VITE_ADMIN_REAL:-true}
+    # Jenkins construye la imagen como :candidata y, si pasa Trivy, la etiqueta
+    # como :actual y despliega esa sin volver a construir (ver Jenkinsfile).
+    image: ${IMAGEN:-huascaran-fe-local}:${IMAGEN_ETIQUETA:-actual}
     container_name: ${ENTORNO:-local}-huascaran
     environment:
       # El backend del mismo entorno (ver .env.example).
