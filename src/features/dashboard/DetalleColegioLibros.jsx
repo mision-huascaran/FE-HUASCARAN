@@ -170,7 +170,7 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
         <DesgloseMensual
           alumno={desglose.alumno}
           mes={desglose.mes}
-          idAnioEscolar={filtros?.idAnioEscolar}
+          filtros={filtros}
           onCerrar={() => setDesglose(null)}
         />
       )}

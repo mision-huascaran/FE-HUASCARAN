@@ -30,6 +30,25 @@ import {
 const formatoDe = (indicador) =>
   indicador === 'asistencia' ? formatearPorcentaje : formatearIndice
 
+/** Las advertencias del servidor, en palabras. Una desconocida se muestra tal cual. */
+const ADVERTENCIAS = new Map([
+  ['evaluacion_incompleta', 'Evaluación incompleta'],
+  ['registro_incompleto', 'Registro incompleto'],
+  ['clases_sin_registro', 'Clases sin registro'],
+  ['informacion_incompleta', 'Información incompleta'],
+])
+
+/** Por qué un colegio no entra en la comparación (`sin_informacion[].motivo`). */
+const MOTIVOS = {
+  periodo_no_iniciado: 'todavía no empezó el periodo',
+  sin_evaluaciones: 'sin evaluaciones completas',
+  no_aplica: 'el subprograma no está configurado',
+  sin_estados_registrados: 'sin asistencias registradas',
+  sin_alumnos: 'sin alumnos incluidos',
+  sin_informacion: 'sin registros suficientes',
+  sin_calendario: 'sin calendario',
+}
+
 /** El intervalo que representa, para que nadie lea un año como un periodo. */
 const intervaloDe = (indicador, periodo) =>
   indicador === 'promedio_libros'
@@ -85,11 +104,22 @@ export default function BloqueComparacionColegios({ filtros, contexto, hayCambio
             { key: 'nombre', header: 'Colegio' },
             { key: 'valor', header: etiqueta, align: 'right', render: (c) => formato(c.valor) },
             {
+              key: 'poblacion',
+              header: 'Población',
+              align: 'right',
+              render: (c) => (c.poblacion ? `${c.poblacion.cantidad} ${c.poblacion.descripcion}` : '—'),
+            },
+            {
               key: 'estado',
               header: '',
               render: (c) => {
-                const aviso = etiquetaDeEstado(c)
-                return aviso ? <Badge tone="warning">{aviso}</Badge> : null
+                const avisos = (c.advertencias ?? []).map((a) => ADVERTENCIAS.get(a) ?? a)
+                if (!avisos.length && etiquetaDeEstado(c)) avisos.push(etiquetaDeEstado(c))
+                return avisos.map((aviso) => (
+                  <Badge key={aviso} tone="warning">
+                    {aviso}
+                  </Badge>
+                ))
               },
             },
           ]}
@@ -102,14 +132,8 @@ export default function BloqueComparacionColegios({ filtros, contexto, hayCambio
 
         {sinInfo.length > 0 && (
           <p className="text-xs text-warning-600">
-            {SIN_INFORMACION} y sin posición: {sinInfo.map((c) => c.nombre).join(', ')}.
-          </p>
-        )}
-
-        {(datos?.colegios_sin_informacion?.length ?? 0) > 0 && (
-          <p className="text-xs text-warning-600">
-            Todavía no empezaron el periodo seleccionado:{' '}
-            {datos.colegios_sin_informacion.map((c) => c.nombre).join(', ')}.
+            {SIN_INFORMACION} y sin posición:{' '}
+            {sinInfo.map((c) => (MOTIVOS[c.motivo] ? `${c.nombre} (${MOTIVOS[c.motivo]})` : c.nombre)).join(', ')}.
           </p>
         )}
       </div>

@@ -26,11 +26,15 @@ import { ERROR_CONSULTA, SIN_INFORMACION } from './estados'
 export const CAMBIO_DESDE_LA_CONSULTA =
   'La información ha cambiado desde tu última consulta. Actualiza el consolidado para ver los valores vigentes.'
 
-export default function DesgloseMensual({ alumno, mes, idAnioEscolar, onActualizar, onCerrar }) {
+/**
+ * `filtros` son los de la consulta APLICADA del consolidado, no el borrador:
+ * el backend busca al alumno en esos colegios, y el total con el que se
+ * compara es el de esa consulta.
+ */
+export default function DesgloseMensual({ alumno, mes, filtros, onActualizar, onCerrar }) {
   const consulta = useQuery({
-    queryKey: ['dashboard', 'libros-desglose', alumno?.id_alumno, mes?.mes, mes?.anio],
-    queryFn: () =>
-      obtenerDesgloseDeLibros({ idAlumno: alumno.id_alumno, mes: mes.mes, anio: mes.anio, idAnioEscolar }),
+    queryKey: ['dashboard', 'libros-desglose', filtros, alumno?.id_alumno, mes?.mes, mes?.anio],
+    queryFn: () => obtenerDesgloseDeLibros(filtros, { idAlumno: alumno.id_alumno, mes: mes.mes, anio: mes.anio }),
     enabled: Boolean(alumno && mes),
   })
 

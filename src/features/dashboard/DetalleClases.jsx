@@ -46,17 +46,17 @@ export default function DetalleClases({ filtros, colegio, periodo, contexto, onV
     enabled: Boolean(filtros),
   })
 
-  const items = consulta.data?.items ?? []
-  const registradas = items.filter((c) => c.estado !== 'sin_registro')
-  const sinRegistro = items.filter((c) => c.estado === 'sin_registro')
-  const grados = [...new Map(items.map((c) => [c.grado?.id, c.grado])).values()].filter(Boolean)
+  // Dos listas desde el servidor: las sin registro no traen conteos.
+  const registradas = consulta.data?.clases ?? []
+  const sinRegistro = consulta.data?.clases_sin_registro ?? []
+  const grados = consulta.data?.grados ?? []
 
   return (
     <BloqueDashboard
       titulo={`Asistencia por grado y sección · ${colegio.nombre}`}
       contexto={[...contexto, periodo?.nombre].filter(Boolean)}
       consulta={consulta}
-      vacio={Boolean(consulta.data) && items.length === 0}
+      vacio={Boolean(consulta.data) && registradas.length === 0 && sinRegistro.length === 0}
       acciones={
         <Button size="sm" variant="ghost" iconLeft={ArrowLeft} onClick={onVolver}>
           Volver al resumen
@@ -131,7 +131,7 @@ export default function DetalleClases({ filtros, colegio, periodo, contexto, onV
             </p>
             <ul className="mt-2 flex flex-wrap gap-2 text-xs text-ink-700">
               {sinRegistro.map((c) => (
-                <li key={`${c.fecha}-${c.grado?.id}`} className="rounded border border-line bg-surface-0 px-2 py-1">
+                <li key={`${c.fecha}-${c.grado?.id}-${c.seccion?.id}`} className="rounded border border-line bg-surface-0 px-2 py-1">
                   {formatearFecha(c.fecha)} · {c.grado?.nombre} {c.seccion?.nombre}
                 </li>
               ))}

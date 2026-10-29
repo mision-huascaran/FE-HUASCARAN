@@ -44,6 +44,9 @@ const RESULTADOS = [
   { value: 'nivel_alfabetico', label: 'Por nivel alfabético' },
 ]
 
+/** Las columnas mientras no llega la escala del servidor. */
+const NIVELES_GLOBALES = ['Inicio', 'En proceso', 'Logrado', 'Avanzado']
+
 const NOTA_INDICE =
   'El índice comparativo asigna 1 a Inicio, 2 a En proceso, 3 a Logrado y 4 a Avanzado, y se calcula solo con los alumnos con evaluación completa. Es una convención para comparar la distribución de resultados: no modifica los niveles de los alumnos, no es una nota individual y no demuestra por sí solo la calidad de la enseñanza.'
 
@@ -100,7 +103,9 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
     ...(conIndice
       ? [{ key: 'indice', header: 'Índice', align: 'right', render: (g) => formatearIndice(g.indice) }]
       : []),
-    ...['Inicio', 'En proceso', 'Logrado', 'Avanzado'].map((nivel) => ({
+    // Las columnas son la escala del resultado elegido: la de Fluidez o la del
+    // nivel alfabético no es la de Inicio a Avanzado.
+    ...(datos?.escala?.length ? datos.escala.map((n) => n.nombre) : NIVELES_GLOBALES).map((nivel) => ({
       key: nivel,
       header: nivel,
       align: 'right',

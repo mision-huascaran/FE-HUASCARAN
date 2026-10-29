@@ -4,11 +4,15 @@
 // la pantalla: el periodo prohibido en los bloques anuales, "todos" frente a la
 // lista de colegios, y el indicador de la comparación que decide si lleva
 // periodo o no.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import handlers from '../../../api/mock/handlers'
 import {
   INDICADORES_COMPARACION,
   filtrosCompletos,
   colegiosSinCalendario,
+  obtenerClasesDeAsistencia,
+  obtenerDesgloseDeLibros,
+  obtenerLibrosDeColegio,
   parametrosDe,
 } from '../../../api/resources/dashboard'
 
@@ -70,5 +74,50 @@ describe('colegiosSinCalendario', () => {
     expect(colegiosSinCalendario(error)).toEqual([{ id: 5, nombre: 'YANAMA' }])
     expect(colegiosSinCalendario({ response: { data: { motivo: 'validacion' } } })).toEqual([])
     expect(colegiosSinCalendario(undefined)).toEqual([])
+  })
+})
+
+describe('el detalle y el desglose de libros llevan la selección de colegios', () => {
+  // Validan la MISMA selección que `/dashboard/libros`: sin ella, el backend
+  // responde 422. Y son anuales: el periodo no viaja.
+  afterEach(() => vi.restoreAllMocks())
+
+  it('`libros/colegios/{id}` manda año y colegios de la consulta, sin periodo ni `id_grado`', async () => {
+    const espia = vi.spyOn(handlers.dashboard, 'librosDeColegio')
+    await obtenerLibrosDeColegio(1, DOS)
+    expect(espia).toHaveBeenCalledWith(1, { id_anio_escolar: '2', id_colegios: [1, 4] })
+  })
+
+  it('el filtro por grado se aplica en el cliente, sobre `grados`', async () => {
+    const espia = vi.spyOn(handlers.dashboard, 'librosDeColegio')
+    const datos = await obtenerLibrosDeColegio(1, TODOS, { idGrado: '2' })
+    expect(espia.mock.calls[0][1]).not.toHaveProperty('id_grado')
+    expect(datos.grados.length).toBeGreaterThan(0)
+    expect(datos.grados.every((g) => g.id_grado === 2)).toBe(true)
+  })
+
+  it('`libros/desglose` manda alumno, mes y año con la selección de colegios', async () => {
+    const espia = vi.spyOn(handlers.dashboard, 'librosDesglose')
+    await obtenerDesgloseDeLibros(TODOS, { idAlumno: 1, mes: 4, anio: 2026 })
+    expect(espia).toHaveBeenCalledWith({
+      id_anio_escolar: '2',
+      todos_los_colegios: true,
+      id_alumno: 1,
+      mes: 4,
+      anio: 2026,
+    })
+  })
+
+  it('`asistencia/clases` manda la selección aplicada y el colegio aparte', async () => {
+    const espia = vi.spyOn(handlers.dashboard, 'asistenciaClases')
+    await obtenerClasesDeAsistencia(DOS, { idColegio: 4 })
+    expect(espia).toHaveBeenCalledWith({
+      id_anio_escolar: '2',
+      id_colegios: [1, 4],
+      id_periodo_academico: 33,
+      id_colegio: 4,
+      id_grado: undefined,
+      id_seccion: undefined,
+    })
   })
 })

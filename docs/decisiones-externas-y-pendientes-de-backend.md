@@ -6,7 +6,7 @@
 L), lo que abrió la **ronda 6** del tester y el **Dashboard** (CU033 a CU035),
 que ya está implementado.
 
-> ## Del backend queda UNA cosa, y es nueva
+> ## Del backend no queda nada
 >
 > Los **once** pedidos originales de "Lo que falta del BACKEND" están
 > resueltos: seis ya existían con otro nombre de campo, y el resto llegó con
@@ -15,11 +15,10 @@ que ya está implementado.
 > programación de clases). Cada uno lleva debajo la respuesta, y lo que
 > exigía cambios en el front ya está hecho.
 >
-> **Lo nuevo es S23**, y sale de haber construido el Dashboard: el contrato
-> publica los once endpoints de `/dashboard/*` con sus filtros, sus estados y
-> sus errores, pero **no el JSON campo por campo**. El front está escrito
-> contra los nombres que el contrato nombra, y hace falta que el backend
-> confirme la forma antes de probar contra el servidor real.
+> **S23 también está resuelto**, y sin tocar el backend: el front se alineó
+> con el contrato real (`app/schemas/dashboard.py`). Cada endpoint de
+> `/dashboard/*` tiene su adaptador en `src/api/resources/dashboard.js`, el
+> simulador devuelve la forma real y una prueba de contrato lo vigila.
 >
 > **Lo que queda abierto del ANALISTA**: ocho puntos, cinco del sprint y
 > **tres que abrió la ronda 6** (S20, S21 y S22). Uno de ellos, S20, necesita
@@ -47,9 +46,9 @@ que ya está implementado.
 | [2. Pantallas del mockup antiguo](#anexo-pantallas-del-mockup-antiguo--%E2%9C%85-resuelto) | ✅ Resuelto: las nueve rutas sin caso de uso ya no existen | — |
 | [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s23) | S1 a S23: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
 
-**Lo que queda.** Los ocho primeros son de Carlos (analista): los cinco
-primeros venían del sprint y los tres siguientes los abrió la **ronda 6** del
-tester. El noveno es del backend y lo abrió el Dashboard:
+**Lo que queda.** Los ocho son de Carlos (analista): los cinco primeros
+venían del sprint y los tres siguientes los abrió la **ronda 6** del tester.
+Del backend no queda nada (S23 se resolvió en el front):
 
 1. **CU028** — si el modal de permisos pide varios grados y módulos a la vez,
    hay que cambiar sus dropdowns de "selección única". El endpoint de lote ya
@@ -66,9 +65,6 @@ tester. El noveno es del backend y lo abrió el Dashboard:
 7. **S21** — si los vencidos deben seguir viéndose durante el receso, que es
    cuando se regularizan.
 8. **S22** — qué pasa con un alumno que cambia de grupo a mitad de mes.
-9. **S23 (backend)** — confirmar la forma de las respuestas de `/dashboard/*`.
-   La pantalla ya está construida contra los nombres que publica el contrato;
-   lo que falta es el JSON campo por campo.
 
 **S1 (Dashboard) cambió de respuesta: ya está implementado.** CU033, CU034 y
 CU035 llegaron completos en los casos de uso actualizados y el backend publicó
@@ -304,8 +300,7 @@ Supervisor, CU035 para el Directivo— y `/dashboard/libros` para CU034, que es
 solo del Supervisor porque llega hasta el alumno. **Cierra D49 por el lado del
 frontend.** El detalle está en la **Fase 8** de `docs/plan-semana12-front.md`.
 
-**Lo único que queda abierto de aquí es S23**, que es del backend: confirmar la
-forma de las respuestas.
+**S23**, la forma de las respuestas, ya está resuelto (ver abajo).
 
 <details><summary>El planteamiento original</summary>
 
@@ -497,8 +492,35 @@ importa. Con el `id_periodo_academico` en cada periodo de la asignación, el
 front puede decir *"asignado en PA3"*; sin él solo puede decir *"asignado
 actualmente"*, que es verdad pero no es lo que se pregunta.
 
-**S23. La forma de las respuestas de `/dashboard/*` no está publicada aquí.**
-Lo abrió el Dashboard, el 29/10/2026, y es **del backend**.
+**S23. La forma de las respuestas de `/dashboard/*`. — ✅ RESUELTO**
+**Resuelto en el front (29/10/2026):** el front se alineó con el contrato real
+del backend: adaptadores en `dashboard.js`, mocks con la forma real y prueba de
+contrato. El backend no cambió.
+
+- La fuente de verdad es `BCK-SICEDU/app/schemas/dashboard.py`. Casi todos los
+  bloques leían nombres que el backend no manda (`cantidad` por `alumnos`,
+  `programas[].dimensiones[]` por `subprogramas[].distribuciones[]`, `grupos`
+  por `ranking`, `colegios` por `por_colegio`, `items` por `grupos` o
+  `registros`, `id_colegio` por `id`...), y las pruebas no lo veían porque el
+  simulador devolvía las mismas formas supuestas.
+- Cada función de `src/api/resources/dashboard.js` pasa la respuesta por un
+  `adaptarX` exportado, que la deja en la forma que lee su pantalla sin
+  convertir `null` en 0 y sin perder lo que la pantalla no lee (`contexto`,
+  `mensaje`, `fuente`...). En evolución anual, `anios[].colegios` es una lista
+  y el número es `colegios_atendidos`: el adaptador no deja ningún `colegios`
+  que se pueda leer como número.
+- `src/api/mock/dashboard.js` devuelve la forma exacta de los modelos, y pasa
+  por el mismo adaptador. `src/api/resources/__tests__/dashboard.contrato.test.js`
+  prueba cada adaptador con un ejemplo completo del schema y compara los
+  campos del simulador con los de los modelos.
+- De paso, tres llamadas que daban 422: `libros/colegios/{id}` y
+  `libros/desglose` no mandaban la selección de colegios, y
+  `asistencia/clases` mandaba el colegio como `id_colegios` en vez de
+  `id_colegio` junto a la selección.
+
+<details><summary>El planteamiento original</summary>
+
+Lo abrió el Dashboard, el 29/10/2026, y era **del backend**.
 
 El contrato que tenemos (`cambiosFront_semana12_v1.md`, sección "Dashboard")
 publica lo importante para construir: qué endpoint alimenta cada bloque, qué
@@ -538,6 +560,8 @@ resumen anual de CU035 **no tiene endpoint propio** (es el año seleccionado de
 `/dashboard/evolucion-anual` más el `resumen` de `/dashboard/libros`), y el
 `promedio_libros` de la comparación entre colegios es **anual**: mandarle un
 periodo académico es un 422.
+
+</details>
 
 ## Fuera de alcance
 

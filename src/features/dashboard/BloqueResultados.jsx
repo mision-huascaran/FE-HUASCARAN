@@ -32,9 +32,11 @@ function Dimension({ dimension }) {
         {aviso && <Badge tone="warning">{aviso}</Badge>}
       </div>
 
-      {niveles.length === 0 ? (
+      {/* El servidor manda TODOS los niveles aunque nadie esté evaluado: sin
+          evaluados, la tabla de ceros no se pinta y se dice por qué. */}
+      {niveles.length === 0 || !dimension.evaluados ? (
         <EmptyState
-          title={SIN_EVALUACIONES_COMPLETAS}
+          title={dimension.mensaje ?? SIN_EVALUACIONES_COMPLETAS}
           description={`${dimension.pendientes ?? 0} alumnos pendientes de evaluar.`}
         />
       ) : (

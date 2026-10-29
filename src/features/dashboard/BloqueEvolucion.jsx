@@ -54,7 +54,7 @@ export default function BloqueEvolucion({ filtros, contexto, hayCambios, anioEsc
           hayDatos={anios.length > 0}
           avisos={[mensaje]}
         >
-          <GraficaLineas datos={anios} campo="alumnos" sufijo="" />
+          <GraficaLineas datos={anios} campo="alumnos_atendidos" sufijo="" />
         </Grafica>
 
         {conLibros && (
@@ -84,8 +84,20 @@ export default function BloqueEvolucion({ filtros, contexto, hayCambios, anioEsc
                 </span>
               ),
             },
-            { key: 'alumnos', header: 'Alumnos atendidos', align: 'right', render: (a) => formatearCantidad(a.alumnos) },
-            { key: 'colegios', header: 'Colegios atendidos', align: 'right', render: (a) => formatearCantidad(a.colegios) },
+            // `colegios_atendidos`, el número: en el backend `colegios` es una
+            // lista por colegio (ver `adaptarEvolucion`).
+            {
+              key: 'alumnos_atendidos',
+              header: 'Alumnos atendidos',
+              align: 'right',
+              render: (a) => formatearCantidad(a.alumnos_atendidos),
+            },
+            {
+              key: 'colegios_atendidos',
+              header: 'Colegios atendidos',
+              align: 'right',
+              render: (a) => formatearCantidad(a.colegios_atendidos),
+            },
             ...(conLibros
               ? [
                   {

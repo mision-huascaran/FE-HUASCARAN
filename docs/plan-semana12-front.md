@@ -1340,11 +1340,43 @@ pantalla que lo pinta deja de estar probada aunque todo "funcione":
   este repositorio. El front lee los nombres que el contrato nombra y tolera
   que falte un campo, pero **conviene que el backend confirme la forma** antes
   de probar contra el servidor real: queda anotado como **S23** en
-  `docs/decisiones-externas-y-pendientes-de-backend.md`.
+  `docs/decisiones-externas-y-pendientes-de-backend.md`. **Ya resuelto: ver
+  8.11.**
 - **Las gráficas siguen siendo SVG propio**, no recharts. El stack lo permite,
   pero una dona de dos sectores y tres líneas no justifican un contenedor que
   mide el ancho con un `ResizeObserver`, y el PNG exige los colores en
   atributos de todas formas.
+
+#### 8.11 Alineado con el contrato real del backend (S23) — ✅ HECHO
+
+Commit `fix(dashboard): alinea las respuestas con el contrato del backend (S23)`,
+en `development` justo después de `f6fd938`.
+
+La forma asumida en el 8.10 no era la del backend: contra el servidor real casi
+todos los bloques habrían salido vacíos o en "Sin información", y las pruebas no
+lo veían porque el simulador devolvía las mismas formas supuestas. Se arregló
+**sin tocar el backend**, tomando `app/schemas/dashboard.py` como fuente de
+verdad:
+
+- **Un adaptador por endpoint** (`adaptarX`, exportado) en
+  `src/api/resources/dashboard.js`: recibe la respuesta real y la deja en la
+  forma que lee su pantalla. El contrato queda escrito en un solo archivo, un
+  `null` sigue siendo `null` y lo que la pantalla no lee también pasa.
+- **El simulador devuelve la forma real** y pasa por el mismo adaptador, como
+  en producción.
+- **Prueba de contrato** (`src/api/resources/__tests__/dashboard.contrato.test.js`,
+  27 pruebas): un ejemplo completo de cada modelo por su adaptador, y los
+  campos del simulador comparados con los de los modelos.
+- **Selección de colegios** en `libros/colegios/{id}` y `libros/desglose` (sin
+  ella el backend daba 422) y en `asistencia/clases`, que mandaba el colegio
+  como `id_colegios` en vez de `id_colegio`. El desglose usa los filtros de la
+  consulta aplicada. 4 pruebas nuevas en `parametros.test.js`.
+- Pantallas, solo donde la forma del backend ya era la buena o se perdía
+  información: la evolución lee `alumnos_atendidos` y `colegios_atendidos`, el
+  detalle de clases lee dos listas (dictadas y sin registro), las columnas de
+  la comparación de resultados salen de `escala`, una dimensión sin evaluados
+  no pinta la tabla de ceros, y la comparación entre colegios muestra población,
+  advertencias y el motivo de cada colegio sin información.
 
 ---
 

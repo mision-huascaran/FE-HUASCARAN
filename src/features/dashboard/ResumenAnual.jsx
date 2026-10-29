@@ -53,13 +53,13 @@ export default function ResumenAnual({ filtros, contexto, anio }) {
           <StatCard
             icon={Users}
             label="Alumnos atendidos"
-            value={celda(delAnio, 'alumnos', formatearCantidad)}
+            value={celda(delAnio, 'alumnos_atendidos', formatearCantidad)}
             hint={parcial ? 'Parcial' : undefined}
           />
           <StatCard
             icon={School}
             label="Colegios atendidos"
-            value={celda(delAnio, 'colegios', formatearCantidad)}
+            value={celda(delAnio, 'colegios_atendidos', formatearCantidad)}
           />
           <StatCard
             icon={BookOpen}
