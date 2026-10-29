@@ -54,11 +54,25 @@ export default function useFiltrosAsistencia() {
      */
     const deLaUrl = parametros.get('fecha')
     const candidata = deLaUrl || guardados.fecha
+    /**
+     * EL AULA TAMBIÉN PUEDE LLEGAR POR LA URL, y por el mismo motivo.
+     *
+     * Lo necesita el detalle de asistencia del Dashboard (CU033, paso 8): al
+     * pulsar una clase se abre CU022 "en modo consulta, con los filtros
+     * correspondientes precargados". Si solo viajara la fecha, el Supervisor
+     * aterrizaría en el día correcto pero en el aula que miró la última vez, y
+     * leería como de esa clase unos datos que son de otra.
+     */
+    const aula = Object.entries(CAMPO).reduce((acumulado, [parametro, campo]) => {
+      const valor = parametros.get(parametro)
+      return valor ? { ...acumulado, [campo]: valor } : acumulado
+    }, {})
+    delete aula.fecha
     // Una fecha futura —reloj del equipo cambiado, o el día siguiente tras
     // dejar la pestaña abierta— no puede resucitar: CU022 no permite registrar
     // en el futuro.
     const fecha = candidata && candidata <= hoy() ? candidata : hoy()
-    return { ...VACIOS, ...guardados, fecha }
+    return { ...VACIOS, ...guardados, ...aula, fecha }
   })
 
   // Estable: los efectos que eligen el primer colegio y grado lo llevan como

@@ -13,8 +13,17 @@ describe('rolPuedeEntrar', () => {
   it('reconoce las rutas de cada rol', () => {
     expect(rolPuedeEntrar('/seguimiento', ROLES.SUPERVISOR)).toBe(true)
     expect(rolPuedeEntrar('/seguimiento', ROLES.DOCENTE)).toBe(false)
-    // El Dashboard del mockup se retiró: su CU011 lo cubre el Inicio.
-    expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(false)
+    /**
+     * El Dashboard volvió, pero NO es el del mockup: es CU033 para el
+     * Supervisor y CU035 para el Directivo, con los once endpoints del
+     * backend detrás. El Docente sigue fuera.
+     */
+    expect(rolPuedeEntrar('/dashboard', ROLES.SUPERVISOR)).toBe(true)
+    expect(rolPuedeEntrar('/dashboard', ROLES.DIRECTIVO)).toBe(true)
+    expect(rolPuedeEntrar('/dashboard', ROLES.DOCENTE)).toBe(false)
+    // CU034 trae nombres de alumnos: solo el Supervisor.
+    expect(rolPuedeEntrar('/dashboard/libros', ROLES.SUPERVISOR)).toBe(true)
+    expect(rolPuedeEntrar('/dashboard/libros', ROLES.DIRECTIVO)).toBe(false)
     expect(rolPuedeEntrar('/inicio', ROLES.DOCENTE)).toBe(true)
     expect(rolPuedeEntrar('/seguimiento', ROLES.DIRECTIVO)).toBe(false)
     // El Directivo ya no gestiona cuentas (D2 del sprint de cierre).

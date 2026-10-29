@@ -34,10 +34,23 @@ afterEach(() => {
 })
 
 describe('El Directivo no ve nombres de alumnos (RNF-004)', () => {
-  it('la matriz de permisos solo le da el Inicio (CU012)', () => {
-    // CU012 le deja tres tarjetas en su Inicio y nada más.
-    expect(Object.values(MATRIZ).filter((s) => s[ROLES.DIRECTIVO]).map((s) => s.ruta)).toEqual(['/inicio'])
-    expect(RUTAS_DEL_DIRECTIVO.length).toBeGreaterThan(0)
+  it('la matriz de permisos le da el Inicio y el Dashboard, y nada más', () => {
+    /**
+     * CU012 le deja tres tarjetas en su Inicio. El Dashboard se suma con
+     * CU035, y NO debilita esta prueba: la refuerza, porque la lista de rutas
+     * de abajo se construye con la matriz, así que `/dashboard` entra solo en
+     * el recorrido que busca nombres de alumnos en pantalla.
+     *
+     * Que el Directivo pueda entrar no significa que vea lo mismo: los cinco
+     * endpoints nominales del dashboard —distribución, comparación de
+     * resultados, detalle de clases y los dos de libros por alumno— le
+     * responden 403, y su pantalla no tiene ningún listado de alumnos.
+     */
+    expect(Object.values(MATRIZ).filter((s) => s[ROLES.DIRECTIVO]).map((s) => s.ruta)).toEqual([
+      '/inicio',
+      '/dashboard',
+    ])
+    expect(RUTAS_DEL_DIRECTIVO).toContain('/dashboard')
   })
 
   it('control: el mismo detector SÍ encuentra alumnos en /alumnos del Supervisor', async () => {

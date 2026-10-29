@@ -45,6 +45,37 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
     [DIRECTIVO]: { acciones: [VER], alcance: 'todos' },
   },
+  /**
+   * DASHBOARD (CU033, CU034 y CU035) — Supervisor y Directivo, solo lectura.
+   *
+   * No sale de la matriz del sprint de cierre: esa matriz es de octubre y el
+   * Dashboard no existía entonces. Era D49 —"módulo sin caso de uso ni
+   * implementación"— y se había decidido no construirlo (S1). Las dos cosas
+   * que lo cambian:
+   *
+   *   · los casos de uso actualizados traen CU033, CU034 y CU035 completos, y
+   *     los dos primeros dicen literalmente que el acceso es "desde el
+   *     sidebar";
+   *   · el backend publicó los once endpoints de `/dashboard/*`, y su matriz
+   *     de permisos da seis al Directivo y los once al Supervisor.
+   *
+   * EL DIRECTIVO ENTRA, y eso no contradice RN-033 ni RN-034: los cinco
+   * endpoints nominales —distribución, comparación de resultados, detalle de
+   * clases y los dos de libros por alumno— le responden 403, y su pantalla
+   * (CU035) no tiene ningún listado de alumnos. Ve totales y porcentajes.
+   *
+   * Es EN LÍNEA y de solo lectura por restricción expresa de los tres CU: "El
+   * dashboard requiere conexión a Internet. No dispone de un modo de consulta
+   * offline", y "no requiere una actividad de trabajo activa".
+   */
+  dashboard: {
+    ruta: '/dashboard',
+    etiqueta: 'Dashboard',
+    conectividad: CONECTIVIDAD.SOLO_ONLINE,
+    [DOCENTE]: null,
+    [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
+    [DIRECTIVO]: { acciones: [VER], alcance: 'todos' },
+  },
   alumnos: {
     ruta: '/alumnos',
     etiqueta: 'Alumnos',

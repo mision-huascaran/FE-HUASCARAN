@@ -5,6 +5,7 @@
 // modo que el resto de la aplicación trata igual al mock y a la API.
 import * as db from './db'
 import * as agregados from './consolidados'
+import * as panel from './dashboard'
 import { esCorreoValido } from '../../lib/validacion'
 import { sincronizarReloj } from '../../lib/relojServidor'
 
@@ -2789,30 +2790,26 @@ export const handlers = {
   },
   // ── Fase 6 ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Dashboard de CU033, CU034 y CU035 — un endpoint por bloque.
+   *
+   * Sustituye al dashboard del mockup viejo (`/dashboard/resumen`,
+   * `/dashboard/ejecutivo`, `/dashboard/ranking-aulas`), que respondía todo en
+   * una sola petición y ya no existe en el backend. Lo que cada bloque devuelve
+   * —y los estados que siembra a propósito— está en `mock/dashboard.js`.
+   */
   dashboard: {
-    /**
-     * Todo el dashboard (P12) en una sola respuesta. RF-006 pide una sola vista
-     * con varios gráficos que reaccionan a los mismos filtros; con la conexión
-     * del 70 % de RN-017, una petición es mejor que siete.
-     */
-    resumen: (filtros = {}) =>
-      responder({
-        indicadores: agregados.indicadores(filtros),
-        distribucion: agregados.distribucion(filtros),
-        variacion: agregados.variacion(filtros),
-        alcanzado_vs_esperado: agregados.alcanzadoVsEsperado(filtros),
-        fluidez_vs_comprension: agregados.fluidezVsComprension(filtros),
-        evolucion_programas: agregados.evolucionPorPrograma(filtros),
-        colegios: agregados.resumenPorColegio(filtros),
-      }),
-    rankingColegios: (filtros = {}) => responder(agregados.rankingColegios(filtros)),
-    rankingAulas: (filtros = {}) => responder(agregados.rankingAulas(filtros)),
-    ejecutivo: (filtros = {}) =>
-      responder({
-        indicadores: agregados.panelEjecutivo(filtros),
-        evolucion_programas: agregados.evolucionPorPrograma(filtros),
-        ranking: agregados.rankingColegios(filtros),
-      }),
+    filtros: () => responder(panel.filtros()),
+    distribucionSubprograma: (params) => responder(panel.distribucionSubprograma(params)),
+    resultadosAprendizaje: (params) => responder(panel.resultadosAprendizaje(params)),
+    comparacionResultados: (params) => responder(panel.comparacionResultados(params)),
+    asistencia: (params) => responder(panel.asistencia(params)),
+    asistenciaClases: (params) => responder(panel.asistenciaClases(params)),
+    libros: (params) => responder(panel.libros(params)),
+    librosDeColegio: (idColegio, params) => responder(panel.librosDeColegio(idColegio, params)),
+    librosDesglose: (params) => responder(panel.librosDesglose(params)),
+    evolucionAnual: (params) => responder(panel.evolucionAnual(params)),
+    comparacionColegios: (params) => responder(panel.comparacionColegios(params)),
   },
 
   colegios: {

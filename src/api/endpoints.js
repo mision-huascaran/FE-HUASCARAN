@@ -276,10 +276,37 @@ export const ENDPOINTS = {
     nivelesRubrica: '/niveles-rubrica', // ?programa=
   },
 
+  /**
+   * SEMANA 12 — Dashboard (CU033, CU034 y CU035), serie D1 a D7 del backend.
+   *
+   * ONCE endpoints, uno por bloque de pantalla. No hay un `/dashboard/resumen`
+   * que lo traiga todo: cada bloque se consulta aparte justamente porque los
+   * CU piden que un bloque que falla o que no tiene datos NO arrastre a los
+   * demás ("si el problema afecta únicamente a un bloque, el aviso aparece
+   * dentro de ese bloque").
+   *
+   * LAS RUTAS PROVISIONALES DE ROMINA YA NO EXISTEN y responden 404:
+   * `/dashboard/cumplimiento`, `/dashboard/niveles`, `/dashboard/aprendizaje`
+   * y `/dashboard/lectura`. `/dashboard/resumen`, `/dashboard/ejecutivo` y
+   * `/dashboard/ranking-aulas` eran del mockup viejo y tampoco: se retiraron
+   * con las nueve pantallas sin caso de uso.
+   *
+   * Cinco son SOLO del Supervisor (CU033 y CU034 nominales); los otros seis los
+   * comparte con el Directivo, cuya respuesta no trae nombres de alumnos.
+   */
   dashboard: {
-    resumen: '/dashboard/resumen',
-    ejecutivo: '/dashboard/ejecutivo',
-    rankingAulas: '/dashboard/ranking-aulas',
+    // Carga inicial: colegios autorizados, años con sus 4 PA y `seleccion_inicial`.
+    filtros: '/dashboard/filtros',
+    distribucionSubprograma: '/dashboard/distribucion-subprograma', // Supervisor
+    resultadosAprendizaje: '/dashboard/resultados-aprendizaje',
+    comparacionResultados: '/dashboard/comparacion-resultados', // Supervisor
+    asistencia: '/dashboard/asistencia',
+    asistenciaClases: '/dashboard/asistencia/clases', // Supervisor
+    libros: '/dashboard/libros',
+    librosDeColegio: (idColegio) => `/dashboard/libros/colegios/${idColegio}`, // Supervisor
+    librosDesglose: '/dashboard/libros/desglose', // Supervisor
+    evolucionAnual: '/dashboard/evolucion-anual',
+    comparacionColegios: '/dashboard/comparacion-colegios',
   },
 }
 

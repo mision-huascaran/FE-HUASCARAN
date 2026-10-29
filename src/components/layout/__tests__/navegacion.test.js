@@ -19,11 +19,21 @@ describe('NAV_BY_ROLE', () => {
     ROLES_REALES.forEach((idRol) => expect(navegacionDe(idRol).length).toBeGreaterThan(0))
   })
 
-  it('el Directivo solo tiene Inicio (CU012)', () => {
-    // Deja de gestionar cuentas, y tampoco entra al Dashboard: ese módulo
-    // llevaba un buscador de alumnos por nombre, y RN-033/RN-034 le prohíben
-    // ver datos de estudiantes. Su Inicio son tres tarjetas y nada más.
-    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio'])
+  it('el Directivo tiene Inicio y Dashboard (CU012 y CU035)', () => {
+    /**
+     * Sigue sin gestionar cuentas. Lo que cambió es el Dashboard: estaba
+     * fuera porque el del mockup viejo llevaba un buscador de alumnos por
+     * nombre y RN-033/RN-034 le prohíben ver datos de estudiantes. El de
+     * CU035 no tiene ningún listado nominal —sus cinco endpoints con nombres
+     * le responden 403— y el propio caso de uso dice que accede "desde el
+     * sidebar".
+     *
+     * Que no vea nombres no se da por supuesto: lo comprueba
+     * `features/__tests__/directivoSinNombres.test.jsx`, que recorre TODAS sus
+     * rutas y busca en el documento el nombre y el código de cada alumno del
+     * simulador.
+     */
+    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio', '/dashboard'])
   })
 
   it('el Supervisor también tiene los cuatro módulos académicos (CP-ROL-03, D49)', () => {
@@ -39,6 +49,8 @@ describe('NAV_BY_ROLE', () => {
     expect([...rutas].sort()).toEqual(
       [
         '/inicio',
+        // CU033: el Supervisor accede al Dashboard desde el sidebar.
+        '/dashboard',
         '/colegios',
         '/alumnos',
         '/usuarios',
