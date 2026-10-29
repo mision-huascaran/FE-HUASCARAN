@@ -115,18 +115,16 @@ describe('La tabla de programación (CU013)', () => {
   it('sin clases muestra el texto del caso de uso', async () => {
     listarClases.mockResolvedValue(pagina([]))
     montar()
-    // La aserción va DENTRO del `waitFor`: el aviso se oculta mientras hay una
-    // consulta en curso, y la tabla vuelve a consultar al llegar los catálogos.
-    await waitFor(
-      () => expect(screen.getByText('No hay clases programadas para los filtros seleccionados.')).toBeInTheDocument(),
-      ESPERA,
-    )
+    // Basta con que APAREZCA: el aviso se oculta mientras hay una consulta en
+    // curso, y la tabla vuelve a consultar al llegar los catálogos, así que
+    // puede haberse desmontado otra vez cuando se comprueba.
+    expect(await screen.findByText('No hay clases programadas para los filtros seleccionados.', {}, ESPERA)).toBeTruthy()
   })
 
   it('con `items` en null no revienta (D48)', async () => {
     listarClases.mockResolvedValue({ items: null, total: 0, total_pages: 1 })
     montar()
-    await waitFor(() => expect(screen.getByText(/no hay clases programadas/i)).toBeInTheDocument(), ESPERA)
+    expect(await screen.findByText(/no hay clases programadas/i, {}, ESPERA)).toBeTruthy()
   })
 
   it('el filtro de subprograma viaja al servidor, no se aplica en el cliente', async () => {

@@ -210,26 +210,37 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                     Inicio de asignación <span className="text-danger-600">*</span>
                   </p>
                   <div className="mt-2 flex flex-col gap-2">
-                    {opcionesDeInicio(receso).map((opcion) => (
-                      <label
-                        key={opcion.value}
-                        className={`flex items-start gap-2 text-sm ${opcion.disabled ? 'opacity-50' : 'cursor-pointer'}`}
-                      >
-                        <input
-                          type="radio"
-                          name={`inicio-asignacion-${i}`}
-                          value={opcion.value}
-                          checked={c.inicio_asignacion === opcion.value}
-                          disabled={soloLectura || opcion.disabled}
-                          onChange={() => actualizar(i, { inicio_asignacion: opcion.value })}
-                          className="mt-0.5 h-4 w-4 accent-brand-600"
-                        />
-                        <span>
-                          <span className="font-medium text-ink-900">{opcion.label}</span>
-                          <span className="block text-xs text-ink-500">{AYUDA_INICIO[opcion.value]}</span>
-                        </span>
-                      </label>
-                    ))}
+                    {opcionesDeInicio(receso).map((opcion) => {
+                      // La etiqueta con su texto y su control por `htmlFor`; la
+                      // ayuda, ligada al radio como descripción.
+                      const idOpcion = `inicio-asignacion-${i}-${opcion.value}`
+                      return (
+                        <div
+                          key={opcion.value}
+                          className={`flex items-start gap-2 text-sm ${opcion.disabled ? 'opacity-50' : ''}`}
+                        >
+                          <input
+                            id={idOpcion}
+                            type="radio"
+                            name={`inicio-asignacion-${i}`}
+                            value={opcion.value}
+                            checked={c.inicio_asignacion === opcion.value}
+                            disabled={soloLectura || opcion.disabled}
+                            aria-describedby={`${idOpcion}-ayuda`}
+                            onChange={() => actualizar(i, { inicio_asignacion: opcion.value })}
+                            className="mt-0.5 h-4 w-4 accent-brand-600"
+                          />
+                          <div>
+                            <label htmlFor={idOpcion} className="cursor-pointer font-medium text-ink-900">
+                              {opcion.label}
+                            </label>
+                            <span id={`${idOpcion}-ayuda`} className="block text-xs text-ink-500">
+                              {AYUDA_INICIO[opcion.value]}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                   <p className="mt-2 text-xs text-ink-500">{ayudaDelReceso(receso)}</p>
                   {erroresPorIndice[`${pos}.inicio_asignacion`] && (
