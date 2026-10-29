@@ -80,7 +80,7 @@ function errorMock(status, detail, motivo, extra = {}) {
  * con `id_colegios` es 422, y una selección vacía NO es "todos".
  */
 function colegiosDe(params = {}) {
-  const pedidos = [].concat(params.id_colegios ?? []).map(Number).filter(Boolean)
+  const pedidos = [params.id_colegios ?? []].flat().map(Number).filter(Boolean)
   if (params.todos_los_colegios && pedidos.length) {
     throw errorMock(422, 'No combines "Todos los colegios" con una lista de colegios.', 'validacion')
   }
@@ -126,6 +126,12 @@ function periodoDe(params = {}, { obligatorio = true } = {}) {
   return periodo
 }
 
+/** Cómo se eligieron los colegios (`AlcanceColegios`). */
+function alcanceDe(params, colegios) {
+  if (params.todos_los_colegios) return 'todos'
+  return colegios.length === 1 ? 'uno' : 'varios'
+}
+
 /** `ContextoDashboard`: qué representa la respuesta. */
 function contextoDe(params, colegios, periodo = null) {
   const intervalo = periodo
@@ -135,7 +141,7 @@ function contextoDe(params, colegios, periodo = null) {
     anio_escolar: anioDe(params),
     periodo: periodo && { id: periodo.id, numero: periodo.numero, nombre: periodo.nombre },
     colegios: colegios.map(itemColegio),
-    alcance: params.todos_los_colegios ? 'todos' : colegios.length === 1 ? 'uno' : 'varios',
+    alcance: alcanceDe(params, colegios),
     fecha_consulta: hoy().toISOString(),
     intervalo,
     parcial: HOY() <= intervalo.hasta,
@@ -154,7 +160,8 @@ function reparto(colegios) {
 
 /** La pertenencia se mira al terminar el PA, o hoy si sigue en curso. */
 const fechasDeCorte = (activos, periodo) => {
-  const fecha = HOY() <= periodo.fin ? HOY() : periodo.fin
+  const enCurso = HOY() <= periodo.fin
+  const fecha = enCurso ? HOY() : periodo.fin
   return activos.map((c) => ({ colegio: itemColegio(c), fecha }))
 }
 
@@ -338,7 +345,7 @@ export function comparacionResultados(params) {
       errores: [{ campo: 'id_programa', mensaje: 'Selecciona un subprograma.' }],
     })
   }
-  const gradosPedidos = [].concat(params.id_grados ?? []).map(Number).filter(Boolean)
+  const gradosPedidos = [params.id_grados ?? []].flat().map(Number).filter(Boolean)
   if (!params.todos_los_grados && !gradosPedidos.length) {
     throw errorMock(422, 'Selecciona al menos un grado.', 'validacion', {
       errores: [{ campo: 'id_grados', mensaje: 'Selecciona al menos un grado.' }],
@@ -372,8 +379,9 @@ export function comparacionResultados(params) {
     }
     // El colegio 4 se queda sin ninguna evaluación completa: va aparte.
     const totalAEvaluar = suyos.length
+    const proporcionPendiente = colegio.id_colegio % 3 === 0 ? 0.15 : 0
     const pendientes =
-      colegio.id_colegio === 4 ? totalAEvaluar : Math.round(totalAEvaluar * (colegio.id_colegio % 3 === 0 ? 0.15 : 0))
+      colegio.id_colegio === 4 ? totalAEvaluar : Math.round(totalAEvaluar * proporcionPendiente)
     const evaluados = totalAEvaluar - pendientes
     if (!evaluados) {
       sinEvaluaciones.push({ ...clave, total_a_evaluar: totalAEvaluar, evaluados, pendientes })
