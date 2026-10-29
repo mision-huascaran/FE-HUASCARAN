@@ -108,6 +108,36 @@ describe('Reloj de referencia del servidor', () => {
     expect(hoy()).toBe(antes)
   })
 
+  /**
+   * D99 — CP-ASI-07, CP-LEC-07. La cabecera `Date` va truncada al segundo y
+   * sale antes de viajar: anclar a ella tal cual dejaba `ahora()` 1 a 2 s por
+   * detrás, y un cambio hecho justo después de revocar un permiso se aceptaba.
+   */
+  it('no queda atrasado: suma el segundo del truncado y la mitad del viaje', async () => {
+    const { sincronizarReloj, ahora } = await import('../relojServidor')
+    const enviado = performance.now()
+    const declarado = Date.parse('2026-10-28T15:00:00Z')
+    // La respuesta tardó 800 ms en volver.
+    vi.spyOn(performance, 'now').mockReturnValue(enviado + 800)
+    sincronizarReloj('Wed, 28 Oct 2026 15:00:00 GMT', { enviadoEn: enviado })
+
+    expect(ahora().getTime()).toBe(declarado + 1000 + 400)
+    vi.restoreAllMocks()
+  })
+
+  it('una respuesta que da una hora un poco MÁS TEMPRANA no lo hace retroceder', async () => {
+    const { sincronizarReloj, ahora } = await import('../relojServidor')
+    sincronizarReloj('Wed, 28 Oct 2026 15:00:01 GMT')
+    const antes = ahora().getTime()
+    // Otra respuesta del mismo instante, con el truncado en el segundo anterior.
+    sincronizarReloj('Wed, 28 Oct 2026 15:00:00 GMT')
+    expect(ahora().getTime()).toBeGreaterThanOrEqual(antes)
+
+    // Un salto de verdad (el reloj del servidor cambió) sí manda.
+    sincronizarReloj('Wed, 28 Oct 2026 14:00:00 GMT')
+    expect(ahora().getTime()).toBeLessThan(antes - 3_000_000)
+  })
+
   it('el día se cuenta en Lima, no en UTC', async () => {
     const { sincronizarReloj, hoy } = await import('../relojServidor')
     // Las 02:00 UTC del 14 son todavía las 21:00 del 13 en Lima (UTC-5).

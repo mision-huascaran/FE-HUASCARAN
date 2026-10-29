@@ -19,6 +19,7 @@ import { del, get, set } from 'idb-keyval'
 import { avisarPendientes, consultarOperacion } from '../api/resources/sincronizacion'
 import { idDeDispositivo } from './dispositivo'
 import { nuevoUuid } from './uuid'
+import { ahora } from './relojServidor'
 import { leerPayload } from '../auth/jwt'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
@@ -502,7 +503,8 @@ export function encolar({
     intentos: 0,
     error: null,
     verificar: false,
-    creado: new Date().toISOString(),
+    // Viaja como `realizado_en` del aviso de pendientes: la hora del servidor (D99).
+    creado: ahora().toISOString(),
   }
 
   if (anterior >= 0) {

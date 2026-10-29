@@ -32,10 +32,16 @@ describe('sessionStore: token inicial al recargar', () => {
     expect((await storeRecargado()).getState().token).toBe(token)
   })
 
-  it('descarta y borra un token ya vencido, para no morir con un 401', async () => {
-    sessionStorage.setItem(CLAVE, jwtDePrueba({ exp: expEn(-1) }))
-    expect((await storeRecargado()).getState().token).toBeNull()
-    expect(sessionStorage.getItem(CLAVE)).toBeNull()
+  /**
+   * D57 — CP-INI-19. Al recargar todavía no hay hora del servidor, y con la
+   * del equipo un reloj adelantado echaba al login a una sesión vigente. El
+   * token se restaura y lo juzga el servidor: si venció, su 401 cierra la
+   * sesión con el aviso de expiración.
+   */
+  it('no descarta el token por el reloj del equipo: lo decide el servidor', async () => {
+    const token = jwtDePrueba({ exp: expEn(-1) })
+    sessionStorage.setItem(CLAVE, token)
+    expect((await storeRecargado()).getState().token).toBe(token)
   })
 
   it('con el almacenamiento bloqueado arranca sin sesión en vez de romper', async () => {

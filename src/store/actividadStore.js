@@ -67,7 +67,10 @@ const useActividadStore = create((set, get) => ({
     const sesion = {
       id: uuid(),
       id_docente: idDocente ?? null,
-      inicio: new Date().toISOString(),
+      // La hora del servidor, como `fin` (D99): con la del equipo, un reloj
+      // adelantado mandaba un inicio futuro y uno atrasado lo dejaba antes de
+      // tiempo.
+      inicio: ahora().toISOString(),
       fin: null,
     }
     guardar(sesion)

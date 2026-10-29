@@ -1,7 +1,8 @@
 // El JWT del backend dura 8 horas (APIS_BACKEND.md), así que una sesión caduca
 // con el docente dentro. Leer `exp` evita disparar peticiones condenadas al 401.
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { caducaEn, leerPayload, tokenCaducado } from '../jwt'
+import { _reiniciarReloj, sincronizarReloj } from '../../lib/relojServidor'
 import { normalizarPerfil } from '../../api/resources/auth'
 
 /** Arma un JWT de mentira con el payload indicado (firma irrelevante: no se valida). */
@@ -40,6 +41,13 @@ describe('leerPayload', () => {
 })
 
 describe('tokenCaducado', () => {
+  // Con referencia del servidor: el servidor dice que es "ahora".
+  beforeEach(() => sincronizarReloj(new Date().toUTCString()))
+  afterEach(() => {
+    _reiniciarReloj()
+    vi.useRealTimers()
+  })
+
   it('reconoce un token vencido', () => {
     expect(tokenCaducado(armarToken({ exp: enSegundos(-60) }))).toBe(true)
   })
@@ -55,6 +63,24 @@ describe('tokenCaducado', () => {
   it('NO declara caducado un token ilegible: de eso se encarga el 401 del servidor', () => {
     expect(tokenCaducado('mock.1.2026')).toBe(false)
     expect(tokenCaducado(armarToken({ id_usuario: 1 }))).toBe(false)
+  })
+
+  /**
+   * D104 — CP-LEC-02. Con el reloj del equipo 23 días adelantado, el token
+   * recién emitido se daba por vencido: el login lo borraba y `GET /me`
+   * salía sin token ("La sesión no es válida").
+   */
+  it('un reloj del equipo adelantado no vence un token que el servidor da por bueno', () => {
+    const token = armarToken({ exp: enSegundos(8 * 3600) })
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.now() + 23 * 24 * 3600 * 1000)
+    expect(tokenCaducado(token)).toBe(false)
+  })
+
+  /** D57 — CP-INI-19. Al recargar no hay referencia: decide el 401 del servidor. */
+  it('sin referencia del servidor no declara caducado nada', () => {
+    _reiniciarReloj()
+    expect(tokenCaducado(armarToken({ exp: enSegundos(-60) }))).toBe(false)
   })
 })
 
