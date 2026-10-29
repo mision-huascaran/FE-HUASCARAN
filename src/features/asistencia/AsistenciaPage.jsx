@@ -50,6 +50,8 @@ import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
+import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
+import { ahora } from '../../lib/relojServidor'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
@@ -102,13 +104,45 @@ export default function AsistenciaPage() {
   // `GET /colegios` es de administración: pedirlo como Docente sería un 403.
   const { data: todosLosColegios = [] } = useColegiosReales(!esDocente)
 
-  const colegios = useMemo(
-    () =>
-      esDocente
-        ? asignaciones.map((a) => ({ id_colegio: a.id_colegio, nombre: a.colegio }))
-        : todosLosColegios,
-    [esDocente, asignaciones, todosLosColegios],
-  )
+  /**
+   * EL AULA DE UN PERMISO VIGENTE TAMBIÉN ES SUYA (D56).
+   *
+   * El contrato es explícito: "los grupos a los que solo llega por un permiso
+   * NO suman a `asignaciones`". Como estos filtros se armaban solo con
+   * `GET /me/asignaciones`, el colegio del permiso no salía en el desplegable
+   * y el Docente no tenía forma de abrir la pantalla donde usarlo, que es lo
+   * único para lo que se le dio.
+   *
+   * Salen del paquete offline, que desde la tanda I trae los nombres: así el
+   * aula se ofrece también sin conexión, que es cuando hace falta.
+   */
+  const { data: habilitaciones } = useQuery({
+    queryKey: ['me', 'habilitaciones'],
+    queryFn: obtenerMisHabilitaciones,
+    enabled: esDocente,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  /** Solo los VIGENTES ahora: un permiso programado todavía no habilita nada. */
+  const permisos = useMemo(() => {
+    const momento = ahora().getTime()
+    return (habilitaciones?.permisos ?? []).filter(
+      (p) => Date.parse(p.inicio) <= momento && momento <= Date.parse(p.fin),
+    )
+  }, [habilitaciones])
+
+  const colegios = useMemo(() => {
+    if (!esDocente) return todosLosColegios
+    const vistos = new Map()
+    asignaciones.forEach((a) => vistos.set(String(a.id_colegio), { id_colegio: a.id_colegio, nombre: a.colegio }))
+    permisos.forEach((p) => {
+      const id = p.colegio?.id ?? p.id_colegio
+      if (id == null || vistos.has(String(id))) return
+      vistos.set(String(id), { id_colegio: id, nombre: p.colegio?.nombre ?? `Colegio ${id}` })
+    })
+    return [...vistos.values()]
+  }, [esDocente, asignaciones, permisos, todosLosColegios])
 
   // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
   const { data: colegio } = useQuery({
@@ -125,10 +159,21 @@ export default function AsistenciaPage() {
 
   const grados = useMemo(() => {
     const delColegio = colegio?.grados ?? []
-    if (!esDocente || !asignacion) return delColegio
-    const mios = new Set((asignacion.grados ?? []).map(String))
-    return delColegio.filter((g) => mios.has(String(g.id_grado)))
-  }, [colegio, esDocente, asignacion])
+    if (!esDocente) return delColegio
+
+    const mios = new Set((asignacion?.grados ?? []).map(String))
+    // Y los grados de sus permisos vigentes EN ESTE colegio (D56).
+    permisos
+      .filter((p) => String(p.colegio?.id ?? p.id_colegio ?? '') === String(filtros.idColegio))
+      .forEach((p) => {
+        const id = p.grado?.id ?? p.id_grado
+        if (id != null) mios.add(String(id))
+      })
+
+    if (!mios.size) return delColegio
+    const cruce = delColegio.filter((g) => mios.has(String(g.id_grado)))
+    return cruce.length ? cruce : delColegio
+  }, [colegio, esDocente, asignacion, permisos, filtros.idColegio])
 
   /**
    * Las secciones del grado elegido, que solo trae el detalle del colegio.

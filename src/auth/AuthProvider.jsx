@@ -8,6 +8,7 @@ import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
 import { idSesionDe, tokenCaducado } from './jwt'
+import { guardarPerfilLocal, perfilLocalDe } from '../lib/datosLocales'
 import useExpiracionSesion from './useExpiracionSesion'
 
 /**
@@ -68,6 +69,8 @@ export function AuthProvider({ children }) {
     obtenerPerfil()
       .then((perfil) => {
         setUsuario(perfil)
+        // D82 — Una copia, para poder recargar sin conexión.
+        guardarPerfilLocal(perfil)
         setCargando(false)
       })
       .catch((error) => {
@@ -86,6 +89,25 @@ export function AuthProvider({ children }) {
         const estado = error?.response?.status
         if (estado === 401 || estado === 403) {
           limpiarSesion()
+          return
+        }
+
+        /**
+         * D82 — SIN SEÑAL SE SIGUE TRABAJANDO CON LA COPIA.
+         *
+         * El perfil vive en memoria y la recarga lo pierde. Pedirlo otra vez
+         * sin red falla, y la aplicación se quedaba en "No se pudo contactar
+         * con el servidor": el Docente que recargaba en el aula perdía el
+         * acceso a todo, incluida la cola de pendientes que ya tenía guardada.
+         *
+         * Con la copia se entra igual. No se usa para un 401 ni un 403 —eso
+         * ya se resolvió arriba—, solo cuando el servidor no contesta, que es
+         * cuando el token sigue siendo bueno.
+         */
+        const guardado = perfilLocalDe(null)
+        if (guardado) {
+          setUsuario(guardado)
+          setCargando(false)
           return
         }
         /**

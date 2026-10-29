@@ -12,7 +12,7 @@
 // vez con los dos nombres en la misma celda, y con cualquiera de los dos
 // también sale una vez.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, CalendarDays } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -44,6 +44,7 @@ function rangoDelMes(mes) {
 
 export default function ProgramacionDeClases({ colegio }) {
   const enLinea = useConexion()
+  const queryClient = useQueryClient()
   const [pagina, setPagina] = useState(1)
   const [reprogramando, setReprogramando] = useState(null)
   const [viendoHistorial, setViendoHistorial] = useState(null)
@@ -83,13 +84,17 @@ export default function ProgramacionDeClases({ colegio }) {
    * CU013: con una sola sección se autocompleta; con varias se permite elegir
    * una o "Todas".
    */
+  /**
+   * Las secciones son DE UN GRADO, no del colegio (D83).
+   *
+   * Cada grado tiene su propia "Única", con id distinto. Con "Todos los
+   * grados" se ofrecían las seis: seis opciones idénticas en pantalla, y
+   * elegir una filtraba por la sección de UN grado sin decir de cuál. Sin
+   * grado elegido no hay sección que ofrecer.
+   */
   const secciones = useMemo(() => {
-    const deGrados = filtros.idGrado
-      ? (grados.find((g) => String(g.id_grado) === String(filtros.idGrado))?.secciones ?? [])
-      : grados.flatMap((g) => g.secciones ?? [])
-    const vistas = new Map()
-    deGrados.forEach((s) => vistas.set(String(s.id), s))
-    return [...vistas.values()]
+    if (!filtros.idGrado) return []
+    return grados.find((g) => String(g.id_grado) === String(filtros.idGrado))?.secciones ?? []
   }, [grados, filtros.idGrado])
 
   useEffect(() => {
@@ -156,6 +161,8 @@ export default function ProgramacionDeClases({ colegio }) {
           placeholder="Todas"
           onChange={cambiarFiltro('idSeccion')}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
+          disabled={!filtros.idGrado}
+          hint={filtros.idGrado ? undefined : 'Elige un grado: cada uno tiene sus propias secciones'}
         />
         <Select
           label="Subprograma"
@@ -292,6 +299,14 @@ export default function ProgramacionDeClases({ colegio }) {
         onHecho={() => {
           setReprogramando(null)
           consulta.refetch()
+          /**
+           * D83 — Y EL HISTORIAL, que se quedó con la versión de antes.
+           *
+           * "Modificar reprogramación" se abre DESDE el historial, así que al
+           * volver a él se veía el traslado anterior y no el que se acababa de
+           * hacer: parecía que no se había guardado.
+           */
+          queryClient.invalidateQueries({ queryKey: ['reprogramaciones'] })
         }}
       />
 

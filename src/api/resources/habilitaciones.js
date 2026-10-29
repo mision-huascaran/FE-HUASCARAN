@@ -12,7 +12,7 @@
 // Y el backend revalida todo al sincronizar, así que una copia desactualizada
 // no abre ninguna puerta: como mucho deja escribir algo que luego se rechaza,
 // y el registro se conserva para que la persona lo revise.
-import { get, set } from 'idb-keyval'
+import { del, get, set } from 'idb-keyval'
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
@@ -26,6 +26,23 @@ export async function habilitacionesGuardadas() {
   } catch {
     // IndexedDB bloqueado (navegación privada): se trabaja solo en línea.
     return null
+  }
+}
+
+/**
+ * Borra el paquete guardado (D51).
+ *
+ * Al cerrar sesión se limpiaban `localStorage`, la precarga y la caché de
+ * consultas, pero ESTE paquete se quedaba: el siguiente usuario del mismo
+ * navegador heredaba las asignaciones, los permisos y los calendarios del
+ * anterior, que es justo con lo que se decide sin conexión quién puede
+ * escribir dónde.
+ */
+export async function borrarHabilitaciones() {
+  try {
+    await del(CLAVE_IDB)
+  } catch {
+    // Sin IndexedDB no hay nada que borrar.
   }
 }
 

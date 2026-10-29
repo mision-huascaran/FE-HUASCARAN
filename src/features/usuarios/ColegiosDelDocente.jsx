@@ -57,6 +57,26 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
   const disponibles = (i) =>
     opciones.filter((o) => !colegios.some((c, n) => n !== i && String(c.id_colegio) === String(o.value)))
 
+  /**
+   * D80 — LOS COLEGIOS QUE SOLO SON HISTORIAL VAN APARTE.
+   *
+   * `solo_historial` significa que todos sus periodos ya terminaron. Se
+   * enseñaban como un bloque editable más, y al guardar se reenviaban: como la
+   * lista del `PATCH` es el conjunto DESEADO, el backend volvía a asignar al
+   * Docente en el PA en curso un colegio en el que ya había terminado.
+   *
+   * Se conservan en el valor del campo —el recurso los descarta al enviar— y
+   * aquí se muestran como lo que son: historial, en solo lectura.
+   */
+  const vigentes = colegios.map((c, i) => ({ c, i })).filter(({ c }) => !c.solo_historial)
+  const historial = colegios.filter((c) => c.solo_historial)
+
+  /** El índice que tendrá en el array ENVIADO, que es por el que indexa el 422. */
+  const indiceEnviado = (i) => vigentes.findIndex((v) => v.i === i)
+
+  const nombreDeColegio = (c) =>
+    opciones.find((o) => String(o.value) === String(c.id_colegio))?.label ?? c.nombre ?? '—'
+
   if (soloLectura) {
     return (
       <div className="md:col-span-2">
@@ -100,8 +120,9 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
       )}
 
       <div className="flex flex-col gap-3">
-        {colegios.map((c, i) => {
+        {vigentes.map(({ c, i }) => {
           const receso = recesoDe?.(c.id_colegio)
+          const pos = indiceEnviado(i)
           return (
             <div key={`bloque-${i}`} className="rounded-xl border border-line p-3">
               <div className="flex flex-wrap items-end gap-3">
@@ -112,7 +133,7 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                     placeholder="Seleccione"
                     value={c.id_colegio ?? ''}
                     options={disponibles(i)}
-                    error={erroresPorIndice[`${i}.id_colegio`]}
+                    error={erroresPorIndice[`${pos}.id_colegio`]}
                     onChange={(e) => actualizar(i, { id_colegio: e.target.value, grados: [], inicio_asignacion: '' })}
                   />
                 </div>
@@ -159,8 +180,8 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                 <p className="mt-1 text-xs text-ink-500">
                   Un aula (colegio y grado) solo puede tener un docente. Sin ninguno marcado, el servidor decide.
                 </p>
-                {erroresPorIndice[`${i}.grados`] && (
-                  <p className="mt-1 text-sm text-danger-600">{erroresPorIndice[`${i}.grados`]}</p>
+                {erroresPorIndice[`${pos}.grados`] && (
+                  <p className="mt-1 text-sm text-danger-600">{erroresPorIndice[`${pos}.grados`]}</p>
                 )}
               </fieldset>
 
@@ -176,7 +197,7 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                     placeholder="Seleccione"
                     value={c.inicio_asignacion ?? ''}
                     options={opcionesDeInicio(receso)}
-                    error={erroresPorIndice[`${i}.inicio_asignacion`]}
+                    error={erroresPorIndice[`${pos}.inicio_asignacion`]}
                     hint={ayudaDelReceso(receso)}
                     onChange={(e) => actualizar(i, { inicio_asignacion: e.target.value })}
                   />
@@ -186,6 +207,29 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
           )
         })}
       </div>
+
+      {/*
+        D80 — El historial, en solo lectura y dicho como tal.
+
+        No se puede editar ni quitar desde aquí, y sobre todo NO se reenvía: lo
+        que el Docente ya terminó se queda como historial.
+      */}
+      {historial.length > 0 && (
+        <div className="mt-3 rounded-xl border border-dashed border-line p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+            Colegios con periodos ya terminados
+          </p>
+          <ul className="mt-1.5 flex flex-col gap-1 text-sm text-ink-700">
+            {historial.map((c, i) => (
+              <li key={`historial-${c.id_colegio}-${i}`}>{nombreDeColegio(c)}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-ink-500">
+            Quedan en su historial y no se vuelven a asignar al guardar. Para asignarlo otra vez, añádelo
+            arriba.
+          </p>
+        </div>
+      )}
 
       {error && <p className="mt-2 text-sm text-danger-600">{error}</p>}
     </div>

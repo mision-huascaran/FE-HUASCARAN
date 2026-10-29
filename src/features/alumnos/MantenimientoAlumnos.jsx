@@ -291,7 +291,19 @@ export default function MantenimientoAlumnos() {
         soloEn: 'editar',
         max: hoy(),
         min: (valores) => valores?.pertenece_desde || undefined,
-        visible: (valores, { registro } = {}) => cambiaDeGrupo(registro, valores),
+        /**
+         * NO SE PIDE JUNTO A "Pertenece al grupo desde" (tanda L1).
+         *
+         * A un alumno sin pertenencia se le pregunta desde cuándo pertenece, y
+         * con esa fecha el backend abre el intervalo **con el grupo final**.
+         * Pedir además la del cambio sería pedir dos fechas para el mismo
+         * hecho, y el servidor rechaza que viajen las dos.
+         */
+        visible: (valores, { modo, registro, detalleListo } = {}) => {
+          const sinPertenencia =
+            modo === 'editar' && detalleListo && registro?.activo !== false && !registro?.pertenece_desde
+          return !sinPertenencia && cambiaDeGrupo(registro, valores)
+        },
         ayuda: 'Desde qué día pertenece a su nuevo grupo',
       },
     ],

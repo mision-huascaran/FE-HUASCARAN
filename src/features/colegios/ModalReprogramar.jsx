@@ -41,6 +41,7 @@ export default function ModalReprogramar({ clase, colegio, onCerrar, onHecho }) 
   const [errores, setErrores] = useState({})
   /** Se envió y no se supo el resultado: no se puede reintentar a ciegas. */
   const [sinConfirmar, setSinConfirmar] = useState(false)
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false)
 
   useEffect(() => {
     if (!clase) return
@@ -108,27 +109,51 @@ export default function ModalReprogramar({ clase, colegio, onCerrar, onHecho }) 
 
   const completo = Boolean(fechaNueva && motivo.trim())
 
+  /**
+   * D83 — CANCELAR CON DATOS ESCRITOS PREGUNTA, igual que los modales de
+   * permisos y calendario (D78). Un clic distraído no puede tirar una fecha y
+   * un motivo ya escritos.
+   */
+  const conDatos = Boolean(fechaNueva || motivo.trim())
+  const cancelar = () => (conDatos ? setConfirmandoDescarte(true) : onCerrar())
+
   return (
     <Modal
       open={Boolean(clase)}
-      onClose={onCerrar}
+      onClose={guardar.isPending ? () => {} : cancelar}
+      cierreExterior={false}
       title="Reprogramar clase"
       size="max-w-2xl"
       footer={
-        <>
-          <Button variant="ghost" onClick={onCerrar} disabled={guardar.isPending}>
-            Cancelar
-          </Button>
-          <Button
-            loading={guardar.isPending}
-            disabled={!completo || sinConfirmar}
-            onClick={() => guardar.mutate()}
-          >
-            Guardar reprogramación
-          </Button>
-        </>
+        confirmandoDescarte ? (
+          <>
+            <Button variant="ghost" onClick={() => setConfirmandoDescarte(false)}>
+              Seguir editando
+            </Button>
+            <Button variant="danger" onClick={onCerrar}>
+              Descartar cambios
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={cancelar} disabled={guardar.isPending}>
+              Cancelar
+            </Button>
+            <Button
+              loading={guardar.isPending}
+              disabled={!completo || sinConfirmar}
+              onClick={() => guardar.mutate()}
+            >
+              Guardar reprogramación
+            </Button>
+          </>
+        )
       }
     >
+      {confirmandoDescarte ? (
+        <p className="text-sm text-ink-700">Tienes cambios sin guardar. Si continúas, se perderán.</p>
+      ) : (
+      <>
       {sinConfirmar && (
         <p role="alert" className="mb-4 rounded-lg bg-warning-100 px-3 py-2 text-sm text-warning-600">
           No se pudo confirmar el guardado. Vuelve a consultar la programación para comprobar si la clase se trasladó
@@ -138,6 +163,14 @@ export default function ModalReprogramar({ clase, colegio, onCerrar, onHecho }) 
 
       <dl className="mb-5 grid grid-cols-2 gap-4 rounded-lg bg-surface-100 px-4 py-3 md:grid-cols-3">
         <Dato etiqueta="Colegio">{colegio?.nombre}</Dato>
+        {/*
+          D83 — EL AÑO ESCOLAR Y EL PERIODO, que CU013 pide como datos de solo
+          lectura del modal y faltaban. Importan: la fecha nueva tiene que caer
+          en el MISMO periodo académico, así que sin verlo el Supervisor elige a
+          ciegas y se encuentra el rechazo "debe pertenecer al mismo periodo".
+        */}
+        <Dato etiqueta="Año escolar">{clase?.anio_escolar?.nombre ?? '—'}</Dato>
+        <Dato etiqueta="Periodo académico">{clase?.periodo?.nombre ?? '—'}</Dato>
         <Dato etiqueta="Grado">{clase?.grado?.nombre ?? clase?.id_grado}</Dato>
         <Dato etiqueta="Sección">{clase?.seccion?.nombre}</Dato>
         <Dato etiqueta="Subprogramas">{subprogramas.join(', ') || '—'}</Dato>
@@ -179,6 +212,8 @@ export default function ModalReprogramar({ clase, colegio, onCerrar, onHecho }) 
           Este cambio afecta únicamente a esta clase. El horario habitual del grado se mantiene.
         </p>
       </div>
+      </>
+      )}
     </Modal>
   )
 }

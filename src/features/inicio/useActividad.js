@@ -103,7 +103,7 @@ export default function useActividad() {
    * desde otro equipo—, se adopta para que el Docente pueda finalizarla en vez
    * de chocar con un 409 al intentar iniciar otra.
    */
-  const { data: inicio } = useQuery({
+  const { data: inicio, dataUpdatedAt: inicioRespondidoEn } = useQuery({
     queryKey: ['inicio', 'docente', idDocente],
     queryFn: obtenerInicioDocente,
     enabled: Boolean(idDocente) && enLinea,
@@ -116,6 +116,40 @@ export default function useActividad() {
     if (itemsPendientes.some((item) => item.clave === `actividad-cierre-${remota.id}`)) return
     useActividadStore.getState().restaurar({ id: remota.id, inicio: remota.inicio, idDocente })
   }, [remota?.id, remota?.inicio, sesion, itemsPendientes, idDocente])
+
+  /**
+   * Y AL REVÉS: el servidor dice que NO hay actividad y aquí creíamos que sí (D89).
+   *
+   * Pasa al finalizarla desde otra pestaña o desde otro equipo. La barra seguía
+   * ofreciendo "Finalizar actividad" —incluso tras recargar— y cada registro se
+   * descartaba con "La operación se realizó fuera de una actividad de trabajo
+   * del docente", que es el servidor diciendo exactamente esto.
+   *
+   * Solo se suelta si el servidor PUDO saberlo: con conexión, con su respuesta
+   * en la mano y si el inicio de esta actividad no sigue esperando en la cola.
+   * Una actividad iniciada sin señal todavía no existe para él, y soltarla
+   * borraría algo que sí está abierto.
+   */
+  useEffect(() => {
+    if (!enLinea || !inicio || remota || !sesion) return
+    // Su inicio sigue esperando en la cola: el servidor todavía no sabe que
+    // existe, así que su silencio no significa que esté cerrada.
+    if (itemsPendientes.some((item) => item.clave === `actividad-inicio-${sesion.id}`)) return
+    /**
+     * Y LA RESPUESTA TIENE QUE SER POSTERIOR AL INICIO.
+     *
+     * Si no, se soltaba la actividad recién abierta: al iniciarla, la respuesta
+     * que hay en memoria es de hace un momento y todavía dice que no hay
+     * ninguna. Comparando contra `dataUpdatedAt` solo cuenta lo que el
+     * servidor respondió DESPUÉS de que esta actividad existiera.
+     */
+    const abiertaEn = Date.parse(sesion.inicio)
+    if (!Number.isNaN(abiertaEn) && inicioRespondidoEn <= abiertaEn) return
+    // Y solo una que el servidor LLEGÓ A CONOCER: si nunca supo de ella, su
+    // silencio no dice nada.
+    if (!sesion.delServidor) return
+    useActividadStore.getState().limpiar()
+  }, [enLinea, inicio, inicioRespondidoEn, remota, sesion, itemsPendientes])
 
   const iniciar = async () => {
     // El id y la hora real se fijan AQUÍ, antes de cualquier llamada: son los
@@ -140,7 +174,9 @@ export default function useActividad() {
       const creada = await iniciarActividad({ id: abierta.id })
       // El servidor manda la expiración de la SESIÓN, que es el límite real de
       // la actividad: una actividad no tiene 8 horas propias (CU009).
-      useActividadStore.setState({ sesion: { ...abierta, ...creada } })
+      // `delServidor`: a partir de aquí, que deje de nombrarla significa que
+      // se cerró en otro sitio (D89).
+      useActividadStore.setState({ sesion: { ...abierta, ...creada, delServidor: true } })
       refrescarTrasActividad()
     } catch (error) {
       // Si el servidor la rechaza, no puede quedarse abierta solo aquí: el

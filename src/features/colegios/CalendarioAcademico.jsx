@@ -15,9 +15,10 @@
 // TRES ESTADOS, NO TRES BOTONES A LA VEZ: consulta, creación y edición. El CU
 // lo pide expresamente ("no aparecen todos simultáneamente"), y tiene sentido:
 // con los cuatro visibles nadie sabe en cuál está.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CalendarDays, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { ahora } from '../../lib/relojServidor'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -96,6 +97,8 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   const [modo, setModo] = useState('consulta')
   const [periodos, setPeriodos] = useState(periodosVacios)
   const [dias, setDias] = useState([])
+  /** Con lo que se entró a editar, para saber si algo cambió de verdad (D84). */
+  const [borradorOriginal, setBorradorOriginal] = useState(null)
   const [incompatibilidades, setIncompatibilidades] = useState([])
   /** Mensajes del 422 por campo: cada uno va junto al suyo (D74). */
   const [erroresCampo, setErroresCampo] = useState({})
@@ -112,10 +115,35 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     staleTime: Infinity,
   })
 
+  /**
+   * EL FILTRO ES UN AÑO CALENDARIO, NO UN AÑO ESCOLAR YA CREADO (D81, tanda C1).
+   *
+   * Era una lista de los años escolares existentes, así que **el año siguiente
+   * no se podía elegir** y no había forma de crear su calendario desde la
+   * pantalla: para configurar 2027 hacía falta que 2027 ya existiera, y lo que
+   * lo crea es justo este formulario.
+   *
+   * Se ofrecen los años con calendario más el siguiente al último. Elegir uno
+   * **no crea nada**: si no existe, el GET responde 404 y la pantalla ofrece
+   * "Crear calendario", que es lo que lo crea todo de una vez (tanda C2).
+   */
+  const aniosOfrecidos = useMemo(() => {
+    const existentes = anios
+      .map((a) => /\d{4}/.exec(String(a.nombre ?? ''))?.[0])
+      .filter(Boolean)
+      .map(Number)
+    const base = existentes.length ? existentes : [ahora().getFullYear()]
+    const siguiente = Math.max(...base) + 1
+    return [...new Set([...base, siguiente])].sort((a, b) => b - a).map(String)
+  }, [anios])
+
   // El año arranca en el vigente. CU027: se inicializa con el año actual.
   useEffect(() => {
-    if (!anio && anios.length) setAnio(String(anioVigente(anios)?.id ?? ''))
-  }, [anios, anio])
+    if (anio || !anios.length) return
+    const vigente = anioVigente(anios)?.nombre
+    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0] ?? aniosOfrecidos[0]
+    if (propuesto) setAnio(String(propuesto))
+  }, [anios, anio, aniosOfrecidos])
 
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
@@ -123,7 +151,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   const consulta = useQuery({
     queryKey: ['calendario', anio, colegioConsultado ?? null],
-    queryFn: () => obtenerCalendario({ idAnioEscolar: anio, idColegio: colegioConsultado }),
+    // Por AÑO CALENDARIO: así se puede consultar uno que todavía no existe y
+    // recibir el 404 que ofrece crearlo.
+    queryFn: () => obtenerCalendario({ anio, idColegio: colegioConsultado }),
     enabled: listo && modo === 'consulta',
     retry: false,
   })
@@ -191,7 +221,14 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   const crear = useMutation({
     mutationFn: () => {
-      const cuerpo = { id_anio_escolar: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: dias }
+      /**
+       * Se manda `anio`, no `id_anio_escolar` (tanda C2).
+       *
+       * Con él el backend crea el año escolar en la MISMA transacción: o queda
+       * el año con su calendario, o no queda nada. El contrato exige
+       * exactamente uno de los dos campos.
+       */
+      const cuerpo = { anio: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: dias }
       return porColegio
         ? crearCalendarioParticular({ ...cuerpo, id_colegio: Number(idColegio) })
         : crearCalendarioGeneral(cuerpo)
@@ -236,6 +273,8 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     setSinConfirmar(false)
     setPeriodos(borrador.periodos)
     setDias(borrador.dias)
+    // D84 — Con qué comparar para saber si de verdad se tocó algo.
+    setBorradorOriginal(borrador)
     setModo(siguiente)
   }
 
@@ -248,9 +287,24 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     setModo('consulta')
   }
 
+  /**
+   * ¿SE TOCÓ ALGO? (D84)
+   *
+   * Antes bastaba con estar en modo edición para preguntar "¿descartar
+   * cambios?", así que entrar a editar y arrepentirse sin escribir nada ya
+   * pedía confirmación. Una confirmación que no protege nada entrena a
+   * pulsarla sin leerla, y así deja de proteger el caso en que sí importa.
+   *
+   * Se compara contra el borrador con el que se entró, no contra el
+   * calendario: en "Crear fechas particulares" el borrador ya viene precargado
+   * con el general (D73) y eso no es un cambio del Supervisor.
+   */
+  const hayCambios = () =>
+    JSON.stringify({ periodos, dias }) !== JSON.stringify(borradorOriginal ?? { periodos, dias })
+
   /** Cancelar o salir: si hay algo escrito, se pregunta antes (D72). */
   const salir = (accion) => {
-    if (modo === 'consulta') {
+    if (modo === 'consulta' || !hayCambios()) {
       accion()
       return
     }
@@ -346,7 +400,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
               // En creación queda fijo: cambiarlo a medias dejaría las fechas
               // escritas colgando de otro año (CU027).
               disabled={editando}
-              options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
+              options={aniosOfrecidos.map((a) => ({ value: a, label: a }))}
               onChange={(e) => setAnio(e.target.value)}
             />
           </div>
@@ -417,7 +471,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
       <ModalUsarGeneral
         open={confirmando?.tipo === 'usarGeneral'}
         colegio={colegios.find((c) => String(c.id_colegio) === String(idColegio))?.nombre}
-        anio={anios.find((a) => String(a.id) === String(anio))?.nombre}
+        anio={anio}
         procesando={restablecer.isPending}
         onConfirmar={() => restablecer.mutate()}
         onCancelar={() => setConfirmando(null)}

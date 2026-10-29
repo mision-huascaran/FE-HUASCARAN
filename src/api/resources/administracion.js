@@ -497,11 +497,26 @@ function cuerpoDeAlumno(cambios) {
   const idPrograma = cambios.id_programa ?? cambios.id_programa_actual
   if (idPrograma) cuerpo.id_programa = Number(idPrograma)
   /**
+   * EL INICIO DE PERTENENCIA, cuando el alumno no tenía ninguno (D65, tanda L1).
+   *
+   * El campo se pedía en el formulario pero **no viajaba**: se quedaba aquí.
+   * Ahora el `PATCH` lo acepta para el alumno activo que llega con
+   * `pertenece_desde: null`, y con él el backend abre su primer intervalo.
+   */
+  if (cambios.pertenece_desde) cuerpo.pertenece_desde = cambios.pertenece_desde
+  /**
    * Cambiar de GRUPO —colegio, grado, sección o subprograma— exige decir desde
    * cuándo. Corregir solo el nombre, no: por eso viaja aparte y solo cuando la
    * pantalla lo manda.
+   *
+   * NO VIAJA JUNTO A `pertenece_desde`: si el alumno aún no tiene pertenencia,
+   * el backend abre el intervalo con el grupo final y mandar los dos responde
+   * 422 ("Este alumno todavía no tiene un inicio de pertenencia: usa 'Pertenece
+   * al grupo desde'"). Son dos formas de decir lo mismo y solo una vale.
    */
-  if (cambios.cambio_grupo_desde) cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
+  if (cambios.cambio_grupo_desde && !cuerpo.pertenece_desde) {
+    cuerpo.cambio_grupo_desde = cambios.cambio_grupo_desde
+  }
   return cuerpo
 }
 
@@ -731,6 +746,17 @@ async function asignacionDe(datos, { obligatoria }) {
   if (!crudos.length) return null
 
   const colegios = crudos
+    /**
+     * D80 — LOS QUE SON SOLO HISTORIAL NO SE REENVÍAN.
+     *
+     * La lista del `PATCH` es el conjunto DESEADO, no un diff: un colegio
+     * reenviado se reasigna en el PA en curso. Así, editar cualquier otra cosa
+     * del Docente le devolvía colegios en los que ya había terminado, sin que
+     * nadie lo pidiera y sin que nada lo dijera en pantalla.
+     *
+     * Quitarlos no borra nada: sus PA culminados siguen siendo historial.
+     */
+    .filter((c) => !c.solo_historial)
     .map((c) => {
       const grados = (Array.isArray(c.grados) ? c.grados : []).map(Number).filter(Boolean)
       const bloque = { id_colegio: Number(c.id_colegio) }
@@ -919,6 +945,16 @@ export const obtenerUsuario = async (idUsuario) => {
       // `retroactiva: true` significa que ese PA está habilitado con
       // "Retroactivo", y el formulario lo propone al reabrirlo.
       inicio_asignacion: periodo?.retroactiva ? 'retroactivo' : '',
+      /**
+       * D80 — SOLO HISTORIAL: todos sus periodos ya terminaron.
+       *
+       * El formulario lo enseñaba como un bloque vigente más y, al guardar
+       * cualquier otra cosa, lo reenviaba en la lista; como el `PATCH` toma esa
+       * lista por el conjunto DESEADO, el backend volvía a asignar al Docente
+       * en el PA en curso un colegio que ya había terminado. Ese era el
+       * defecto: no un error de guardado, sino una reasignación silenciosa.
+       */
+      solo_historial: Boolean(c.solo_historial),
     }
   })
 

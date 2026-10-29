@@ -20,6 +20,7 @@
 //     existen registros pendientes").
 import { borrarPrecarga } from './precarga'
 import { borrarCacheConsultas } from './cacheConsultas'
+import { borrarHabilitaciones } from '../api/resources/habilitaciones'
 import useRechazosStore from '../store/rechazosStore'
 
 /**
@@ -53,7 +54,9 @@ export function limpiarLocalStorageDeSesion() {
 export async function limpiarDatosLocalesDeSesion() {
   limpiarLocalStorageDeSesion()
   useRechazosStore.getState().limpiar()
-  await Promise.all([borrarPrecarga(), borrarCacheConsultas()])
+  // D51 — Y las habilitaciones: se quedaban en IndexedDB y el siguiente
+  // usuario del mismo navegador heredaba con qué escribir sin conexión.
+  await Promise.all([borrarPrecarga(), borrarCacheConsultas(), borrarHabilitaciones()])
 }
 
 /**
@@ -65,6 +68,44 @@ export async function limpiarDatosLocalesDeSesion() {
  */
 const CLAVE_ULTIMO_USUARIO = 'sicedu.ultimo.usuario'
 
+
+/**
+ * EL PERFIL, para poder recargar SIN CONEXIÓN (D82).
+ *
+ * El perfil vive en memoria y una recarga lo pierde. Al volver, el
+ * arranque pide `GET /me`; sin señal eso falla y la aplicación se quedaba
+ * en "No se pudo contactar con el servidor", con el Docente sin poder
+ * seguir trabajando —justo lo que el modo sin conexión promete—.
+ *
+ * Se guarda una copia y se usa **solo cuando el servidor no contesta**. Un
+ * 401 o un 403 siguen cerrando la sesión: ahí el token no sirve, y esto no
+ * puede servir para seguir dentro con una sesión que el servidor rechazó.
+ *
+ * No añade riesgo: es el mismo `localStorage` donde ya vive el token, y el
+ * cierre de sesión lo borra con todo lo demás.
+ */
+const CLAVE_PERFIL = 'sicedu.perfil'
+
+export function guardarPerfilLocal(perfil) {
+  try {
+    if (perfil) localStorage.setItem(CLAVE_PERFIL, JSON.stringify(perfil))
+  } catch {
+    // Sin localStorage se trabaja solo en línea; no es un fallo que contar.
+  }
+}
+
+/** El perfil guardado, si es del MISMO usuario que dice el token. */
+export function perfilLocalDe(idUsuario) {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_PERFIL) ?? 'null')
+    if (!guardado) return null
+    // Si el token es de otra cuenta, la copia no le pertenece.
+    if (idUsuario != null && String(guardado.id_usuario) !== String(idUsuario)) return null
+    return guardado
+  } catch {
+    return null
+  }
+}
 /**
  * Deja el navegador limpio si entra una cuenta DISTINTA de la anterior (D51).
  *

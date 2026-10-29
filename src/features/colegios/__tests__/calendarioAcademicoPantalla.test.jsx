@@ -103,7 +103,9 @@ describe('CU027 · Calendario académico', () => {
     const onVolver = montar()
 
     expect(await screen.findByText(INICIO_PA1, {}, ESPERA)).toBeInTheDocument()
-    expect(obtenerCalendario).toHaveBeenCalledWith({ idAnioEscolar: '2', idColegio: undefined })
+    // D81 — Se consulta por AÑO CALENDARIO, para poder pedir uno que todavía
+    // no existe y recibir el 404 que ofrece crearlo.
+    expect(obtenerCalendario).toHaveBeenCalledWith({ anio: '2026', idColegio: undefined })
     expect(screen.getByText('PR4')).toBeInTheDocument()
     expect(screen.getByText('cargado por el sistema')).toBeInTheDocument()
     // En consulta no hay "Guardar": cada estado muestra solo sus acciones.
@@ -148,6 +150,34 @@ describe('CU027 · Calendario académico', () => {
     expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
+  it('ofrece el AÑO SIGUIENTE, que todavía no existe (D81)', async () => {
+    /**
+     * Era una lista de los años escolares ya creados, así que para configurar
+     * 2027 hacía falta que 2027 existiera— y lo que lo crea es justo este
+     * formulario. No había por dónde empezar.
+     */
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    const filtro = await screen.findByLabelText('Año escolar', {}, ESPERA)
+    const opciones = within(filtro).getAllByRole('option').map((o) => o.textContent)
+    expect(opciones).toContain('2027')
+  })
+
+  it('sin haber cambiado nada, Cancelar cierra directo (D84)', async () => {
+    /**
+     * Una confirmación que no protege nada entrena a pulsarla sin leerla, y
+     * así deja de proteger el caso en que sí importa.
+     */
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.click(boton('Cancelar'))
+
+    // Vuelve a consulta sin preguntar.
+    expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('Tienes cambios sin guardar. Si continúas, se perderán.')).not.toBeInTheDocument()
+  })
+
   it('Cancelar pregunta antes de descartar lo escrito (D72)', async () => {
     /**
      * El calendario no se encola ni se guarda en `localStorage`: lo escrito
@@ -156,6 +186,8 @@ describe('CU027 · Calendario académico', () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
     fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    // Algo escrito: sin cambios no hay nada que descartar (D84, abajo).
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-20' } })
     fireEvent.click(boton('Cancelar'))
 
     await screen.findByText('Tienes cambios sin guardar. Si continúas, se perderán.', {}, ESPERA)
@@ -205,7 +237,8 @@ describe('CU027 · Calendario académico', () => {
     fireEvent.click(boton('Guardar'))
 
     await waitFor(() => expect(crearGeneral).toHaveBeenCalledTimes(1), ESPERA)
-    expect(crearGeneral.mock.calls[0][0]).toEqual({ id_anio_escolar: 2, periodos: PERIODOS, dias_no_lectivos: [] })
+    // Con `anio` el backend crea el año escolar en la misma transacción.
+    expect(crearGeneral.mock.calls[0][0]).toEqual({ anio: 2026, periodos: PERIODOS, dias_no_lectivos: [] })
     expect(crearParticular).not.toHaveBeenCalled()
   })
 
@@ -243,7 +276,7 @@ describe('CU027 · Calendario académico', () => {
 
     const usa = await screen.findByText(/Este colegio usa/, {}, ESPERA)
     expect(within(usa).getByText('el calendario general')).toBeInTheDocument()
-    expect(obtenerCalendario).toHaveBeenLastCalledWith({ idAnioEscolar: '2', idColegio: '2' })
+    expect(obtenerCalendario).toHaveBeenLastCalledWith({ anio: '2026', idColegio: '2' })
 
     fireEvent.click(boton('Crear fechas particulares'))
     for (const { tipo, numero, fecha_inicio, fecha_fin } of PERIODOS) {
@@ -253,7 +286,7 @@ describe('CU027 · Calendario académico', () => {
     fireEvent.click(boton('Guardar'))
 
     await waitFor(() => expect(crearParticular).toHaveBeenCalledTimes(1), ESPERA)
-    expect(crearParticular.mock.calls[0][0]).toEqual(expect.objectContaining({ id_colegio: 2, id_anio_escolar: 2 }))
+    expect(crearParticular.mock.calls[0][0]).toEqual(expect.objectContaining({ id_colegio: 2, anio: 2026 }))
     expect(await screen.findByText('Calendario académico creado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
