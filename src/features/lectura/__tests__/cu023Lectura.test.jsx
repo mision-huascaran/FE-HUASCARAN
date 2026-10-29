@@ -305,6 +305,58 @@ describe('Las filas de la tabla (CU024)', () => {
     expect(guardarFilas.mock.calls[0][1][0].cantidad_lsl).toBe(0)
   })
 
+  /**
+   * D96 — El servidor rechaza un LSN a medias (`lsn_incompleto`). Antes cada
+   * campo salía por separado y los tres volvían vacíos: no había forma de
+   * registrar un LSN.
+   */
+  it('el LSN viaja entero: título, nota y máximo juntos, y a medias no sale', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+
+    montar()
+    const titulo = await screen.findByLabelText(/título del LSN de Torres, Ana/i, {}, ESPERA)
+    fireEvent.change(titulo, { target: { value: 'El zorro' } })
+    fireEvent.blur(titulo)
+    const nota = screen.getByLabelText(/nota del LSN de Torres, Ana/i)
+    fireEvent.change(nota, { target: { value: '8' } })
+    fireEvent.blur(nota)
+
+    // A medias: no se envía, se conserva y se dice qué falta.
+    expect(await screen.findByText(/completa el título, la nota obtenida y el puntaje máximo/i, {}, ESPERA)).toBeInTheDocument()
+    expect(guardarFilas).not.toHaveBeenCalled()
+    expect(titulo).toHaveValue('El zorro')
+
+    fireEvent.change(screen.getByLabelText(/puntaje máximo del LSN de Torres, Ana/i), { target: { value: '10' } })
+
+    await waitFor(() => expect(guardarFilas).toHaveBeenCalledTimes(1), ESPERA)
+    expect(guardarFilas.mock.calls[0][1][0]).toEqual(
+      expect.objectContaining({ lsn_titulo: 'El zorro', lsn_nota: 8, lsn_maximo: 10 }),
+    )
+    await waitFor(() => expect(screen.queryByText(/completa el título, la nota obtenida/i)).not.toBeInTheDocument(), ESPERA)
+  })
+
+  it('vaciar los tres campos borra el LSN en un solo envío', async () => {
+    obtenerTabla.mockResolvedValue(
+      tabla({ filas: [fila({ lsn_titulo: 'El zorro', lsn_nota: 8, lsn_maximo: 10, total_libros: 1 })] }),
+    )
+
+    montar()
+    const titulo = await screen.findByLabelText(/título del LSN de Torres, Ana/i, {}, ESPERA)
+    fireEvent.change(titulo, { target: { value: '' } })
+    fireEvent.blur(titulo)
+    const nota = screen.getByLabelText(/nota del LSN de Torres, Ana/i)
+    fireEvent.change(nota, { target: { value: '' } })
+    fireEvent.blur(nota)
+    expect(guardarFilas).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText(/puntaje máximo del LSN de Torres, Ana/i), { target: { value: '' } })
+
+    await waitFor(() => expect(guardarFilas).toHaveBeenCalledTimes(1), ESPERA)
+    expect(guardarFilas.mock.calls[0][1][0]).toEqual(
+      expect.objectContaining({ lsn_titulo: null, lsn_nota: null, lsn_maximo: null }),
+    )
+  })
+
   it('sin asistencia no se escriben libros, pero la observación sí', async () => {
     obtenerTabla.mockResolvedValue(tabla({ filas: [fila({ asistencia: 'ausente', estado_fila: 'no_aplica' })] }))
 
@@ -331,7 +383,8 @@ describe('Las filas de la tabla (CU024)', () => {
   })
 
   it('un rechazo por fila se explica con el texto del servidor', async () => {
-    obtenerTabla.mockResolvedValue(tabla())
+    // Un LSN completo (D96) con una nota que no cabe en su máximo.
+    obtenerTabla.mockResolvedValue(tabla({ filas: [fila({ lsn_titulo: 'El zorro', lsn_nota: 4, lsn_maximo: 5 })] }))
     guardarFilas.mockResolvedValue([
       {
         id_operacion: 'op',
@@ -418,14 +471,21 @@ describe('Sin conexión (RNF-001)', () => {
     obtenerTabla.mockResolvedValue(tabla())
     await montarYCortar()
     editarLsl('3')
+    // El LSN entero (D96): título, nota y máximo.
     const titulo = screen.getByLabelText(/título del LSN de Torres, Ana/i)
     fireEvent.change(titulo, { target: { value: 'El zorro' } })
     fireEvent.blur(titulo)
+    const nota = screen.getByLabelText(/nota del LSN de Torres, Ana/i)
+    fireEvent.change(nota, { target: { value: '4' } })
+    fireEvent.blur(nota)
+    fireEvent.change(screen.getByLabelText(/puntaje máximo del LSN de Torres, Ana/i), { target: { value: '5' } })
     await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
 
     await reconectar()
     await waitFor(() => expect(guardarFilas).toHaveBeenCalledTimes(1), ESPERA)
-    expect(guardarFilas.mock.calls[0][1][0]).toEqual(expect.objectContaining({ cantidad_lsl: 3, lsn_titulo: 'El zorro', version: 1 }))
+    expect(guardarFilas.mock.calls[0][1][0]).toEqual(
+      expect.objectContaining({ cantidad_lsl: 3, lsn_titulo: 'El zorro', lsn_nota: 4, lsn_maximo: 5, version: 1 }),
+    )
   })
 
   it('un rechazo al sincronizar se muestra con su detail y se puede descartar', async () => {

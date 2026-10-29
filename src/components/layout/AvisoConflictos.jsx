@@ -48,6 +48,9 @@ export default function AvisoConflictos({ modulo }) {
             <span>
               {r.nombre ? <strong>{r.nombre}: </strong> : null}
               {r.detail}
+              {r.observacion ? (
+                <span className="mt-1 block text-ink-500">Observación sin guardar: «{r.observacion}»</span>
+              ) : null}
             </span>
           </span>
           <Button size="sm" variant="secondary" loading={cargando === r.clave} onClick={() => resolver(r)}>

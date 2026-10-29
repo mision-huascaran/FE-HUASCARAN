@@ -478,6 +478,45 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
     expect(await screen.findByRole('alert', {}, ESPERA)).toHaveTextContent(/habilitación vigente/i)
   })
 
+  /**
+   * D91 — Un rechazo SIN `registro` (actividad_requerida,
+   * alumno_fuera_de_la_clase) no se encontraba: la pantalla lo buscaba por
+   * `registro.id_alumno`. La fila se quedaba con un valor que no estaba
+   * guardado, no había aviso y la observación escrita se perdía.
+   */
+  it('un rechazo sin registro revierte la fila, avisa y conserva la observación', async () => {
+    marcar.mockImplementation(async ({ fecha, registros }) => ({
+      clase: { id_clase: 12, tipo: 'habitual', etiqueta: 'Clase programada', fecha_original: fecha, fecha, aviso: null },
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'rechazada',
+        motivo: 'actividad_requerida',
+        detail: 'Debes iniciar una actividad de trabajo para registrar o modificar información.',
+        registro: null,
+      })),
+    }))
+
+    montar()
+    await abrirClase()
+    const control = controles()[0]
+    fireEvent.click(ladoPresente(control))
+
+    // Vuelve atrás y lo dice con el motivo del servidor.
+    await waitFor(() => expect(ladoPresente(controles()[0])).toHaveAttribute('aria-pressed', 'false'), ESPERA)
+    expect((await screen.findAllByText(/Debes iniciar una actividad de trabajo/i, {}, ESPERA)).length).toBeGreaterThan(0)
+    expect(useRechazosStore.getState().rechazos[0]).toMatchObject({ motivo: 'actividad_requerida' })
+    expect(useSyncStore.getState().pendientes).toBe(0)
+
+    // Con una observación, el texto queda en la tarjeta del rechazo.
+    fireEvent.click(screen.getAllByRole('button', { name: /observación/i })[0])
+    const dialogo = await screen.findByRole('dialog', { name: 'Observación' }, ESPERA)
+    fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Llegó con fiebre' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /guardar/i }))
+
+    await waitFor(() => expect(useRechazosStore.getState().rechazos[0]?.observacion).toBe('Llegó con fiebre'), ESPERA)
+    expect(await screen.findByText(/Observación sin guardar: «Llegó con fiebre»/, {}, ESPERA)).toBeInTheDocument()
+  })
+
   it('cada rechazo va en SU tarjeta, con su propio Descartar', async () => {
     /**
      * Con dos o tres dentro de la misma caja se leían como un solo aviso

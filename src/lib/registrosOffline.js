@@ -146,7 +146,11 @@ Object.entries(MODULOS).forEach(([modulo, { tipo, contrato, enviar }]) => {
     async ({ id_operacion: idOperacion, ...envio }) => {
       const conId = { ...envio, item: { ...envio.item, id_operacion: idOperacion } }
       const respuesta = await enviar(conId)
-      const resultado = Array.isArray(respuesta) ? respuesta[0] : null
+      // El de ESTA operación, por su `id_operacion` (D91): un rechazo puede no
+      // traer `registro` con el que reconocerlo.
+      const resultado = Array.isArray(respuesta)
+        ? (respuesta.find((r) => r?.id_operacion === idOperacion) ?? respuesta[0] ?? null)
+        : null
       procesarResultado(modulo, conId, resultado)
       return respuesta
     },
