@@ -102,6 +102,15 @@ afterEach(() => {
   useActividadStore.getState().limpiar()
 })
 
+/**
+ * Los controles de escritura de una fila: "Editar" es un botón y el estado es
+ * un INTERRUPTOR desde que la columna "Estado" dice el estado y lo cambia.
+ */
+const controlesDeEscritura = () => [
+  ...screen.getAllByRole('button', { name: /^editar /i }),
+  ...screen.getAllByRole('switch', { name: /^(editar|inactivar|activar) /i }),
+]
+
 describe('Alumnos — hallazgos del 09/10/2026', () => {
   it('D06/D07: sin conexión muestra los alumnos de la precarga y deshabilita la escritura con aviso', async () => {
     const idb = await import('idb-keyval')
@@ -125,9 +134,9 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     const nuevo = screen.getByRole('button', { name: /^agregar$/i })
     expect(nuevo).toBeDisabled()
     expect(nuevo).toHaveAttribute('title', aviso)
-    screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
-      expect(boton).toBeDisabled()
-      expect(boton).toHaveAttribute('title', aviso)
+    controlesDeEscritura().forEach((control) => {
+      expect(control).toBeDisabled()
+      expect(control).toHaveAttribute('title', aviso)
     })
   })
 
@@ -162,7 +171,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
   it('D11: "Inactivar" envía el id del alumno por la ruta de baja lógica', async () => {
     abrirActividad()
     montar()
-    const [inactivar] = await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    const [inactivar] = await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
     fireEvent.click(inactivar)
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Inactivar' }))
@@ -185,11 +194,11 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
      * sin conexión: gris, y un tooltip que explica por qué.
      */
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     const editar = screen.getAllByRole('button', { name: /^editar /i })[0]
     expect(editar).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: /^inactivar /i })[0]).toBeDisabled()
+    expect(screen.getAllByRole('switch', { name: /^inactivar /i })[0]).toBeDisabled()
     expect(screen.getByRole('button', { name: /^agregar$/i })).toBeDisabled()
   })
 
@@ -197,7 +206,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     // El mismo que responde el servidor: así el docente lee lo mismo antes de
     // intentarlo y si llega a intentarlo.
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     expect(screen.getAllByRole('button', { name: /^editar /i })[0]).toHaveAttribute(
       'title',
@@ -208,11 +217,11 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
   it('al abrir actividad, los botones de escritura se habilitan', async () => {
     abrirActividad()
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     expect(screen.getByRole('button', { name: /^agregar$/i })).toBeEnabled()
-    screen.getAllByRole('button', { name: /^(editar|inactivar) /i }).forEach((boton) => {
-      expect(boton).toBeEnabled()
+    controlesDeEscritura().forEach((control) => {
+      expect(control).toBeEnabled()
     })
   })
 

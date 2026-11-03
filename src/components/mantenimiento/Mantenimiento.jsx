@@ -7,12 +7,13 @@
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
 import { useEffect, useMemo, useState } from 'react'
-import { Ban, ClipboardList, Eye, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { ClipboardList, Eye, Pencil, Plus } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
 import DataTable from '../ui/DataTable'
 import EmptyState from '../ui/EmptyState'
+import Switch from '../ui/Switch'
 import RequiereConexion from '../layout/RequiereConexion'
 import ConfirmarEstado from './ConfirmarEstado'
 import ProponerActividad from './ProponerActividad'
@@ -280,42 +281,56 @@ export default function Mantenimiento({
               Editar
             </Button>
           )}
-          {puedeInactivar && (
-            <Button
-              size="sm"
-              variant="ghost"
-              iconLeft={fila.activo === false ? RotateCcw : Ban}
-              className={fila.activo === false ? undefined : 'text-danger-600'}
-              aria-label={`${fila.activo === false ? 'Activar' : 'Inactivar'} ${fila.nombre ?? entidad}`}
-              /*
-               * D68 — Hay filas que NO se pueden inactivar, y el botón tiene
-               * que decirlo antes de pulsarlo. El backend las rechaza con
-               * `auto_desactivacion` y `supervisor_original`, pero llegar al
-               * error para enterarse es enterarse tarde.
-               */
-              disabled={bloqueado || Boolean(protegida?.(fila))}
-              title={aviso ?? protegida?.(fila)}
-              onClick={alEscribir(
-                `${fila.activo === false ? 'activar' : 'inactivar'} ${entidad}`,
-                () => setConfirmando({ fila, activo: fila.activo === false }),
-              )}
-            >
-              {fila.activo === false ? 'Activar' : 'Inactivar'}
-            </Button>
-          )}
         </div>
       ),
     }
 
+    /**
+     * EL ESTADO ES UN INTERRUPTOR, no un botón en la columna de al lado.
+     *
+     * Antes había dos cosas para lo mismo: una etiqueta que decía
+     * "Activo"/"Inactivo" y, tres columnas más allá, un botón "Inactivar". Hay
+     * que leer las dos para saber qué pasa si se pulsa. Un interruptor dice el
+     * estado Y lo cambia, que es exactamente lo que es.
+     *
+     * LA FUNCIONALIDAD NO CAMBIA: sigue pidiendo confirmación (S4), sigue sin
+     * borrar nada y sigue respetando quién puede hacerlo. Un interruptor que
+     * se moviera solo al tocarlo sería peor que el botón; aquí vuelve a su
+     * sitio si se cancela, porque lo que pinta es `fila.activo`, no el clic.
+     */
     const estado = {
       key: 'activo',
       header: 'Estado',
       align: 'center',
-      render: (fila) => (
-        <Badge tone={fila.activo === false ? 'neutral' : 'success'}>
-          {fila.activo === false ? 'Inactivo' : 'Activo'}
-        </Badge>
-      ),
+      render: (fila) => {
+        const activa = fila.activo !== false
+        // D68 — Hay filas que no se pueden inactivar, y hay que decirlo ANTES
+        // de tocarlas: el backend las rechaza con `auto_desactivacion` o
+        // `supervisor_original`, y llegar al error para enterarse es tarde.
+        const motivo = aviso ?? protegida?.(fila)
+        const etiqueta = activa ? 'Activo' : 'Inactivo'
+
+        if (!puedeInactivar) {
+          return <Badge tone={activa ? 'success' : 'neutral'}>{etiqueta}</Badge>
+        }
+
+        return (
+          <span className="inline-flex items-center gap-2">
+            <Switch
+              checked={activa}
+              disabled={bloqueado || Boolean(protegida?.(fila))}
+              // El motivo va EN el control, que es lo que se señala con el
+              // cursor cuando no se deja mover (D68).
+              title={motivo}
+              label={`${activa ? 'Inactivar' : 'Activar'} ${fila.nombre ?? entidad}`}
+              onChange={alEscribir(`${activa ? 'inactivar' : 'activar'} ${entidad}`, () =>
+                setConfirmando({ fila, activo: !activa }),
+              )}
+            />
+            <span className={activa ? 'text-sm text-ink-700' : 'text-sm text-ink-400'}>{etiqueta}</span>
+          </span>
+        )
+      },
     }
 
     return [...columnas, estado, acciones]
