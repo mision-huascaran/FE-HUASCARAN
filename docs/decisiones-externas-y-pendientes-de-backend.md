@@ -51,7 +51,7 @@ L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
 |---|---|---|
 | [1. El trabajo offline que nadie ve](#1-el-trabajo-offline-que-nadie-ve) | Un docente que nunca se conectó sale "Al día" en verde (A1–A5, B1–B3, F1–F3) | Analista y backend |
 | [2. Pantallas del mockup antiguo](#anexo-pantallas-del-mockup-antiguo--%E2%9C%85-resuelto) | ✅ Resuelto: las nueve rutas sin caso de uso ya no existen | — |
-| [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s23) | S1 a S23: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
+| [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s26) | S1 a S26: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
 
 **Lo que queda.** Los siete son de Carlos (analista): los cinco primeros
 venían del sprint y los dos siguientes los abrió la **ronda 6** del tester.
@@ -241,7 +241,7 @@ las tomó por producto. Esa puerta está cerrada.
 código se borró, pero CU033, CU034 y CU035 siguen completos en la biblia.
 
 ---
-# Anexo: el sprint de la semana 12 (S1 a S23)
+# Anexo: el sprint de la semana 12 (S1 a S26)
 
 Anotado el 28/10/2026, mientras se implementaba `docs/plan-semana12-front.md`.
 Cada punto es algo que **no se resuelve escribiendo código**.
@@ -595,6 +595,54 @@ periodo académico es un 422.
 
 </details>
 
+**S24. Los nombres del Seguimiento: ¿qué campos manda `GET /seguimiento/docentes`?**
+Lo abrió el 03/11/2026 un hallazgo de Antonio: la tabla del Supervisor salía
+con **tres filas sin nombre y sin colegios**, solo con el botón "Ver detalle".
+
+En el simulador era un descuido nuestro y ya está corregido (partía un campo
+`nombre` que no existe). **Contra el servidor real no se ha podido comprobar**,
+porque hace falta el backend levantado con docentes de prueba.
+
+El front ahora acepta las tres formas antes de rendirse —`nombres` +
+`apellidos`, `nombre_completo` o `nombre`— y, si no llega ninguna, escribe "Sin
+nombre registrado" en vez de dejar la celda vacía. Así una respuesta con otro
+nombre de campo se nota, pero no deja la pantalla muda.
+
+**Lo que se pide:** confirmar qué trae cada fila de `GET /seguimiento/docentes`
+—en concreto el nombre y `colegios[]`— para quitar el respaldo y quedarnos con
+el campo bueno. Si la tabla sigue saliendo sin nombres contra el servidor real,
+es esto y no el front.
+
+**S25. El 404 de `GET /lectura/tablas` tiene que traer `clase_referencia_sugerida`.**
+De la misma tanda de hallazgos, y es lo que permite que la pantalla **se
+adelante al error**.
+
+CU024 exige que la clase de referencia sea lectiva y **no futura**. Cuando el
+Docente entra a una semana en curso cuya clase es, por ejemplo, el viernes,
+pulsar "Crear la tabla" el jueves termina en "La clase de referencia todavía no
+se ha realizado": el botón prometía algo imposible. Ahora el front compara la
+fecha **con el reloj del servidor** y lo dice antes de pulsar.
+
+Eso solo funciona si el 404 `tabla_no_existe` sigue trayendo
+`clase_referencia_sugerida: {id_clase, fecha, tipo, reprogramada}`. Si algún día
+deja de venir, el front vuelve a no saber la fecha y el aviso desaparece —no
+rompe nada, pero se pierde—. **Queda anotado como algo que no se puede quitar
+del contrato sin avisar.**
+
+**S26. ¿Qué periodos devuelve `GET /permisos/opciones`?**
+El desplegable "Periodo académico" de "Otorgar permiso" solo ofrecía PA1 y PA2.
+En el simulador era un corte fijo (`numero < 3`) y ya está corregido por fecha.
+
+**La regla que aplica el front es la que dice el propio modal**: aparecen los
+periodos cuyo **plazo ordinario ya terminó**, porque los que siguen en curso
+admiten regularización por la vía normal y no necesitan permiso. Hoy, 3 de
+noviembre, eso son PA1, PA2 y **PA3** —cerrado el 31 de octubre—.
+
+**Lo que se pide:** confirmar que el servidor aplica esa misma regla. Si contra
+el backend real el PA3 sigue sin aparecer, el Supervisor no puede otorgar un
+permiso para regularizarlo y CU028 se queda sin su caso principal; y entonces el
+arreglo es del servidor, no de la pantalla.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -603,9 +651,24 @@ periodo académico es un 422.
   construido, funciona y no estorba: se queda.
 - **El aviso de pendientes del Docente.** Ya existe y cumple CU010.
 
+## Lo que depende del BACKEND y no se pudo comprobar (03/11/2026)
+
+Tres cosas que Antonio encontró usando la aplicación. En el **simulador** las
+tres están corregidas y se ven bien; contra el **servidor real** no se han
+podido comprobar porque hacía falta el backend levantado con datos de prueba.
+Si alguna sigue fallando allí, el arreglo es del servidor:
+
+| Qué se ve | Dónde mirar |
+|---|---|
+| Seguimiento del Supervisor con filas **sin nombre de docente** | **S24** — qué campos trae `GET /seguimiento/docentes` |
+| "Otorgar permiso" **sin el PA3** en el desplegable | **S26** — qué periodos devuelve `GET /permisos/opciones` |
+| Lectura deja pulsar "Crear la tabla" sobre una clase **que aún no se ha dictado** | **S25** — el 404 tiene que traer `clase_referencia_sugerida` |
+
 ## Versión para la ronda 7
 
-- **Frontend:** `development` en el commit final de la ronda 6, segunda parte
-  (ver la tabla "Ronda 6 (segunda parte)" de `docs/plan-semana12-front.md`).
+- **Frontend:** `development` en `579934e` ("barra inferior de secciones y
+  ajuste de las pantallas al teléfono") o posterior. Incluye la ronda 6
+  completa, los hallazgos del 03/11 y la versión móvil (Fases 9 y 9b de
+  `docs/plan-semana12-front.md`).
 - **Backend:** `development` en `34c6191` ("Tanda M: decisiones provisionales
   documentadas, API.md y Sonar") o posterior.

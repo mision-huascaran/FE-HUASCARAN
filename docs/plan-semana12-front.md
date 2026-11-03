@@ -1421,6 +1421,195 @@ avisos de la línea base. Contra el backend de la **Tanda M** (`34c6191`).
 (`FE-HUASCARAN-qa-sim`) necesita un token que no estaba en la máquina; queda
 pendiente. Lint con las reglas `sonarjs` no tiene avisos nuevos.
 
+---
+
+### FASE 9 · Lo que encontró el equipo probando, y el teléfono — ✅ HECHA
+
+Commits **`f135d69`** (los cinco arreglos) y **`579934e`** (la versión móvil),
+del 03/11/2026. No sale de la ronda 6: son hallazgos de Antonio usando la
+aplicación, más dos encargos del equipo.
+
+#### 9.1 Seguimiento del Supervisor: la tabla salía sin nombres
+
+**El síntoma.** Tres filas con "Ver detalle" y **nada más**: sin nombre de
+docente y sin colegios. Una pantalla cuyo único contenido es un botón parece
+rota, y nadie puede decir si el fallo es de permisos, de datos o de carga.
+
+**La causa.** El simulador partía un campo `nombre` que `db.DOCENTES` **no
+tiene**: sus docentes llevan `nombres` y `apellidos` por separado, igual que el
+backend. `d.nombre?.split(' ')[0]` daba `undefined`, así que la celda quedaba
+vacía; los colegios iban en `[]` fijo por el mismo descuido. Lo mismo en el
+detalle.
+
+**Lo que se hizo.** El simulador devuelve los nombres de verdad, los colegios
+del docente y tres estados de sincronización distintos —con todos en "al día"
+no se ve si el color y el texto de los otros dos siguen funcionando—. Y **la
+celda se arma con lo que haya**: `nombres` + `apellidos`, o `nombre_completo`,
+o `nombre`, y si no hay nada escribe "Sin nombre registrado" en vez de dejar el
+hueco. Si el servidor cambia de campo mañana, la tabla sigue diciendo quién es
+cada fila.
+
+#### 9.2 Seguimiento de Lectura: el botón que no estaba
+
+**El síntoma.** "Esta semana aún no tiene tabla de lectura. Se creará sobre la
+clase del 2 de noviembre" — y ahí se acababa. Sin botón y sin motivo. Para el
+Docente, el módulo no funciona: no hay nada que pulsar ni nada que leer.
+
+**La causa.** El botón solo se dibujaba si `puedeEscribir`, y esa condición
+junta cuatro cosas (rol, actividad abierta, habilitación y conexión). Si
+fallaba cualquiera, el botón **desaparecía sin decir cuál**.
+
+**Lo que se hizo.** El botón se muestra siempre y, cuando no se puede, va
+**deshabilitado con su razón al lado**:
+
+| Lo que falta | Lo que se lee |
+|---|---|
+| La actividad de trabajo | "Debes iniciar una actividad de trabajo para registrar o modificar información." |
+| La habilitación | El `motivo` que manda el servidor |
+| La conexión | "Esta acción requiere conexión" |
+| Que la clase se haya dictado | "La clase de referencia todavía no se ha dictado. Podrás crear la tabla a partir de esa fecha." |
+| Elegir la clase | "Elige antes la clase de referencia de esta semana." |
+
+Es lo mismo que ya hacen CU029 y CU030 con "Registrar evaluaciones", y lo que
+pide D59: un control habilitado que no puede funcionar miente, pero uno que
+desaparece sin explicación también.
+
+**El último caso es el del pantallazo del 29/10.** El Docente pulsaba "Crear la
+tabla" y el servidor respondía "La clase de referencia todavía no se ha
+realizado": estaba a jueves y la clase del grupo era el viernes. CU024 lo exige
+al crear —la fecha efectiva tiene que ser lectiva y **no futura**— y la fecha ya
+viene dentro del propio 404, así que ahora se dice **antes** de pulsar, con el
+reloj del SERVIDOR y no con el del equipo.
+
+#### 9.3 Otorgar permisos: faltaban periodos
+
+El desplegable "Periodo académico" solo ofrecía PA1 y PA2. El simulador cortaba
+por `numero < 3`, **un número fijo**: en noviembre, con el PA3 cerrado el 31 de
+octubre, el Supervisor no podía otorgar un permiso para regularizarlo, que es
+justo para lo que existe CU028.
+
+La regla no es el número del periodo, es su **fecha**: aparecen los que ya no
+admiten regularización ordinaria. Lo dice el propio texto de ayuda del modal
+("Los periodos en curso no aparecen: todavía admiten regularización ordinaria y
+no necesitan permiso"), y ahora el código hace lo que ese texto promete.
+
+#### 9.4 El menú del Docente: Lectura antes que Rúbrica
+
+**Asistencias → Seguimiento de Lectura → Rúbrica → Registro de Vuelo.** Es el
+orden en que se trabaja: la lectura se registra cada **semana** y la rúbrica una
+vez al **mes**. El menú ponía la mensual encima de la semanal, invitando a
+entrar primero donde menos veces hay que entrar.
+
+El orden sale de `auth/permisos.js`, que es la fuente única del menú, así que
+cambia para los dos roles que ven esas secciones.
+
+#### 9.5 El estado, de botón a interruptor
+
+Lo pidió el equipo, y arregla una duplicidad: antes había **dos cosas para lo
+mismo** —una etiqueta "Activo"/"Inactivo" y, tres columnas más allá, un botón
+"Inactivar"—, y había que leer las dos para saber qué pasaba al pulsar. Un
+interruptor dice el estado **y** lo cambia.
+
+**La funcionalidad es la misma**, y conviene que quede dicho porque es lo que se
+pidió: sigue pidiendo confirmación (S4), sigue sin borrar nada, sigue pidiendo
+la fecha efectiva donde la sección la usa, y sigue respetando D68 —las filas
+protegidas van deshabilitadas con su motivo, ahora en el propio interruptor—.
+Si se cancela la confirmación, **el interruptor vuelve a su sitio**: lo que
+pinta es `fila.activo`, no el clic.
+
+Afecta a Alumnos, Usuarios y Colegios, que comparten la plantilla de
+mantenimiento.
+
+---
+
+### FASE 9b · La versión para el teléfono
+
+**La misma aplicación con otro armazón, no una versión aparte.** Es una
+decisión, y conviene decirla: se evaluó montar una carpeta o un proyecto
+separado para móvil, y no se hizo. Dos aplicaciones significan dos sitios donde
+arreglar cada defecto, y la ronda 6 ya enseñó lo caro que sale eso. Aquí una
+pantalla que se arregla, se arregla en los dos sitios.
+
+#### 9b.1 La navegación baja
+
+`components/layout/BarraInferior.jsx`: una barra de iconos fija abajo, visible
+por debajo de `lg`.
+
+**Por qué abajo.** El menú lateral vive detrás de un botón en la **esquina
+superior izquierda**, que es justo la zona a la que no llega la mano con la que
+se sostiene el teléfono. Cambiar de sección eran tres gestos —estirarse, abrir
+el cajón, elegir—; ahora es uno. Y se ve en qué sección se está **sin abrir
+nada**: en un cajón, la sección activa solo existe mientras el cajón está
+abierto.
+
+El Docente registra de pie, en un aula, con el teléfono en una mano. Esa es toda
+la justificación.
+
+**Caben cuatro, y la quinta ranura es "Más"**, que abre el mismo cajón de
+siempre con la lista completa, el cambio de contraseña y la salida. El Docente
+tiene siete secciones; el Directivo tiene dos y no ve "Más". Las etiquetas son
+cortas por necesidad —"Lectura", "Vuelo", "Panel", "Equipo"—, pero el nombre
+accesible sigue siendo el largo: "Lectura" basta para leerlo de un vistazo, no
+para saber a qué sección lleva si lo lee un lector de pantalla.
+
+Dos detalles que no son adorno: **56px de alto mínimo** por fila (el objetivo
+táctil de 44px más el aire para no pulsar la de al lado) y
+`pb-[env(safe-area-inset-bottom)]`, porque en un iPhone la franja del gesto de
+inicio se come la última fila de píxeles.
+
+#### 9b.2 Lo que se ajustó alrededor
+
+- **El botón de menú de la barra superior desaparece en el teléfono** (se queda
+  de `sm` a `lg`). Con la barra inferior eran dos puertas a lo mismo, y la de
+  arriba dejaba las migas de pan recortadas a "S..".
+- **El separador de las migas se esconde con lo que separa.** En el teléfono
+  solo se ve la última miga, pero su flecha seguía dibujándose: la barra
+  empezaba con un "› Alumnos" que apuntaba a nada.
+- **`pb-24` en el contenido.** Sin ese hueco, la barra inferior tapa la última
+  fila de la tabla o el botón de guardar, que es justo lo que se intentaba
+  pulsar.
+
+#### 9b.3 El Dashboard en el teléfono
+
+**Sin tocar su diseño**: eso viene aparte y lo decide Antonio. Lo que se hizo es
+que quepa.
+
+- **Las gráficas no se encogen: se desplazan.** Un gráfico de 680 de ancho
+  metido en 360 reduce sus etiquetas a la mitad, y una gráfica que no se lee no
+  es una gráfica. Conserva su ancho mínimo y se desliza en horizontal, que es lo
+  que ya hacen las tablas anchas. A partir de `sm` entra entera.
+- **"Aplicar" ocupa la fila entera.** A media anchura y pegado al último filtro
+  se perdía entre los desplegables.
+- Lo mismo para la barra de filtros común (Seguimiento, Sesiones, Colegios…):
+  sus botones bajan a su propia fila en vez de dejar los filtros en dos columnas
+  de 100px.
+
+#### 9b.4 Cómo verlo
+
+El servidor de desarrollo imprime una URL de red (`http://192.168.x.x:5173/`):
+**abriéndola en el teléfono** se ve la versión real, con el teclado y el gesto
+de desplazamiento de verdad. En el escritorio, las herramientas de desarrollo
+de Chrome con el modo dispositivo a 390×844 dan lo mismo.
+
+Durante este trabajo se comprobó a 390×844 y a 360×800 con la aplicación
+embebida en un iframe de ese tamaño, porque redimensionar la ventana de Chrome
+no baja el viewport por debajo de unos 500px.
+
+#### 9b.5 Lo que todavía NO es móvil del todo
+
+Conviene decirlo antes de que alguien lo descubra probando:
+
+- **Las tablas se desplazan en horizontal.** Funciona y es el patrón que RNF-002
+  ya documentaba, pero una tabla de siete columnas en un teléfono se lee a
+  trompicones. Convertirlas en tarjetas —una por fila, con sus campos en
+  vertical— es el siguiente paso natural y es una fase entera: afecta a Alumnos,
+  Usuarios, Colegios, Seguimiento, Sesiones y a las cuatro grillas del aula.
+- **Las grillas de captura** (Asistencias, Lectura, Rúbrica, Registro de Vuelo)
+  entran, pero con desplazamiento lateral. Son las que más se usarían en un
+  teléfono, así que son las primeras candidatas a tarjetas.
+- **El Dashboard**: pendientes los cambios de diseño que Antonio enviará aparte.
+
+
 ## 4. Matriz: defecto → fase
 
 | Defecto | Sev. | Módulo | Fase |
