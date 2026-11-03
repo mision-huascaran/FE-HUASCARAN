@@ -27,7 +27,16 @@ export default function Breadcrumbs({ className }) {
           const ultima = i === completas.length - 1
           return (
             <li key={miga.to} className={cn('flex min-w-0 items-center gap-1', !ultima && 'hidden sm:flex')}>
-              {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />}
+              {/*
+                El separador se esconde con lo que separa.
+                
+                En el teléfono solo se ve la última miga —las demás van
+                `hidden sm:flex`—, pero su flecha seguía dibujándose: la barra
+                empezaba con un "› Alumnos" que apuntaba a nada.
+              */}
+              {i > 0 && (
+                <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-ink-400 sm:block" aria-hidden="true" />
+              )}
               {ultima ? (
                 <span className="truncate font-semibold text-ink-900" aria-current="page">
                   {miga.label}
