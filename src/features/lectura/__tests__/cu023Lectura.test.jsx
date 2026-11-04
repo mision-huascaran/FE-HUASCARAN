@@ -35,7 +35,6 @@ const fila = (extra = {}) => ({
   nombre: 'Torres, Ana',
   inactivo: false,
   asistencia: 'presente',
-  nivel_academico: null,
   lsn_titulo: null,
   lsn_nota: null,
   lsn_maximo: null,

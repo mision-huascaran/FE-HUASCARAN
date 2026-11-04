@@ -330,8 +330,6 @@ function filaDe(tabla, idAlumno) {
     nombre: `${alumno.apellidos}, ${alumno.nombres}`,
     inactivo: alumno.activo === false,
     asistencia,
-    // El nivel academico lo completa el Registro de Vuelo (tanda 9).
-    nivel_academico: null,
     lsn_titulo: d.lsn_titulo ?? null,
     lsn_nota: d.lsn_nota ?? null,
     lsn_maximo: d.lsn_maximo ?? null,

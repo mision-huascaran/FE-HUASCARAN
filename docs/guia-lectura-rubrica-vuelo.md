@@ -178,10 +178,6 @@ de esta clase en Asistencias para habilitar el registro de lectura."*
   *Ejemplo:* un LSN con título y puntaje **0/5**, más **3 LSL** → **4 libros
   leídos**. Sí: un 0 de nota sigue siendo un libro leído.
 
-- **Nivel académico** — es de solo lectura: muestra el último **Nivel colocado**
-  confirmado en Registro de Vuelo que aplicaba el día de la clase. Si el alumno
-  todavía no tiene ninguno, dice **"Sin evaluar"**.
-
 > **Los tres datos del LSN se envían juntos, cuando están completos.** Antes
 > cada campo se guardaba al salir del control y el servidor rechazaba un título
 > suelto, así que se borraba lo escrito y era imposible registrar un libro.
@@ -376,7 +372,6 @@ viejo aquí hace daño: Usuarios, Colegios, Sesiones y el Dashboard.
 | "Registrar evaluaciones" deshabilitado | Falta un filtro, la actividad o la habilitación | El motivo está **escrito al lado del botón** |
 | *"Pendiente del periodo anterior"* en Registro de Vuelo | El PA anterior no tiene decisión confirmada | Registra primero ese periodo |
 | *"Pendiente de evaluar"* en la Sugerencia | No hay ninguna **rúbrica completa** en ese PA | Completa **las dos** dimensiones de algún mes del periodo |
-| *"Sin evaluar"* en Nivel académico | El alumno todavía no tiene Nivel colocado | Regístralo en **Registro de Vuelo** |
 
 ---
 

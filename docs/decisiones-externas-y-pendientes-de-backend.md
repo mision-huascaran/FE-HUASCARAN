@@ -757,6 +757,28 @@ los dos orígenes en vez de elegir uno, con su prueba de regresión.
 asignados — el front ya no se cae si falta alguno, pero un resumen
 incompleto en el propio endpoint sigue siendo un dato a revisar.
 
+**S30 (nuevo). El año escolar "vigente" tiene que cubrir el receso posterior
+al PA4, aunque se pase al siguiente año de calendario.**
+Sale de la actualización de los CU del 04/11. CU027 dice que, al entrar al
+calendario sin una selección anterior, se propone **el año escolar cuyo
+calendario contiene hoy dentro de un PA o un PR**, y pone el ejemplo
+incómodo a propósito: *"si en enero de 2027 continúa el receso posterior a
+PA4 de 2026, selecciona 2026"*.
+
+El front ya no calcula eso —no tiene los calendarios de todos los años a
+mano—: **se fía de la marca `vigente` de `GET /anios-escolares`**, y si
+ninguno la trae deja el filtro sin selección, como pide el CU.
+
+Hoy el servidor la calcula como `fecha_inicio <= hoy <= fecha_fin` del propio
+año escolar (`app/routers/catalogos.py`). Eso da el resultado correcto
+**siempre que la `fecha_fin` del año escolar llegue hasta el final de su PR4**
+y no se corte el 31 de diciembre. Si se cortara, en enero ningún año saldría
+vigente y el Supervisor encontraría el filtro vacío en vez de "2026".
+
+**Lo que se pide:** confirmar que `fecha_fin` del año escolar incluye su
+receso posterior al PA4. Es un dato, no código: con la fecha bien puesta, el
+front ya hace lo que pide el CU.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -782,6 +804,7 @@ lado de los datos si no se esperaban:
 | Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27 / S27b** | ✅ Resuelto por la Tanda N: la pantalla respeta `pertenece` y la celda se bloquea antes de pulsar |
 | Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
 | Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
+| Calendario: qué año se propone en enero, con el PR4 en curso | **S30** | ⚠️ El front se fía de `vigente`; confirmar que la `fecha_fin` del año escolar cubre su PR4 |
 
 ## Versión para la ronda 7
 

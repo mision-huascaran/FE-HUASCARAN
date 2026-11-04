@@ -31,6 +31,7 @@ import {
   obtenerRegistroVueloAlumno,
   obtenerRubricaAlumno,
 } from '../../api/resources/alumnos'
+import { NOMBRE_LARGO_PERIODO } from '../../api/resources/calendarios'
 import { ESTADO_FILA } from '../../api/resources/lectura'
 import { ESTADO_RUBRICA, comoNota } from '../../api/resources/rubricaMensual'
 import { ORIGEN_ENTRADA } from '../../api/resources/registroVueloAnual'
@@ -186,7 +187,21 @@ function PestanaVuelo({ idAlumno, alumno }) {
   if (error) return <ErrorDePestana error={error} />
 
   const columnas = [
-    { key: 'numero', header: 'Periodo', render: (p) => `PA${p.numero}` },
+    {
+      key: 'numero',
+      header: 'Periodo',
+      /**
+       * "Primer periodo", no "PA1" (CU015).
+       *
+       * El código solo significa algo para quien construye el sistema; esta
+       * ficha la lee un Docente, y es el mismo nombre que ya usan el
+       * calendario y los filtros del Dashboard. Se toma del mapa de CU027 en
+       * vez de escribirlo otra vez: si mañana cambia el nombre, cambia en un
+       * solo sitio. Si llegara un número fuera de PA1–PA4, se enseña el
+       * número antes que un hueco.
+       */
+      render: (p) => NOMBRE_LARGO_PERIODO[`PA${p.numero}`] ?? `Periodo ${p.numero}`,
+    },
     {
       key: 'entrada',
       header: 'Entrada',
