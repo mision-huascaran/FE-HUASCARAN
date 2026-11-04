@@ -235,10 +235,15 @@ export default function RegistroVueloAnualPage() {
                       Proyección
                     </th>
                     <th scope="col" className="px-3 py-2 text-center font-semibold">
-                      Obs.
+                      Observación
                     </th>
-                    <th scope="col" className="px-3 py-2 text-center font-semibold">
-                      Avance
+                    {/* Qué mide (U16): el avance es del AÑO, 25 % por cada PA con nivel colocado. */}
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-center font-semibold"
+                      title="Periodos del año con nivel colocado: 25 % por cada PA."
+                    >
+                      Avance anual
                     </th>
                   </tr>
                 </thead>

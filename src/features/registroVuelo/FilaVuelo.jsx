@@ -156,7 +156,12 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
 
       {/* 25 puntos por cada PA con nivel colocado: el avance es del AÑO, no de
           este periodo, así que la misma cifra se repite en los cuatro. */}
-      <td className="px-3 py-2 text-center text-sm font-semibold text-ink-900">{alumno.avance_anual ?? 0}%</td>
+      <td
+        className="px-3 py-2 text-center text-sm font-semibold text-ink-900"
+        title="Periodos del año con nivel colocado: 25 % por cada PA."
+      >
+        {alumno.avance_anual ?? 0}%
+      </td>
     </tr>
   )
 }
