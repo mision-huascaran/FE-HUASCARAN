@@ -2,7 +2,7 @@
 // terminar, y los dos casos que no son errores sino cambios de estado (otro
 // Supervisor lo revocó antes, o el permiso venció mientras tanto).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import handlers from '../../../api/mock/handlers'
 import PermisosDeCorreccion from '../PermisosDeCorreccion'
 import { ROLES } from '../../../auth/roles'
@@ -28,6 +28,10 @@ const VIGENTE = {
 
 async function revocarConMotivo() {
   renderConProveedores(<PermisosDeCorreccion docente={DOCENTE} />, { rol: ROLES.SUPERVISOR })
+  // Al recibir el catálogo, la pantalla elige sola el año vigente y vuelve a
+  // pedir la lista. Si se pulsa «Revocar» antes, el clic puede caer en la fila
+  // de la primera lista, que ya no está en el DOM, y el diálogo no se abre.
+  await waitFor(() => expect(screen.getByLabelText('Año escolar')).not.toHaveValue(''), ESPERA)
   fireEvent.click(await screen.findByRole('button', { name: 'Revocar' }, ESPERA))
   const modal = await screen.findByRole('dialog', { name: 'Revocar permiso de corrección' }, ESPERA)
   fireEvent.change(within(modal).getByLabelText(/Motivo de revocación/), { target: { value: 'Ya corrigió los registros' } })
