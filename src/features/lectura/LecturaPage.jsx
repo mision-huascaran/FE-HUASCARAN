@@ -32,7 +32,7 @@ import ModalNoRealizada from './ModalNoRealizada'
 import ModalHabilitarRegistro from './ModalHabilitarRegistro'
 import ModalCambiarClase from './ModalCambiarClase'
 import TablaLectura from './TablaLectura'
-import useFiltrosDeGrupo, { MESES, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
@@ -51,6 +51,26 @@ const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })
 const comoFecha = (iso) => (iso ? FECHA_LARGA.format(new Date(`${iso}T12:00:00`)) : null)
+
+/** Lo que dice el estado vacío de una tabla por crear: un solo mensaje, sin contradicciones (U02). */
+function descripcionPorCrear(clase, futura) {
+  if (!clase) return 'La semana no tiene una clase programada: hace falta elegir la clase de referencia para poder crearla.'
+  if (futura) return `La clase de referencia es el ${comoFecha(clase.fecha)}. Podrás crear la tabla a partir de ese día.`
+  return `Se creará sobre la clase del ${comoFecha(clase.fecha)}, con los alumnos que estaban en ella ese día.`
+}
+
+/**
+ * Una semana que todavía no empieza se ve, pero no se elige (U02): no tiene
+ * clase dictada, y abrirla solo llevaba a "la clase todavía no se ha dictado".
+ */
+const opcionDeSemana = (s) => {
+  const futura = esSemanaFutura(s)
+  return {
+    value: s.id_semana,
+    label: futura ? `${etiquetaDeSemanaDeGrupo(s)} (próxima)` : etiquetaDeSemanaDeGrupo(s),
+    disabled: futura,
+  }
+}
 
 export default function LecturaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
@@ -230,7 +250,7 @@ export default function LecturaPage() {
           value={filtros.idSemana}
           placeholder={semanas.length ? 'Seleccione' : 'Sin clases este mes'}
           onChange={(e) => cambiar('semana', e.target.value)}
-          options={semanas.map((s) => ({ value: s.id_semana, label: etiquetaDeSemanaDeGrupo(s) }))}
+          options={semanas.map(opcionDeSemana)}
         />
       </FilterBar>
 
@@ -269,11 +289,7 @@ export default function LecturaPage() {
                 ? 'La clase de esta semana todavía no se ha dictado'
                 : 'Esta semana aún no tiene tabla de lectura'
             }
-            description={
-              porCrear.claseSugerida
-                ? `Se creará sobre la clase del ${comoFecha(porCrear.claseSugerida.fecha)}, con los alumnos que estaban en ella ese día.`
-                : 'La semana no tiene una clase programada: hace falta elegir la clase de referencia para poder crearla.'
-            }
+            description={descripcionPorCrear(porCrear.claseSugerida, claseFutura)}
             action={
               porCrear.claseSugerida ? (
                 <div className="flex flex-col items-center gap-1">
@@ -287,7 +303,10 @@ export default function LecturaPage() {
                   </Button>
                   {/* El motivo VISIBLE, no en un tooltip: CU029 lo pide así
                       para el botón hermano de Rúbrica, y aquí vale igual. */}
-                  {motivoParaNoCrear && <p className="max-w-sm text-xs text-ink-500">{motivoParaNoCrear}</p>}
+                  {/* Con la clase en el futuro, el motivo ya es la descripción: un solo mensaje (U02). */}
+                  {motivoParaNoCrear && !claseFutura && (
+                    <p className="max-w-sm text-xs text-ink-500">{motivoParaNoCrear}</p>
+                  )}
                 </div>
               ) : null
             }
