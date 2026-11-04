@@ -21,6 +21,39 @@ import { obtenerResultadosAprendizaje } from '../../api/resources/dashboard'
 import BloqueDashboard from './BloqueDashboard'
 import { SIN_EVALUACIONES_COMPLETAS, etiquetaDeEstado, formatearPorcentaje } from './estados'
 
+const sinEvaluados = (dimension) => (dimension.niveles ?? []).length === 0 || !dimension.evaluados
+
+const pendientesDe = (dimension) => {
+  const n = dimension.pendientes ?? 0
+  return `${n} ${n === 1 ? 'alumno pendiente' : 'alumnos pendientes'} de evaluar.`
+}
+
+/**
+ * UN SOLO AVISO POR SUBPROGRAMA cuando ninguna dimensión tiene evaluados
+ * (auditoría de UX #737, U09). Con el periodo en curso, el bloque repetía seis
+ * veces el mismo estado vacío —nivel global, Fluidez y Comprensión de cada
+ * subprograma— y ocupaba una página entera para decir una sola cosa.
+ */
+function Programa({ programa }) {
+  const dimensiones = programa.dimensiones ?? []
+  const todasVacias = dimensiones.length > 0 && dimensiones.every(sinEvaluados)
+  const masPendientes = dimensiones.reduce((mayor, d) => (d.pendientes > (mayor?.pendientes ?? -1) ? d : mayor), null)
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">{programa.nombre}</h3>
+      {todasVacias ? (
+        <EmptyState
+          title={SIN_EVALUACIONES_COMPLETAS}
+          description={masPendientes ? pendientesDe(masPendientes) : undefined}
+        />
+      ) : (
+        dimensiones.map((dimension) => <Dimension key={dimension.clave} dimension={dimension} />)
+      )}
+    </section>
+  )
+}
+
 function Dimension({ dimension }) {
   const niveles = dimension.niveles ?? []
   const aviso = etiquetaDeEstado(dimension)
@@ -33,12 +66,12 @@ function Dimension({ dimension }) {
       </div>
 
       {/* El servidor manda TODOS los niveles aunque nadie esté evaluado: sin
-          evaluados, la tabla de ceros no se pinta y se dice por qué. */}
-      {niveles.length === 0 || !dimension.evaluados ? (
-        <EmptyState
-          title={dimension.mensaje ?? SIN_EVALUACIONES_COMPLETAS}
-          description={`${dimension.pendientes ?? 0} alumnos pendientes de evaluar.`}
-        />
+          evaluados, la tabla de ceros no se pinta y se dice por qué, en UNA
+          línea y no con un estado vacío de página entera (U09). */}
+      {sinEvaluados(dimension) ? (
+        <p className="text-sm text-ink-500">
+          {dimension.mensaje ?? SIN_EVALUACIONES_COMPLETAS} {pendientesDe(dimension)}
+        </p>
       ) : (
         <DataTable
           paginated={false}
@@ -80,12 +113,7 @@ export default function BloqueResultados({ filtros, contexto, hayCambios }) {
     >
       <div className="flex flex-col gap-6">
         {programas.map((programa) => (
-          <section key={programa.id_programa} className="flex flex-col gap-4">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">{programa.nombre}</h3>
-            {(programa.dimensiones ?? []).map((dimension) => (
-              <Dimension key={dimension.clave} dimension={dimension} />
-            ))}
-          </section>
+          <Programa key={programa.id_programa} programa={programa} />
         ))}
 
         {(consulta.data?.colegios_sin_informacion?.length ?? 0) > 0 && (
