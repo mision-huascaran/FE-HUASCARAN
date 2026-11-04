@@ -83,7 +83,7 @@ export function semanaPorDefecto(semanas, dia = hoy()) {
   if (!semanas.some(inicioDeSemana)) return semanas.at(-1)
   const actual = semanas.find((s) => inicioDeSemana(s) <= dia && dia <= (finDeSemana(s) ?? inicioDeSemana(s)))
   if (actual) return actual
-  return semanas.filter((s) => !esSemanaFutura(s, dia)).at(-1) ?? semanas[0]
+  return semanas.findLast((s) => !esSemanaFutura(s, dia)) ?? semanas[0]
 }
 
 /** El marcador del colegio para quien consulta varios (U08). */
