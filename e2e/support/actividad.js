@@ -71,20 +71,31 @@ export async function finalizarActividad(page) {
   await expect(botonIniciar(page)).toBeVisible()
 }
 
+/** Id de la actividad cuyo detalle pide el diálogo (`GET /api/actividades/{id}`), o null. */
+const idDelDetalle = (respuesta) => {
+  const ruta = new URL(respuesta.url()).pathname
+  return respuesta.request().method() === 'GET' && /^\/api\/actividades\/[^/]+$/.test(ruta) ? ruta.split('/').at(-1) : null
+}
+
 /**
- * En Sesiones la tabla no muestra el id: se abre el detalle de cada fila hasta
- * dar con el de la actividad buscada (el id va como subtítulo del detalle).
- * Devuelve el diálogo abierto.
+ * En Sesiones ni la tabla ni el detalle muestran el id: desde U28 el subtítulo
+ * dice «Actividad del <fecha y hora>», y dos actividades pueden empezar en el
+ * mismo minuto (la preparación y la jornada de F8). Se abre el detalle de cada
+ * fila y se reconoce la actividad por la petición que hace el diálogo,
+ * `GET /api/actividades/{id}`. Devuelve el diálogo abierto.
  */
 export async function abrirDetalleDeSesion(page, idActividad) {
   const botones = page.getByRole('button', { name: 'Ver detalle' })
   await expect(botones.first()).toBeVisible()
   const total = Math.min(await botones.count(), 10)
   for (let i = 0; i < total; i += 1) {
+    // Un detalle ya visto sale de la caché y no hace petición: no es el buscado.
+    const pedido = page.waitForResponse((r) => idDelDetalle(r) !== null, { timeout: 10_000 }).catch(() => null)
     await botones.nth(i).click()
     const dialogo = page.getByRole('dialog', { name: 'Detalle de la actividad' })
     await expect(dialogo).toBeVisible()
-    if (await dialogo.getByText(idActividad, { exact: true }).isVisible()) return dialogo
+    const respuesta = await pedido
+    if (respuesta && idDelDetalle(respuesta) === idActividad) return dialogo
     await dialogo.getByRole('button', { name: 'Cerrar' }).last().click()
   }
   throw new Error(`La actividad ${idActividad} no aparece entre las ${total} sesiones más recientes`)
