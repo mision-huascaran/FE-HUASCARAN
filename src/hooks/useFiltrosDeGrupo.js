@@ -28,7 +28,7 @@ import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { useColegiosReales } from './useCatalogos'
 import useSessionStore from '../store/sessionStore'
 import { etiquetaDeSemana } from '../lib/format'
-import { ahora } from '../lib/relojServidor'
+import { ahora, hoy } from '../lib/relojServidor'
 import { PREFIJO_FILTROS } from './useFiltrosGuardados'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
@@ -59,6 +59,32 @@ export const MESES = [
  * dejaba claro de qué año eran los días.
  */
 export const etiquetaDeSemanaDeGrupo = (s) => etiquetaDeSemana(s) || `Semana ${s?.id_semana ?? ''}`.trim()
+
+const inicioDeSemana = (s) => s?.fecha_inicio ?? s?.inicio ?? null
+const finDeSemana = (s) => s?.fecha_fin ?? s?.fin ?? null
+
+/** Una semana que todavía no empieza: no tiene clase dictada ni lectura que registrar. */
+export const esSemanaFutura = (semana, dia = hoy()) => {
+  const inicio = inicioDeSemana(semana)
+  return Boolean(inicio) && inicio > dia
+}
+
+/**
+ * LA SEMANA QUE SE PROPONE (auditoría de UX #737, U01).
+ *
+ * Antes era la ÚLTIMA del mes, y a inicios de mes eso mandaba al docente a una
+ * semana que aún no llega ("la clase todavía no se ha dictado"). Ahora es la
+ * semana que contiene HOY; si el mes no la tiene, la última que ya empezó, y
+ * en un mes que todavía no llega, la primera. Una lista sin fechas conserva la
+ * regla de antes.
+ */
+export function semanaPorDefecto(semanas, dia = hoy()) {
+  if (!semanas?.length) return null
+  if (!semanas.some(inicioDeSemana)) return semanas.at(-1)
+  const actual = semanas.find((s) => inicioDeSemana(s) <= dia && dia <= (finDeSemana(s) ?? inicioDeSemana(s)))
+  if (actual) return actual
+  return semanas.filter((s) => !esSemanaFutura(s, dia)).at(-1) ?? semanas[0]
+}
 
 /**
  * D105 — LOS FILTROS SE CONSERVAN AL VOLVER AL MÓDULO.
@@ -297,12 +323,11 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     cambiar('subprograma', String(programas[0].id_programa))
   }, [programas, idPrograma, cambiar])
 
-  // La semana por defecto es la ÚLTIMA del mes con clases: es la que el
-  // docente viene a registrar.
+  // La semana por defecto es la de HOY (ver `semanaPorDefecto`).
   useEffect(() => {
     if (!semanas.length) return
     if (semanas.some((s) => String(s.id_semana) === String(idSemana))) return
-    cambiar('semana', String(semanas.at(-1).id_semana))
+    cambiar('semana', String(semanaPorDefecto(semanas).id_semana))
   }, [semanas, idSemana, cambiar])
 
   return {
