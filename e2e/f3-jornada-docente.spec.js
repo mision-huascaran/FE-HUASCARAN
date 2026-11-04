@@ -1,7 +1,8 @@
 // F3 — Jornada del Docente (CU009, CU010, CU014, CU017, CU019).
 //
-// Antes de empezar se inactivan los alumnos «E2E-» que hayan quedado activos en
-// el colegio E2E por corridas que fallaron a medias.
+// Antes de empezar se inactivan los alumnos «E2E-F3-» que hayan quedado activos
+// en el colegio E2E por corridas que fallaron a medias. Solo los suyos: los
+// «E2E-AS-» de F8 tienen su propio prefijo y su propia limpieza.
 //
 // Una jornada completa: sin actividad no se puede registrar; se inicia la
 // actividad, se registra un alumno en su colegio y grado, se encuentra, se
@@ -25,26 +26,15 @@ import { guardarEstado } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { fechaLima } from './support/fechas.js'
 import { esApi, iniciarSesion, irPorMenu } from './support/sesion.js'
+import { activas, filtrarAlumnos, inactivarAlumno, limpiarAlumnos } from './support/alumnos.js'
 
 // Los textos que piden los casos de uso, ya corregidos en la pantalla: CU014
 // llama «Agregar» al botón, y sin actividad el aviso es el unificado con el
 // servidor (`actividad_requerida`), el mismo que CU014 adoptó.
 const BOTON_NUEVO = 'Agregar'
 const AVISO_SIN_ACTIVIDAD = 'Debes iniciar una actividad de trabajo para registrar o modificar información.'
-const PREFIJO = 'E2E-'
-
-/** El badge de estado, exacto: «Activo» como texto suelto también está dentro de «Inactivo». */
-const activas = (page, filas) => filas.filter({ has: page.getByText('Activo', { exact: true }) })
-
-async function inactivarAlumno(page, fila) {
-  await fila.getByRole('switch', { name: /^Inactivar/ }).click()
-  const baja = page.waitForResponse(
-    (r) => /\/api\/alumnos\/[^/]+\/desactivar$/.test(new URL(r.url()).pathname) && r.request().method() === 'PATCH',
-  )
-  await page.getByRole('dialog', { name: 'Inactivar alumno' }).getByRole('button', { name: 'Inactivar' }).click()
-  expect((await baja).ok(), 'PATCH /alumnos/{id}/desactivar').toBeTruthy()
-  await expect(page.getByRole('status').filter({ hasText: 'Alumno inactivado' }).first()).toBeVisible()
-}
+// Distinto del «E2E-AS-» de F8: ninguna limpieza toca lo que crea otra prueba.
+const PREFIJO = 'E2E-F3-'
 
 test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastro en Sesiones (CU009, CU010, CU014, CU017, CU019)', async ({ page }) => {
   const { inicio } = await iniciarSesion(page, 'docente')
@@ -53,25 +43,18 @@ test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastr
 
   await test.step(`Limpieza: inactivar alumnos «${PREFIJO}» que hayan quedado activos en ${SEED.colegio}`, async () => {
     await irPorMenu(page, 'Alumnos', '/alumnos')
-    await page.getByLabel('Buscar').fill(PREFIJO)
-    await page.getByLabel('Colegio', { exact: true }).selectOption({ label: SEED.colegio })
-    await page.getByRole('button', { name: 'Filtrar' }).click()
-    const restos = activas(page, page.getByRole('row').filter({ hasText: PREFIJO }))
-    await expect(restos.first().or(page.getByText('Sin registros'))).toBeVisible()
-
-    const cantidad = await restos.count()
+    await filtrarAlumnos(page, PREFIJO)
+    const cantidad = await activas(page, page.getByRole('row').filter({ hasText: PREFIJO })).count()
     if (cantidad > 0) {
       // Inactivar es una escritura del Docente: exige una actividad abierta
       // (CU010). Se usa una aparte para no mezclar sus cambios con los de la
       // jornada que se verifica después en Sesiones.
       await iniciarActividad(page)
-      for (let i = 0; i < cantidad; i += 1) {
-        await inactivarAlumno(page, restos.first())
-        await expect(restos).toHaveCount(cantidad - i - 1)
-      }
+      await limpiarAlumnos(page, PREFIJO)
       await finalizarActividad(page)
+    } else {
+      test.info().annotations.push({ type: 'limpieza', description: `0 alumno(s) ${PREFIJO} inactivado(s) antes de empezar` })
     }
-    test.info().annotations.push({ type: 'limpieza', description: `${cantidad} alumno(s) ${PREFIJO} inactivado(s) antes de empezar` })
   })
 
   const nombres = `${PREFIJO}${Date.now()}`
