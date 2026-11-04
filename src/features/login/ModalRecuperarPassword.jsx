@@ -159,7 +159,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
       onClose={cerrar}
       size="max-w-lg"
       title="Recuperar contraseña"
-      subtitle="Le enviaremos un PIN a su correo institucional"
+      subtitle="Te enviaremos un PIN a tu correo institucional"
       footer={
         <>
           <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
@@ -261,7 +261,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
               })}
             </ul>
             <Input
-              label="Repita la nueva contraseña"
+              label="Repite la nueva contraseña"
               type="password"
               required
               value={confirmacion}

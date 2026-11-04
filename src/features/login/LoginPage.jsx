@@ -34,7 +34,7 @@ export const MENSAJE = {
 }
 
 const esquema = z.object({
-  correo: z.string().min(1, 'Ingrese su correo').email('Ingrese un correo válido'),
+  correo: z.string().min(1, 'Ingresa tu correo').email('Ingresa un correo válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
 })
 
@@ -141,7 +141,7 @@ export default function LoginPage() {
           <Logo tone="dark" size="lg" />
 
           <h1 className="mt-8 text-2xl font-bold text-ink-900 md:text-3xl">Iniciar sesión</h1>
-          <p className="mt-1 text-sm text-ink-500">Ingrese con el correo institucional que le asignaron.</p>
+          <p className="mt-1 text-sm text-ink-500">Ingresa con el correo institucional que te asignaron.</p>
 
           {/* CU007: si la sesión venció sola hay que decirlo, o el usuario
               aparece aquí sin saber por qué y cree que perdió su trabajo. */}

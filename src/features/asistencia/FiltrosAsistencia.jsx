@@ -62,7 +62,7 @@ export default function FiltrosAsistencia({
       <Select
         label="Sección"
         value={filtros.idSeccion}
-        placeholder={secciones.length > 1 ? 'Seleccione' : ''}
+        placeholder={secciones.length > 1 ? 'Selecciona' : ''}
         onChange={(e) => cambiar('seccion', e.target.value)}
         options={secciones.map((x) => ({ value: String(x.id), label: x.nombre }))}
       />

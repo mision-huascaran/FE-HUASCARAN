@@ -133,14 +133,14 @@ export default function RubricaPage() {
         <Select
           label="Sección"
           value={filtros.idSeccion}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />

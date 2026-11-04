@@ -232,14 +232,14 @@ export default function LecturaPage() {
         <Select
           label="Sección"
           value={filtros.idSeccion}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />
@@ -252,7 +252,7 @@ export default function LecturaPage() {
         <Select
           label="Semana"
           value={filtros.idSemana}
-          placeholder={semanas.length ? 'Seleccione' : 'Sin clases este mes'}
+          placeholder={semanas.length ? 'Selecciona' : 'Sin clases este mes'}
           onChange={(e) => cambiar('semana', e.target.value)}
           options={semanas.map(opcionDeSemana)}
         />

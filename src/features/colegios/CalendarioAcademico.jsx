@@ -448,7 +448,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
               <Select
                 label="Colegio"
                 required
-                placeholder="Seleccione"
+                placeholder="Selecciona"
                 value={idColegio}
                 disabled={editando}
                 options={colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre }))}

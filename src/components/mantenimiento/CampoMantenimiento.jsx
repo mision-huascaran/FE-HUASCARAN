@@ -39,7 +39,7 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
       <Select
         {...comun}
         value={valor ?? ''}
-        placeholder={campo.placeholder ?? 'Seleccione'}
+        placeholder={campo.placeholder ?? 'Selecciona'}
         options={campo.opciones ?? []}
         onChange={(e) => onCambio(campo.nombre, e.target.value)}
       />
