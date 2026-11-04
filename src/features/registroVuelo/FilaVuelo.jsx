@@ -115,7 +115,9 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
         )}
       </td>
 
-      <td className="px-3 py-2">
+      {/* Ancho mínimo: con "Pendiente del periodo anterior" en Entrada, la
+          columna se angostaba y el texto quedaba en "Sin decid" (U22). */}
+      <td className="min-w-[9.5rem] px-3 py-2">
         <Select
           aria-label={`Nivel colocado de ${alumno.nombre}`}
           value={periodo.nivel_colocado?.id ?? ''}
@@ -129,7 +131,9 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
       {/* Lo calcula el servidor a partir del grado y del nivel colocado. */}
       <td className="px-3 py-2 text-center text-sm text-ink-700">{periodo.nivel_programa ?? '—'}</td>
 
-      <td className="px-3 py-2">
+      {/* Ancho mínimo: con "Pendiente del periodo anterior" en Entrada, la
+          columna se angostaba y el texto quedaba en "Sin decid" (U22). */}
+      <td className="min-w-[9.5rem] px-3 py-2">
         <Select
           aria-label={`Proyección de ${alumno.nombre}`}
           value={periodo.proyeccion?.id ?? ''}
