@@ -124,13 +124,13 @@ export default function MantenimientoColegios() {
   })
 
   const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ['colegios'] })
-    queryClient.invalidateQueries({ queryKey: ['catalogo'] })
-    queryClient.invalidateQueries({ queryKey: ['admin'] })
+    void queryClient.invalidateQueries({ queryKey: ['colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['catalogo'] })
+    void queryClient.invalidateQueries({ queryKey: ['admin'] })
     // El popup cachea el detalle y la auditoría: sin esto, "Ver"/"Editar"
     // mostraban los grados y días anteriores hasta recargar.
-    queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
-    queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
   }
 
   const guardado = useMutation({

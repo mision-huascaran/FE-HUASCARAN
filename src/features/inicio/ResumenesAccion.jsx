@@ -61,8 +61,19 @@ export default function ResumenesAccion() {
   const permisos = data.permisos_vigentes ?? []
   const totales = data.totales ?? {}
   const grados = asignaciones.flatMap((a) => (a.grados ?? []).map((g) => g.nombre ?? g))
-  // CU010 pide también los ciclos. Si `totales` no los trae, salen de cada grado.
-  const ciclos = totales.ciclos ?? asignaciones.flatMap((a) => (a.grados ?? []).flatMap((g) => g.ciclos ?? []))
+  /**
+   * CU010 pide también los ciclos. Se UNEN los dos orígenes, no se prefiere
+   * uno: `totales.ciclos` puede llegar incompleto (III y V, sin el IV de un
+   * grado que sí está en `asignaciones`) y antes, con `??`, un `totales.ciclos`
+   * presente pero incompleto tapaba el de cada grado en vez de completarlo.
+   * Un ciclo de más no pasa nada; uno de menos sí: un Docente con alumnos de
+   * 4.º grado leyendo "Ciclos: III, V" piensa que el sistema perdió a ese
+   * grupo.
+   */
+  const ciclos = [
+    ...(totales.ciclos ?? []),
+    ...asignaciones.flatMap((a) => (a.grados ?? []).flatMap((g) => g.ciclos ?? [])),
+  ]
 
   const frases = []
 

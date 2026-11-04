@@ -118,6 +118,30 @@ describe('Resúmenes de Acción del Docente (CU010)', () => {
     useSyncStore.setState({ pendientes: 0 })
   })
 
+  it('un Ciclo que falte en `totales` pero esté en algún grado SÍ se ve (D108)', async () => {
+    // Lo que reportó Antonio: un Docente con alumnos de 4.º (ciclo IV) veía
+    // "Ciclos: III, V" porque `totales.ciclos` llegó incompleto y, con `??`,
+    // tapaba el ciclo que SÍ traía el grado de 4.º en su propia lista.
+    respuesta.mockResolvedValue({
+      asignaciones: [
+        {
+          colegio: { id: 1, nombre: 'Utec Colegio' },
+          grados: [
+            { id: 1, nombre: '1.º', ciclos: ['III'] },
+            { id: 4, nombre: '4.º', ciclos: ['IV'] },
+            { id: 5, nombre: '5.º', ciclos: ['V'] },
+          ],
+        },
+      ],
+      // Incompleto a propósito: el backend lo mandó sin el IV.
+      totales: { ciclos: ['III', 'V'], subprogramas: [], cantidad_alumnos: 4 },
+    })
+
+    montar()
+    expect(await screen.findByText('Utec Colegio', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('III, V, IV')).toBeInTheDocument()
+  })
+
   it('agrupa los grados de varios colegios sin repetirlos', async () => {
     respuesta.mockResolvedValue({
       asignaciones: [

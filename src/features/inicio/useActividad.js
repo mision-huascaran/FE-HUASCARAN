@@ -165,6 +165,9 @@ export default function useActividad() {
         tipo: TIPOS_ENVIO.ACTIVIDAD_INICIO,
         payload: { id: abierta.id, inicio: abierta.inicio, id_sesion: idSesion },
         descripcion: 'Inicio de actividad',
+      }).catch(() => {
+        // El resultado se ve en el panel de sincronización, no aquí: la cola
+        // deja anotado el rechazo (D69) o el envío pendiente de reintentar.
       })
       toast.success(
         'Actividad iniciada sin conexión',
@@ -247,7 +250,7 @@ export default function useActividad() {
        */
       habilitaciones: () => obtenerMisHabilitaciones(),
     }, { propietario: propietarioDe(useSessionStore.getState().usuario) })
-    queryClient.invalidateQueries({ queryKey: ['precarga'] })
+    void queryClient.invalidateQueries({ queryKey: ['precarga'] })
 
     if (!ok) toast.info('Precarga incompleta', 'Si se corta la conexión puede que falten datos.')
   }
@@ -267,6 +270,8 @@ export default function useActividad() {
         // Sin su inicio, el servidor responde 404: la actividad no existiría.
         // Si el inicio se descarta por un error definitivo, este se va con él.
         dependeDe: `actividad-inicio-${cerrada.id}`,
+      }).catch(() => {
+        // Igual que el inicio: el resultado se ve en el panel de sincronización.
       })
       toast.info(
         'Actividad finalizada sin conexión',
@@ -279,7 +284,9 @@ export default function useActividad() {
 
     try {
       await finalizarActividad(cerrada.id)
-      reintentarAhora()
+      // La cola maneja sus errores y los muestra en el SyncBadge: el catch
+      // solo cierra la promesa, igual que en `iniciarCola`.
+      reintentarAhora().catch(() => null)
       refrescarTrasActividad()
       toast.success('Actividad finalizada')
     } catch (error) {

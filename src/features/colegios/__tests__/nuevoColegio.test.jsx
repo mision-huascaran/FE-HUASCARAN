@@ -59,6 +59,17 @@ describe('Colegios (CU013)', () => {
     expect(screen.getAllByRole('button', { name: /^editar /i })[0]).toBeDisabled()
     expect(screen.getByRole('button', { name: /calendario académico/i })).toBeEnabled()
   })
+
+  it('al inactivar un colegio lo confirma y vuelve a pedir la lista (S4)', async () => {
+    montar()
+    const [interruptor] = await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
+    fireEvent.click(interruptor)
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+    fireEvent.click(within(dialogo).getByRole('button', { name: /^inactivar$/i }))
+
+    expect(await screen.findByText('Colegio inactivado', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('No se borró ningún alumno ni registro.')).toBeInTheDocument()
+  })
 })
 
 afterEach(() => {

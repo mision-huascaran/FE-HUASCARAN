@@ -14,6 +14,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import useActividad from '../useActividad'
+import { reintentarAhora } from '../../../lib/colaOffline'
+import { finalizarActividad } from '../../../api/resources/actividades'
 import useActividadStore from '../../../store/actividadStore'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
@@ -23,10 +25,16 @@ const base64url = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace
 const TOKEN = `x.${base64url({ sub: 1, jti: 'sesion-abc', exp: Math.floor(Date.now() / 1000) + 3600 })}.y`
 
 const encolados = []
+// Lo que responde la cola a cada `encolar`: por defecto, que se envió.
+let respuestaCola = () => Promise.resolve()
 
 vi.mock('../../../lib/colaOffline', () => ({
-  encolar: (item) => encolados.push(item),
-  reintentarAhora: vi.fn(),
+  // Como la cola real: `encolar` y `reintentarAhora` devuelven una promesa.
+  encolar: (item) => {
+    encolados.push(item)
+    return respuestaCola(item)
+  },
+  reintentarAhora: vi.fn(() => Promise.resolve()),
   hayPendientes: () => encolados.length,
   limpiarSiTodoSincronizado: vi.fn(),
   iniciarCola: vi.fn(),
@@ -55,6 +63,7 @@ const envoltorio = ({ children }) => (
 
 beforeEach(() => {
   encolados.length = 0
+  respuestaCola = () => Promise.resolve()
   iniciarEnServidor.mockClear()
   useActividadStore.getState().limpiar()
   useSessionStore.setState({
@@ -125,5 +134,56 @@ describe('Actividad sin conexión (CU009)', () => {
 
     expect(encolados.find((e) => e.tipo === 'actividad-inicio').payload.id_sesion).toBe('sesion-abc')
     expect(encolados.find((e) => e.tipo === 'actividad-cierre').payload.id_sesion).toBe('sesion-abc')
+  })
+})
+
+/**
+ * Si la cola descarta el envío (un rechazo definitivo del servidor), no hay
+ * promesa colgando sin manejar: el resultado queda en el panel de
+ * sincronización. Vitest falla con cualquier rechazo no manejado, así que estas
+ * pruebas también lo comprueban.
+ */
+describe('Rechazos de la cola de actividades', () => {
+  const rechazoDefinitivo = () =>
+    Promise.reject(Object.assign(new Error('rechazada'), { response: { status: 409, data: { motivo: 'actividad_activa_existente' } } }))
+
+  it('si la cola rechaza el inicio, la actividad local sigue abierta', async () => {
+    definirConexion(false)
+    respuestaCola = rechazoDefinitivo
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    await result.current.iniciar()
+
+    await waitFor(() => expect(useActividadStore.getState().sesion).toBeTruthy())
+    expect(encolados.map((e) => e.tipo)).toEqual(['actividad-inicio'])
+  })
+
+  it('si la cola rechaza el cierre, la actividad queda cerrada en local igual', async () => {
+    definirConexion(false)
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+    await result.current.iniciar()
+    await waitFor(() => expect(useActividadStore.getState().sesion).toBeTruthy())
+
+    respuestaCola = rechazoDefinitivo
+    await result.current.finalizar()
+
+    expect(useActividadStore.getState().sesion).toBeNull()
+    expect(encolados.map((e) => e.tipo)).toEqual(['actividad-inicio', 'actividad-cierre'])
+  })
+
+  it('con conexión, al finalizar avisa al servidor y reintenta lo pendiente aunque la cola falle', async () => {
+    definirConexion(true)
+    iniciarEnServidor.mockResolvedValue({ estado: 'en_curso' })
+    reintentarAhora.mockRejectedValueOnce(new Error('cola sin IndexedDB'))
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+    await result.current.iniciar()
+    await waitFor(() => expect(useActividadStore.getState().sesion).toBeTruthy())
+    const id = useActividadStore.getState().sesion.id
+
+    await result.current.finalizar()
+
+    expect(finalizarActividad).toHaveBeenCalledWith(id)
+    expect(reintentarAhora).toHaveBeenCalled()
+    expect(useActividadStore.getState().sesion).toBeNull()
   })
 })

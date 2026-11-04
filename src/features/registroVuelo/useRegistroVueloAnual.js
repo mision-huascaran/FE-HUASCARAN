@@ -100,7 +100,7 @@ export default function useRegistroVueloAnual({ filtros, pagina }) {
       idActividad,
     }).catch((error) => {
       if (!esDefinitivo(error)) return
-      queryClient.invalidateQueries({ queryKey: ['registro-vuelo'] })
+      void queryClient.invalidateQueries({ queryKey: ['registro-vuelo'] })
       toast.error('No se guardó la decisión', mensajeDeError(error))
     })
   }

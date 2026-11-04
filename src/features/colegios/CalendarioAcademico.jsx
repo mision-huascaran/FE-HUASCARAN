@@ -186,7 +186,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   // Un 404 NO es un fallo: es "este año todavía no tiene calendario".
   const sinConfigurar = motivoDe(consulta.error) === 'calendario_no_configurado'
 
-  const refrescar = () => queryClient.invalidateQueries({ queryKey: ['calendario'] })
+  const refrescar = () => {
+    void queryClient.invalidateQueries({ queryKey: ['calendario'] })
+  }
 
   const alFallar = (error) => {
     setConfirmando(null)

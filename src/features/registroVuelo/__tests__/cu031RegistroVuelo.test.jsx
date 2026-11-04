@@ -24,6 +24,7 @@ import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
 import { elegirPrimerColegio } from '../../../test/elegirColegio'
+import { errorHttp } from '../../../test/fabricas'
 
 const ESPERA = { timeout: 8000 }
 
@@ -344,6 +345,16 @@ describe('Lo que decide el docente', () => {
     // La proyección no se tocó: no viaja, así que no se borra.
     expect('id_nivel_proyeccion' in enviado).toBe(false)
     expect(enviado.version).toBeNull()
+  })
+
+  it('si el servidor rechaza la decisión (4xx), avisa que no se guardó con su texto', async () => {
+    guardarRegistroVuelo.mockRejectedValue(errorHttp(403, { detail: 'No tienes permiso para registrar en este grupo.' }))
+    montar()
+
+    fireEvent.change(await screen.findByLabelText(/nivel colocado de Torres, Ana/i, {}, ESPERA), { target: { value: '7' } })
+
+    expect(await screen.findByText('No se guardó la decisión', {}, ESPERA)).toBeInTheDocument()
+    expect((await screen.findAllByText('No tienes permiso para registrar en este grupo.', {}, ESPERA)).length).toBeGreaterThan(0)
   })
 
   it('colocar la misma letra que la entrada también es una decisión y se guarda', async () => {
