@@ -36,7 +36,7 @@
 //     que habilita es un permiso excepcional.
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCheck, CalendarX2, Ban } from 'lucide-react'
+import { CheckCheck, CalendarClock, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -59,6 +59,7 @@ import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
+import { formatearDiaLargo } from '../../lib/format'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -109,6 +110,17 @@ const RECHAZO = {
 const SUBTITULO = {
   registra: 'Cada marca se guarda al tocarla.',
   consulta: 'Modo consulta: no puedes modificar asistencias.',
+}
+
+/** "Clase programada · martes 03/11/2026" (U23). */
+function EtiquetaDeClase({ etiqueta, fecha }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium text-ink-700">
+      <CalendarClock className="h-4 w-4 text-ink-400" aria-hidden="true" />
+      <span>{etiqueta ?? 'Clase adicional'}</span>
+      {fecha && <span className="font-normal text-ink-500">· {formatearDiaLargo(fecha)}</span>}
+    </span>
+  )
 }
 
 export default function AsistenciaPage() {
@@ -516,9 +528,9 @@ export default function AsistenciaPage() {
             La etiqueta del servidor o, si todavía no hay clase y el Docente
             decidió registrar una adicional, la que tendrá al guardarse.
           */}
-          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">
-            {datosClase?.etiqueta ?? 'Clase adicional'}
-          </span>
+          {/* Con su fecha y sin forma de botón (U23): "Clase programada" suelta,
+              en una píldora, parecía algo que se podía pulsar. */}
+          <EtiquetaDeClase etiqueta={datosClase?.etiqueta} fecha={filtros.fecha} />
           {datosClase?.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
 
           {/*

@@ -3,7 +3,7 @@
 // aplicación son la prueba de cuándo se trabajó: no pueden depender de cómo
 // tenga configurado el reloj quien mira.
 import { describe, expect, it } from 'vitest'
-import { fechaIsoLima, formatearFecha, formatearFechaHora, formatearHora } from '../format'
+import { fechaIsoLima, formatearDiaLargo, formatearFecha, formatearFechaHora, formatearHora } from '../format'
 
 describe('Horas en zona de Lima', () => {
   it('convierte un instante UTC a hora de Lima (UTC-5)', () => {
@@ -38,5 +38,12 @@ describe('Horas en zona de Lima', () => {
   it('la fecha AAAA-MM-DD de un día de calendario no se convierte', () => {
     expect(fechaIsoLima('2026-10-08')).toBe('2026-10-08')
     expect(fechaIsoLima(null)).toBe('')
+  })
+})
+
+describe('formatearDiaLargo (U23)', () => {
+  it('dice el día de la semana y la fecha completa, sin mover el día', () => {
+    expect(formatearDiaLargo('2026-11-03')).toBe('martes 03/11/2026')
+    expect(formatearDiaLargo(null)).toBe('—')
   })
 })
