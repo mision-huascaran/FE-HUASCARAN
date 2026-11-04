@@ -30,6 +30,7 @@ import {
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
+import { esCorreoValido } from '../../lib/validacion'
 import useConexion from '../../hooks/useConexion'
 import { ROLES } from '../../auth/roles'
 import useSessionStore from '../../store/sessionStore'
@@ -199,7 +200,8 @@ export default function MantenimientoUsuarios() {
         tipo: 'email',
         requerido: true,
         ancho: 'completo',
-        validar: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim()) ? null : 'Correo no válido'),
+        // La misma comprobación lineal que el resto de la app (lib/validacion, S5852/S8786).
+        validar: (v) => (esCorreoValido(v) ? null : 'Correo no válido'),
       },
       {
         nombre: 'id_rol',
