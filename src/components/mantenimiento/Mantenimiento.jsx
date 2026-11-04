@@ -7,7 +7,7 @@
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Eye, Pencil, Plus } from 'lucide-react'
+import { ClipboardList, Eye, FileText, Pencil, Plus } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -223,6 +223,12 @@ export default function Mantenimiento({
   const motivoNuevo = aviso ?? motivoSinNuevo ?? undefined
 
   const columnasConAcciones = useMemo(() => {
+    /**
+     * Si el detalle de la sección ya es el OJO —Colegios, como pide CU013—,
+     * la ficha del popup lleva otro ícono: dos ojos seguidos que abren cosas
+     * distintas no se distinguen (U06).
+     */
+    const iconoFicha = verDetalle?.icono === Eye ? FileText : Eye
     const acciones = {
       key: 'acciones',
       header: 'Acciones',
@@ -265,7 +271,7 @@ export default function Mantenimiento({
           <Button
             size="sm"
             variant="ghost"
-            iconLeft={Eye}
+            iconLeft={iconoFicha}
             className="px-2"
             title="Visualizar"
             aria-label={`Visualizar ${fila.nombre ?? entidad}`}
@@ -335,7 +341,8 @@ export default function Mantenimiento({
       },
     }
 
-    return [...columnas, estado, acciones]
+    // El orden que piden los CU: ojo → lápiz → interruptor (U06).
+    return [...columnas, acciones, estado]
   }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso, verDetalle])
 
   if (sinPantalla) {
