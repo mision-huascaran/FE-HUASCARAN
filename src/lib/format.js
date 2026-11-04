@@ -79,6 +79,9 @@ export const formatearFecha = (valor) => {
   return soloDia ? dayjs(valor).format('DD/MM/YYYY') : dayjs(valor).tz(LIMA).format('DD/MM/YYYY')
 }
 
+/** "martes 03/11/2026": un día de calendario con su nombre, sin convertir zona. */
+export const formatearDiaLargo = (valor) => (valor ? dayjs(valor).format('dddd DD/MM/YYYY') : '—')
+
 /** Instante: siempre en hora de Lima, venga como venga del servidor. */
 export const formatearFechaHora = (valor) => (valor ? dayjs(valor).tz(LIMA).format('DD/MM/YYYY HH:mm') : '—')
 

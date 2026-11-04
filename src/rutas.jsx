@@ -52,7 +52,7 @@ export const RUTAS_PROTEGIDAS = [
   { path: '/colegios', allow: [JEFA], titulo: 'Colegios', elemento: <MantenimientoColegios /> },
   // Rúbrica y Seguimiento de Lectura son DOS secciones con permisos propios: el
   // Docente edita y el Supervisor solo mira (D3). Antes compartían pantalla.
-  { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencia', elemento: <AsistenciaPage /> },
+  { path: '/asistencia', allow: [PROFESOR, JEFA], titulo: 'Asistencias', elemento: <AsistenciaPage /> },
   // La rúbrica SEMANAL ya no existe: desde la tanda 8 es una evaluación por
   // alumno y MES, con su propia pantalla. No quedó nada de la grilla que
   // compartía con Seguimiento de Lectura.

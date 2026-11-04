@@ -185,7 +185,7 @@ export default function GradosConDiaDeClase({ campo, valor, onCambio, modo, erro
                   label="Día de clase"
                   className="min-w-0 flex-1"
                   value={grado?.dia_clase ? String(grado.dia_clase) : ''}
-                  placeholder="Seleccione"
+                  placeholder="Selecciona"
                   options={DIAS_DE_CLASE}
                   error={!grado?.dia_clase ? 'Obligatorio' : undefined}
                   onChange={(e) => ponerDia(o.value, e.target.value)}

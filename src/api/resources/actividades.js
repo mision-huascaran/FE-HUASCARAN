@@ -123,8 +123,12 @@ const ETIQUETA_CIERRE = {
   expiracion_sesion: 'Automático por expiración de sesión',
 }
 
+/** Lo que muestran la hora de fin y el tipo de cierre de una actividad en curso. */
+export const SIN_FIN = '–'
+
 export const etiquetaTipoCierre = (valor) => {
-  if (!valor) return 'No aplica'
+  // En curso, CU017 y CU021 piden un guion "–" (antes decía "No aplica").
+  if (!valor) return SIN_FIN
   return ETIQUETA_CIERRE[valor] ?? valor
 }
 

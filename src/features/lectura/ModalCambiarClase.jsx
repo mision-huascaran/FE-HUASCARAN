@@ -115,7 +115,7 @@ export default function ModalCambiarClase({
       {candidatas.length > 0 && (
         <Select
           label="Clase de la semana"
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           value={elegida}
           onChange={(e) => setElegida(e.target.value)}
           options={candidatas.map((c) => ({ value: claveDe(c), label: etiqueta(c) }))}

@@ -57,7 +57,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
     setOcupado(true)
     try {
       await solicitarCodigoRecuperacion()
-      toast.success('PIN enviado', 'Revise su correo institucional. Caduca en 15 minutos.')
+      toast.success('PIN enviado', 'Revisa tu correo institucional. Caduca en 15 minutos.')
       setPaso(1)
     } catch (error) {
       toast.error('No se pudo enviar el código', mensajeDeError(error))
@@ -106,7 +106,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
       onClose={cerrar}
       size="max-w-lg"
       title="Cambiar contraseña"
-      subtitle="Le enviaremos un código a su correo institucional para confirmar que es usted"
+      subtitle="Te enviaremos un código a tu correo institucional para confirmar que eres tú"
       footer={
         <>
           <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
@@ -171,7 +171,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
               })}
             </ul>
             <Input
-              label="Repita la nueva contraseña"
+              label="Repite la nueva contraseña"
               type="password"
               required
               value={confirmacion}

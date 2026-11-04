@@ -171,7 +171,7 @@ export default function useActividad() {
       })
       toast.success(
         'Actividad iniciada sin conexión',
-        'Ya puede registrar. El inicio se enviará con su hora real al recuperar la conexión.',
+        'Ya puedes registrar. El inicio se enviará con su hora real al recuperar la conexión.',
       )
       return
     }
@@ -224,7 +224,7 @@ export default function useActividad() {
       return
     }
 
-    toast.success('Actividad iniciada', 'Ya puede registrar en las grillas del aula.')
+    toast.success('Actividad iniciada', 'Ya puedes registrar.')
 
     // La precarga no bloquea: si falla, se trabaja en línea y el docente se
     // entera por el aviso, no por una grilla vacía.

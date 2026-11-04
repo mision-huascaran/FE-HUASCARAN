@@ -11,7 +11,7 @@ export default function AvisoModoConsulta({ mensaje }) {
   return (
     <output className="flex items-start gap-2 rounded-xl border border-info-600/20 bg-info-100 px-4 py-3 text-sm font-medium text-info-600">
       <Eye className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      {mensaje ?? 'Modo consulta — este colegio no está asignado a usted en el periodo vigente'}
+      {mensaje ?? 'Modo consulta — este colegio no te está asignado en el periodo vigente'}
     </output>
   )
 }

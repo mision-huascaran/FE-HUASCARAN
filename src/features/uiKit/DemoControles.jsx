@@ -69,7 +69,7 @@ export default function DemoControles() {
             <Select
               label="Fluidez lectora"
               required
-              placeholder="Seleccione"
+              placeholder="Selecciona"
               options={NIVELES}
               error="Ambas dimensiones son obligatorias"
             />

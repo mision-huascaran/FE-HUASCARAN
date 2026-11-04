@@ -59,15 +59,30 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     await irPorMenu(page, 'Asistencias', '/asistencia')
     // Un feriado lo dice el servidor (422 `fecha_no_lectiva`): se prueba el
     // siguiente candidato, más antiguo. Tampoco sirve una clase que ya tiene
-    // asistencia registrada (de otra corrida del mismo día): el servidor la
-    // lista con los alumnos que ya tienen marca y no suma los nuevos.
+    // asistencia registrada (de otra corrida): el servidor la lista con los
+    // alumnos que ya tienen marca y no suma los nuevos.
+    //
+    // Ni una clase ANTERIOR a otra de su mismo grado con asistencia: un alumno
+    // dado de alta en esa fecha pertenecería al grupo el día de esa lista
+    // congelada sin figurar en ella, y el alta es un 409
+    // `conflicto_listas_historicas`. Los candidatos van del más reciente al más
+    // antiguo, así que basta recordar qué grados ya tienen una lista.
+    const gradosConLista = new Set()
     for (const candidato of candidatos) {
+      if (gradosConLista.has(candidato.grado)) {
+        test.info().annotations.push({
+          type: 'calendario',
+          description: `${candidato.fecha}: ${candidato.grado} ya tiene una clase posterior con asistencia: se probó el anterior`,
+        })
+        continue
+      }
       const estado = await elegirClase(page, candidato)
       if (estado === 'no_lectivo') {
         test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} no es lectivo: se probó el anterior` })
         continue
       }
       if (estado === 'lista' && (await page.locator(`[${PRESIONADO}="true"]`).count()) > 0) {
+        gradosConLista.add(candidato.grado)
         test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} ya tiene asistencia registrada: se probó el anterior` })
         continue
       }
@@ -75,8 +90,8 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     }
     return null
   })
-  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy son no lectivos o ya tienen asistencia de otra corrida, así que no hay clase limpia en la que registrar.
-  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo y sin asistencia registrada (CU022)')
+  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy son no lectivos, ya tienen asistencia de otra corrida o son anteriores a una clase de su grado con asistencia, así que no hay clase limpia en la que registrar.
+  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo, sin asistencia registrada ni anterior a otra clase de su grado con asistencia (CU022)')
   test.info().annotations.push({ type: 'clase', description: `${clase.fecha} · ${clase.grado} · ${SUBPROGRAMA}` })
 
   const marca = Date.now()

@@ -12,6 +12,7 @@
 import { AlertTriangle, BookOpen, MessageSquare, MessageSquareText } from 'lucide-react'
 import Select from '../../components/ui/Select'
 import { ACCION_SUGERIDA } from '../../api/resources/registroVueloAnual'
+import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -38,7 +39,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
 
   return (
     <tr className="border-t border-line">
-      <td className="px-3 py-2">
+      <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <span className="font-medium text-ink-900">{alumno.nombre}</span>
         {alumno.inactivo && (
           <span
@@ -114,7 +115,9 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
         )}
       </td>
 
-      <td className="px-3 py-2">
+      {/* Ancho mínimo: con "Pendiente del periodo anterior" en Entrada, la
+          columna se angostaba y el texto quedaba en "Sin decid" (U22). */}
+      <td className="min-w-[9.5rem] px-3 py-2">
         <Select
           aria-label={`Nivel colocado de ${alumno.nombre}`}
           value={periodo.nivel_colocado?.id ?? ''}
@@ -128,7 +131,9 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
       {/* Lo calcula el servidor a partir del grado y del nivel colocado. */}
       <td className="px-3 py-2 text-center text-sm text-ink-700">{periodo.nivel_programa ?? '—'}</td>
 
-      <td className="px-3 py-2">
+      {/* Ancho mínimo: con "Pendiente del periodo anterior" en Entrada, la
+          columna se angostaba y el texto quedaba en "Sin decid" (U22). */}
+      <td className="min-w-[9.5rem] px-3 py-2">
         <Select
           aria-label={`Proyección de ${alumno.nombre}`}
           value={periodo.proyeccion?.id ?? ''}
@@ -155,7 +160,12 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
 
       {/* 25 puntos por cada PA con nivel colocado: el avance es del AÑO, no de
           este periodo, así que la misma cifra se repite en los cuatro. */}
-      <td className="px-3 py-2 text-center text-sm font-semibold text-ink-900">{alumno.avance_anual ?? 0}%</td>
+      <td
+        className="px-3 py-2 text-center text-sm font-semibold text-ink-900"
+        title="Periodos del año con nivel colocado: 25 % por cada PA."
+      >
+        {alumno.avance_anual ?? 0}%
+      </td>
     </tr>
   )
 }

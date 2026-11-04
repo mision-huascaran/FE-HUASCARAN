@@ -117,7 +117,7 @@ export default function useTablaLectura(filtros) {
       refrescar()
       toast.success(
         'Tabla creada',
-        'Las filas nacen vacías y la lista de alumnos queda fijada a la clase de referencia.',
+        'Ya puedes registrar la lectura de esta semana.',
       )
     },
     onError: (error) => {

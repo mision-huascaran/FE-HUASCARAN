@@ -17,6 +17,8 @@ import ColegiosDelDocente from './ColegiosDelDocente'
 import {
   activarUsuario,
   actualizarUsuario,
+  anioVigente,
+  listarAniosEscolares,
   crearUsuario,
   desactivarUsuario,
   filtrarUsuariosPorColegio,
@@ -182,6 +184,19 @@ export default function MantenimientoUsuarios() {
     onError: (error) => toast.error('No se pudo cambiar el estado', mensajeDeError(error)),
   })
 
+  /**
+   * El año escolar que se propone al crear un Docente (U19): antes el campo
+   * nacía vacío, como si hubiera que adivinarlo. Es el número del año vigente
+   * ("2026"), que es lo que el servidor busca en el nombre.
+   */
+  const { data: anios = [] } = useQuery({
+    queryKey: ['anios-escolares'],
+    queryFn: listarAniosEscolares,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  const anioPropuesto = /\d{4}/.exec(String(anioVigente(anios)?.nombre ?? ''))?.[0]
+
   const campos = useMemo(
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
@@ -228,7 +243,9 @@ export default function MantenimientoUsuarios() {
         nombre: 'anio_escolar',
         etiqueta: 'Año escolar',
         tipo: 'number',
-        ayuda: 'Cambiarlo renueva su asignación',
+        porDefecto: anioPropuesto,
+        // Solo al editar: en una cuenta nueva no hay asignación que renovar (U19).
+        ayuda: (modo) => (modo === 'editar' ? 'Cambiarlo renueva su asignación' : undefined),
         visible: esDocente,
       },
       /**
@@ -261,7 +278,7 @@ export default function MantenimientoUsuarios() {
         recesoDe,
       },
     ],
-    [colegios, grados, recesoDe],
+    [colegios, grados, recesoDe, anioPropuesto],
   )
 
   /**
@@ -334,37 +351,47 @@ export default function MantenimientoUsuarios() {
         ]}
         columnas={[
           // Las columnas que pide CU016, en su orden.
-          { key: 'nombre', header: 'Nombre completo', sortable: true, className: 'font-medium text-ink-900' },
-          { key: 'dni', header: 'DNI', align: 'center', render: (u) => etiquetaDe(u.dni) },
-          { key: 'correo', header: 'Correo', sortable: true },
           {
+            key: 'nombre',
+            header: 'Nombre completo',
+            sortable: true,
+            className: 'font-medium text-ink-900',
             /**
              * CU001/CU016: una cuenta recién creada arrastra una contraseña
              * temporal de 48 horas hasta su primer ingreso. Saberlo le importa
              * al Supervisor: si expira sin usarse, él no puede reenviarla y la
              * persona tiene que pasar por "¿Olvidaste tu contraseña?".
+             *
+             * Va JUNTO AL NOMBRE y no en una columna "Acceso" propia (U03):
+             * esa columna casi siempre decía "—" y era la que empujaba el
+             * estado y las acciones fuera de una pantalla de 1366 px.
              */
-            key: 'debe_cambiar_contrasena',
-            header: 'Acceso',
-            align: 'center',
-            /**
-             * Etiqueta CORTA y en una sola línea. "Pendiente de primer
-             * ingreso" no cabía en la columna y se partía en dos renglones,
-             * creando un óvalo enorme que se comía la fila y desalineaba el
-             * "—" de las demás. La frase entera vive en el `title`.
-             */
-            render: (u) =>
-              u.debe_cambiar_contrasena ? (
-                <Badge
-                  tone="warning"
-                  className="whitespace-nowrap"
-                  title="Aún no ha usado su contraseña temporal. Caduca a las 48 horas."
-                >
-                  Primer ingreso
-                </Badge>
-              ) : (
-                <span className="text-xs text-ink-400">—</span>
-              ),
+            render: (u) => (
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {u.nombre}
+                {u.debe_cambiar_contrasena && (
+                  <Badge
+                    tone="warning"
+                    className="whitespace-nowrap"
+                    title="Aún no ha usado su contraseña temporal. Caduca a las 48 horas."
+                  >
+                    Primer ingreso
+                  </Badge>
+                )}
+              </span>
+            ),
+          },
+          { key: 'dni', header: 'DNI', align: 'center', render: (u) => etiquetaDe(u.dni) },
+          {
+            key: 'correo',
+            header: 'Correo',
+            sortable: true,
+            // Truncado, con el correo completo en el tooltip (U03).
+            render: (u) => (
+              <span className="block max-w-[14rem] truncate" title={u.correo}>
+                {u.correo}
+              </span>
+            ),
           },
           { key: 'rol', header: 'Rol', render: (u) => <Badge tone="info">{etiquetaDe(u.rol)}</Badge> },
           {

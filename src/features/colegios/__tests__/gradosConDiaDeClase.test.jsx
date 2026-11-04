@@ -108,8 +108,8 @@ describe('GradosConDiaDeClase', () => {
   })
 
   it('muestra el error del formulario', () => {
-    montar({ error: 'Elija al menos un grado' })
-    expect(screen.getByText('Elija al menos un grado')).toBeInTheDocument()
+    montar({ error: 'Elige al menos un grado' })
+    expect(screen.getByText('Elige al menos un grado')).toBeInTheDocument()
   })
 
   it('en solo lectura enseña grado, día y secciones, sin controles', () => {

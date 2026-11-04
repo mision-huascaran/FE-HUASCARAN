@@ -13,6 +13,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Tabs from '../../components/ui/Tabs'
 import PermisosDeCorreccion from './PermisosDeCorreccion'
+import { useMigaExtra } from '../../store/migaStore'
 
 /** Iniciales para el avatar, que se genera en el cliente. */
 const iniciales = (nombre) =>
@@ -26,6 +27,7 @@ const iniciales = (nombre) =>
 
 export default function DetalleDocente({ docente, colegios, onVolver }) {
   const nombre = docente?.nombre ?? docente?.nombre_completo ?? '—'
+  useMigaExtra(nombre)
   const activo = docente?.activo !== false
 
   return (

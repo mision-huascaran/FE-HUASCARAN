@@ -26,7 +26,7 @@ import FilaVuelo from './FilaVuelo'
 import ModalObservacionVuelo from './ModalObservacionVuelo'
 import ModalRubricaDeReferencia from './ModalRubricaDeReferencia'
 import useRegistroVueloAnual from './useRegistroVueloAnual'
-import useFiltrosDeGrupo from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio } from '../../hooks/useFiltrosDeGrupo'
 import { ESTADO_PERIODO, periodoDe } from '../../api/resources/registroVueloAnual'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { useNivelesRazkids } from '../../hooks/useCatalogos'
@@ -35,6 +35,8 @@ import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
+import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
+import { formatearFecha } from '../../lib/format'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -123,6 +125,7 @@ export default function RegistroVueloAnualPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />
@@ -135,14 +138,14 @@ export default function RegistroVueloAnualPage() {
         <Select
           label="Sección"
           value={filtros.idSeccion}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />
@@ -207,13 +210,13 @@ export default function RegistroVueloAnualPage() {
           <Card
             padded={false}
             title={`${datos.total} alumno${datos.total === 1 ? '' : 's'}`}
-            subtitle={`${periodo.nombre} · del ${periodo.fecha_inicio} al ${periodo.fecha_fin}`}
+            subtitle={`${periodo.nombre} · del ${formatearFecha(periodo.fecha_inicio)} al ${formatearFecha(periodo.fecha_fin)}`}
           >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[60rem] text-sm">
                 <thead className="bg-surface-100 text-left text-xs uppercase tracking-wide text-ink-500">
                   <tr>
-                    <th scope="col" className="px-3 py-2 font-semibold">
+                    <th scope="col" className={`px-3 py-2 font-semibold ${CABECERA_ALUMNO}`}>
                       Alumno
                     </th>
                     <th scope="col" className="px-3 py-2 text-center font-semibold">
@@ -232,10 +235,15 @@ export default function RegistroVueloAnualPage() {
                       Proyección
                     </th>
                     <th scope="col" className="px-3 py-2 text-center font-semibold">
-                      Obs.
+                      Observación
                     </th>
-                    <th scope="col" className="px-3 py-2 text-center font-semibold">
-                      Avance
+                    {/* Qué mide (U16): el avance es del AÑO, 25 % por cada PA con nivel colocado. */}
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-center font-semibold"
+                      title="Periodos del año con nivel colocado: 25 % por cada PA."
+                    >
+                      Avance anual
                     </th>
                   </tr>
                 </thead>

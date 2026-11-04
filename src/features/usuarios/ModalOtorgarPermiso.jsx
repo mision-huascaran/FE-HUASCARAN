@@ -197,13 +197,13 @@ function ResumenDelLote({ combinaciones, grados, rechazadas }) {
 function textosSegunColegio(idColegio) {
   if (!idColegio) {
     return {
-      periodo: 'Elija antes un colegio',
+      periodo: 'Elige antes un colegio',
       ayudaPeriodo: 'Solo los periodos cuyo plazo ordinario ya terminó',
-      sinGrados: 'Elija antes un colegio',
+      sinGrados: 'Elige antes un colegio',
     }
   }
   return {
-    periodo: 'Seleccione',
+    periodo: 'Selecciona',
     ayudaPeriodo: 'Los periodos en curso no aparecen: todavía admiten regularización ordinaria y no necesitan permiso.',
     sinGrados: 'Este colegio no ofrece grados.',
   }
@@ -475,14 +475,14 @@ export default function ModalOtorgarPermiso({
           required
           value={datos.id_anio_escolar}
           options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           hint="El de la consulta, o el año en curso"
           onChange={(e) => cambiar('id_anio_escolar', e.target.value)}
         />
         <Select
           label="Colegio"
           required
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           value={datos.id_colegio}
           options={colegiosAgrupados}
           hint={asignados.length ? 'Los suyos van primero. Puedes elegir cualquiera.' : undefined}

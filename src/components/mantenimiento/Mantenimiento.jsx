@@ -7,7 +7,7 @@
 //
 // Nunca se borra un registro: `Inactivar` cambia el estado y deja auditoría.
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Eye, Pencil, Plus } from 'lucide-react'
+import { ClipboardList, Eye, FileText, Pencil, Plus } from 'lucide-react'
 import Badge from '../ui/Badge'
 import Button from '../ui/Button'
 import Card from '../ui/Card'
@@ -223,6 +223,12 @@ export default function Mantenimiento({
   const motivoNuevo = aviso ?? motivoSinNuevo ?? undefined
 
   const columnasConAcciones = useMemo(() => {
+    /**
+     * Si el detalle de la sección ya es el OJO —Colegios, como pide CU013—,
+     * la ficha del popup lleva otro ícono: dos ojos seguidos que abren cosas
+     * distintas no se distinguen (U06).
+     */
+    const iconoFicha = verDetalle?.icono === Eye ? FileText : Eye
     const acciones = {
       key: 'acciones',
       header: 'Acciones',
@@ -259,27 +265,29 @@ export default function Mantenimiento({
               // El hueco se mide por el texto más largo que puede ocupar.
               <span aria-hidden="true" className="inline-block w-[9.5rem]" />
             ))}
+          {/* Ojo y lápiz SOLO CON ÍCONO y su tooltip (auditoría de UX #737,
+              U03 y U06): con el texto, la columna de acciones empujaba la
+              tabla de Usuarios fuera de una pantalla de 1366 px. */}
           <Button
             size="sm"
             variant="ghost"
-            iconLeft={Eye}
+            iconLeft={iconoFicha}
+            className="px-2"
+            title="Visualizar"
             aria-label={`Visualizar ${fila.nombre ?? entidad}`}
             onClick={() => setPopup({ modo: 'ver', registro: fila })}
-          >
-            Ver
-          </Button>
+          />
           {puedeEditar && (
             <Button
               size="sm"
               variant="ghost"
               iconLeft={Pencil}
+              className="px-2"
               aria-label={`Editar ${fila.nombre ?? entidad}`}
               disabled={bloqueado}
-              title={aviso}
+              title={aviso ?? 'Editar'}
               onClick={alEscribir(`editar ${entidad}`, () => setPopup({ modo: 'editar', registro: fila }))}
-            >
-              Editar
-            </Button>
+            />
           )}
         </div>
       ),
@@ -333,7 +341,8 @@ export default function Mantenimiento({
       },
     }
 
-    return [...columnas, estado, acciones]
+    // El orden que piden los CU: ojo → lápiz → interruptor (U06).
+    return [...columnas, acciones, estado]
   }, [columnas, entidad, puedeEditar, puedeInactivar, bloqueado, aviso, verDetalle])
 
   if (sinPantalla) {

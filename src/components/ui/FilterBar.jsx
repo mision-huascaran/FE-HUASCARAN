@@ -3,6 +3,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react'
 import Button from './Button'
 import Drawer from './Drawer'
 import cn from '../../lib/cn'
+import resumenDeFiltros from './resumenDeFiltros'
 import { useIsDesktop } from '../../hooks/useMediaQuery'
 
 /**
@@ -16,6 +17,8 @@ export default function FilterBar({
   onApply,
   onClear,
   activeCount = 0,
+  /** Lo filtrado, dicho en una línea junto al botón del celular (U18). Se deduce de los hijos si no se da. */
+  resumen,
   className,
   children,
 }) {
@@ -73,6 +76,8 @@ export default function FilterBar({
     )
   }
 
+  const filtrado = resumen ?? resumenDeFiltros(children)
+
   return (
     <div className={cn('flex items-center gap-2', className)}>
       {buscador}
@@ -90,6 +95,11 @@ export default function FilterBar({
           </span>
         )}
       </Button>
+      {filtrado && !buscador && (
+        <p className="min-w-0 truncate text-sm text-ink-700" title={filtrado}>
+          {filtrado}
+        </p>
+      )}
 
       <Drawer
         open={abierto}

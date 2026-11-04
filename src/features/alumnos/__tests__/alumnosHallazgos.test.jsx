@@ -163,7 +163,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     const colegio = within(dialogo).getByLabelText(/^Colegio/)
     await waitFor(() => expect(within(colegio).getByRole('option', { name: 'I.E. 86021 Ranrahirca' })).toBeInTheDocument(), ESPERA)
     const grado = within(dialogo).getByLabelText(/^Grado/)
-    // Solo el grado asignado (1.º), además del marcador "Seleccione".
+    // Solo el grado asignado (1.º), además del marcador "Selecciona".
     const opciones = within(grado).getAllByRole('option').filter((o) => o.value !== '')
     expect(opciones.map((o) => o.value)).toEqual(['1'])
   })

@@ -114,7 +114,7 @@ describe('Los colegios y grados del Docente se agrupan, no se filtran (CU028)', 
     const opciones = within(colegio)
       .getAllByRole('option')
       .map((o) => o.textContent)
-      .filter((t) => t !== 'Seleccione')
+      .filter((t) => t !== 'Selecciona')
 
     expect(opciones).toHaveLength(4)
     // Los suyos van delante y se distinguen.
