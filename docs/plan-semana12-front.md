@@ -1609,6 +1609,25 @@ Conviene decirlo antes de que alguien lo descubra probando:
   teléfono, así que son las primeras candidatas a tarjetas.
 - **El Dashboard**: pendientes los cambios de diseño que Antonio enviará aparte.
 
+---
+
+### FASE 10 · Verificación del 04/11 contra el servidor real — ✅ HECHA
+
+No tocó código. El entorno de Antonio ya corre con `VITE_ADMIN_REAL=true`, así
+que Seguimiento, Otorgar Permiso, Registro de Vuelo y Seguimiento de Lectura
+venían probándose contra el **servidor real** sin que lo supiéramos al cerrar
+la Fase 9. Cinco hallazgos de esa prueba, con el detalle completo en
+`docs/decisiones-externas-y-pendientes-de-backend.md` (S24 a S28):
+
+- **S24, S25 y S26 quedaron confirmados como resueltos** contra el servidor
+  real — no simulado —: los nombres del Seguimiento salen bien, Lectura acepta
+  reprogramar una clase futura y el PA3 aparece en "Otorgar permiso".
+- **S27 y S28 no eran defectos.** Antonio reportó el aviso
+  `alumno_fuera_del_grupo` de Registro de Vuelo y la columna "Sincronización"
+  en Error de Seguimiento como posibles bugs del front. Los dos son literales
+  del contrato —el servidor los manda tal cual— y ocultarlos sería tapar un
+  aviso real en vez de corregirlo. Quedan como pendientes de **datos**, no de
+  pantalla.
 
 ## 4. Matriz: defecto → fase
 
