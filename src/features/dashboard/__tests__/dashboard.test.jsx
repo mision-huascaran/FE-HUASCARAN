@@ -16,6 +16,8 @@ import userEvent from '@testing-library/user-event'
 import { ROLES } from '../../../auth/roles'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 import { CAMBIOS_SIN_APLICAR } from '../estados'
+import DashboardPage from '../DashboardPage'
+import LibrosPage from '../LibrosPage'
 
 const ESPERA = { timeout: 15000 }
 const ASISTENCIA = 'Asistencia de Alumnos'
@@ -226,5 +228,39 @@ describe('Dashboard del Directivo (CU035)', () => {
     )
     expect(await within(asistencia).findByText('Asistencias completadas', {}, ESPERA)).toBeInTheDocument()
     expect(within(asistencia).getByText(/^[\d,.]+ de [\d,.]+$/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * CU033, CU034 y CU035 — el rol dejó de permitir la consulta.
+ *
+ * La ruta ya impide ENTRAR; esto cubre el caso que describen los CU: estar
+ * dentro y perder el rol. No basta con dejar de pedir datos —hay que retirar
+ * lo que ya se ve—, porque si no quedan en pantalla indicadores de un alcance
+ * que el usuario ya no tiene.
+ */
+describe('El rol dejó de permitir la consulta', () => {
+  /*
+   * Se monta la PANTALLA, no la ruta: por la ruta no se llega: la guarda del
+   * enrutador redirige antes y el mensaje no se vería nunca. Lo que se
+   * comprueba aquí es la red de seguridad de la propia pantalla, para el caso
+   * en que el rol cambie con ella ya montada.
+   */
+  it('el Docente no ve el dashboard, y se le dice por qué', async () => {
+    renderConProveedores(<DashboardPage />, { rol: ROLES.DOCENTE })
+
+    expect(
+      await screen.findByText('Tu rol actual no permite consultar este dashboard.', {}, ESPERA),
+    ).toBeInTheDocument()
+    // Y no queda ningún bloque de indicadores colgando.
+    expect(screen.queryByText(ASISTENCIA)).not.toBeInTheDocument()
+  })
+
+  it('el consolidado de libros es solo del Supervisor', async () => {
+    renderConProveedores(<LibrosPage />, { rol: ROLES.DIRECTIVO })
+
+    expect(
+      await screen.findByText('Tu rol actual no permite consultar este consolidado.', {}, ESPERA),
+    ).toBeInTheDocument()
   })
 })

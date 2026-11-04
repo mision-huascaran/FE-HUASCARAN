@@ -666,3 +666,44 @@ describe('Pertenencia por periodo (Tanda N)', () => {
     expect(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)).toBeEnabled()
   })
 })
+
+/**
+ * CU031 — "Los controles de detalle se pueden seleccionar sin depender del
+ * cursor." El texto que explica de dónde viene la entrada vivía solo en un
+ * `title`: en un teléfono no hay hover, así que para media flota de
+ * dispositivos ese texto no existía.
+ */
+describe('De dónde viene la entrada, sin depender del cursor (CU031)', () => {
+  it('el texto de la entrada se abre con un control, no solo al pasar el cursor', async () => {
+    montar()
+
+    const boton = await screen.findByRole('button', { name: /de dónde viene la entrada de torres, ana/i }, ESPERA)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    fireEvent.click(boton)
+
+    expect(await screen.findByRole('tooltip', {}, ESPERA)).toHaveTextContent(
+      'Proviene del nivel colocado en el periodo anterior.',
+    )
+  })
+
+  it('sin nivel de entrada no hay botón: el motivo ya se lee en la celda', async () => {
+    listarRegistroVuelo.mockResolvedValue(
+      respuesta({
+        items: [
+          alumno({
+            periodos: [
+              periodo(1),
+              periodo(2, { entrada: { nivel: null, origen: 'pendiente_periodo_anterior', texto: 'Pendiente del periodo anterior' } }),
+            ],
+          }),
+        ],
+      }),
+    )
+
+    montar()
+
+    expect(await screen.findByText('Pendiente del periodo anterior', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /de dónde viene la entrada/i })).not.toBeInTheDocument()
+  })
+})

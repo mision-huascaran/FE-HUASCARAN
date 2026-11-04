@@ -22,7 +22,24 @@ export const SIN_INFORMACION = 'Sin información'
 export const SIN_DATOS_SELECCION = 'No hay información disponible para esta selección.'
 
 /** El de CU034, que nombra el módulo del que no hay registros. */
-export const SIN_REGISTROS_LECTURA = 'No hay registros de Seguimiento de Lectura para esta selección.'
+/**
+ * CU034 lo escribe nombrando el MÓDULO y entrecomillándolo: no es que falte
+ * la lectura de unos alumnos, es que de ese módulo no hay nada registrado
+ * para el año y los colegios elegidos.
+ */
+export const SIN_REGISTROS_LECTURA =
+  'No hay registros del módulo ‘Seguimiento de Lectura’ para esta selección.'
+
+/**
+ * El rol cambió con la pantalla abierta (CU033, CU034 y CU035).
+ *
+ * Las rutas ya impiden entrar, pero el caso que describen los CU es otro: se
+ * está dentro y el rol deja de permitirlo. Entonces no basta con dejar de
+ * pedir datos, hay que RETIRAR lo que ya se ve y decir por qué; si no, queda
+ * en pantalla información de un alcance que el usuario ya no tiene.
+ */
+export const ROL_SIN_DASHBOARD = 'Tu rol actual no permite consultar este dashboard.'
+export const ROL_SIN_CONSOLIDADO = 'Tu rol actual no permite consultar este consolidado.'
 
 /** El de CU033 cuando nadie tiene evaluación completa. */
 export const SIN_EVALUACIONES_COMPLETAS = 'No hay evaluaciones completas para esta selección.'

@@ -9,8 +9,9 @@
 // servidor y mandarlas desde aquí sería un 422 del lote entero. La sugerencia
 // es una sugerencia: colocar la misma letra que la entrada también es una
 // decisión, y se guarda como tal.
-import { AlertTriangle, BookOpen, MessageSquare, MessageSquareText } from 'lucide-react'
+import { AlertTriangle, BookOpen, Info, MessageSquare, MessageSquareText } from 'lucide-react'
 import Select from '../../components/ui/Select'
+import Tooltip from '../../components/ui/Tooltip'
 import { ACCION_SUGERIDA } from '../../api/resources/registroVueloAnual'
 import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
 
@@ -95,9 +96,35 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
         letra del grado: eso solo vale para PA1, y ponerla aquí daría por buena
         una entrada inventada que se arrastraría a los periodos siguientes.
       */}
-      <td className="px-3 py-2 text-center" title={periodo.entrada?.texto ?? undefined}>
+      <td className="px-3 py-2 text-center">
         {periodo.entrada?.nivel ? (
-          <span className="font-semibold text-ink-900">{periodo.entrada.nivel.letra}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="font-semibold text-ink-900">{periodo.entrada.nivel.letra}</span>
+            {/*
+              DE DÓNDE SALE ESA LETRA, SIN DEPENDER DEL CURSOR (CU031).
+
+              El texto estaba solo en un `title`, que en un teléfono no existe
+              —no hay hover— y con teclado tampoco. Y es justo el dato que
+              responde la pregunta que se hace el Docente al ver una letra que
+              él no puso: "¿de dónde salió?". El `Tooltip` de la casa lo abre
+              con el cursor, con el foco Y con el toque.
+
+              Cuando NO hay nivel, el mismo texto ya se lee a secas en la
+              celda ("Pendiente del periodo anterior"), así que ahí no hace
+              falta el botón: sería repetir lo que ya está escrito.
+            */}
+            {periodo.entrada.texto && (
+              <Tooltip content={periodo.entrada.texto}>
+                <button
+                  type="button"
+                  aria-label={`De dónde viene la entrada de ${alumno.nombre}`}
+                  className="inline-flex rounded-full text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                >
+                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </Tooltip>
+            )}
+          </span>
         ) : (
           <span className="text-xs text-ink-500">{periodo.entrada?.texto ?? 'Pendiente'}</span>
         )}
