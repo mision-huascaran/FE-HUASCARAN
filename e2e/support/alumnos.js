@@ -44,7 +44,7 @@ async function inicioDeGrupo(page, respuestaDeBaja) {
  * contradiría las listas de clases ya registradas (409).
  */
 export async function inactivarAlumno(page, fila, { desde = null } = {}) {
-  const abrir = () => fila.getByRole('button', { name: /^Inactivar/ }).click()
+  const abrir = () => fila.getByRole('switch', { name: /^Inactivar/ }).click()
   await abrir()
   let respuesta = await confirmarBaja(page, desde)
   const inicio = !respuesta.ok() && desde ? await inicioDeGrupo(page, respuesta) : null

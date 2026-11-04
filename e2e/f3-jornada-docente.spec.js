@@ -37,7 +37,7 @@ const PREFIJO = 'E2E-'
 const activas = (page, filas) => filas.filter({ has: page.getByText('Activo', { exact: true }) })
 
 async function inactivarAlumno(page, fila) {
-  await fila.getByRole('button', { name: /^Inactivar/ }).click()
+  await fila.getByRole('switch', { name: /^Inactivar/ }).click()
   const baja = page.waitForResponse(
     (r) => /\/api\/alumnos\/[^/]+\/desactivar$/.test(new URL(r.url()).pathname) && r.request().method() === 'PATCH',
   )

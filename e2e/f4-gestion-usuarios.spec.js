@@ -45,7 +45,7 @@ async function filtrar(page, texto, estado = 'Activos') {
 const badge = (fila, estado) => fila.getByText(estado, { exact: true })
 
 async function inactivar(page, fila) {
-  await fila.getByRole('button', { name: /^Inactivar/ }).click()
+  await fila.getByRole('switch', { name: /^Inactivar/ }).click()
   const baja = page.waitForResponse(
     (r) => /\/api\/usuarios\/\d+\/desactivar$/.test(new URL(r.url()).pathname) && r.request().method() === 'PATCH',
   )
