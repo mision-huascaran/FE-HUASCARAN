@@ -5,7 +5,9 @@ import Logo from '../../components/ui/Logo'
  * Columna izquierda del login (P1, §4.4).
  * La fotografía se usa aquí y en ninguna otra pantalla.
  */
-const PILDORAS = ['413 estudiantes', '9 colegios', 'Callejón de Huaylas']
+// Sin cifras (U26): "413 estudiantes · 9 colegios" eran los datos del
+// simulador, escritos a mano, y dejaban de ser ciertos con el primer alta.
+const PILDORAS = ['Programa Educación', 'Misión Huascarán', 'Callejón de Huaylas']
 
 export default function PanelBienvenida() {
   return (

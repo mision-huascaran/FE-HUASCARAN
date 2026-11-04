@@ -208,7 +208,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
           value={correo}
           onChange={(e) => setCorreo(e.target.value)}
           disabled={paso > 0}
-          placeholder="nombre@sicedu.test"
+          placeholder="Tu correo institucional"
         />
 
         {paso === 1 && (

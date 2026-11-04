@@ -183,7 +183,7 @@ export default function LoginPage() {
               label="Correo"
               type="email"
               autoComplete="username"
-              placeholder="nombre@sicedu.test"
+              placeholder="Tu correo institucional"
               iconLeft={Mail}
               required
               error={errors.correo?.message}
