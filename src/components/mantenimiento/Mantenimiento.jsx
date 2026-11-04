@@ -259,27 +259,29 @@ export default function Mantenimiento({
               // El hueco se mide por el texto más largo que puede ocupar.
               <span aria-hidden="true" className="inline-block w-[9.5rem]" />
             ))}
+          {/* Ojo y lápiz SOLO CON ÍCONO y su tooltip (auditoría de UX #737,
+              U03 y U06): con el texto, la columna de acciones empujaba la
+              tabla de Usuarios fuera de una pantalla de 1366 px. */}
           <Button
             size="sm"
             variant="ghost"
             iconLeft={Eye}
+            className="px-2"
+            title="Visualizar"
             aria-label={`Visualizar ${fila.nombre ?? entidad}`}
             onClick={() => setPopup({ modo: 'ver', registro: fila })}
-          >
-            Ver
-          </Button>
+          />
           {puedeEditar && (
             <Button
               size="sm"
               variant="ghost"
               iconLeft={Pencil}
+              className="px-2"
               aria-label={`Editar ${fila.nombre ?? entidad}`}
               disabled={bloqueado}
-              title={aviso}
+              title={aviso ?? 'Editar'}
               onClick={alEscribir(`editar ${entidad}`, () => setPopup({ modo: 'editar', registro: fila }))}
-            >
-              Editar
-            </Button>
+            />
           )}
         </div>
       ),
