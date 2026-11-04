@@ -70,7 +70,14 @@ export default function InicioDirectivo() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <StatCard icon={Users} label="Total de beneficiarios activos" value={resumen.beneficiarios} />
-        <StatCard icon={School} label="Total de colegios operando" value={resumen.colegios} />
+        {/* Qué cuenta cada tarjeta (U11): el Dashboard enseña "Colegios
+            atendidos", que es otra cifra, y sin decirlo parecían contradecirse. */}
+        <StatCard
+          icon={School}
+          label="Total de colegios operando"
+          value={resumen.colegios}
+          hint="Colegios activos con un docente asignado en el periodo actual."
+        />
         <StatCard
           icon={Activity}
           label="Salud del sistema"

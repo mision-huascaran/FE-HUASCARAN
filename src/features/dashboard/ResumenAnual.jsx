@@ -61,6 +61,8 @@ export default function ResumenAnual({ filtros, contexto, anio }) {
             icon={School}
             label="Colegios atendidos"
             value={celda(delAnio, 'colegios_atendidos', formatearCantidad)}
+            // No es la cifra de "colegios operando" del Inicio (U11).
+            hint="Con al menos un alumno en el año escolar."
           />
           <StatCard
             icon={BookOpen}
