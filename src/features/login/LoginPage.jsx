@@ -69,7 +69,7 @@ export default function LoginPage() {
     limpiarMotivoCierre()
     try {
       const perfil = await entrar({ correo, password })
-      navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+      void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
   /** Tras el primer ingreso el usuario YA tiene token: entra sin repetir login. */
   const entrarTrasPrimerIngreso = async (sesion) => {
     const perfil = await entrarConToken(sesion.access_token)
-    navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+    void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
   }
 
 

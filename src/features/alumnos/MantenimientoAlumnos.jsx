@@ -325,8 +325,8 @@ export default function MantenimientoAlumnos() {
   const sinAsignaciones = soloSusSecciones && enLinea && asignacionesCargadas && asignaciones.length === 0
 
   const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ['alumnos'] })
-    queryClient.invalidateQueries({ queryKey: ['admin'] })
+    void queryClient.invalidateQueries({ queryKey: ['alumnos'] })
+    void queryClient.invalidateQueries({ queryKey: ['admin'] })
   }
 
   const guardado = useMutation({

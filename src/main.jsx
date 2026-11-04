@@ -21,7 +21,7 @@ import { registrarServiceWorker } from './lib/actualizacion'
  * funciona igual, solo que recargar sin señal volverá a dar el error del
  * navegador.
  */
-registrarServiceWorker()
+void registrarServiceWorker()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
