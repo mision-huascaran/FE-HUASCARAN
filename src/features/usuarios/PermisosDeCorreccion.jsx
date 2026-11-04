@@ -159,7 +159,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     onSuccess: () => {
       setViendo(null)
       setRevocando(null)
-      queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
+      void queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
       // El literal de CU028, sin añadirle nada (D62).
       toast.success('Permiso de corrección revocado correctamente.')
     },
@@ -174,7 +174,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
       const motivoError = motivoDe(error)
       if (motivoError === 'permiso_ya_revocado' || motivoError === 'permiso_vencido') {
         setRevocando(null)
-        queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
+        void queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
         toast.info(
           motivoError === 'permiso_ya_revocado'
             ? 'El permiso ya fue revocado. Se actualizó su información.'
@@ -371,7 +371,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
         onCerrar={() => setOtorgando(false)}
         onOtorgado={(otorgado) => {
           setOtorgando(false)
-          queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
+          void queryClient.invalidateQueries({ queryKey: ['permisos', idUsuario] })
           toast.success(
             'Permiso de corrección otorgado correctamente.',
             otorgado && !coincideConFiltros(otorgado, filtros) ? NO_COINCIDE_CON_FILTROS : undefined,

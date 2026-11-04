@@ -25,8 +25,12 @@ const TOKEN = `x.${base64url({ sub: 1, jti: 'sesion-abc', exp: Math.floor(Date.n
 const encolados = []
 
 vi.mock('../../../lib/colaOffline', () => ({
-  encolar: (item) => encolados.push(item),
-  reintentarAhora: vi.fn(),
+  // Como la cola real: `encolar` y `reintentarAhora` devuelven una promesa.
+  encolar: (item) => {
+    encolados.push(item)
+    return Promise.resolve()
+  },
+  reintentarAhora: vi.fn(() => Promise.resolve()),
   hayPendientes: () => encolados.length,
   limpiarSiTodoSincronizado: vi.fn(),
   iniciarCola: vi.fn(),

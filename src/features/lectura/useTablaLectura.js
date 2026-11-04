@@ -96,7 +96,9 @@ export default function useTablaLectura(filtros) {
   })
 
   const porCrear = esTablaPorCrear(tabla.error) ? datosParaCrear(tabla.error) : null
-  const refrescar = () => queryClient.invalidateQueries({ queryKey: ['lectura', 'tabla'] })
+  const refrescar = () => {
+    void queryClient.invalidateQueries({ queryKey: ['lectura', 'tabla'] })
+  }
 
   const crear = useMutation({
     mutationFn: ({ fechaClaseReferencia, idClaseReferencia } = {}) =>

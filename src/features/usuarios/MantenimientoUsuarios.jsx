@@ -130,9 +130,9 @@ export default function MantenimientoUsuarios() {
   const consulta = { ...consultaServidor, data: consultaServidor.data ? filas : undefined }
 
   const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin'] })
-    queryClient.invalidateQueries({ queryKey: ['detalle', 'usuarios'] })
-    queryClient.invalidateQueries({ queryKey: ['auditoria', 'usuarios'] })
+    void queryClient.invalidateQueries({ queryKey: ['admin'] })
+    void queryClient.invalidateQueries({ queryKey: ['detalle', 'usuarios'] })
+    void queryClient.invalidateQueries({ queryKey: ['auditoria', 'usuarios'] })
   }
 
   const guardado = useMutation({
