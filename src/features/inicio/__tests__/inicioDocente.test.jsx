@@ -141,7 +141,7 @@ describe('Tarjetas del panel', () => {
   it('con el corte completo no insiste', async () => {
     estado.resumen.data = { ...RESUMEN, evaluacion_abierta: { nombre: 'Octubre', registrados: 48, total: 48 } }
     montar()
-    await screen.findByText('Mis estudiantes')
+    await screen.findByText('Mis alumnos')
     expect(screen.queryByText(/Evaluación diagnóstica de Octubre abierta/)).not.toBeInTheDocument()
   })
 
@@ -157,13 +157,13 @@ describe('Tarjetas del panel', () => {
     estado.resumen = { data: undefined, isLoading: true, semanaActual: null }
     montar()
     await screen.findByRole('heading', { level: 1 })
-    expect(screen.queryByText('Mis estudiantes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
   })
 
   it('sin datos del servidor no pinta las tarjetas (D13)', async () => {
     estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
     montar()
     await screen.findByRole('heading', { level: 1 })
-    expect(screen.queryByText('Mis estudiantes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
   })
 })

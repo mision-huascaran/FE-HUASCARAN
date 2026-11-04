@@ -25,7 +25,9 @@ import RegistrosDeActividad from './RegistrosDeActividad'
 import { MODULOS_DE_ACTIVIDAD, listarActividadesDe } from '../../api/resources/seguimiento'
 import {
   AYUDA_SINCRONIZACION,
+  ETIQUETA_ESTADO,
   ETIQUETA_SINCRONIZACION,
+  TONO_ESTADO,
   TONO_SINCRONIZACION,
   SIN_FIN,
   etiquetaTipoCierre,
@@ -128,8 +130,20 @@ export default function DetalleDocente({ docente, onVolver }) {
             }
             columns={[
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
-              { key: 'inicio', header: 'Inicio', render: (s) => formatearFechaHora(s.inicio) },
-              { key: 'fin', header: 'Fin', render: (s) => (s.fin ? formatearFechaHora(s.fin) : SIN_FIN) },
+              { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearFechaHora(s.inicio) },
+              { key: 'fin', header: 'Hora de finalización', render: (s) => (s.fin ? formatearFechaHora(s.fin) : SIN_FIN) },
+              {
+                /*
+                 * CU021 lista esta columna y faltaba. Para quien audita, que
+                 * una actividad siga EN CURSO cambia lo que está viendo: lo
+                 * que falte todavía puede aparecer, y un "Sin registros" no
+                 * significa lo mismo en una jornada abierta que en una
+                 * cerrada.
+                 */
+                key: 'estado',
+                header: 'Estado de la actividad',
+                render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
+              },
               { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
               {
                 key: 'productividad_texto',

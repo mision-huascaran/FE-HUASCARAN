@@ -1882,7 +1882,7 @@ export const handlers = {
       if (semana.inicio > hoyLima()) {
         throw errorMock(
           422,
-          'No es posible adelantar registros. Seleccione la semana actual o una anterior.',
+          'No es posible adelantar registros. Selecciona la semana actual o una anterior.',
           'semana_futura',
         )
       }

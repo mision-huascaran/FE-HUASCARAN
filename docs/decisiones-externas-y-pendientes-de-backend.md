@@ -775,9 +775,80 @@ año escolar (`app/routers/catalogos.py`). Eso da el resultado correcto
 y no se corte el 31 de diciembre. Si se cortara, en enero ningún año saldría
 vigente y el Supervisor encontraría el filtro vacío en vez de "2026".
 
-**Lo que se pide:** confirmar que `fecha_fin` del año escolar incluye su
-receso posterior al PA4. Es un dato, no código: con la fecha bien puesta, el
-front ya hace lo que pide el CU.
+> **CONFIRMADO por el backend el 04/11.** `fecha_fin` del año escolar es el
+> fin del PR4 del calendario general y **se recalcula cada vez que se edita**,
+> así que en enero, durante el PR4, 2026 sigue vigente.
+>
+> El propio backend avisó de dos casos en que NO habrá ningún año vigente, y
+> los dos están cubiertos: en **vacaciones** —entre el fin del PR4 y el PA1
+> siguiente— y cuando un colegio tiene un calendario particular cuyo PR4
+> termina **después** del general. En ambos el filtro se queda sin selección
+> y la pantalla pide elegir, en vez de proponer un año por aproximación.
+
+**S31 (nuevo). Decisiones de pantalla tomadas por el front el 04/11, para
+que el analista las recoja en los CU.**
+Antonio pidió cerrar los huecos restantes con criterio propio aunque no
+estuvieran escritos, y documentarlos aquí para incorporarlos después. Son
+estos, y ninguno cambia una regla: solo texto y una columna.
+
+**a) "estudiante" ya no se usa en pantalla.** El documento actualizado no
+dice "estudiante" **ni una sola vez** —443 veces "alumno"—, pero el código
+aún lo decía en tres sitios visibles. Ahora dicen "alumno": la tarjeta del
+Inicio del Docente (**"Mis alumnos"**), el aviso sin conexión de
+mantenimiento (**"…para gestionar alumnos."**) y el título de la ficha
+(**"Ficha del alumno"**). La RUTA sigue siendo `/estudiantes/:id`: cambiarla
+rompería los enlaces ya guardados y no la ve nadie.
+
+**b) Las columnas de la bitácora, con el nombre que les da el CU.** En
+Sesiones (CU017) y en el detalle del Supervisor (CU021):
+
+| Antes | Ahora | Por qué |
+|---|---|---|
+| Inicio / Fin | **Hora de inicio** / **Hora de finalización** | Desde U15 esas celdas traen SOLO la hora; "Inicio" a secas se leía como una fecha |
+| Cambios | **Cantidad de cambios** | Es el nombre del CU |
+| Estado | **Estado de la actividad** | Está al lado de la columna de sincronización: dos "Estado" seguidos no se distinguen |
+| Sincronización | **Estado de sincronización** | Lo mismo, por el otro lado |
+
+**Una desviación deliberada:** el CU llama a la última columna "Tipo de
+cierre de la actividad" y se queda en **"Tipo de cierre"**. En una tabla de
+actividades, "de la actividad" no añade significado y sí anchura, y esa
+columna ya es la más ancha —sus valores son del tipo "Manual por
+finalización de actividad"—. Si el analista prefiere el nombre largo, se
+cambia en una línea.
+
+**c) Falta(ba) una columna en CU021: "Estado de la actividad".** El detalle
+del Supervisor no la tenía. Importa para quien audita: que una jornada siga
+**En curso** cambia lo que está viendo, porque lo que falte todavía puede
+aparecer, y un "Sin registros" no significa lo mismo en una jornada abierta
+que en una cerrada.
+
+**d) El texto del adelanto de semana, tuteado.** El simulador respondía
+*"…Seleccione la semana actual o una anterior."* Es un mensaje **del
+servidor**, y la Tanda O lo cambia a "Selecciona": el simulador se adelanta
+para que las dos fuentes digan lo mismo. **Nada que hacer en el backend**,
+ya está en su lista.
+
+**e) De dónde viene la Entrada de Registro de Vuelo, sin cursor (CU031).**
+El texto vivía solo en un `title` de hover: en un teléfono no existe y con
+teclado tampoco. Ahora va en un botón con el tooltip de la casa, que abre
+con cursor, foco y toque. Cuando no hay nivel, el motivo ya se lee a secas
+en la celda y no se añade el botón.
+
+**f) El rol que deja de permitir la consulta (CU033, CU034, CU035).** Las
+pantallas del Dashboard y del consolidado retiran lo que muestran y dicen
+*"Tu rol actual no permite consultar este dashboard."* / *"…este
+consolidado."* **Importante para el analista:** por la ruta no se llega a
+ese mensaje —la guarda manda a `/403`, que ya explica el motivo con el
+nombre del rol y ofrece volver—. Lo añadido es la red de seguridad para el
+caso que describen los CU: perder el rol con la pantalla ya abierta. Si se
+quiere que ese mensaje sustituya a `/403`, es un cambio en la guarda del
+enrutador y afecta a toda la aplicación: queda fuera de esto.
+
+**Lo que se comprobó y NO se tocó, a propósito:** "autorización" y
+"habilitación" no son sinónimos en el CU —una es de consulta y otra de
+escritura— y el literal *"No tienes autorización vigente para registrar o
+modificar este periodo."* está en el documento tal cual. El código ya lo
+decía bien.
 
 ## Fuera de alcance
 
@@ -804,7 +875,8 @@ lado de los datos si no se esperaban:
 | Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27 / S27b** | ✅ Resuelto por la Tanda N: la pantalla respeta `pertenece` y la celda se bloquea antes de pulsar |
 | Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
 | Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
-| Calendario: qué año se propone en enero, con el PR4 en curso | **S30** | ⚠️ El front se fía de `vigente`; confirmar que la `fecha_fin` del año escolar cubre su PR4 |
+| Calendario: qué año se propone en enero, con el PR4 en curso | **S30** | ✅ Confirmado por el backend; el front ya cubre el caso de ningún año vigente |
+| Textos de pantalla y columnas decididos por el front el 04/11 | **S31** | 📝 Hechos; el analista los recoge en los CU |
 
 ## Versión para la ronda 7
 

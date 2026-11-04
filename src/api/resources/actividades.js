@@ -135,6 +135,17 @@ export const etiquetaTipoCierre = (valor) => {
 /** Etiquetas de los estados, que viajan en `snake_case` (§1.5 del contrato). */
 export const ETIQUETA_ESTADO = { en_curso: 'En curso', finalizada: 'Finalizada' }
 /**
+ * El color de cada estado, junto a su etiqueta y no suelto en una pantalla.
+ *
+ * Vivía dentro de `SesionesPage`, que es donde primero hizo falta. Al pedir
+ * CU021 la misma columna en el detalle del Supervisor, copiarlo habría dejado
+ * dos tablas que pintan lo mismo de dos colores en cuanto una cambiara.
+ *
+ * "En curso" va en `info` y no en `success`: una jornada abierta no es un
+ * logro, es un aviso de que lo que se está mirando todavía puede crecer.
+ */
+export const TONO_ESTADO = { en_curso: 'info', finalizada: 'neutral' }
+/**
  * Estados de sincronización. Son CUATRO, no dos.
  *
  * `sin_informacion` es el que faltaba y el que más importa: significa que el

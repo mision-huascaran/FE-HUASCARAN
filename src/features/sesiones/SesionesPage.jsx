@@ -26,6 +26,7 @@ import DetalleSesion from './DetalleSesion'
 import useFiltrosSesiones from './useFiltrosSesiones'
 import {
   ETIQUETA_ESTADO,
+  TONO_ESTADO,
   ETIQUETA_SINCRONIZACION,
   SIN_FIN,
   etiquetaTipoCierre,
@@ -61,7 +62,6 @@ const CIERRES = [
   { value: 'Automático por expiración de sesión', label: 'Automático por expiración' },
 ]
 
-const TONO_ESTADO = { en_curso: 'info', finalizada: 'neutral' }
 const TONO_SINCRONIZACION = { sincronizada: 'success', pendiente: 'warning', error: 'danger' }
 
 /** Segundos a "1 h 25 min", que es como se lee una jornada. */
@@ -173,20 +173,20 @@ export default function SesionesPage() {
               // dd/mm/aaaa, y en Inicio y Fin SOLO LA HORA, como pide CU017: la
               // fecha ya está en su columna (auditoría de UX #737, U15).
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
-              { key: 'inicio', header: 'Inicio', render: (s) => formatearHora(s.inicio) },
-              { key: 'fin', header: 'Fin', render: (s) => horaDeFin(s) },
+              { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearHora(s.inicio) },
+              { key: 'fin', header: 'Hora de finalización', render: (s) => horaDeFin(s) },
               { key: 'duracion_segundos', header: 'Duración', render: (s) => duracion(s.duracion_segundos) },
-              { key: 'cambios', header: 'Cambios', align: 'center' },
+              { key: 'cambios', header: 'Cantidad de cambios', align: 'center' },
               {
                 key: 'estado',
-                header: 'Estado',
+                header: 'Estado de la actividad',
                 render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
               },
               {
                 // Columna aparte del estado a propósito (CU017): son dos cosas
                 // distintas y mezclarlas oculta las sesiones sin sincronizar.
                 key: 'sincronizacion',
-                header: 'Sincronización',
+                header: 'Estado de sincronización',
                 render: (s) => (
                   <Badge tone={TONO_SINCRONIZACION[s.sincronizacion] ?? 'neutral'}>
                     {ETIQUETA_SINCRONIZACION[s.sincronizacion] ?? s.sincronizacion}
