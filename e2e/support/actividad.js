@@ -82,7 +82,7 @@ export async function abrirDetalleDeSesion(page, idActividad) {
   const total = Math.min(await botones.count(), 10)
   for (let i = 0; i < total; i += 1) {
     await botones.nth(i).click()
-    const dialogo = page.getByRole('dialog', { name: 'Detalle de la sesión' })
+    const dialogo = page.getByRole('dialog', { name: 'Detalle de la actividad' })
     await expect(dialogo).toBeVisible()
     if (await dialogo.getByText(idActividad, { exact: true }).isVisible()) return dialogo
     await dialogo.getByRole('button', { name: 'Cerrar' }).last().click()
