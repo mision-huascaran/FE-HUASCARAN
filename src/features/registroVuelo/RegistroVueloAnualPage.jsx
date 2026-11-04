@@ -36,6 +36,7 @@ import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
+import { formatearFecha } from '../../lib/format'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -209,7 +210,7 @@ export default function RegistroVueloAnualPage() {
           <Card
             padded={false}
             title={`${datos.total} alumno${datos.total === 1 ? '' : 's'}`}
-            subtitle={`${periodo.nombre} · del ${periodo.fecha_inicio} al ${periodo.fecha_fin}`}
+            subtitle={`${periodo.nombre} · del ${formatearFecha(periodo.fecha_inicio)} al ${formatearFecha(periodo.fecha_fin)}`}
           >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[60rem] text-sm">

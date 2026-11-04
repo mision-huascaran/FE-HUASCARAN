@@ -27,10 +27,11 @@ import {
   AYUDA_SINCRONIZACION,
   ETIQUETA_SINCRONIZACION,
   TONO_SINCRONIZACION,
+  SIN_FIN,
   etiquetaTipoCierre,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFechaHora } from '../../lib/format'
+import { formatearFecha, formatearFechaHora } from '../../lib/format'
 
 /**
  * El nombre del módulo que usa el endpoint de registros, a partir del que
@@ -124,9 +125,9 @@ export default function DetalleDocente({ docente, onVolver }) {
               />
             }
             columns={[
-              { key: 'fecha', header: 'Fecha' },
+              { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
               { key: 'inicio', header: 'Inicio', render: (s) => formatearFechaHora(s.inicio) },
-              { key: 'fin', header: 'Fin', render: (s) => (s.fin ? formatearFechaHora(s.fin) : 'No aplica') },
+              { key: 'fin', header: 'Fin', render: (s) => (s.fin ? formatearFechaHora(s.fin) : SIN_FIN) },
               { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
               {
                 key: 'productividad_texto',
