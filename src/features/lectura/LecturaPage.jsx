@@ -32,7 +32,7 @@ import ModalNoRealizada from './ModalNoRealizada'
 import ModalHabilitarRegistro from './ModalHabilitarRegistro'
 import ModalCambiarClase from './ModalCambiarClase'
 import TablaLectura from './TablaLectura'
-import useFiltrosDeGrupo, { MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio, MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
@@ -219,6 +219,7 @@ export default function LecturaPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />

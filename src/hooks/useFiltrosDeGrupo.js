@@ -86,6 +86,22 @@ export function semanaPorDefecto(semanas, dia = hoy()) {
   return semanas.filter((s) => !esSemanaFutura(s, dia)).at(-1) ?? semanas[0]
 }
 
+/** El marcador del colegio para quien consulta varios (U08). */
+export const ELIGE_UN_COLEGIO = 'Selecciona un colegio'
+
+/** El Docente siempre tiene un colegio elegido; quien no lo es, empieza por elegirlo. */
+export const marcadorDeColegio = (esDocente) => (esDocente ? undefined : ELIGE_UN_COLEGIO)
+
+/**
+ * ¿Se elige solo el primer colegio? (auditoría de UX #737, U08)
+ *
+ * Para el Docente sí: son SUS aulas. Para el Supervisor no: el primero por
+ * orden alfabético solía ser uno sin alumnos, y las cuatro pantallas del aula
+ * se abrían en un estado vacío. Se le pide que elija, salvo que haya uno solo.
+ */
+export const debeElegirColegio = (esDocente, colegios) =>
+  colegios.length > 0 && (Boolean(esDocente) || colegios.length === 1)
+
 /**
  * D105 — LOS FILTROS SE CONSERVAN AL VOLVER AL MÓDULO.
  *
@@ -294,8 +310,8 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   // Un `<select>` sin valor PINTA su primera opción: hay que elegirla de
   // verdad, o la pantalla aparenta un colegio que el filtro no tiene.
   useEffect(() => {
-    if (!idColegio && colegios.length) cambiar('colegio', String(colegios[0].id_colegio))
-  }, [colegios, idColegio, cambiar])
+    if (!idColegio && debeElegirColegio(esDocente, colegios)) cambiar('colegio', String(colegios[0].id_colegio))
+  }, [colegios, idColegio, cambiar, esDocente])
 
   useEffect(() => {
     if (!grados.length) return

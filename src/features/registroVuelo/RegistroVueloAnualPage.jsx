@@ -26,7 +26,7 @@ import FilaVuelo from './FilaVuelo'
 import ModalObservacionVuelo from './ModalObservacionVuelo'
 import ModalRubricaDeReferencia from './ModalRubricaDeReferencia'
 import useRegistroVueloAnual from './useRegistroVueloAnual'
-import useFiltrosDeGrupo from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio } from '../../hooks/useFiltrosDeGrupo'
 import { ESTADO_PERIODO, periodoDe } from '../../api/resources/registroVueloAnual'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { useNivelesRazkids } from '../../hooks/useCatalogos'
@@ -124,6 +124,7 @@ export default function RegistroVueloAnualPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />

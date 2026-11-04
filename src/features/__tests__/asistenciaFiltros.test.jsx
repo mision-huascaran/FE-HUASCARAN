@@ -14,6 +14,7 @@ import AsistenciaPage from '../asistencia/AsistenciaPage'
 import useSessionStore from '../../store/sessionStore'
 import * as db from '../../api/mock/db'
 import { ROLES } from '../../auth/roles'
+import { elegirPrimerColegio } from '../../test/elegirColegio'
 
 const ESPERA = { timeout: 8000 }
 
@@ -43,11 +44,18 @@ function montar(idRol = ROLES.SUPERVISOR) {
 beforeEach(() => localStorage.clear())
 
 describe('Filtros de Asistencia (CU022)', () => {
-  it('arranca con colegio y grado elegidos de verdad, no solo pintados', async () => {
+  it('al Supervisor le pide el colegio, y al elegirlo el grado queda elegido de verdad', async () => {
     montar()
     await abrirFiltros()
 
+    // U08: el primer colegio por orden alfabético solía no tener alumnos, así
+    // que el Supervisor ya no recibe uno elegido: se le pide que elija.
     const colegio = await screen.findByLabelText('Colegio', {}, ESPERA)
+    await waitFor(() => expect(colegio.options.length).toBeGreaterThan(1), ESPERA)
+    expect(colegio.value).toBe('')
+    expect(colegio.options[0].textContent).toBe('Selecciona un colegio')
+
+    await elegirPrimerColegio(ESPERA)
     await waitFor(() => expect(colegio.value).not.toBe(''), ESPERA)
 
     // El grado y el subprograma los dice el COLEGIO, así que llegan después:
@@ -80,6 +88,7 @@ describe('Filtros de Asistencia (CU022)', () => {
      */
     montar()
     await abrirFiltros()
+    await elegirPrimerColegio(ESPERA)
 
     const seccion = await screen.findByLabelText('Sección', {}, ESPERA)
     await waitFor(() => expect(seccion.value).not.toBe(''), ESPERA)

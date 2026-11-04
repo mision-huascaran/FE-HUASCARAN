@@ -29,6 +29,7 @@ export default function FiltrosAsistencia({
   secciones,
   docentes,
   eligeDocente,
+  placeholderColegio,
 }) {
   const opciones = (lista, clave, etiqueta = 'nombre') =>
     lista.map((x) => ({ value: String(x[clave]), label: x[etiqueta] }))
@@ -48,6 +49,7 @@ export default function FiltrosAsistencia({
       <Select
         label="Colegio"
         value={filtros.idColegio}
+        placeholder={placeholderColegio}
         onChange={(e) => cambiar('colegio', e.target.value)}
         options={opciones(colegios, 'id_colegio')}
       />

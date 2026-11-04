@@ -26,7 +26,7 @@ import Button from '../../components/ui/Button'
 import FilaRubrica from './FilaRubrica'
 import PanelCriterios from './PanelCriterios'
 import useRubricaMensual from './useRubricaMensual'
-import useFiltrosDeGrupo, { MESES } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio, MESES } from '../../hooks/useFiltrosDeGrupo'
 import { MOTIVO_RUBRICA } from '../../api/resources/rubricaMensual'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
@@ -120,6 +120,7 @@ export default function RubricaPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />

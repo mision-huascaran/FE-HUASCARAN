@@ -24,6 +24,7 @@ import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
 import { _reiniciarCola } from '../../../lib/colaOffline'
 import { ROLES } from '../../../auth/roles'
+import { elegirPrimerColegio } from '../../../test/elegirColegio'
 
 const ESPERA = { timeout: 8000 }
 
@@ -329,6 +330,8 @@ describe('Asistencia (CU022)', () => {
 
   it('el Supervisor entra en solo lectura y no ve la acción en lote', async () => {
     montar(ROLES.SUPERVISOR)
+    await abrirFiltros()
+    await elegirPrimerColegio(ESPERA)
     await abrirClase()
 
     expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()

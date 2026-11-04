@@ -45,6 +45,7 @@ import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
+import { marcadorDeColegio, debeElegirColegio } from '../../hooks/useFiltrosDeGrupo'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
@@ -249,8 +250,8 @@ export default function AsistenciaPage() {
    * pantalla aparente un colegio que el filtro no tiene.
    */
   useEffect(() => {
-    if (!filtros.idColegio && colegios.length) cambiar('colegio', String(colegios[0].id_colegio))
-  }, [colegios, filtros.idColegio, cambiar])
+    if (!filtros.idColegio && debeElegirColegio(esDocente, colegios)) cambiar('colegio', String(colegios[0].id_colegio))
+  }, [colegios, filtros.idColegio, cambiar, esDocente])
 
   /**
    * El grado y el subprograma DEPENDEN del colegio, así que no basta con
@@ -482,6 +483,7 @@ export default function AsistenciaPage() {
         secciones={secciones}
         docentes={docentes}
         eligeDocente={!puedeEditar}
+        placeholderColegio={marcadorDeColegio(esDocente)}
       />
 
       {!listos && (
