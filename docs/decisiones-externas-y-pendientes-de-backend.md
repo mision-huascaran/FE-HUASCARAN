@@ -704,6 +704,25 @@ rechazados, revisar en el servidor qué operación concreta rechazó cada una.
 No es algo que el front deba "corregir" sin ocultar un aviso real — hacerlo
 escondería sincronizaciones rotas de verdad.
 
+**S29 (nuevo, y este sí era del front — D108). Inicio del Docente: faltaba
+un ciclo en "Mis asignaciones".**
+Antonio encontró un Docente con alumnos de 1.º, 4.º y 5.° grado, y la
+tarjeta decía **"Ciclos: III, V"** — sin el IV del 4.º grado, que sí tenía
+un alumno (Advíncula KEKE) en la tabla de Alumnos, dos pantallas más abajo.
+
+La causa estaba en el front, no en el servidor: `GET /inicio/docente` manda
+`totales.ciclos` como un resumen ya armado, y por separado cada grado de
+`asignaciones` trae también su propio `ciclos`. El código prefería
+`totales.ciclos` con `??`, así que si ese resumen llegaba **presente pero
+incompleto** —el caso de hoy—, tapaba el ciclo que sí estaba bien en el
+grado de 4.º en vez de completarse con él. **Ya corregido:** ahora se unen
+los dos orígenes en vez de elegir uno, con su prueba de regresión.
+
+**Lo que se pide:** de todos modos conviene que `totales.ciclos` en
+`GET /inicio/docente` incluya siempre los ciclos de los seis grados
+asignados — el front ya no se cae si falta alguno, pero un resumen
+incompleto en el propio endpoint sigue siendo un dato a revisar.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -728,6 +747,7 @@ lado de los datos si no se esperaban:
 | Lectura deja pulsar "Crear la tabla" sobre una clase que aún no se ha dictado | **S25** | ✅ Resuelto, confirmado reprogramando una clase |
 | Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27** | ℹ️ Es dato real del servidor; revisar matrícula/rúbrica si no corresponde |
 | Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
+| Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
 
 ## Versión para la ronda 7
 
