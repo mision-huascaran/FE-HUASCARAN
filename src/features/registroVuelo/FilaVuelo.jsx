@@ -29,6 +29,26 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
   const conNota = Boolean(periodo.observacion)
   const Globo = conNota ? MessageSquareText : MessageSquare
 
+  /**
+   * TANDA N — EL ALUMNO NO ESTABA EN EL GRUPO EN ESTE PA.
+   *
+   * Se decide por el campo `pertenece`, NUNCA comparando el texto del aviso:
+   * un mensaje se reescribe cualquier día y el que compara textos se entera
+   * cuando el docente ya perdió el trabajo.
+   *
+   * Es por alumno Y periodo, y se suma a `soloLectura` en vez de sustituirlo:
+   * `escritura` decide si el PA se puede escribir para TODO el grupo, y esto
+   * decide si esta fila concreta entra en ese PA. Las dos tienen que valer.
+   *
+   * Por qué deshabilitar y no dejar intentarlo: el servidor rechaza ese
+   * guardado con `alumno_fuera_del_grupo`, y ese rechazo no se evapora —queda
+   * como operación rechazada y deja al Docente en "Error" en Seguimiento
+   * (CU020) hasta que lo descarte—. El docente no hizo nada mal: la pantalla
+   * no debería haberle dejado pulsar.
+   */
+  const fueraDelGrupo = periodo.pertenece === false
+  const bloqueada = soloLectura || fueraDelGrupo
+
   const opciones = niveles.map((n) => ({ value: n.id_nivel_razkids, label: n.letra }))
 
   const cambiar = (campo, valorPrevio) => (e) => {
@@ -50,11 +70,19 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           </span>
         )}
         {/*
-          La entrada cambió DESPUÉS de decidir: alguien corrigió el periodo
-          anterior. No se recalcula la decisión del docente —eso sería
-          decidir por él—, se avisa con el texto del servidor.
+          EL AVISO DEL SERVIDOR, TAL COMO LLEGA (Tanda N).
+
+          Cubre los dos casos con el mismo hueco: la entrada que cambió
+          después de decidir —alguien corrigió el PA anterior, y no se
+          recalcula la decisión del docente porque sería decidir por él— y el
+          alumno que no pertenecía al grupo en este PA.
+
+          No se arma texto aquí: el servidor manda UNO solo, ya elegido, y si
+          hay dos motivos a la vez decide él cuál pesa más. El respaldo se
+          queda únicamente para `aviso_entrada_cambio`, que es anterior a este
+          contrato y podría llegar sin texto.
         */}
-        {periodo.aviso_entrada_cambio && (
+        {(periodo.aviso || periodo.aviso_entrada_cambio) && (
           <span className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-600">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {periodo.aviso ?? 'La entrada de este periodo cambió después de registrar el nivel colocado.'}
@@ -122,7 +150,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           aria-label={`Nivel colocado de ${alumno.nombre}`}
           value={periodo.nivel_colocado?.id ?? ''}
           placeholder="Sin decidir"
-          disabled={soloLectura}
+          disabled={bloqueada}
           onChange={cambiar('id_nivel_colocado', periodo.nivel_colocado?.id)}
           options={opciones}
         />
@@ -138,7 +166,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           aria-label={`Proyección de ${alumno.nombre}`}
           value={periodo.proyeccion?.id ?? ''}
           placeholder="Sin proyectar"
-          disabled={soloLectura}
+          disabled={bloqueada}
           onChange={cambiar('id_nivel_proyeccion', periodo.proyeccion?.id)}
           options={opciones}
         />
@@ -148,7 +176,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
         <button
           type="button"
           // Una nota existente se puede LEER aunque no se pueda escribir.
-          disabled={soloLectura && !conNota}
+          disabled={bloqueada && !conNota}
           onClick={() => onObservar({ alumno, periodo })}
           aria-label={`${conNota ? 'Ver' : 'Añadir'} observación de ${alumno.nombre}`}
           title={conNota ? periodo.observacion : 'Sin observación'}

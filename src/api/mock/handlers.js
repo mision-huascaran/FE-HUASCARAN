@@ -532,6 +532,17 @@ function periodoDeAlumno(alumno, periodo, periodos) {
   // decision del docente no se toca sola.
   const cambio = Boolean(colocado && decision.id_nivel_entrada && decision.id_nivel_entrada !== (entrada.nivel?.id ?? null))
 
+  /**
+   * TANDA N — `pertenece`: si el alumno estuvo en el grupo algun dia del PA.
+   *
+   * El simulador NO TIENE fechas de matricula, asi que no puede calcularlo de
+   * verdad: se fija un caso reproducible —uno de cada siete alumnos entro en
+   * el PA2— para que la pantalla se pueda probar sin inventar un historial de
+   * traslados que luego nadie mantendria. Contra el servidor real el campo
+   * llega calculado con las fechas del PA en el calendario del colegio.
+   */
+  const pertenece = !(alumno.id_alumno % 7 === 0 && periodo.numero === 1)
+
   return {
     numero: periodo.numero,
     id_periodo_academico: periodo.id_periodo_academico,
@@ -544,12 +555,18 @@ function periodoDeAlumno(alumno, periodo, periodos) {
     proyeccion: decision?.id_nivel_proyeccion ? nivelPorId(decision.id_nivel_proyeccion) : null,
     observacion: decision?.observacion ?? null,
     aviso_entrada_cambio: cambio,
-    aviso: cambio
-      ? 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
-      : null,
+    // El aviso de entrada cambiada MANDA sobre el de pertenencia: si ya habia
+    // uno, el contrato dice que llega ese y no el nuevo.
+    aviso: (() => {
+      if (cambio) return 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
+      if (!pertenece) return 'El estudiante no pertenecía a este grupo en el periodo seleccionado.'
+      return null
+    })(),
+    pertenece,
     // Lo que falta es el NIVEL COLOCADO: la proyeccion y la observacion son
-    // opcionales, asi que no dejan el periodo incompleto.
-    incompleto: !colocado,
+    // opcionales, asi que no dejan el periodo incompleto. Y a un alumno que no
+    // estaba en el grupo NO SE LE EXIGE nivel: nunca esta incompleto.
+    incompleto: pertenece && !colocado,
   }
 }
 

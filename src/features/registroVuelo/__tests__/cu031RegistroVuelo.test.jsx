@@ -594,3 +594,75 @@ describe('La habilitación es por periodo', () => {
     expect(screen.getByLabelText(/nivel colocado de/i)).toBeDisabled()
   })
 })
+
+/**
+ * TANDA N — El alumno no estaba en el grupo en ese PA (`pertenece`).
+ *
+ * Lo que se sujeta no es el aspecto, es la CADENA: la celda se bloquea por el
+ * campo `pertenece`, no por el texto del aviso, y por eso el Docente deja de
+ * generar rechazos `alumno_fuera_del_grupo` que lo dejaban en "Error" en
+ * Seguimiento sin haber hecho nada mal.
+ */
+describe('Pertenencia por periodo (Tanda N)', () => {
+  const fuera = (extra = {}) =>
+    respuesta({
+      items: [
+        alumno({
+          periodos: [
+            periodo(1),
+            periodo(2, {
+              pertenece: false,
+              aviso: 'El estudiante no pertenecía a este grupo en el periodo seleccionado.',
+              incompleto: false,
+              ...extra,
+            }),
+          ],
+        }),
+      ],
+    })
+
+  it('sin pertenecer al PA, no se puede registrar nada de esa fila', async () => {
+    listarRegistroVuelo.mockResolvedValue(fuera())
+
+    montar()
+
+    // Los tres controles del docente, bloqueados: el servidor rechazaría el
+    // guardado y el rechazo no se evapora.
+    expect(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)).toBeDisabled()
+    expect(screen.getByLabelText(/proyección de/i)).toBeDisabled()
+    expect(screen.getByLabelText(/añadir observación de/i)).toBeDisabled()
+  })
+
+  it('el aviso se pinta tal como llega, sin armar texto propio', async () => {
+    listarRegistroVuelo.mockResolvedValue(fuera())
+
+    montar()
+
+    expect(
+      await screen.findByText('El estudiante no pertenecía a este grupo en el periodo seleccionado.', {}, ESPERA),
+    ).toBeInTheDocument()
+  })
+
+  it('se decide por `pertenece`, no por el texto: sin aviso la celda igual se bloquea', async () => {
+    // El PA sin fechas en el calendario del colegio: `pertenece` en false pero
+    // `aviso` en null. Quien comparase textos dejaría la celda abierta.
+    listarRegistroVuelo.mockResolvedValue(fuera({ aviso: null }))
+
+    montar()
+
+    expect(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)).toBeDisabled()
+    expect(screen.queryByText(/no pertenecía a este grupo/i)).not.toBeInTheDocument()
+  })
+
+  it('perteneciendo al PA se registra con normalidad', async () => {
+    // El contrapeso: sin esto, un `pertenece` mal leído bloquearía la pantalla
+    // entera y el test anterior seguiría en verde.
+    listarRegistroVuelo.mockResolvedValue(
+      respuesta({ items: [alumno({ periodos: [periodo(1), periodo(2, { pertenece: true })] })] }),
+    )
+
+    montar()
+
+    expect(await screen.findByLabelText(/nivel colocado de/i, {}, ESPERA)).toBeEnabled()
+  })
+})

@@ -685,6 +685,40 @@ el servidor los datos de matrícula o de rúbrica del alumno en cuestión. Los
 dos mensajes son literales del contrato, así que no es un error de
 interpretación del front.
 
+> **RESUELTO por la Tanda N del backend** (`cambiosFront_semana13_v1.md`).
+> No era ni un dato mal cargado ni una pantalla rota: faltaba el campo para
+> saberlo **antes** de pulsar. `GET /registro-vuelo` ahora manda
+> `items[].periodos[].pertenece`, y la pantalla lo respeta — ver abajo.
+
+**S27b. Lo que hace ahora la pantalla con `pertenece` (Tanda N).**
+La fila de un alumno que no estaba en el grupo ese PA va **deshabilitada**:
+nivel colocado, proyección y observación en solo lectura, y el `aviso` del
+servidor pintado tal como llega.
+
+Tres decisiones que conviene dejar escritas, porque son las que se romperían
+sin querer:
+
+- **Se decide por el campo `pertenece`, nunca comparando el texto del aviso.**
+  Un mensaje se reescribe cualquier día; quien compare textos se entera
+  cuando el Docente ya perdió el trabajo. Hay una prueba que fija justo el
+  caso raro: el PA sin fechas en el calendario del colegio llega con
+  `pertenece: false` y `aviso: null`, y la celda **igual** se bloquea.
+- **Se suma a `escritura`, no la sustituye.** `periodos[].escritura` decide
+  si el PA se puede escribir para todo el grupo; `pertenece` decide si esta
+  fila entra en ese PA. Tienen que valer las dos.
+- **El aviso no se arma en el front.** El servidor manda uno solo, ya
+  elegido, y si hay dos motivos a la vez —entrada cambiada y no
+  pertenencia— decide él cuál pesa. La pantalla pinta el que llegue.
+
+`incompleto` no hacía falta tocarlo: el front **nunca** lo usaba para contar
+nada, así que el punto 3 de la tanda ya se cumplía por omisión.
+
+**Lo que esto arregla en Seguimiento:** el Docente deja de generar rechazos
+`alumno_fuera_del_grupo` desde la pantalla, que es lo que lo dejaba en
+"Error" en CU020 sin haber hecho nada mal. Los rechazos **ya existentes**
+siguen contando hasta que los descarte: no se borran solos. Es decir, S28
+deja de alimentarse, pero no se limpia solo.
+
 **S28 (nuevo). Seguimiento del Supervisor: la columna "Sincronización" en
 Error para tres docentes — es dato real, no un bug de pantalla.**
 Antonio lo reportó como posible defecto del front. **No lo es**: `error` es
@@ -745,7 +779,7 @@ lado de los datos si no se esperaban:
 | Seguimiento del Supervisor con filas sin nombre de docente | **S24** | ✅ Resuelto, confirmado contra el servidor real |
 | "Otorgar permiso" sin el PA3 en el desplegable | **S26** | ✅ Resuelto; el PA4 no aparece **a propósito** (todavía no empieza) |
 | Lectura deja pulsar "Crear la tabla" sobre una clase que aún no se ha dictado | **S25** | ✅ Resuelto, confirmado reprogramando una clase |
-| Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27** | ℹ️ Es dato real del servidor; revisar matrícula/rúbrica si no corresponde |
+| Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27 / S27b** | ✅ Resuelto por la Tanda N: la pantalla respeta `pertenece` y la celda se bloquea antes de pulsar |
 | Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
 | Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
 
