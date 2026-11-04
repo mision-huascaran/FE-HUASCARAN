@@ -137,6 +137,9 @@ export default function LecturaPage() {
     [semanas, filtros.idSemana],
   )
 
+  // Un solo estado vacío a la vez (U07): sin clases en el mes no hay filtro que completar.
+  const sinClasesEsteMes = Boolean(filtros.idSeccion) && semanas.length === 0
+
   const listos = Boolean(
     filtros.idColegio &&
       filtros.idGrado &&
@@ -254,7 +257,7 @@ export default function LecturaPage() {
         />
       </FilterBar>
 
-      {!listos && (
+      {!listos && !sinClasesEsteMes && (
         <Card>
           <EmptyState
             title="Completa los filtros"
@@ -265,7 +268,7 @@ export default function LecturaPage() {
 
       {/* Una semana SIN CLASES del grupo no tiene tabla ni obligación: no es un
           hueco que el docente tenga que rellenar. */}
-      {!listos && filtros.idSeccion && semanas.length === 0 && (
+      {sinClasesEsteMes && (
         <Card>
           <EmptyState
             title="Sin clases este mes"
