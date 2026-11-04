@@ -9,21 +9,15 @@ import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 import { normalizarPaginado, todasLasPaginas } from './administracion'
+import { nuevoUuid } from '../../lib/uuid'
 
 const { actividades } = ENDPOINTS
 
 /**
- * `crypto.randomUUID` no existe en navegadores viejos ni en algunos jsdom.
  * El id lo genera el CLIENTE a propósito: así un reintento tras un corte de red
  * no crea una segunda actividad (201 la primera vez, 200 las siguientes).
  */
-export function nuevoIdActividad() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
+export const nuevoIdActividad = nuevoUuid
 
 /**
  * `POST /actividades`.
