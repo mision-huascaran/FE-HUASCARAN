@@ -30,7 +30,8 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
     required: campo.requerido && modo !== 'ver',
     disabled: bloqueado,
     error,
-    hint: campo.ayuda,
+    // La ayuda puede depender del modo: lo que se explica al editar no siempre aplica al crear.
+    hint: typeof campo.ayuda === 'function' ? campo.ayuda(modo) : campo.ayuda,
     className: campo.ancho === 'completo' ? 'md:col-span-2' : undefined,
   }
 

@@ -17,6 +17,8 @@ import ColegiosDelDocente from './ColegiosDelDocente'
 import {
   activarUsuario,
   actualizarUsuario,
+  anioVigente,
+  listarAniosEscolares,
   crearUsuario,
   desactivarUsuario,
   filtrarUsuariosPorColegio,
@@ -181,6 +183,19 @@ export default function MantenimientoUsuarios() {
     onError: (error) => toast.error('No se pudo cambiar el estado', mensajeDeError(error)),
   })
 
+  /**
+   * El año escolar que se propone al crear un Docente (U19): antes el campo
+   * nacía vacío, como si hubiera que adivinarlo. Es el número del año vigente
+   * ("2026"), que es lo que el servidor busca en el nombre.
+   */
+  const { data: anios = [] } = useQuery({
+    queryKey: ['anios-escolares'],
+    queryFn: listarAniosEscolares,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  const anioPropuesto = /\d{4}/.exec(String(anioVigente(anios)?.nombre ?? ''))?.[0]
+
   const campos = useMemo(
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
@@ -226,7 +241,9 @@ export default function MantenimientoUsuarios() {
         nombre: 'anio_escolar',
         etiqueta: 'Año escolar',
         tipo: 'number',
-        ayuda: 'Cambiarlo renueva su asignación',
+        porDefecto: anioPropuesto,
+        // Solo al editar: en una cuenta nueva no hay asignación que renovar (U19).
+        ayuda: (modo) => (modo === 'editar' ? 'Cambiarlo renueva su asignación' : undefined),
         visible: esDocente,
       },
       /**
@@ -259,7 +276,7 @@ export default function MantenimientoUsuarios() {
         recesoDe,
       },
     ],
-    [colegios, grados, recesoDe],
+    [colegios, grados, recesoDe, anioPropuesto],
   )
 
   /**
