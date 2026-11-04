@@ -199,7 +199,7 @@ export default function LecturaPage() {
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Seguimiento de Lectura</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Una tabla por grupo, subprograma y semana, atada a la clase en la que se tomó la lectura.
+          Registro semanal de lectura de cada alumno.
         </p>
       </header>
 

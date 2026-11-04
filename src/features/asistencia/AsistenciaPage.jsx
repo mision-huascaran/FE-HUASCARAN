@@ -106,6 +106,11 @@ const RECHAZO = {
   programa_no_ofrecido: { titulo: 'Ese subprograma no se dicta en esta clase' },
 }
 
+const SUBTITULO = {
+  registra: 'Cada marca se guarda al tocarla.',
+  consulta: 'Modo consulta: no puedes modificar asistencias.',
+}
+
 export default function AsistenciaPage() {
   const toast = useToast()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
@@ -439,7 +444,7 @@ export default function AsistenciaPage() {
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencia</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Se guarda sola: cada marca se registra al momento, sin botón de guardar.
+          {SUBTITULO[puedeEditar ? 'registra' : 'consulta']}
         </p>
       </header>
 
