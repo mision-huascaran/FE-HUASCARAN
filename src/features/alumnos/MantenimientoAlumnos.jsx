@@ -189,6 +189,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Colegio',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(permitidos.colegios, 'id_colegio'),
       },
       {
@@ -196,6 +198,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Grado',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(permitidos.grados, 'id_grado'),
       },
       /**
@@ -229,6 +233,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Subprograma',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(programas, 'id_programa'),
       },
       /**
