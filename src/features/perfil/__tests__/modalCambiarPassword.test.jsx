@@ -90,7 +90,7 @@ describe('Cambiar contraseña: paso 3, nueva contraseña', () => {
 
     await userEvent.clear(screen.getByLabelText(/^Nueva contraseña/))
     await userEvent.type(screen.getByLabelText(/^Nueva contraseña/), VALIDA)
-    await userEvent.type(screen.getByLabelText(/Repita/), `${VALIDA}x`)
+    await userEvent.type(screen.getByLabelText(/Repite/), `${VALIDA}x`)
     expect(screen.getByText('Las contraseñas no coinciden')).toBeInTheDocument()
     expect(boton('Guardar contraseña')).toBeDisabled()
   })
@@ -99,7 +99,7 @@ describe('Cambiar contraseña: paso 3, nueva contraseña', () => {
     const cambiar = vi.spyOn(handlers.auth, 'cambiarPassword')
     montar()
     await userEvent.type(await llegarAlPaso(2, '123456'), VALIDA)
-    await userEvent.type(screen.getByLabelText(/Repita/), VALIDA)
+    await userEvent.type(screen.getByLabelText(/Repite/), VALIDA)
     await userEvent.click(boton('Guardar contraseña'))
 
     expect(await screen.findByText('Contraseña actualizada')).toBeInTheDocument()
@@ -117,7 +117,7 @@ describe('Cambiar contraseña: paso 3, nueva contraseña', () => {
     )
     montar()
     await userEvent.type(await llegarAlPaso(2), VALIDA)
-    await userEvent.type(screen.getByLabelText(/Repita/), VALIDA)
+    await userEvent.type(screen.getByLabelText(/Repite/), VALIDA)
     await userEvent.click(boton('Guardar contraseña'))
 
     expect(await screen.findByText('La nueva contraseña debe ser diferente de la contraseña anterior.')).toBeInTheDocument()
@@ -134,7 +134,7 @@ describe('Cambiar contraseña: paso 3, nueva contraseña', () => {
   it.fails('un código alfanumérico aceptado en la verificación permite guardar', async () => {
     montar()
     await userEvent.type(await llegarAlPaso(2, 'ab12cd'), VALIDA)
-    await userEvent.type(screen.getByLabelText(/Repita/), VALIDA)
+    await userEvent.type(screen.getByLabelText(/Repite/), VALIDA)
     expect(boton('Guardar contraseña')).toBeEnabled()
   })
 })
@@ -154,7 +154,7 @@ describe('Cambiar contraseña: cancelar y sin conexión', () => {
   it('sin conexión lo explica y no deja guardar aunque todo sea válido (CU004)', async () => {
     montar()
     await userEvent.type(await llegarAlPaso(2), VALIDA)
-    await userEvent.type(screen.getByLabelText(/Repita/), VALIDA)
+    await userEvent.type(screen.getByLabelText(/Repite/), VALIDA)
 
     definirConexion(false)
     window.dispatchEvent(new Event('offline'))

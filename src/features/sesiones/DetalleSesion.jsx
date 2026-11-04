@@ -14,9 +14,15 @@ import DataTable from '../../components/ui/DataTable'
 import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
 import Skeleton from '../../components/ui/Skeleton'
-import { ETIQUETA_ESTADO, ETIQUETA_SINCRONIZACION, etiquetaTipoCierre, obtenerActividad } from '../../api/resources/actividades'
+import {
+  ETIQUETA_ESTADO,
+  ETIQUETA_SINCRONIZACION,
+  SIN_FIN,
+  etiquetaTipoCierre,
+  obtenerActividad,
+} from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFechaHora } from '../../lib/format'
+import { formatearFecha, formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 
 const ETIQUETA_MODULO = {
@@ -59,8 +65,10 @@ export default function DetalleSesion({ sesion, onCerrar }) {
     <Modal
       open={Boolean(sesion)}
       onClose={onCerrar}
-      title="Detalle de la sesión"
-      subtitle={sesion?.id}
+      // "Actividad" y no "sesión": es lo que lista el módulo y lo que dice el
+      // Inicio. Y el subtítulo dice CUÁNDO, no el UUID interno (U28).
+      title="Detalle de la actividad"
+      subtitle={sesion?.inicio ? `Actividad del ${formatearFechaHora(sesion.inicio)}` : undefined}
       footer={<Button variant="ghost" onClick={onCerrar}>Cerrar</Button>}
     >
       {!enLinea && (
@@ -88,10 +96,10 @@ export default function DetalleSesion({ sesion, onCerrar }) {
       {enLinea && !consulta.isError && !esperando && (
         <div className="flex flex-col gap-5">
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Dato etiqueta="Fecha">{d?.fecha}</Dato>
+            <Dato etiqueta="Fecha">{d?.fecha && formatearFecha(d.fecha)}</Dato>
             <Dato etiqueta="Inicio">{d?.inicio && formatearFechaHora(d.inicio)}</Dato>
-            {/* En curso: el caso de uso pide "No aplica", no una celda vacía. */}
-            <Dato etiqueta="Fin">{d?.fin ? formatearFechaHora(d.fin) : 'No aplica'}</Dato>
+            {/* En curso: el caso de uso pide un guion, no una celda vacía. */}
+            <Dato etiqueta="Fin">{d?.fin ? formatearFechaHora(d.fin) : SIN_FIN}</Dato>
             <Dato etiqueta="Estado">
               {d?.estado && <Badge tone={d.estado === 'en_curso' ? 'info' : 'neutral'}>{ETIQUETA_ESTADO[d.estado] ?? d.estado}</Badge>}
             </Dato>

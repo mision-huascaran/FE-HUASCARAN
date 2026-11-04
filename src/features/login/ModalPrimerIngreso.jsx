@@ -55,7 +55,7 @@ export default function ModalPrimerIngreso({ abierto, correo, temporal, onListo,
         passwordNueva: password,
         confirmacion,
       })
-      toast.success('Contraseña establecida', 'Ya puede trabajar con normalidad.')
+      toast.success('Contraseña establecida', 'Ya puedes trabajar con normalidad.')
       // Trae token: el usuario entra directamente, sin pasar otra vez por el
       // formulario de login.
       onListo(sesion)
@@ -95,7 +95,7 @@ export default function ModalPrimerIngreso({ abierto, correo, temporal, onListo,
       }
     >
       <p className="rounded-xl border border-info-600/20 bg-info-100 p-4 text-sm text-ink-700">
-        {`La contraseña que recibió por correo es temporal y caduca a las 48 horas. Elija una definitiva para
+        {`La contraseña que recibiste por correo es temporal y caduca a las 48 horas. Elige una definitiva para
         continuar: al guardarla entrará directamente, sin volver a iniciar sesión.`}
       </p>
 
@@ -120,7 +120,7 @@ export default function ModalPrimerIngreso({ abierto, correo, temporal, onListo,
           })}
         </ul>
         <Input
-          label="Repita la nueva contraseña"
+          label="Repite la nueva contraseña"
           type="password"
           required
           value={confirmacion}

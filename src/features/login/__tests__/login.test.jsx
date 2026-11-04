@@ -40,7 +40,7 @@ describe('LoginPage', () => {
     await userEvent.type(screen.getByLabelText(/Contraseña/), '123')
     await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
 
-    expect(await screen.findByText('Ingrese un correo válido')).toBeInTheDocument()
+    expect(await screen.findByText('Ingresa un correo válido')).toBeInTheDocument()
     expect(screen.getByText('La contraseña debe tener al menos 8 caracteres')).toBeInTheDocument()
   })
 

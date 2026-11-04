@@ -34,6 +34,7 @@ export default function BloqueEvolucion({ filtros, contexto, hayCambios, anioEsc
 
   const anios = consulta.data?.anios ?? []
   const mensaje = consulta.data?.mensaje
+  const hayEvolucion = anios.length > 1
 
   return (
     <BloqueDashboard
@@ -47,17 +48,21 @@ export default function BloqueEvolucion({ filtros, contexto, hayCambios, anioEsc
       acciones={anios.some((a) => a.parcial) && <Badge tone="warning">Parcial</Badge>}
     >
       <div className="flex flex-col gap-5">
-        <Grafica
-          titulo="Alumnos atendidos por año escolar"
-          contexto={contexto}
-          anioEscolar={anioEscolar}
-          hayDatos={anios.length > 0}
-          avisos={[mensaje]}
-        >
-          <GraficaLineas datos={anios} campo="alumnos_atendidos" sufijo="" />
-        </Grafica>
+        {/* Con UN solo año no hay evolución: una línea de un punto parece una
+            gráfica rota, y la cifra ya está en la tabla (U10). */}
+        {hayEvolucion && (
+          <Grafica
+            titulo="Alumnos atendidos por año escolar"
+            contexto={contexto}
+            anioEscolar={anioEscolar}
+            hayDatos={anios.length > 0}
+            avisos={[mensaje]}
+          >
+            <GraficaLineas datos={anios} campo="alumnos_atendidos" sufijo="" />
+          </Grafica>
+        )}
 
-        {conLibros && (
+        {conLibros && hayEvolucion && (
           <Grafica
             titulo="Libros leídos por año escolar"
             contexto={contexto}

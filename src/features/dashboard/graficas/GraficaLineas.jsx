@@ -33,9 +33,25 @@ function tramos(puntos) {
   return salida
 }
 
+const PASOS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]
+
+/**
+ * El tope del eje, REDONDO (auditoría de UX #737, U10): con el máximo tal cual,
+ * las cuatro marcas salían como 687 / 1374 / 2060 / 2747. Se busca un paso
+ * "limpio" (1, 1.5, 2, 2.5… por potencia de 10) que cubra el máximo en cuatro
+ * tramos, y nunca menor que 1 porque se cuentan alumnos y libros enteros.
+ */
+export function topeRedondo(maximo) {
+  const crudo = maximo / 4
+  if (!Number.isFinite(crudo) || crudo <= 1) return 4
+  const magnitud = 10 ** Math.floor(Math.log10(crudo))
+  const paso = PASOS.map((p) => p * magnitud).find((p) => p >= crudo)
+  return paso * 4
+}
+
 export default function GraficaLineas({ datos = [], campo = 'porcentaje', sufijo = ' %', color = MARCA, maximo }) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
-  const tope = maximo ?? Math.max(1, ...valores)
+  const tope = maximo ?? topeRedondo(Math.max(1, ...valores))
   const util = ANCHO - IZQUIERDA - DERECHA
   const alturaUtil = ALTO - ARRIBA - ABAJO
   const paso = datos.length > 1 ? util / (datos.length - 1) : 0

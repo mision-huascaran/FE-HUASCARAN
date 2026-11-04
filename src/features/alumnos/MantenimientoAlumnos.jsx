@@ -189,6 +189,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Colegio',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(permitidos.colegios, 'id_colegio'),
       },
       {
@@ -196,6 +198,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Grado',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(permitidos.grados, 'id_grado'),
       },
       /**
@@ -229,6 +233,8 @@ export default function MantenimientoAlumnos() {
         etiqueta: 'Subprograma',
         tipo: 'select',
         requerido: true,
+        // Con una sola opción no hay nada que elegir (U27).
+        unicaPorDefecto: true,
         opciones: opciones(programas, 'id_programa'),
       },
       /**
@@ -394,7 +400,28 @@ export default function MantenimientoAlumnos() {
       ]}
       campos={campos}
       columnas={[
-        { key: 'nombre', header: 'Alumno', sortable: true, className: 'font-medium text-ink-900' },
+        {
+          key: 'nombre',
+          header: 'Alumno',
+          sortable: true,
+          className: 'font-medium text-ink-900',
+          /**
+           * CU014/CU015: el NOMBRE abre el detalle del alumno (resumen,
+           * lectura, rúbrica y vuelo). Antes era un "Ver detalle" en una
+           * columna aparte, junto al "Ver" de Acciones: dos accesos con casi
+           * el mismo nombre en la misma fila (auditoría de UX #737, U06).
+           */
+          render: (a) => (
+            <Link
+              to={`/estudiantes/${idDeAlumno(a)}`}
+              title="Ver detalle del alumno"
+              className="font-semibold text-brand-700 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {a.nombre}
+            </Link>
+          ),
+        },
         /**
          * `sortValue` en TODAS las que se ordenan, y no es opcional: estos
          * campos llegan como texto desde el simulador y como objeto
@@ -433,21 +460,6 @@ export default function MantenimientoAlumnos() {
           sortable: true,
           sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
           render: (a) => etiquetaDe(a.programa ?? a.subprograma),
-        },
-        // CU015: el detalle del alumno (resumen, lectura, rúbrica y vuelo).
-        {
-          key: 'detalle',
-          header: 'Detalle',
-          align: 'center',
-          render: (a) => (
-            <Link
-              to={`/estudiantes/${idDeAlumno(a)}`}
-              className="text-sm font-semibold text-brand-700 hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Ver detalle
-            </Link>
-          ),
         },
       ]}
     />

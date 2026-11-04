@@ -36,7 +36,7 @@
 //     que habilita es un permiso excepcional.
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCheck, CalendarX2, Ban } from 'lucide-react'
+import { CheckCheck, CalendarClock, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
@@ -45,6 +45,7 @@ import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
+import { marcadorDeColegio, debeElegirColegio } from '../../hooks/useFiltrosDeGrupo'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
@@ -58,6 +59,7 @@ import { ACCION, puede } from '../../auth/permisos'
 import useActividadStore from '../../store/actividadStore'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
+import { formatearDiaLargo } from '../../lib/format'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -103,6 +105,22 @@ const RECHAZO = {
   colegio_inexistente: { titulo: 'El colegio no existe' },
   grado_no_ofrecido: { titulo: 'Ese grado no se dicta en este colegio' },
   programa_no_ofrecido: { titulo: 'Ese subprograma no se dicta en esta clase' },
+}
+
+const SUBTITULO = {
+  registra: 'Cada marca se guarda al tocarla.',
+  consulta: 'Modo consulta: no puedes modificar asistencias.',
+}
+
+/** "Clase programada · martes 03/11/2026" (U23). */
+function EtiquetaDeClase({ etiqueta, fecha }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium text-ink-700">
+      <CalendarClock className="h-4 w-4 text-ink-400" aria-hidden="true" />
+      <span>{etiqueta ?? 'Clase adicional'}</span>
+      {fecha && <span className="font-normal text-ink-500">· {formatearDiaLargo(fecha)}</span>}
+    </span>
+  )
 }
 
 export default function AsistenciaPage() {
@@ -249,8 +267,8 @@ export default function AsistenciaPage() {
    * pantalla aparente un colegio que el filtro no tiene.
    */
   useEffect(() => {
-    if (!filtros.idColegio && colegios.length) cambiar('colegio', String(colegios[0].id_colegio))
-  }, [colegios, filtros.idColegio, cambiar])
+    if (!filtros.idColegio && debeElegirColegio(esDocente, colegios)) cambiar('colegio', String(colegios[0].id_colegio))
+  }, [colegios, filtros.idColegio, cambiar, esDocente])
 
   /**
    * El grado y el subprograma DEPENDEN del colegio, así que no basta con
@@ -436,9 +454,11 @@ export default function AsistenciaPage() {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencia</h1>
+        {/* El mismo nombre que en el menú (U21), y un subtítulo que diga lo que
+            le toca a cada rol (U14): el Supervisor solo consulta. */}
+        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencias</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Se guarda sola: cada marca se registra al momento, sin botón de guardar.
+          {SUBTITULO[puedeEditar ? 'registra' : 'consulta']}
         </p>
       </header>
 
@@ -482,6 +502,7 @@ export default function AsistenciaPage() {
         secciones={secciones}
         docentes={docentes}
         eligeDocente={!puedeEditar}
+        placeholderColegio={marcadorDeColegio(esDocente)}
       />
 
       {!listos && (
@@ -507,9 +528,9 @@ export default function AsistenciaPage() {
             La etiqueta del servidor o, si todavía no hay clase y el Docente
             decidió registrar una adicional, la que tendrá al guardarse.
           */}
-          <span className="rounded-full bg-ink-100 px-3 py-1 font-medium text-ink-700">
-            {datosClase?.etiqueta ?? 'Clase adicional'}
-          </span>
+          {/* Con su fecha y sin forma de botón (U23): "Clase programada" suelta,
+              en una píldora, parecía algo que se podía pulsar. */}
+          <EtiquetaDeClase etiqueta={datosClase?.etiqueta} fecha={filtros.fecha} />
           {datosClase?.aviso && <span className="text-ink-500">{datosClase.aviso}</span>}
 
           {/*

@@ -7,7 +7,7 @@ const ACCESOS = [
     to: '/seguimiento-lectura',
     icon: BookOpenCheck,
     titulo: 'Seguimiento de Lectura',
-    descripcion: 'La tabla semanal de su grupo: LSN, LSL y observaciones.',
+    descripcion: 'La tabla semanal de tu grupo: LSN, LSL y observaciones.',
   },
   {
     to: '/rubrica',

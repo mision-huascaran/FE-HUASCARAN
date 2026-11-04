@@ -106,7 +106,7 @@ export default function MantenimientoColegios() {
         opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
         validar: (valor) => {
           const elegidos = comoGradosConDia(valor)
-          if (!elegidos.length) return 'Elija al menos un grado'
+          if (!elegidos.length) return 'Elige al menos un grado'
           const faltan = sinDiaDeClase(valor)
           if (!faltan.length) return null
           // Les pasa a los colegios creados antes de que existiera el campo:

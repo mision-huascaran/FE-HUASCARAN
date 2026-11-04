@@ -97,8 +97,8 @@ export default function UiKitPage() {
         }
       >
         <div className="flex flex-col gap-4">
-          <Select label="Fluidez lectora" required placeholder="Seleccione" options={NIVELES} />
-          <Select label="Comprensión lectora" required placeholder="Seleccione" options={NIVELES} />
+          <Select label="Fluidez lectora" required placeholder="Selecciona" options={NIVELES} />
+          <Select label="Comprensión lectora" required placeholder="Selecciona" options={NIVELES} />
           <Input label="Nivel inicial Raz-Kids" value="F" disabled hint="Automático (RN-005)" />
         </div>
       </Drawer>

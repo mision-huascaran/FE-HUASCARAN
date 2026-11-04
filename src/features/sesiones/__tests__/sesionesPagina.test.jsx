@@ -1,7 +1,7 @@
 // CU017 y CU019 — Listado y detalle de las sesiones del Docente.
 //
 // Las reglas que se fijan aquí: estado y sincronización son columnas
-// INDEPENDIENTES, una sesión en curso dice "No aplica" en vez de dejar huecos,
+// INDEPENDIENTES, una sesión en curso muestra un guion en vez de dejar huecos,
 // y el módulo es estrictamente en línea.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -71,7 +71,7 @@ describe('Listado de sesiones (CU017)', () => {
     expect(await screen.findByText('4 h 30 min', {}, ESPERA)).toBeInTheDocument()
   })
 
-  it('una sesión en curso dice "No aplica" en fin y tipo de cierre', async () => {
+  it('una sesión en curso muestra un guion en fin y tipo de cierre (CU017)', async () => {
     listar.mockResolvedValue(
       pagina([{ ...FINALIZADA, fin: null, tipo_cierre: null, estado: 'en_curso', duracion_segundos: 1800 }]),
     )
@@ -79,7 +79,7 @@ describe('Listado de sesiones (CU017)', () => {
     // Se espera a la DURACIÓN, no a "En curso": ese texto también es una
     // opción del filtro de estado y existe antes de que carguen los datos.
     expect(await screen.findByText('30 min', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.getAllByText('No aplica')).toHaveLength(2)
+    expect(screen.getAllByText('–')).toHaveLength(2)
   })
 
   it('sin sesiones lo dice en vez de dejar la tabla muda', async () => {

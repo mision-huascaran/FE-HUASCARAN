@@ -13,7 +13,14 @@
 // el tono oscuro del mismo color, y los lados no elegidos en gris claro.
 import { Check, Clock, X } from 'lucide-react'
 
-const APAGADO = 'bg-surface-100 text-ink-400 hover:bg-line hover:text-ink-700'
+/**
+ * "Sin marcar" y "deshabilitado" NO pueden verse igual (auditoría de UX #737,
+ * U05). Los dos iban en gris tenue, y con la actividad ya iniciada el docente
+ * no sabía si podía marcar. Sin marcar sigue en gris claro, como pide el caso
+ * de uso, pero con el texto OSCURO; deshabilitado se apaga del todo.
+ */
+const APAGADO = 'bg-surface-100 text-ink-700 hover:bg-line hover:text-ink-900'
+const APAGADO_DESHABILITADO = 'bg-surface-100 text-ink-400'
 
 const LADOS = [
   {
@@ -39,6 +46,11 @@ const LADOS = [
   },
 ]
 
+function claseDeLado(lado, elegido, deshabilitado) {
+  if (elegido) return deshabilitado ? `${lado.encendido} cursor-not-allowed opacity-60` : lado.encendido
+  return deshabilitado ? `${APAGADO_DESHABILITADO} cursor-not-allowed opacity-50` : APAGADO
+}
+
 export default function ControlSegmentado({ valor, nombre, deshabilitado, onElegir }) {
   return (
     <fieldset
@@ -62,8 +74,7 @@ export default function ControlSegmentado({ valor, nombre, deshabilitado, onEleg
             className={[
               'flex items-center gap-1.5 border-r border-line px-3 py-1.5 text-sm font-semibold transition-colors last:border-r-0',
               lado.redondeo,
-              elegido ? lado.encendido : APAGADO,
-              deshabilitado ? 'cursor-not-allowed opacity-60' : '',
+              claseDeLado(lado, elegido, deshabilitado),
             ].join(' ')}
           >
             <Icono className="h-4 w-4" aria-hidden="true" />

@@ -13,6 +13,7 @@
 // al docente a un error evitable, así que la lista ya viene filtrada.
 import Select from '../../components/ui/Select'
 import { ESTADO_RUBRICA, comoNota, nivelesDe } from '../../api/resources/rubricaMensual'
+import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -37,7 +38,7 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
 
   return (
     <tr className="border-t border-line">
-      <td className="px-3 py-2">
+      <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <span className="font-medium text-ink-900">{fila.nombre}</span>
         {fila.inactivo && (
           <span
@@ -87,7 +88,11 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
         es F×0,40 + C×0,60. Se pinta con un decimal, y en blanco mientras falte
         una dimensión: una nota a medias no es una nota.
       */}
-      <td className="px-3 py-2 text-center font-semibold text-ink-900">{nota ?? '—'}</td>
+      {/* Sobre cuánto es (U20): "4.0" solo no dice si es un 4 de 4 o de 20. */}
+      <td className="px-3 py-2 text-center font-semibold text-ink-900" title={nota ? 'Escala de 0 a 4' : undefined}>
+        {nota ?? '—'}
+        {nota && <span className="text-xs font-normal text-ink-500"> / 4</span>}
+      </td>
 
       <td className="px-3 py-2 text-center">
         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${TONO[estado.tono]}`}>

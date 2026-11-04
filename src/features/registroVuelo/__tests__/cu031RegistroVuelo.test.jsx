@@ -23,6 +23,7 @@ import { ROLES } from '../../../auth/roles'
 import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
+import { elegirPrimerColegio } from '../../../test/elegirColegio'
 import { errorHttp } from '../../../test/fabricas'
 
 const ESPERA = { timeout: 8000 }
@@ -587,6 +588,7 @@ describe('La habilitación es por periodo', () => {
     )
 
     montar(ROLES.JEFA)
+    await elegirPrimerColegio(ESPERA)
 
     await screen.findByText(/el Supervisor consulta el Registro de Vuelo en solo lectura/i, {}, ESPERA)
     expect(screen.getByLabelText(/nivel colocado de/i)).toBeDisabled()

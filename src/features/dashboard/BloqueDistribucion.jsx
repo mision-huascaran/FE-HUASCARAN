@@ -51,6 +51,7 @@ export default function BloqueDistribucion({ filtros, contexto, hayCambios, anio
       <div className="flex flex-col gap-5">
         <Grafica
           titulo="Distribución de alumnos por subprograma"
+          tituloVisible={false}
           contexto={[...contexto, corte ? `Pertenencia al ${formatearFecha(corte)}` : null]}
           anioEscolar={anioEscolar}
           hayDatos={partes.length > 0}

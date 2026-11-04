@@ -14,8 +14,8 @@ export default function ModalCredencialDocente({ credencial, onCerrar }) {
     <Modal
       open={Boolean(credencial)}
       onClose={onCerrar}
-      title="Entregue esta contraseña"
-      subtitle="No se pudo enviar el correo de bienvenida, así que debe dársela usted"
+      title="Entrega esta contraseña"
+      subtitle="No se pudo enviar el correo de bienvenida, así que debes dársela tú"
       size="max-w-lg"
       footer={<Button onClick={onCerrar}>Entendido</Button>}
     >

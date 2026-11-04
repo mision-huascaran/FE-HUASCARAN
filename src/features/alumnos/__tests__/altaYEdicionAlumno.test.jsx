@@ -113,7 +113,7 @@ describe('Alumnos — guardar desde el popup', () => {
     fireEvent.change(programa, { target: { value: idPrograma } })
     fireEvent.change(within(dialogo).getByLabelText(/^Pertenece al grupo desde/), { target: { value: hoy() } })
 
-    // El grado tiene una sola sección: el desplegable no se queda en "Seleccione".
+    // El grado tiene una sola sección: el desplegable no se queda en "Selecciona".
     const seccion = within(dialogo).getByLabelText(/^Sección/)
     await waitFor(() => expect(seccion.value).not.toBe(''), ESPERA)
 

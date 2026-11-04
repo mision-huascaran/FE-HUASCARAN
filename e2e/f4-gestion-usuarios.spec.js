@@ -125,7 +125,7 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
       if (creado.correo_enviado === false) {
         temporal = creado['contraseña_temporal']
         expect(temporal, 'contraseña_temporal en la respuesta').toBeTruthy()
-        await page.getByRole('dialog', { name: 'Entregue esta contraseña' }).getByRole('button', { name: 'Entendido' }).click()
+        await page.getByRole('dialog', { name: 'Entrega esta contraseña' }).getByRole('button', { name: 'Entendido' }).click()
       } else {
         await expect(page.getByRole('status').filter({ hasText: 'Cuenta creada' })).toBeVisible()
       }
@@ -160,7 +160,7 @@ test('F4 · Gestión de usuarios: alta de un Docente, primer ingreso, inactivaci
         // El navegador escribe un marcador; la contraseña real la pone Node.
         await sustituirPrimerIngreso(page, { temporal, nueva })
         await modal.getByLabel('Nueva contraseña', { exact: true }).fill(MARCADOR_PASSWORD_NUEVA)
-        await modal.getByLabel('Repita la nueva contraseña').fill(MARCADOR_PASSWORD_NUEVA)
+        await modal.getByLabel('Repite la nueva contraseña').fill(MARCADOR_PASSWORD_NUEVA)
         await evidencia(page, 'primer-ingreso-formulario')
 
         const primerIngreso = page.waitForResponse((r) => esApi(r, '/password/primer-ingreso', 'POST'))
