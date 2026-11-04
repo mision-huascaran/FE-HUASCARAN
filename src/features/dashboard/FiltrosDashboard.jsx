@@ -73,12 +73,16 @@ export default function FiltrosDashboard({
         />
       </CeldaFiltro>
 
-      <div className="ml-auto flex shrink-0 flex-col items-end gap-2">
-        <Button type="submit" iconLeft={Filter} disabled={!completos}>
+      {/* En móvil el botón ocupa la fila entera: pegado al último filtro y a
+          media anchura, se perdía entre los desplegables. */}
+      <div className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:ml-auto sm:w-auto sm:items-end">
+        <Button type="submit" iconLeft={Filter} disabled={!completos} className="w-full sm:w-auto">
           Aplicar
         </Button>
-        {hayCambios && <span className="text-xs font-semibold text-warning-600">{CAMBIOS_SIN_APLICAR}</span>}
-        {aviso && <span className="max-w-xs text-right text-xs text-warning-600">{aviso}</span>}
+        {hayCambios && (
+          <span className="text-xs font-semibold text-warning-600 sm:text-right">{CAMBIOS_SIN_APLICAR}</span>
+        )}
+        {aviso && <span className="text-xs text-warning-600 sm:max-w-xs sm:text-right">{aviso}</span>}
       </div>
     </form>
   )

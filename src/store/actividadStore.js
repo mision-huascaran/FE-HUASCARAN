@@ -14,6 +14,7 @@
 import dayjs from 'dayjs'
 import { create } from 'zustand'
 import { ahora, hayContinuidad } from '../lib/relojServidor'
+import { nuevoUuid } from '../lib/uuid'
 
 /** Vigencia máxima de una actividad, igual que la del JWT (CU007). */
 export const HORAS_DE_VIGENCIA = 8
@@ -26,15 +27,6 @@ export const HORAS_DE_VIGENCIA = 8
 export const horaFinDe = (inicio) => dayjs(inicio).add(HORAS_DE_VIGENCIA, 'hour')
 
 const CLAVE = 'sicedu.actividad'
-
-/** `crypto.randomUUID` no existe en navegadores viejos ni en algunos jsdom. */
-function uuid() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
 
 /** Se restaura al recargar: una recarga no debe cerrar las actividades. */
 function leerGuardada() {
@@ -65,7 +57,7 @@ const useActividadStore = create((set, get) => ({
 
   iniciar: ({ idDocente } = {}) => {
     const sesion = {
-      id: uuid(),
+      id: nuevoUuid(),
       id_docente: idDocente ?? null,
       // La hora del servidor, como `fin` (D99): con la del equipo, un reloj
       // adelantado mandaba un inicio futuro y uno atrasado lo dejaba antes de

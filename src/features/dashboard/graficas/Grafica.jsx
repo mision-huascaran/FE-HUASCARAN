@@ -76,7 +76,21 @@ export default function Grafica({
         </Button>
       </div>
 
-      <div ref={caja}>{children}</div>
+      {/*
+        EN MÓVIL LA GRÁFICA NO SE ENCOGE: SE DESPLAZA.
+        
+        Un gráfico de 680 de ancho metido en 360 reduce sus etiquetas a la
+        mitad: los meses y los valores dejan de leerse, y una gráfica que no se
+        lee no es una gráfica. Se le deja su ancho mínimo y se desliza en
+        horizontal, que es lo que ya hacen las tablas anchas de la aplicación.
+        
+        A partir de `sm` entra entera y el `min-w` no estorba.
+      */}
+      <div className="sicedu-scrollbar -mx-1 overflow-x-auto px-1">
+        <div ref={caja} className="min-w-[560px] sm:min-w-0">
+          {children}
+        </div>
+      </div>
 
       {avisos.filter(Boolean).map((aviso) => (
         <p key={aviso} className="mt-2 text-xs text-warning-600">

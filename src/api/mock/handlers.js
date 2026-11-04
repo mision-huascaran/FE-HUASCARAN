@@ -130,6 +130,22 @@ function errorMock(status, detail, motivo, errores) {
 
 const ACTIVIDADES_MOCK = {}
 
+/**
+ * Los tres estados de sincronización que la pantalla pinta distinto.
+ *
+ * Con todos en "al_dia" no se ve si el color o el texto de los otros dos
+ * siguen funcionando, que es justo lo que mira el Supervisor en CU020.
+ */
+const SINCRONIZACIONES_DE_PRUEBA = ['al_dia', 'pendiente', 'sin_informacion']
+
+/** Los colegios del docente, con nombre: la tabla de CU020 pinta `c.nombre`. */
+const colegiosConNombre = (idDocente) =>
+  db
+    .colegiosAsignadosA(idDocente, db.PERIODO_VIGENTE.id_periodo)
+    .map((id) => db.COLEGIOS.find((c) => c.id_colegio === id))
+    .filter(Boolean)
+    .map((c) => ({ id_colegio: c.id_colegio, nombre: c.nombre }))
+
 // Marcas de asistencia tomadas durante la sesion (CU022). Viven aqui y no en
 // `db`, que se importa de solo lectura. Y viven POR CLASE, no por alumno: desde
 // la tanda 6 la unicidad es (clase, alumno), no (alumno, fecha, subprograma).
@@ -1485,8 +1501,20 @@ export const handlers = {
     opciones: async ({ idColegio }) => {
       const colegio = db.COLEGIOS.find((c) => c.id_colegio === Number(idColegio))
       return responder({
+        /**
+         * TODOS LOS PA CUYO PLAZO ORDINARIO YA TERMINÓ, no los dos primeros.
+         *
+         * Estaba escrito `numero < 3`, un corte fijo que dejaba fuera el PA3
+         * para siempre: en noviembre, con el PA3 cerrado el 31 de octubre, el
+         * Supervisor no podía otorgar un permiso para regularizarlo —que es
+         * exactamente para lo que existe CU028—.
+         *
+         * La regla de verdad es la fecha: un periodo todavía en curso no
+         * aparece porque admite regularización ordinaria y no necesita
+         * permiso. Lo dice el texto de ayuda del propio modal.
+         */
         periodos: CALENDARIO_MOCK.periodos
-          .filter((p) => p.tipo === 'PA' && p.numero < 3)
+          .filter((p) => p.tipo === 'PA' && p.fecha_fin < hoyLima())
           .map((p) => ({ id: p.id_periodo_academico, nombre: `PA${p.numero}` })),
         grados: db.GRADOS.map((g) => ({ id: g.id_grado, nombre: g.nombre })),
         colegio: colegio ? { id: colegio.id_colegio, nombre: colegio.nombre } : null,
@@ -2370,22 +2398,33 @@ export const handlers = {
     },
 
     /** CU020: primero los pendientes, luego alfabetico. Hoy todos al dia. */
+    /**
+     * LA COLUMNA "DOCENTE" SALÍA VACÍA, y con ella la pantalla entera parecía
+     * rota: tres filas sin nombre, sin colegios y con "Ver detalle".
+     *
+     * Partía un campo `nombre` que `db.DOCENTES` no tiene —sus docentes llevan
+     * `nombres` y `apellidos` por separado, igual que el backend—, así que
+     * `d.nombre?.split(...)` daba `undefined` y la celda se quedaba en blanco.
+     * Los colegios iban en `[]` fijo por el mismo descuido.
+     */
     seguimiento: () =>
       responder({
-        items: db.DOCENTES.map((d) => ({
+        items: db.DOCENTES.map((d, i) => ({
           id_docente: d.id_docente,
-          nombres: d.nombre?.split(' ')[0] ?? d.nombre,
-          apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+          nombres: d.nombres,
+          apellidos: d.apellidos,
           activo: d.activo !== false,
-          colegios: [],
-          ultima_conexion: null,
-          sincronizacion: 'al_dia',
-          registros_pendientes: 0,
+          colegios: colegiosConNombre(d.id_docente),
+          // Uno sin conectarse nunca, para no perder de vista ese caso: es el
+          // que la pantalla distingue de "al día" (A1 del documento externo).
+          ultima_conexion: i === 2 ? null : `2026-11-0${i + 1}T08:3${i}:00`,
+          sincronizacion: SINCRONIZACIONES_DE_PRUEBA[i % SINCRONIZACIONES_DE_PRUEBA.length],
+          registros_pendientes: i === 1 ? 4 : 0,
         })),
         total: db.DOCENTES.length,
         pagina: 1,
         paginas: 1,
-        por_pagina: 10,
+        por_pagina: 40,
       }),
 
     seguimientoDocente: (idDocente) => {
@@ -2393,11 +2432,11 @@ export const handlers = {
       if (!d) return Promise.reject(errorMock(404, 'El detalle solicitado no se encuentra disponible.', 'docente_no_encontrado'))
       return responder({
         id_docente: d.id_docente,
-        nombres: d.nombre?.split(' ')[0] ?? d.nombre,
-        apellidos: d.nombre?.split(' ').slice(1).join(' ') ?? '',
+        nombres: d.nombres,
+        apellidos: d.apellidos,
         activo: d.activo !== false,
-        colegios: [],
-        ultima_conexion: null,
+        colegios: colegiosConNombre(d.id_docente),
+        ultima_conexion: '2026-11-01T08:30:00',
         sincronizacion: 'al_dia',
         registros_pendientes: 0,
       })

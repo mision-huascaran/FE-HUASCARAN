@@ -51,7 +51,7 @@ L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
 |---|---|---|
 | [1. El trabajo offline que nadie ve](#1-el-trabajo-offline-que-nadie-ve) | Un docente que nunca se conectó sale "Al día" en verde (A1–A5, B1–B3, F1–F3) | Analista y backend |
 | [2. Pantallas del mockup antiguo](#anexo-pantallas-del-mockup-antiguo--%E2%9C%85-resuelto) | ✅ Resuelto: las nueve rutas sin caso de uso ya no existen | — |
-| [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s23) | S1 a S23: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
+| [3. Sprint de la semana 12](#anexo-el-sprint-de-la-semana-12-s1-a-s26) | S1 a S26: lo que se decidió sobre la marcha, lo que falta del servidor y lo que abrieron la ronda 6 y el Dashboard | Analista y backend |
 
 **Lo que queda.** Los siete son de Carlos (analista): los cinco primeros
 venían del sprint y los dos siguientes los abrió la **ronda 6** del tester.
@@ -241,7 +241,7 @@ las tomó por producto. Esa puerta está cerrada.
 código se borró, pero CU033, CU034 y CU035 siguen completos en la biblia.
 
 ---
-# Anexo: el sprint de la semana 12 (S1 a S23)
+# Anexo: el sprint de la semana 12 (S1 a S26)
 
 Anotado el 28/10/2026, mientras se implementaba `docs/plan-semana12-front.md`.
 Cada punto es algo que **no se resuelve escribiendo código**.
@@ -595,6 +595,134 @@ periodo académico es un 422.
 
 </details>
 
+**S24. Los nombres del Seguimiento: ¿qué campos manda `GET /seguimiento/docentes`?**
+Lo abrió el 03/11/2026 un hallazgo de Antonio: la tabla del Supervisor salía
+con **tres filas sin nombre y sin colegios**, solo con el botón "Ver detalle".
+
+En el simulador era un descuido nuestro y ya está corregido (partía un campo
+`nombre` que no existe). **Contra el servidor real no se ha podido comprobar**,
+porque hace falta el backend levantado con docentes de prueba.
+
+El front ahora acepta las tres formas antes de rendirse —`nombres` +
+`apellidos`, `nombre_completo` o `nombre`— y, si no llega ninguna, escribe "Sin
+nombre registrado" en vez de dejar la celda vacía. Así una respuesta con otro
+nombre de campo se nota, pero no deja la pantalla muda.
+
+**Lo que se pide:** confirmar qué trae cada fila de `GET /seguimiento/docentes`
+—en concreto el nombre y `colegios[]`— para quitar el respaldo y quedarnos con
+el campo bueno. Si la tabla sigue saliendo sin nombres contra el servidor real,
+es esto y no el front.
+
+**S25. El 404 de `GET /lectura/tablas` tiene que traer `clase_referencia_sugerida`.**
+De la misma tanda de hallazgos, y es lo que permite que la pantalla **se
+adelante al error**.
+
+CU024 exige que la clase de referencia sea lectiva y **no futura**. Cuando el
+Docente entra a una semana en curso cuya clase es, por ejemplo, el viernes,
+pulsar "Crear la tabla" el jueves termina en "La clase de referencia todavía no
+se ha realizado": el botón prometía algo imposible. Ahora el front compara la
+fecha **con el reloj del servidor** y lo dice antes de pulsar.
+
+Eso solo funciona si el 404 `tabla_no_existe` sigue trayendo
+`clase_referencia_sugerida: {id_clase, fecha, tipo, reprogramada}`. Si algún día
+deja de venir, el front vuelve a no saber la fecha y el aviso desaparece —no
+rompe nada, pero se pierde—. **Queda anotado como algo que no se puede quitar
+del contrato sin avisar.**
+
+**S26. ¿Qué periodos devuelve `GET /permisos/opciones`?**
+El desplegable "Periodo académico" de "Otorgar permiso" solo ofrecía PA1 y PA2.
+En el simulador era un corte fijo (`numero < 3`) y ya está corregido por fecha.
+
+**La regla que aplica el front es la que dice el propio modal**: aparecen los
+periodos cuyo **plazo ordinario ya terminó**, porque los que siguen en curso
+admiten regularización por la vía normal y no necesitan permiso. Hoy, 3 de
+noviembre, eso son PA1, PA2 y **PA3** —cerrado el 31 de octubre—.
+
+**Lo que se pide:** confirmar que el servidor aplica esa misma regla. Si contra
+el backend real el PA3 sigue sin aparecer, el Supervisor no puede otorgar un
+permiso para regularizarlo y CU028 se queda sin su caso principal; y entonces el
+arreglo es del servidor, no de la pantalla.
+
+## Verificación del 04/11/2026 contra el servidor real
+
+El entorno de Antonio ya tenía `VITE_ADMIN_REAL=true`, así que Seguimiento,
+Otorgar Permiso, Registro de Vuelo y Seguimiento de Lectura llevan un día
+probándose contra el **servidor real**, no el simulador. Eso resuelve tres de
+las dudas de arriba y abre dos más.
+
+**S24 — resuelto.** `GET /seguimiento/docentes` ya manda `nombres` y
+`apellidos`: la tabla del Supervisor sale con los cinco docentes con su
+nombre y colegio, sin ninguna fila en blanco.
+
+**S26 — resuelto, con un matiz.** El desplegable de "Otorgar permiso" ya
+ofrece PA1, PA2 y PA3. **No ofrece PA4, y eso es correcto, no un defecto**:
+PA4 corre del 09/11 al 30/11 — todavía no empieza —, así que no tiene plazo
+ordinario vencido y no necesita un permiso excepcional. Si un Supervisor
+pregunta por qué no está, esta es la razón.
+
+**S25 — resuelto en la práctica.** Antonio reprogramó una clase de
+referencia futura a una fecha pasada y Seguimiento de Lectura lo aceptó: el
+404 `tabla_no_existe` sigue trayendo `clase_referencia_sugerida`.
+
+**S27 (nuevo). Registro de Vuelo: "Sugerencia" vacía y el aviso
+`alumno_fuera_del_grupo`, los dos son del servidor, no del front.**
+Dos cosas que parecían raras mirando la pantalla, y las dos son el contrato
+funcionando como se diseñó:
+
+- **"Pendiente de evaluar" en Sugerencia** sale cuando el alumno todavía no
+  tiene una rúbrica mensual completa en ese PA de la que sacar una
+  sugerencia — lo dice el propio contrato: *"Sin rúbrica completa o sin
+  entrada no hay sugerencia. Inventar una sería dar por buena una decisión
+  que no se tomó."* En un PA4 recién empezado (19/10), es lo esperable.
+- **"Cueva KEKE · PA1: El estudiante no pertenecía a este grupo en el
+  periodo seleccionado"** es el aviso `alumno_fuera_del_grupo` del
+  contrato, tal cual — el front no inventa el texto, lo copia de
+  `MOTIVO_VUELO`. Si Cueva KEKE sí perteneció a ese grupo en PA1, es un dato
+  de matrícula a corregir en el servidor, no una pantalla que corregir aquí.
+
+**Lo que se pide:** si alguno de los dos avisos no debería salir, revisar en
+el servidor los datos de matrícula o de rúbrica del alumno en cuestión. Los
+dos mensajes son literales del contrato, así que no es un error de
+interpretación del front.
+
+**S28 (nuevo). Seguimiento del Supervisor: la columna "Sincronización" en
+Error para tres docentes — es dato real, no un bug de pantalla.**
+Antonio lo reportó como posible defecto del front. **No lo es**: `error` es
+uno de los cuatro estados reales que manda `GET /seguimiento/docentes`
+(junto con `al_dia`, `pendiente`, `sin_informacion`), y su significado en el
+contrato es *"Un envío fue rechazado y necesita revisión"* — el mismo texto
+que ya aparece al pasar el cursor sobre la etiqueta.
+
+Los tres docentes en Error ("Antonio TEST 5", "Docente de Prueba" y "Paris
+Herrera") son cuentas de prueba. Entrando al detalle de Antonio TEST 5 se ve
+exactamente eso: algunas de sus sesiones en **Sesiones** están en rojo con
+"Error" y otras en verde con "Sincronizada" — la tabla de Seguimiento
+resume bien lo que ya se ve ahí abajo.
+
+**Lo que se pide:** si esas tres cuentas no deberían tener envíos
+rechazados, revisar en el servidor qué operación concreta rechazó cada una.
+No es algo que el front deba "corregir" sin ocultar un aviso real — hacerlo
+escondería sincronizaciones rotas de verdad.
+
+**S29 (nuevo, y este sí era del front — D108). Inicio del Docente: faltaba
+un ciclo en "Mis asignaciones".**
+Antonio encontró un Docente con alumnos de 1.º, 4.º y 5.° grado, y la
+tarjeta decía **"Ciclos: III, V"** — sin el IV del 4.º grado, que sí tenía
+un alumno (Advíncula KEKE) en la tabla de Alumnos, dos pantallas más abajo.
+
+La causa estaba en el front, no en el servidor: `GET /inicio/docente` manda
+`totales.ciclos` como un resumen ya armado, y por separado cada grado de
+`asignaciones` trae también su propio `ciclos`. El código prefería
+`totales.ciclos` con `??`, así que si ese resumen llegaba **presente pero
+incompleto** —el caso de hoy—, tapaba el ciclo que sí estaba bien en el
+grado de 4.º en vez de completarse con él. **Ya corregido:** ahora se unen
+los dos orígenes en vez de elegir uno, con su prueba de regresión.
+
+**Lo que se pide:** de todos modos conviene que `totales.ciclos` en
+`GET /inicio/docente` incluya siempre los ciclos de los seis grados
+asignados — el front ya no se cae si falta alguno, pero un resumen
+incompleto en el propio endpoint sigue siendo un dato a revisar.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -603,9 +731,29 @@ periodo académico es un 422.
   construido, funciona y no estorba: se queda.
 - **El aviso de pendientes del Docente.** Ya existe y cumple CU010.
 
+## Lo que depende del BACKEND (actualizado 04/11/2026)
+
+Tres cosas que Antonio encontró el 03/11 usando la aplicación, y dos más el
+04/11. Las primeras tres (S24, S25, S26) **ya se confirmaron contra el
+servidor real** — ver "Verificación del 04/11/2026" arriba — y no requieren
+ningún cambio más. Las dos nuevas (S27, S28) no son defectos del front: son
+avisos y estados que el servidor manda tal cual, y que conviene revisar del
+lado de los datos si no se esperaban:
+
+| Qué se ve | Dónde mirar | Estado |
+|---|---|---|
+| Seguimiento del Supervisor con filas sin nombre de docente | **S24** | ✅ Resuelto, confirmado contra el servidor real |
+| "Otorgar permiso" sin el PA3 en el desplegable | **S26** | ✅ Resuelto; el PA4 no aparece **a propósito** (todavía no empieza) |
+| Lectura deja pulsar "Crear la tabla" sobre una clase que aún no se ha dictado | **S25** | ✅ Resuelto, confirmado reprogramando una clase |
+| Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27** | ℹ️ Es dato real del servidor; revisar matrícula/rúbrica si no corresponde |
+| Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
+| Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
+
 ## Versión para la ronda 7
 
-- **Frontend:** `development` en el commit final de la ronda 6, segunda parte
-  (ver la tabla "Ronda 6 (segunda parte)" de `docs/plan-semana12-front.md`).
+- **Frontend:** `development` en `579934e` ("barra inferior de secciones y
+  ajuste de las pantallas al teléfono") o posterior. Incluye la ronda 6
+  completa, los hallazgos del 03/11 y la versión móvil (Fases 9 y 9b de
+  `docs/plan-semana12-front.md`).
 - **Backend:** `development` en `34c6191` ("Tanda M: decisiones provisionales
   documentadas, API.md y Sonar") o posterior.

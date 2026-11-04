@@ -129,6 +129,24 @@ export const MATRIZ = {
     [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },
+  /**
+   * EL ORDEN DE ESTE OBJETO ES EL ORDEN DEL MENÚ, y por eso Seguimiento de
+   * Lectura va ANTES que Rúbrica.
+   *
+   * No es una preferencia estética: es el orden en que se trabaja. La lectura
+   * se registra cada SEMANA, sobre la clase de esa semana; la rúbrica, una vez
+   * al MES, y su resultado se apoya en lo que se vino registrando. Un menú que
+   * ponía la mensual encima de la semanal invitaba a entrar primero donde
+   * menos veces hay que entrar.
+   */
+  lectura: {
+    ruta: '/seguimiento-lectura',
+    etiqueta: 'Seguimiento de Lectura',
+    conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
+    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
+    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
+    [DIRECTIVO]: null,
+  },
   rubrica: {
     ruta: '/rubrica',
     etiqueta: 'Rúbrica',
@@ -137,14 +155,6 @@ export const MATRIZ = {
     // D3: el Supervisor mira, no edita ni crea grillas. Llega desde los atajos
     // de solo lectura de Seguimiento (CU021); RF-046 no le da entrada en el
     // menú (D09).
-    [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
-    [DIRECTIVO]: null,
-  },
-  lectura: {
-    ruta: '/seguimiento-lectura',
-    etiqueta: 'Seguimiento de Lectura',
-    conectividad: CONECTIVIDAD.ESCRITURA_OFFLINE,
-    [DOCENTE]: { acciones: [EDITAR, VER, AUDITORIA], alcance: 'asignado', creaGrilla: true },
     [SUPERVISOR]: { acciones: [VER, AUDITORIA], alcance: 'todos' },
     [DIRECTIVO]: null,
   },

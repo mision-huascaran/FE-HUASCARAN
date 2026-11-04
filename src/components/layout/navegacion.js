@@ -31,8 +31,29 @@ const ICONOS = {
   sesiones: History,
 }
 
+/**
+ * Nombres cortos para la BARRA INFERIOR del móvil.
+ *
+ * Debajo de un icono de 20px no caben "Seguimiento de Lectura" ni "Registro de
+ * Vuelo": o se parten en tres líneas o se cortan a la mitad. La etiqueta larga
+ * se queda en el menú lateral y en las migas de pan, que es donde hay sitio;
+ * aquí va la palabra que distingue a esa sección de las demás.
+ */
+const NOMBRES_CORTOS = {
+  lectura: 'Lectura',
+  vuelo: 'Vuelo',
+  asistencia: 'Asistencia',
+  seguimiento: 'Equipo',
+  dashboard: 'Panel',
+}
+
 export const navegacionDe = (idRol) =>
-  seccionesDeMenu(idRol).map((s) => ({ to: s.ruta, label: s.etiqueta, icon: ICONOS[s.clave] ?? Home }))
+  seccionesDeMenu(idRol).map((s) => ({
+    to: s.ruta,
+    label: s.etiqueta,
+    corta: NOMBRES_CORTOS[s.clave] ?? s.etiqueta,
+    icon: ICONOS[s.clave] ?? Home,
+  }))
 
 /** Compatibilidad con las pruebas y pantallas que leían el mapa por rol. */
 export const NAV_BY_ROLE = {

@@ -37,6 +37,8 @@ import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
+import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
+import { esFutura } from '../../lib/relojServidor'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
@@ -138,6 +140,37 @@ export default function LecturaPage() {
   const guardar = (fila, cambios) =>
     guardarFila({ idAlumno: fila.id_alumno, cambios, version: fila.version })
 
+  /**
+   * POR QUÉ NO SE PUEDE CREAR LA TABLA, dicho en el propio estado vacío.
+   *
+   * Antes el botón simplemente NO APARECÍA: la pantalla decía "Esta semana aún
+   * no tiene tabla de lectura. Se creará sobre la clase del 2 de noviembre" y
+   * ahí se acababa. Sin botón y sin motivo, Seguimiento de Lectura parece
+   * averiado —no hay nada que pulsar y nada que leer—, que es justo lo que
+   * reportó el Docente.
+   *
+   * Ahora el botón se muestra siempre y, cuando no se puede, va deshabilitado
+   * con su razón al lado. Es lo mismo que ya hacen CU029 y CU030 con
+   * "Registrar evaluaciones", y lo que pide D59: un control habilitado que no
+   * puede funcionar miente, pero uno que desaparece sin explicación también.
+   */
+  const claseFutura = esFutura(porCrear?.claseSugerida?.fecha)
+  const motivoParaNoCrear = (() => {
+    if (!porCrear?.claseSugerida) return 'Elige antes la clase de referencia de esta semana.'
+    if (!puedeEditar) return 'Tu rol consulta esta pantalla, no registra en ella.'
+    if (!conActividad) return SIN_ACTIVIDAD
+    if (escritura?.permitida === false) return escritura.motivo ?? 'No tienes habilitación para esta semana.'
+    /**
+     * CU024 exige que la fecha efectiva de la clase sea lectiva y NO futura.
+     * La fecha ya viene en el 404, así que se dice antes de pulsar en vez de
+     * dejar que el servidor responda "La clase de referencia todavía no se ha
+     * realizado" cuando ya es tarde.
+     */
+    if (claseFutura) return 'La clase de referencia todavía no se ha dictado. Podrás crear la tabla a partir de esa fecha.'
+    if (!enLinea) return REQUIERE_CONEXION
+    return null
+  })()
+
   return (
     <div className="flex flex-col gap-5">
       <header>
@@ -231,19 +264,30 @@ export default function LecturaPage() {
         <Card>
           <EmptyState
             icon={BookOpenCheck}
-            title="Esta semana aún no tiene tabla de lectura"
+            title={
+              claseFutura
+                ? 'La clase de esta semana todavía no se ha dictado'
+                : 'Esta semana aún no tiene tabla de lectura'
+            }
             description={
               porCrear.claseSugerida
                 ? `Se creará sobre la clase del ${comoFecha(porCrear.claseSugerida.fecha)}, con los alumnos que estaban en ella ese día.`
                 : 'La semana no tiene una clase programada: hace falta elegir la clase de referencia para poder crearla.'
             }
             action={
-              puedeEscribir && porCrear.claseSugerida ? (
+              porCrear.claseSugerida ? (
                 <div className="flex flex-col items-center gap-1">
-                  <Button iconLeft={CalendarPlus} loading={creando} disabled={!enLinea} onClick={() => crear({})}>
+                  <Button
+                    iconLeft={CalendarPlus}
+                    loading={creando}
+                    disabled={Boolean(motivoParaNoCrear)}
+                    onClick={() => crear({})}
+                  >
                     Crear la tabla de esta semana
                   </Button>
-                  {!enLinea && <p className="text-xs text-ink-500">{REQUIERE_CONEXION}</p>}
+                  {/* El motivo VISIBLE, no en un tooltip: CU029 lo pide así
+                      para el botón hermano de Rúbrica, y aquí vale igual. */}
+                  {motivoParaNoCrear && <p className="max-w-sm text-xs text-ink-500">{motivoParaNoCrear}</p>}
                 </div>
               ) : null
             }
