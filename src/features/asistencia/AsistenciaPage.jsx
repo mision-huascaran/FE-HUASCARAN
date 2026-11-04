@@ -442,7 +442,9 @@ export default function AsistenciaPage() {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencia</h1>
+        {/* El mismo nombre que en el menú (U21), y un subtítulo que diga lo que
+            le toca a cada rol (U14): el Supervisor solo consulta. */}
+        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Asistencias</h1>
         <p className="mt-1 text-sm text-ink-500">
           {SUBTITULO[puedeEditar ? 'registra' : 'consulta']}
         </p>

@@ -5,6 +5,7 @@
 // escrita a mano y se desincronizaba con las guardas; ahora, si un rol no tiene
 // la sección en la matriz, no aparece el enlace y la ruta además lo rechaza.
 import {
+  Activity,
   BookOpenCheck,
   CalendarCheck,
   ClipboardList,
@@ -29,6 +30,8 @@ const ICONOS = {
   lectura: BookOpenCheck,
   vuelo: Plane,
   sesiones: History,
+  // Tenía el ícono de casa de Inicio, por descarte (U21).
+  seguimiento: Activity,
 }
 
 /**
@@ -42,9 +45,8 @@ const ICONOS = {
 const NOMBRES_CORTOS = {
   lectura: 'Lectura',
   vuelo: 'Vuelo',
-  asistencia: 'Asistencia',
-  seguimiento: 'Equipo',
-  dashboard: 'Panel',
+  // El mismo nombre que en el menú y en el título (U21).
+  asistencia: 'Asistencias',
 }
 
 export const navegacionDe = (idRol) =>
@@ -71,7 +73,7 @@ export const ETIQUETAS_RUTA = {
   alumnos: 'Alumnos',
   usuarios: 'Usuarios',
   colegios: 'Colegios',
-  asistencia: 'Asistencia',
+  asistencia: 'Asistencias',
   rubrica: 'Rúbrica',
   'seguimiento-lectura': 'Seguimiento de Lectura',
   'registro-vuelo': 'Registro de Vuelo',
