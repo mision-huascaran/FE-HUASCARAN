@@ -24,6 +24,7 @@ import { ROLES } from '../../../auth/roles'
 import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
+import { errorHttp } from '../../../test/fabricas'
 
 const ESPERA = { timeout: 8000 }
 const ESCRITURA = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
@@ -310,6 +311,18 @@ describe('Guardar una evaluación', () => {
     const avisos = await screen.findAllByText(/valoración permitida para esta dimensión/i, {}, ESPERA)
     expect(avisos).toHaveLength(2)
     expect(avisos.some((n) => n.closest('tr'))).toBe(true)
+  })
+})
+
+describe('Un rechazo definitivo del servidor (4xx)', () => {
+  it('avisa que no se guardó, con el texto del servidor', async () => {
+    guardarRubricas.mockRejectedValue(errorHttp(403, { detail: 'No tienes permiso para registrar en este grupo.' }))
+
+    montar()
+    fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
+
+    expect(await screen.findByText('No se guardó la evaluación', {}, ESPERA)).toBeInTheDocument()
+    expect((await screen.findAllByText('No tienes permiso para registrar en este grupo.', {}, ESPERA)).length).toBeGreaterThan(0)
   })
 })
 
