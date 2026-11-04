@@ -37,6 +37,15 @@ import {
   sinInformacion,
 } from './estados'
 
+const SIN_DATO = '—'
+
+/** "Abr", o "Abr 2026" cuando el intervalo cruza de año. */
+export function abreviarMes(nombre, anio = null) {
+  const mes = String(nombre ?? '').split(' ')[0]
+  const corto = mes.charAt(0).toUpperCase() + mes.slice(1, 3).toLowerCase()
+  return anio ? `${corto} ${anio}` : corto
+}
+
 export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscolar, alcance, onColegio }) {
   const consulta = useQuery({
     queryKey: ['dashboard', 'libros', filtros],
@@ -53,13 +62,24 @@ export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscola
 
   // Las columnas de meses se construyen con lo que llega, no con un calendario
   // escrito aquí: el año escolar no siempre empieza en marzo.
+  //
+  // Meses ABREVIADOS y un guion en la celda sin información (U25): con el
+  // nombre completo y "Sin información" en dos líneas, la tabla no entraba y
+  // de octubre en adelante se leía "DICIEMBR" y "S informació".
+  const variosAnios = meses.some((m) => m.anio !== meses[0]?.anio)
   const columnasDeMes = meses.map((mes) => ({
     key: `${mes.anio}-${mes.mes}`,
-    header: mes.anio && meses.some((m) => m.anio !== mes.anio) ? `${mes.nombre}` : mes.nombre.split(' ')[0],
+    header: abreviarMes(mes.nombre, variosAnios ? mes.anio : null),
     align: 'right',
     render: (fila) => {
       const suyo = fila.meses?.find((m) => m.mes === mes.mes && m.anio === mes.anio)
-      return celda(suyo, 'cantidad')
+      return sinInformacion(suyo, 'cantidad') ? (
+        <span title={SIN_INFORMACION} className="text-ink-400">
+          {SIN_DATO}
+        </span>
+      ) : (
+        celda(suyo, 'cantidad')
+      )
     },
   }))
 
@@ -151,7 +171,7 @@ export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscola
                 ]
               : []),
           ]}
-          footNote="Los colegios se ordenan de mayor a menor por el promedio de libros leídos por alumno, calculado con el valor sin redondear. Cada alumno se cuenta una sola vez por colegio en el intervalo consultado."
+          footNote={`${SIN_DATO}: ${SIN_INFORMACION}. Los colegios se ordenan de mayor a menor por el promedio de libros leídos por alumno, calculado con el valor sin redondear. Cada alumno se cuenta una sola vez por colegio en el intervalo consultado.`}
         />
 
         {sinInfo.length > 0 && (

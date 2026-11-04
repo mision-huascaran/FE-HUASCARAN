@@ -4,6 +4,7 @@
 // `estados.js` con un `?? 0`, aquí se ve antes de que el Supervisor lea un
 // 0 % de asistencia de un colegio que todavía no empezó su periodo.
 import { describe, expect, it } from 'vitest'
+import { abreviarMes } from '../BloqueLibros'
 import {
   SIN_INFORMACION,
   celda,
@@ -129,5 +130,13 @@ describe('mesesDeGrado', () => {
   it('un grado sin alumnos no tiene información en ningún mes pasado', () => {
     const meses = mesesDeGrado({ alumnos: [] }, MESES)
     expect(meses.slice(0, 3).every((m) => m.cantidad === null && m.estado === 'sin_informacion')).toBe(true)
+  })
+})
+
+describe('abreviarMes (U25)', () => {
+  it('abrevia a tres letras y añade el año solo si se pide', () => {
+    expect(abreviarMes('octubre')).toBe('Oct')
+    expect(abreviarMes('DICIEMBRE 2026', 2026)).toBe('Dic 2026')
+    expect(abreviarMes(undefined)).toBe('')
   })
 })
