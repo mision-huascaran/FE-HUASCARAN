@@ -32,6 +32,7 @@ import {
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFecha, formatearFechaHora } from '../../lib/format'
+import { useMigaExtra } from '../../store/migaStore'
 
 /**
  * El nombre del módulo que usa el endpoint de registros, a partir del que
@@ -67,6 +68,7 @@ const iniciales = (docente) =>
     .slice(0, 2)
 
 export default function DetalleDocente({ docente, onVolver }) {
+  useMigaExtra([docente?.nombres, docente?.apellidos].filter(Boolean).join(' '))
   const [viendo, setViendo] = useState(null)
   const consulta = useQuery({
     queryKey: ['seguimiento', 'actividades', docente.id_docente],

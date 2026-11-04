@@ -49,6 +49,7 @@ import { anioVigente, listarAniosEscolares } from '../../api/resources/administr
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import { useMigaExtra } from '../../store/migaStore'
 
 const ALCANCES = [
   { value: 'general', label: 'General' },
@@ -95,6 +96,7 @@ function borradorPara(modo, calendario) {
 const SIN_SERVIDOR = new Set([502, 503, 504])
 
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
+  useMigaExtra('Calendario académico')
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
