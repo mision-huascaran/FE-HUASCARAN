@@ -35,6 +35,7 @@ import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
+import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -213,7 +214,7 @@ export default function RegistroVueloAnualPage() {
               <table className="w-full min-w-[60rem] text-sm">
                 <thead className="bg-surface-100 text-left text-xs uppercase tracking-wide text-ink-500">
                   <tr>
-                    <th scope="col" className="px-3 py-2 font-semibold">
+                    <th scope="col" className={`px-3 py-2 font-semibold ${CABECERA_ALUMNO}`}>
                       Alumno
                     </th>
                     <th scope="col" className="px-3 py-2 text-center font-semibold">

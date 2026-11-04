@@ -12,6 +12,7 @@
 import { AlertTriangle, BookOpen, MessageSquare, MessageSquareText } from 'lucide-react'
 import Select from '../../components/ui/Select'
 import { ACCION_SUGERIDA } from '../../api/resources/registroVueloAnual'
+import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -38,7 +39,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
 
   return (
     <tr className="border-t border-line">
-      <td className="px-3 py-2">
+      <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <span className="font-medium text-ink-900">{alumno.nombre}</span>
         {alumno.inactivo && (
           <span

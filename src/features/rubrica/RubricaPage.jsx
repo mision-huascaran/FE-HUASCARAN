@@ -35,6 +35,7 @@ import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 import useRechazosStore from '../../store/rechazosStore'
+import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -201,7 +202,7 @@ export default function RubricaPage() {
             <table className="w-full min-w-[44rem] text-sm">
               <thead className="bg-surface-100 text-left text-xs uppercase tracking-wide text-ink-500">
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-semibold">
+                  <th scope="col" className={`px-3 py-2 font-semibold ${CABECERA_ALUMNO}`}>
                     Alumno
                   </th>
                   <th scope="col" className="px-3 py-2 font-semibold">
