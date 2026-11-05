@@ -53,6 +53,8 @@ describe('Dashboard del Supervisor (CU033)', () => {
     await waitFor(() => expect(document.querySelectorAll('.animate-pulse')).toHaveLength(0), ESPERA)
     const antes = screen.getAllByText(/en todos los colegios/).length
 
+    // "Colegios" es un desplegable: hay que abrirlo antes de desmarcar.
+    await userEvent.click(screen.getByRole('button', { name: /Colegios Todos los colegios/ }))
     // Se desmarca "Todos los colegios": el borrador cambia, la consulta no.
     await userEvent.click(screen.getByRole('checkbox', { name: 'Todos los colegios' }))
 

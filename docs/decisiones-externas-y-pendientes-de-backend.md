@@ -961,6 +961,27 @@ falta, en vez de forzar la alineación con CSS.
   alumno, que sí es determinista. El código del badge es correcto y se
   activará igual contra el servidor real.
 
+**S34 (nuevo). "Colegios" pasa de panel siempre abierto a desplegable.**
+Lo pidió Antonio, viendo que la barra de filtros del Dashboard seguía
+dejando espacio en blanco. La causa de fondo: `SelectorColegios` era un
+panel —casilla "Todos", buscador y lista— **siempre visible**, con una
+altura que no tenía nada que ver con los 40 px de un `Select` cerrado.
+Junto a "Año escolar" y "Periodo académico" eso partía la fila en dos y
+dejaba el hueco del alto del panel debajo de los dos primeros.
+
+Ahora es un desplegable: cerrado mide lo mismo que los demás controles
+—"Todos los colegios" o "N de M"—, y los tres filtros más "Aplicar" caben
+en una sola fila. Al pulsarlo abre el mismo contenido de siempre en un
+panel flotante que no empuja nada alrededor. Cierra con **Escape** y con un
+**clic fuera**, como cualquier desplegable del sistema (se reutiliza
+`useOnEscape`, el mismo hook de `Modal`). Vale para las tres pantallas que
+lo comparten: CU033, CU034 (incluida la herencia de filtros entre las dos)
+y CU035.
+
+Con esto, `FiltrosDashboard` vuelve a ser una fila sola en vez de dos: el
+cambio del 04/11 que separaba "Colegios" a su propia fila (S31) queda
+superado por este, que ataca la causa en vez de acomodar el síntoma.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse

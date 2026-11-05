@@ -8,17 +8,14 @@
 // Los periodos se nombran por su nombre visible —"Segundo periodo"—, nunca
 // "PA2": los tres CU lo prohíben expresamente, dos veces cada uno.
 //
-// DOS FILAS, NO UNA. "Colegios" es un panel con buscador y lista de casillas:
-// su alto natural no tiene nada que ver con el de un `<select>` cerrado. Antes
-// las tres convivían en una sola fila con `items-start`: el panel de colegios
-// marcaba la altura de toda la fila, "Año escolar" y "Periodo académico"
-// quedaban varados arriba con un hueco en blanco debajo del tamaño del propio
-// panel, y "Aplicar" —sin etiqueta encima, a diferencia de los `Select`— no
-// tenía con qué alinearse y aparecía más arriba que las cajas de los
-// controles. Separarlas en dos filas resuelve las dos cosas a la vez: la fila
-// de arriba son todos controles de la MISMA altura (alineados por abajo, que
-// es donde tiene que cuadrar la caja, no la etiqueta) y la de abajo es el
-// panel de colegios con el alto que en verdad necesita, ni un píxel más.
+// UNA SOLA FILA. Antes "Colegios" era un panel siempre abierto —buscador y
+// casillas visibles sin importar cuántos colegios hubiera—, con una altura
+// que no tenía nada que ver con la de un `Select` cerrado: la fila se partía
+// en dos y dejaba un hueco en blanco del alto del panel debajo de "Año
+// escolar" y "Periodo académico". Ahora `SelectorColegios` es un desplegable
+// —mide lo mismo que un `Select`, 40 px— y los cuatro controles (los tres
+// filtros y "Aplicar") caben en una fila, alineados por abajo como el resto
+// de las barras de filtros del sistema.
 import { Filter } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Select from '../../components/ui/Select'
@@ -41,56 +38,39 @@ export default function FiltrosDashboard({
 }) {
   return (
     <form
-      className="flex flex-col gap-4 border-b border-line p-4"
+      className="flex flex-wrap items-end gap-3 border-b border-line p-4"
       onSubmit={(e) => {
         e.preventDefault()
         onAplicar()
       }}
     >
-      <div className="flex flex-wrap items-end gap-3">
+      <CeldaFiltro>
+        <Select
+          label="Año escolar"
+          placeholder="Selecciona"
+          required
+          value={borrador.idAnioEscolar}
+          options={anios.map((a) => ({ value: a.id_anio_escolar, label: a.nombre }))}
+          onChange={(e) => onCambiar('idAnioEscolar', e.target.value)}
+        />
+      </CeldaFiltro>
+
+      {conPeriodo && (
         <CeldaFiltro>
           <Select
-            label="Año escolar"
+            label="Periodo académico"
             placeholder="Selecciona"
             required
-            value={borrador.idAnioEscolar}
-            options={anios.map((a) => ({ value: a.id_anio_escolar, label: a.nombre }))}
-            onChange={(e) => onCambiar('idAnioEscolar', e.target.value)}
+            value={borrador.idPeriodoAcademico}
+            // Sin año no hay periodos que ofrecer: los PA pertenecen a un año.
+            disabled={!borrador.idAnioEscolar}
+            options={periodos.map((p) => ({ value: p.id_periodo_academico, label: p.nombre }))}
+            onChange={(e) => onCambiar('idPeriodoAcademico', e.target.value)}
           />
         </CeldaFiltro>
+      )}
 
-        {conPeriodo && (
-          <CeldaFiltro>
-            <Select
-              label="Periodo académico"
-              placeholder="Selecciona"
-              required
-              value={borrador.idPeriodoAcademico}
-              // Sin año no hay periodos que ofrecer: los PA pertenecen a un año.
-              disabled={!borrador.idAnioEscolar}
-              options={periodos.map((p) => ({ value: p.id_periodo_academico, label: p.nombre }))}
-              onChange={(e) => onCambiar('idPeriodoAcademico', e.target.value)}
-            />
-          </CeldaFiltro>
-        )}
-
-        {/* En móvil el botón ocupa la fila entera: pegado al último filtro y a
-            media anchura, se perdía entre los desplegables. */}
-        <div className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:ml-auto sm:w-auto sm:items-end">
-          <Button type="submit" iconLeft={Filter} disabled={!completos} className="w-full sm:w-auto">
-            Aplicar
-          </Button>
-          {hayCambios && (
-            <span className="text-xs font-semibold text-warning-600 sm:text-right">{CAMBIOS_SIN_APLICAR}</span>
-          )}
-          {aviso && <span className="text-xs text-warning-600 sm:max-w-xs sm:text-right">{aviso}</span>}
-        </div>
-      </div>
-
-      {/* Su propio ancho máximo: una lista de casillas estirada a todo lo
-          ancho de la tarjeta se lee peor, no mejor, y encima exagera el hueco
-          a la derecha en pantallas anchas. */}
-      <div className="max-w-md">
+      <CeldaFiltro className="min-w-[220px] basis-[220px]">
         <SelectorColegios
           colegios={colegios}
           todos={borrador.todosLosColegios}
@@ -100,6 +80,18 @@ export default function FiltrosDashboard({
             onCambiar('idColegios', elegidos)
           }}
         />
+      </CeldaFiltro>
+
+      {/* En móvil el botón ocupa la fila entera: pegado al último filtro y a
+          media anchura, se perdía entre los desplegables. */}
+      <div className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:ml-auto sm:w-auto sm:items-end">
+        <Button type="submit" iconLeft={Filter} disabled={!completos} className="w-full sm:w-auto">
+          Aplicar
+        </Button>
+        {hayCambios && (
+          <span className="text-xs font-semibold text-warning-600 sm:text-right">{CAMBIOS_SIN_APLICAR}</span>
+        )}
+        {aviso && <span className="text-xs text-warning-600 sm:max-w-xs sm:text-right">{aviso}</span>}
       </div>
     </form>
   )
