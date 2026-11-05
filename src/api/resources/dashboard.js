@@ -33,6 +33,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
+import { normalizarPaginado, todasLasPaginas } from './administracion'
 
 const { dashboard } = ENDPOINTS
 
@@ -444,6 +445,42 @@ export const obtenerLibros = (filtros) =>
     () => api.get(dashboard.libros, { params: parametrosDe(filtros, 'prohibido'), ...SERIALIZAR }),
     adaptarLibros,
   )
+
+/**
+ * CU034 (Tanda O) — el detalle de "Información incompleta": qué semana o
+ * clase de referencia concreta falta, para explicar el aviso en vez de
+ * dejarlo en una palabra.
+ *
+ * MISMOS FILTROS que `/dashboard/libros` (año y colegios), más los opcionales
+ * `idColegio`, `idGrado`, `idAlumno` y `anio`+`mes` —los dos juntos o
+ * ninguno— para abrir el detalle de una celda concreta.
+ *
+ * SE PIDEN TODAS LAS PÁGINAS (D97): el servidor entrega de 40 en 40 y la
+ * tabla pagina en el cliente, como el resto de los listados largos del
+ * sistema. El volumen aquí está acotado por el propio filtro —una celda, un
+ * colegio o, como mucho, un año de un alcance— así que no es un barrido caro.
+ */
+export const obtenerLibrosIncompletos = async (filtros, extra = {}) => {
+  const base = {
+    ...parametrosDe(filtros, 'prohibido'),
+    id_colegio: extra.idColegio || undefined,
+    id_grado: extra.idGrado || undefined,
+    id_alumno: extra.idAlumno || undefined,
+    anio: extra.anio || undefined,
+    mes: extra.mes || undefined,
+  }
+
+  const pedirPagina = (page) =>
+    resolver({
+      mock: () => handlers.dashboard.librosIncompletos({ ...base, page }),
+      real: () => api.get(dashboard.librosIncompletos, { params: { ...base, page }, ...SERIALIZAR }),
+      forzarReal: adminContraApiReal,
+    })
+
+  // La primera página dice cuántas hay; el resto se pide a la vez y se une en
+  // orden, como en los demás listados largos (`todasLasPaginas`).
+  return normalizarPaginado(await todasLasPaginas((pagina) => pedirPagina(pagina ?? 1))).items
+}
 
 /**
  * CU034 paso 6 — un colegio por grado y alumno. Supervisor (trae nombres).

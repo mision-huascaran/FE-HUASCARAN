@@ -16,6 +16,8 @@ import userEvent from '@testing-library/user-event'
 import { ROLES } from '../../../auth/roles'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 import { CAMBIOS_SIN_APLICAR } from '../estados'
+import DashboardPage from '../DashboardPage'
+import LibrosPage from '../LibrosPage'
 
 const ESPERA = { timeout: 15000 }
 const ASISTENCIA = 'Asistencia de Alumnos'
@@ -51,6 +53,8 @@ describe('Dashboard del Supervisor (CU033)', () => {
     await waitFor(() => expect(document.querySelectorAll('.animate-pulse')).toHaveLength(0), ESPERA)
     const antes = screen.getAllByText(/en todos los colegios/).length
 
+    // "Colegios" es un desplegable: hay que abrirlo antes de desmarcar.
+    await userEvent.click(screen.getByRole('button', { name: /Colegios Todos los colegios/ }))
     // Se desmarca "Todos los colegios": el borrador cambia, la consulta no.
     await userEvent.click(screen.getByRole('checkbox', { name: 'Todos los colegios' }))
 
@@ -196,6 +200,50 @@ describe('Consolidado de libros leídos (CU034)', () => {
   })
 })
 
+/**
+ * El detalle de "Información incompleta" (Tanda O, CU034) — antes el aviso
+ * era una palabra sin salida: decía que algo faltaba, no QUÉ ni DÓNDE.
+ *
+ * Se entra por el detalle de un colegio, no por la tabla consolidada: ahí la
+ * "—" es por ALUMNO (`libroDeAlumno`), así que un mes YA PASADO sin registro
+ * aparece con certeza. En la tabla consolidada la "—" es por COLEGIO ENTERO
+ * —todos sus alumnos sin dato el mismo mes—, algo que con decenas de alumnos
+ * por colegio el simulador casi nunca produce fuera de los meses futuros.
+ */
+describe('El detalle de "Información incompleta" del consolidado de libros (Tanda O)', () => {
+  const RUTA = '/dashboard/libros?anio=2&todos=1'
+
+  it('una celda "—" de un alumno abre el detalle acotado, y "Volver" regresa al colegio', async () => {
+    montar(ROLES.SUPERVISOR, RUTA)
+
+    const [verGrados] = await screen.findAllByRole('button', { name: /Ver grados/ }, ESPERA)
+    await userEvent.click(verGrados)
+    const detalle = (await screen.findByRole('heading', { name: /Libros leídos en/ }, ESPERA)).closest('section')
+    const [grado] = await within(detalle).findAllByRole('button', { expanded: false }, ESPERA)
+    await userEvent.click(grado)
+    await screen.findByText('Nombres y apellidos', {}, ESPERA)
+
+    // El accesible de un botón es su texto visible ("—"); el motivo largo va
+    // en `title`, así que se busca por ese atributo y no por el nombre.
+    const celdas = screen.getAllByTitle('Sin información — ver qué falta')
+    expect(celdas.length).toBeGreaterThan(0)
+    await userEvent.click(celdas[0])
+
+    expect(
+      await screen.findByRole('heading', { name: 'Información incompleta del consolidado de libros' }, ESPERA),
+    ).toBeInTheDocument()
+    // La tabla depende de la consulta, que llega DESPUÉS del encabezado: se
+    // espera a su contenido, no se comprueba en frío justo tras el título.
+    expect(await screen.findAllByText('Sin tabla', {}, ESPERA)).not.toHaveLength(0)
+    expect(screen.getByRole('columnheader', { name: 'Semana' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Qué falta' })).toBeInTheDocument()
+
+    // Vuelve al DETALLE DEL COLEGIO del que salió, no al consolidado entero.
+    await userEvent.click(screen.getByRole('button', { name: 'Volver al consolidado' }))
+    expect(await screen.findByRole('heading', { name: /Libros leídos en/ }, ESPERA)).toBeInTheDocument()
+  })
+})
+
 describe('Dashboard del Directivo (CU035)', () => {
   it('ve su resumen anual y la comparación, sin los bloques nominales', async () => {
     montar(ROLES.DIRECTIVO)
@@ -226,5 +274,39 @@ describe('Dashboard del Directivo (CU035)', () => {
     )
     expect(await within(asistencia).findByText('Asistencias completadas', {}, ESPERA)).toBeInTheDocument()
     expect(within(asistencia).getByText(/^[\d,.]+ de [\d,.]+$/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * CU033, CU034 y CU035 — el rol dejó de permitir la consulta.
+ *
+ * La ruta ya impide ENTRAR; esto cubre el caso que describen los CU: estar
+ * dentro y perder el rol. No basta con dejar de pedir datos —hay que retirar
+ * lo que ya se ve—, porque si no quedan en pantalla indicadores de un alcance
+ * que el usuario ya no tiene.
+ */
+describe('El rol dejó de permitir la consulta', () => {
+  /*
+   * Se monta la PANTALLA, no la ruta: por la ruta no se llega: la guarda del
+   * enrutador redirige antes y el mensaje no se vería nunca. Lo que se
+   * comprueba aquí es la red de seguridad de la propia pantalla, para el caso
+   * en que el rol cambie con ella ya montada.
+   */
+  it('el Docente no ve el dashboard, y se le dice por qué', async () => {
+    renderConProveedores(<DashboardPage />, { rol: ROLES.DOCENTE })
+
+    expect(
+      await screen.findByText('Tu rol actual no permite consultar este dashboard.', {}, ESPERA),
+    ).toBeInTheDocument()
+    // Y no queda ningún bloque de indicadores colgando.
+    expect(screen.queryByText(ASISTENCIA)).not.toBeInTheDocument()
+  })
+
+  it('el consolidado de libros es solo del Supervisor', async () => {
+    renderConProveedores(<LibrosPage />, { rol: ROLES.DIRECTIVO })
+
+    expect(
+      await screen.findByText('Tu rol actual no permite consultar este consolidado.', {}, ESPERA),
+    ).toBeInTheDocument()
   })
 })

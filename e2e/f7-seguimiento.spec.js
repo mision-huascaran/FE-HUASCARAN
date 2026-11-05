@@ -3,10 +3,11 @@
 // La Supervisora encuentra al Docente E2E conectado hoy y, en su bitácora, la
 // actividad que hizo F3 con su cierre manual.
 import { expect, test } from '@playwright/test'
+import { filasQueEmpiezan } from './support/actividad.js'
 import { SEED } from './support/cuentas.js'
 import { exigirEstadoDeF3 } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
-import { fechaHoraLima, hoyLima } from './support/fechas.js'
+import { hoyLima } from './support/fechas.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
 test('F7 · Seguimiento: el Docente E2E aparece conectado hoy y con la actividad de F3 (CU020, CU021)', async ({ page }) => {
@@ -35,14 +36,15 @@ test('F7 · Seguimiento: el Docente E2E aparece conectado hoy y con la actividad
     expect(items.map((a) => a.id), 'actividades que devuelve el backend').toContain(idActividad)
 
     await expect(page.getByRole('heading', { name: SEED.docente, level: 1 })).toBeVisible()
-    // La tabla no muestra el id: se reconoce por su hora de inicio.
     // La tabla no muestra el id: se reconoce por su hora de inicio y su cierre.
     // Solo la hora no basta: F6 puede abrir otra sesión en el mismo minuto.
-    const sesion = page
-      .getByRole('row')
-      .filter({ hasText: fechaHoraLima(inicioActividad) })
-      .filter({ hasText: 'Manual por finalización de actividad' })
-    await expect(sesion.first()).toBeVisible()
+    // La celda dice el cierre en una palabra ("Manual") y el motivo completo
+    // va en su tooltip.
+    const cierreManual = page.getByRole('button', { name: 'Manual', exact: true })
+    const sesion = filasQueEmpiezan(page, inicioActividad).filter({ has: cierreManual }).first()
+    await expect(sesion).toBeVisible()
+    await sesion.getByRole('button', { name: 'Manual', exact: true }).hover()
+    await expect(page.getByRole('tooltip')).toHaveText('Manual por finalización de actividad')
     await evidencia(page, 'seguimiento-bitacora')
   })
 })

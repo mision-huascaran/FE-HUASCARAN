@@ -76,7 +76,7 @@ export const RUTAS_PROTEGIDAS = [
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
-  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
+  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del alumno', elemento: <FichaEstudiantePage /> },
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
 ]
 

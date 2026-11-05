@@ -11,6 +11,7 @@
 import { expect, test } from '@playwright/test'
 import { SUBPROGRAMA, elegirClase, lado } from './support/asistencia.js'
 import { SEED } from './support/cuentas.js'
+import { filasQueEmpiezan } from './support/actividad.js'
 import { exigirEstadoDe } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { fechaHoraLima } from './support/fechas.js'
@@ -18,7 +19,7 @@ import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
 /** La fila de la jornada: su hora de inicio y exactamente «N Asistencias». */
 const jornadaDe = (page, { inicio, cambios }) =>
-  page.getByRole('row').filter({ hasText: fechaHoraLima(inicio) }).filter({ hasText: new RegExp(`(^|\\D)${cambios} Asistencias`) })
+  filasQueEmpiezan(page, inicio).filter({ hasText: new RegExp(`(^|\\D)${cambios} Asistencias`) })
 
 test('F9 · Supervisora: la jornada de asistencias en Seguimiento y en Asistencias, solo lectura (CU020, CU021, CU022)', async ({ page }) => {
   const { asistencia } = exigirEstadoDe('F8', 'asistencia')

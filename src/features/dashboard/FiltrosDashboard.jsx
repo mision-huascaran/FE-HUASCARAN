@@ -7,6 +7,15 @@
 //
 // Los periodos se nombran por su nombre visible —"Segundo periodo"—, nunca
 // "PA2": los tres CU lo prohíben expresamente, dos veces cada uno.
+//
+// UNA SOLA FILA. Antes "Colegios" era un panel siempre abierto —buscador y
+// casillas visibles sin importar cuántos colegios hubiera—, con una altura
+// que no tenía nada que ver con la de un `Select` cerrado: la fila se partía
+// en dos y dejaba un hueco en blanco del alto del panel debajo de "Año
+// escolar" y "Periodo académico". Ahora `SelectorColegios` es un desplegable
+// —mide lo mismo que un `Select`, 40 px— y los cuatro controles (los tres
+// filtros y "Aplicar") caben en una fila, alineados por abajo como el resto
+// de las barras de filtros del sistema.
 import { Filter } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Select from '../../components/ui/Select'
@@ -29,7 +38,7 @@ export default function FiltrosDashboard({
 }) {
   return (
     <form
-      className="flex flex-wrap items-start gap-3 border-b border-line p-4"
+      className="flex flex-wrap items-end gap-3 border-b border-line p-4"
       onSubmit={(e) => {
         e.preventDefault()
         onAplicar()
@@ -61,7 +70,7 @@ export default function FiltrosDashboard({
         </CeldaFiltro>
       )}
 
-      <CeldaFiltro className="min-w-[260px] basis-[260px]">
+      <CeldaFiltro className="min-w-[220px] basis-[220px]">
         <SelectorColegios
           colegios={colegios}
           todos={borrador.todosLosColegios}

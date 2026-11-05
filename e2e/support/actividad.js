@@ -2,6 +2,7 @@
 import { expect, test } from '@playwright/test'
 import { esApi } from './sesion.js'
 import { evidencia } from './evidencia.js'
+import { fechaHoraLima } from './fechas.js'
 
 /**
  * Lo que muestra el Inicio del Docente según `motivo_no_puede_iniciar` de
@@ -104,3 +105,17 @@ export async function abrirDetalleDeSesion(page, idActividad) {
 /** Valor de un dato `<dt>/<dd>` dentro de un contenedor. */
 export const dato = (contenedor, etiqueta) =>
   contenedor.locator(`xpath=.//dt[normalize-space()="${etiqueta}"]/following-sibling::dd[1]`)
+
+/**
+ * Las filas de una bitácora de actividades que empezaron en `inicio`, al
+ * minuto. La fecha y la hora de inicio van en celdas SEPARADAS, así que el
+ * texto de la fila las une sin espacio («05/11/202600:47»): se buscan las dos
+ * celdas, no el texto «fecha hora».
+ */
+export function filasQueEmpiezan(page, inicio) {
+  const [fecha, hora] = fechaHoraLima(inicio).split(' ')
+  return page
+    .getByRole('row')
+    .filter({ has: page.getByRole('cell', { name: fecha, exact: true }) })
+    .filter({ has: page.getByRole('cell', { name: hora, exact: true }) })
+}

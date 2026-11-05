@@ -45,7 +45,7 @@ import {
   ModalVersionActual,
 } from './ModalesDelCalendario'
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
-import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
+import { listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
@@ -161,13 +161,35 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     return [...new Set([...base, siguiente])].sort((a, b) => b - a).map(String)
   }, [anios])
 
-  // El año arranca en el vigente. CU027: se inicializa con el año actual.
+  /**
+   * EL AÑO QUE SE PROPONE AL ENTRAR (CU027).
+   *
+   * Primero manda lo que el usuario estaba mirando: `useFiltrosGuardados` ya
+   * restaura la selección anterior, y este efecto no se mete si hay una.
+   *
+   * Si no la hay, se propone el año escolar **vigente**, que es el que
+   * contiene hoy dentro de un PA o un PR. Eso incluye el caso que antes se
+   * leía mal: en enero de 2027, si todavía corre el receso posterior al PA4
+   * de 2026, el vigente sigue siendo **2026** aunque el año de calendario ya
+   * haya cambiado. El servidor lo resuelve con las fechas del propio año
+   * escolar (`GET /anios-escolares`), así que aquí no se recalcula.
+   *
+   * Y SI NO HAY NINGUNO VIGENTE, EL FILTRO SE QUEDA VACÍO. Antes caía al
+   * primer año de la lista: proponer un año al azar es peor que no proponer
+   * ninguno, porque la pantalla enseña un calendario que nadie pidió y parece
+   * el de hoy. CU027 lo pide expresamente: "permanece sin selección hasta que
+   * el usuario elija uno".
+   *
+   * Por eso NO se usa `anioVigente()`: ese ayudante cae a `anios[0]` cuando no
+   * hay vigente, que es justo lo que aquí no debe pasar. Otras pantallas sí
+   * quieren ese respaldo, así que se mira la marca directamente.
+   */
   useEffect(() => {
     if (anio || !anios.length) return
-    const vigente = anioVigente(anios)?.nombre
-    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0] ?? aniosOfrecidos[0]
+    const vigente = anios.find((a) => a.vigente)?.nombre
+    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0]
     if (propuesto) setAnio(String(propuesto))
-  }, [anios, anio, aniosOfrecidos])
+  }, [anios, anio])
 
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
@@ -428,6 +450,14 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
             <Select
               label="Año escolar"
               value={anio}
+              /*
+               * El hueco es una opción de verdad, no la ausencia de valor
+               * (CU027). Sin ella, un `<select>` sin valor enseña su PRIMERA
+               * opción —el año siguiente, que encabeza la lista—, así que
+               * "sin selección" se veía como "2027" y la pantalla parecía
+               * proponer un año que nadie eligió.
+               */
+              placeholder="Selecciona un año"
               // En creación queda fijo: cambiarlo a medias dejaría las fechas
               // escritas colgando de otro año (CU027).
               disabled={editando}
@@ -774,7 +804,12 @@ function TablaPeriodos({ filas, editando, onCambio, erroresCampo = {}, periodoAc
   )
 }
 
-/** Feriados y suspensiones. Solo cuentan dentro de un PA. */
+/**
+ * Feriados y suspensiones. Van dentro de un periodo del calendario, **PA o
+ * PR** (CU027): se puede registrar un feriado en pleno receso, incluido el
+ * posterior al PA4 cuando se extiende al siguiente año de calendario. Hacerlo
+ * no divide el periodo ni amplía el plazo de regularización.
+ */
 function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
   const cambiar = (i, campo, valor) => onCambio(dias.map((d, n) => (n === i ? { ...d, [campo]: valor } : d)))
 
@@ -876,7 +911,8 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
 
       {editando && (
         <p className="mt-1.5 text-xs text-ink-500">
-          Cada día no lectivo debe caer dentro de un PA. Lo que se quite de esta tabla se elimina al guardar.
+          Cada día no lectivo debe caer dentro de un periodo, sea un PA o un receso. Lo que se quite de esta
+          tabla se elimina al guardar.
         </p>
       )}
     </div>

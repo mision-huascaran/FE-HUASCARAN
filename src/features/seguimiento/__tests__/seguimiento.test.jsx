@@ -297,8 +297,10 @@ describe('Bitácora de un docente (CU021)', () => {
 
     await screen.findByText('2 Niveles finales', {}, ESPERA)
     expect(screen.queryByRole('button', { name: /^ver /i })).not.toBeInTheDocument()
-    // Una sesión en curso muestra un guion en fin Y en tipo de cierre (CU021): son dos.
-    expect(screen.getAllByText('–')).toHaveLength(2)
+    // Una jornada abierta lo DICE en la hora de fin, y el guion se queda solo
+    // en el tipo de cierre: no se ha cerrado de ninguna manera todavía.
+    expect(screen.getByText('En curso')).toBeInTheDocument()
+    expect(screen.getAllByText('–')).toHaveLength(1)
   })
 
   it('si la jornada no tocó nada de ese módulo, lo dice', async () => {

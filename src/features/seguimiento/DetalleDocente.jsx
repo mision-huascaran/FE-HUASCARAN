@@ -16,6 +16,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, History } from 'lucide-react'
+import CeldaCierre from '../../components/actividades/CeldaCierre'
+import CeldaFin from '../../components/actividades/CeldaFin'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -27,11 +29,9 @@ import {
   AYUDA_SINCRONIZACION,
   ETIQUETA_SINCRONIZACION,
   TONO_SINCRONIZACION,
-  SIN_FIN,
-  etiquetaTipoCierre,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFecha, formatearFechaHora } from '../../lib/format'
+import { formatearFecha, formatearHora } from '../../lib/format'
 import { useMigaExtra } from '../../store/migaStore'
 
 /**
@@ -128,9 +128,28 @@ export default function DetalleDocente({ docente, onVolver }) {
             }
             columns={[
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
-              { key: 'inicio', header: 'Inicio', render: (s) => formatearFechaHora(s.inicio) },
-              { key: 'fin', header: 'Fin', render: (s) => (s.fin ? formatearFechaHora(s.fin) : SIN_FIN) },
-              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
+              {
+                /*
+                 * SOLO LA HORA: la fecha ya está en su columna (U15, CU021).
+                 * Repetirla en cada fila ensanchaba las dos columnas de horas
+                 * por un dato que ya se lee a la izquierda.
+                 */
+                key: 'inicio',
+                header: 'Hora de inicio',
+                render: (s) => formatearHora(s.inicio),
+              },
+              {
+                /*
+                 * La hora de fin dice también si la jornada sigue abierta, y
+                 * si terminó otro día lo apila debajo en vez de ensanchar la
+                 * columna entera. Mismo componente que Sesiones: son la misma
+                 * tabla vista por dos roles.
+                 */
+                key: 'fin',
+                header: 'Hora de finalización',
+                render: (s) => <CeldaFin sesion={s} />,
+              },
+              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => <CeldaCierre tipo={s.tipo_cierre} /> },
               {
                 key: 'productividad_texto',
                 header: 'Productividad',
