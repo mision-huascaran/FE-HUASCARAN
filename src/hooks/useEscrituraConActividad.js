@@ -41,7 +41,7 @@ export default function useEscrituraConActividad({
 }) {
   const { sesion } = useActividadEnCurso()
   const calculadaSinLaActividad = Boolean(
-    registra && escritura && escritura.permitida === false && sesion && !sesion.delServidor,
+    registra && escritura?.permitida === false && sesion && !sesion.delServidor,
   )
 
   const { data: habilitaciones } = useQuery({
