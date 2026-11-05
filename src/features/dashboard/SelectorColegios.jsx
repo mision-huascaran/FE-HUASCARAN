@@ -36,6 +36,13 @@ const normalizar = (texto) =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
 
+/** El texto del disparador: «Todos los colegios», «Ninguno elegido» o «N de M». */
+function resumenDe({ todos, vacio, elegidos, total }) {
+  if (todos) return 'Todos los colegios'
+  if (vacio) return 'Ninguno elegido'
+  return `${elegidos} de ${total}`
+}
+
 export default function SelectorColegios({ colegios = [], todos = true, elegidos = [], onChange }) {
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -59,7 +66,7 @@ export default function SelectorColegios({ colegios = [], todos = true, elegidos
   }
 
   const vacio = !todos && elegidos.length === 0
-  const resumen = todos ? 'Todos los colegios' : vacio ? 'Ninguno elegido' : `${elegidos.length} de ${colegios.length}`
+  const resumen = resumenDe({ todos, vacio, elegidos: elegidos.length, total: colegios.length })
 
   useOnEscape(abierto, () => setAbierto(false))
 
