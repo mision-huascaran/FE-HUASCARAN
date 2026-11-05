@@ -254,7 +254,25 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     const delColegio = colegio?.grados ?? []
     if (!esDocente) return delColegio
 
-    const suyos = new Set((asignacion?.grados ?? []).map((g) => String(g.id_grado)))
+    /**
+     * `asignacion.grados` ES UNA LISTA DE IDS, no de objetos.
+     *
+     * Lo deja así `normalizarAsignacion`: `grados` son los ids y los objetos
+     * van en `detalle_grados`. Esto leía `g.id_grado` de un número, que da
+     * `undefined`, así que el conjunto quedaba en `{"undefined"}`: no vacío
+     * —de modo que no se tomaba el atajo de "sin asignaciones, todos"— pero
+     * sin cruzar con ningún grado real. El resultado era que la asignación
+     * del Docente **no filtraba nada** y estas pantallas ofrecían grados
+     * distintos de los de Asistencias, que sí lo hacía bien.
+     *
+     * Se aceptan las dos formas por si el normalizador cambia: lo que no
+     * puede volver a pasar es fallar en silencio.
+     */
+    const suyos = new Set(
+      (asignacion?.grados ?? []).map((g) =>
+        g != null && typeof g === 'object' ? String(g.id_grado) : String(g),
+      ),
+    )
     // Y los grados de sus permisos vigentes EN ESTE colegio (D56).
     permisos
       .filter((p) => String(p.colegio?.id ?? p.id_colegio ?? '') === String(idColegio))

@@ -14,6 +14,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { History, WifiOff } from 'lucide-react'
+import CeldaCierre from '../../components/actividades/CeldaCierre'
 import Badge from '../../components/ui/Badge'
 import BarraDeFiltros, { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import Button from '../../components/ui/Button'
@@ -29,7 +30,6 @@ import {
   TONO_ESTADO,
   ETIQUETA_SINCRONIZACION,
   SIN_FIN,
-  etiquetaTipoCierre,
   listarActividades,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
@@ -193,7 +193,17 @@ export default function SesionesPage() {
                   </Badge>
                 ),
               },
-              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
+              {
+                key: 'tipo_cierre',
+                header: 'Tipo de cierre',
+                /*
+                 * Una palabra, y el motivo entero a un toque. El texto largo
+                 * se repetia en casi todas las filas ocupando tres lineas:
+                 * una columna donde todo se lee igual deja de ayudar a
+                 * encontrar la fila distinta, que es a lo que se viene.
+                 */
+                render: (s) => <CeldaCierre tipo={s.tipo_cierre} />,
+              },
               {
                 key: 'acciones',
                 header: '',

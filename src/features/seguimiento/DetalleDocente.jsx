@@ -16,6 +16,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, History } from 'lucide-react'
+import CeldaCierre from '../../components/actividades/CeldaCierre'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -30,7 +31,6 @@ import {
   TONO_ESTADO,
   TONO_SINCRONIZACION,
   SIN_FIN,
-  etiquetaTipoCierre,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFecha, formatearFechaHora } from '../../lib/format'
@@ -144,7 +144,7 @@ export default function DetalleDocente({ docente, onVolver }) {
                 header: 'Estado de la actividad',
                 render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
               },
-              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
+              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => <CeldaCierre tipo={s.tipo_cierre} /> },
               {
                 key: 'productividad_texto',
                 header: 'Productividad',

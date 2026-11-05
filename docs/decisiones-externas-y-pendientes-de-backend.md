@@ -844,6 +844,25 @@ caso que describen los CU: perder el rol con la pantalla ya abierta. Si se
 quiere que ese mensaje sustituya a `/403`, es un cambio en la guarda del
 enrutador y afecta a toda la aplicación: queda fuera de esto.
 
+**g) El aviso de actividad ya no repite el botón.** U24 le había puesto uno
+propio porque el de "Iniciar actividad" había que buscarlo arriba a la
+derecha. Pero ese botón **no se esconde nunca** —`BarraActividades` lo deja
+fijo en la barra superior—, así que quedaban dos botones idénticos a dos
+dedos de distancia y el de abajo empujaba el texto del aviso. Un control
+repetido no es más fácil de encontrar: invita a preguntarse en qué se
+diferencian. **Esto revierte U24 de la auditoría de UX #737**, y conviene que
+lo sepa quien la escribió.
+
+**h) El "Tipo de cierre" se lee en una palabra.** La columna mostraba
+"Manual por finalización de actividad" en tres líneas y en casi todas las
+filas: una columna donde todo se lee igual deja de ayudar a encontrar la fila
+distinta, que es a lo que se viene en una bitácora. Ahora muestra **Manual**,
+**Forzado** o **Automático** —lo que de verdad las separa es quién cerró la
+actividad: el docente, la salida o el reloj— y el motivo completo sigue a un
+toque en el tooltip y entero en "Ver detalle". Vale para CU017 y CU021, con
+el mismo componente, y entiende tanto los códigos futuros como el texto
+completo que manda hoy el servidor.
+
 **Lo que se comprobó y NO se tocó, a propósito:** "autorización" y
 "habilitación" no son sinónimos en el CU —una es de consulta y otra de
 escritura— y el literal *"No tienes autorización vigente para registrar o

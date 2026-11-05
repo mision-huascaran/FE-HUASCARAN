@@ -132,6 +132,36 @@ export const etiquetaTipoCierre = (valor) => {
   return ETIQUETA_CIERRE[valor] ?? valor
 }
 
+/**
+ * UNA PALABRA para la columna, y el motivo completo a un toque.
+ *
+ * En una tabla, "Manual por finalización de actividad" ocupa tres líneas y se
+ * repite en casi todas las filas: la columna se vuelve una mancha de texto
+ * idéntico en la que ya no se distingue la fila rara, que es justo lo que se
+ * viene a buscar. Lo que de verdad separa a las tres es la PRIMERA palabra
+ * —quién cerró la actividad: el docente, la salida o el reloj—; el resto
+ * explica esa palabra y vive en el tooltip y en el detalle.
+ *
+ * Acepta tanto los códigos que el backend mandará (`manual`, …) como el texto
+ * completo que manda hoy, porque la transición va a pillar a las dos formas
+ * conviviendo.
+ */
+const CIERRE_CORTO = {
+  manual: 'Manual',
+  forzado_cierre_sesion: 'Forzado',
+  expiracion_sesion: 'Automático',
+  [ETIQUETA_CIERRE.manual]: 'Manual',
+  [ETIQUETA_CIERRE.forzado_cierre_sesion]: 'Forzado',
+  [ETIQUETA_CIERRE.expiracion_sesion]: 'Automático',
+}
+
+export const etiquetaCortaTipoCierre = (valor) => {
+  if (!valor) return SIN_FIN
+  // Sin equivalencia se devuelve lo que llegue: un valor nuevo del contrato se
+  // ve raro, pero se ve. Callarlo sería peor.
+  return CIERRE_CORTO[valor] ?? etiquetaTipoCierre(valor)
+}
+
 /** Etiquetas de los estados, que viajan en `snake_case` (§1.5 del contrato). */
 export const ETIQUETA_ESTADO = { en_curso: 'En curso', finalizada: 'Finalizada' }
 /**
