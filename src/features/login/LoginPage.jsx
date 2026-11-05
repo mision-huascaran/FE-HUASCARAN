@@ -16,7 +16,7 @@ import ModalPrimerIngreso from './ModalPrimerIngreso'
 import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
-import { destinoTrasLogin } from '../../rutas'
+import { destinoTrasLoginDe } from '../../rutas'
 import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
@@ -62,14 +62,14 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(esquema), defaultValues: { correo: '', password: '' } })
 
-  if (autenticado) return <Navigate to={destinoTrasLogin(state?.desde, usuario.id_rol)} replace />
+  if (autenticado) return <Navigate to={destinoTrasLoginDe(state, usuario)} replace />
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
     limpiarMotivoCierre()
     try {
       const perfil = await entrar({ correo, password })
-      void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+      void navegar(destinoTrasLoginDe(state, perfil), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
   /** Tras el primer ingreso el usuario YA tiene token: entra sin repetir login. */
   const entrarTrasPrimerIngreso = async (sesion) => {
     const perfil = await entrarConToken(sesion.access_token)
-    void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+    void navegar(destinoTrasLoginDe(state, perfil), { replace: true })
   }
 
 

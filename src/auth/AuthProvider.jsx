@@ -230,7 +230,8 @@ export function AuthProvider({ children }) {
     await limpiarSiTodoSincronizado()
     await limpiarDatosLocalesDeSesion()
 
-    limpiarSesion(motivo)
+    // D109 — Un cierre a mano no deja ruta de vuelta: quien entre después va a su Inicio.
+    limpiarSesion(motivo, { manual: motivo == null })
     perfilPedidoPara.current = null
     /**
      * Se vacía la caché de consultas para que ningún dato de alumnos quede
