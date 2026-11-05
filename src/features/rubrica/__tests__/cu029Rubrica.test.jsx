@@ -27,7 +27,6 @@ import useRechazosStore from '../../../store/rechazosStore'
 import { elegirPrimerColegio } from '../../../test/elegirColegio'
 import { errorHttp } from '../../../test/fabricas'
 import handlers from '../../../api/mock/handlers'
-import { MOTIVO, TEXTO_MOTIVO } from '../../../auth/habilitaciones'
 
 const ESPERA = { timeout: 8000 }
 const ESCRITURA = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
@@ -534,7 +533,7 @@ describe('Actividad iniciada sin conexión (D114)', () => {
     expect(screen.queryByText(SIN_ACTIVIDAD_DEL_SERVIDOR.motivo)).not.toBeInTheDocument()
   })
 
-  it('sin habilitación en el paquete sigue bloqueada, y dice por qué', async () => {
+  it('sin habilitación en el paquete sigue bloqueada con la respuesta del servidor', async () => {
     conPaquete([{ ...ASIGNADA, id_periodo_academico: 3 }])
     listarRubricas.mockResolvedValue(pagina({ escritura: SIN_ACTIVIDAD_DEL_SERVIDOR }))
     useActividadStore.getState().limpiar()
@@ -542,8 +541,10 @@ describe('Actividad iniciada sin conexión (D114)', () => {
 
     montar()
 
-    await screen.findByText(TEXTO_MOTIVO[MOTIVO.SIN_HABILITACION], {}, ESPERA)
-    expect(await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)).toBeDisabled()
+    const fluidez = await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)
+    await waitFor(() => expect(handlers.habilitaciones.mias).toHaveBeenCalled(), ESPERA)
+    expect(fluidez).toBeDisabled()
+    expect(screen.getByText(SIN_ACTIVIDAD_DEL_SERVIDOR.motivo)).toBeInTheDocument()
   })
 
   it('una vez que el servidor la conoce, su "no" vuelve a contar', async () => {

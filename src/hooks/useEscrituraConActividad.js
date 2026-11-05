@@ -18,7 +18,7 @@
 // dice por qué.
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { TEXTO_MOTIVO, habilitacionEnPeriodo, habilitacionPara } from '../auth/habilitaciones'
+import { habilitacionEnPeriodo, habilitacionPara } from '../auth/habilitaciones'
 import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { ahora } from '../lib/relojServidor'
 import { useActividadEnCurso } from '../store/actividadStore'
@@ -62,8 +62,9 @@ export default function useEscrituraConActividad({
     let local = null
     if (idPeriodo != null) local = habilitacionEnPeriodo({ ...grupo, idPeriodo })
     else if (fecha) local = habilitacionPara({ ...grupo, fecha })
-    if (!local) return escritura
-    if (local.permitida) return { ...escritura, permitida: true, motivo: null }
-    return { ...escritura, motivo: TEXTO_MOTIVO[local.motivo] ?? escritura.motivo }
+    // Si el paquete también dice que no, queda la respuesta del servidor tal
+    // cual: su motivo es más preciso ("el PA todavía no empieza") que el local.
+    if (!local?.permitida) return escritura
+    return { ...escritura, permitida: true, motivo: null }
   }, [calculadaSinLaActividad, escritura, habilitaciones, modulo, idColegio, idGrado, idPeriodo, fecha])
 }
