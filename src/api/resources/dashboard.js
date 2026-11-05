@@ -33,7 +33,7 @@
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
-import { normalizarPaginado } from './administracion'
+import { normalizarPaginado, todasLasPaginas } from './administracion'
 
 const { dashboard } = ENDPOINTS
 
@@ -477,17 +477,9 @@ export const obtenerLibrosIncompletos = async (filtros, extra = {}) => {
       forzarReal: adminContraApiReal,
     })
 
-  let pagina = 1
-  let items = []
-  let paginas = 1
-  do {
-    const normalizado = normalizarPaginado(await pedirPagina(pagina))
-    items = items.concat(normalizado.items)
-    paginas = normalizado.paginas
-    pagina += 1
-  } while (pagina <= paginas)
-
-  return items
+  // La primera página dice cuántas hay; el resto se pide a la vez y se une en
+  // orden, como en los demás listados largos (`todasLasPaginas`).
+  return normalizarPaginado(await todasLasPaginas((pagina) => pedirPagina(pagina ?? 1))).items
 }
 
 /**

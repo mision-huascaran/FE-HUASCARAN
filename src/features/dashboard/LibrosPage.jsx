@@ -128,6 +128,44 @@ export default function LibrosPage() {
     )
   }
 
+  // Lo que se ve con los filtros aplicados, por prioridad: el detalle de lo
+  // incompleto, el de un colegio o el bloque general.
+  const vistaAplicada = () => {
+    if (incompletos) {
+      return (
+        <DetalleLibrosIncompletos
+          filtros={aplicados}
+          scope={incompletos}
+          contexto={contexto}
+          onVolver={() => setIncompletos(undefined)}
+        />
+      )
+    }
+    if (colegio) {
+      return (
+        <DetalleColegioLibros
+          filtros={aplicados}
+          colegio={colegio}
+          contexto={contexto}
+          anioEscolar={anioAplicado?.nombre}
+          onVolver={() => setColegio(null)}
+          onIncompletos={setIncompletos}
+        />
+      )
+    }
+    return (
+      <BloqueLibros
+        filtros={aplicados}
+        contexto={contexto}
+        hayCambios={hayCambios}
+        anioEscolar={anioAplicado?.nombre}
+        alcance={alcanceEnTexto({ ...aplicados, colegios })}
+        onColegio={setColegio}
+        onIncompletos={setIncompletos}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -179,34 +217,7 @@ export default function LibrosPage() {
         </Card>
       )}
 
-      {aplicados &&
-        (incompletos ? (
-          <DetalleLibrosIncompletos
-            filtros={aplicados}
-            scope={incompletos}
-            contexto={contexto}
-            onVolver={() => setIncompletos(undefined)}
-          />
-        ) : colegio ? (
-          <DetalleColegioLibros
-            filtros={aplicados}
-            colegio={colegio}
-            contexto={contexto}
-            anioEscolar={anioAplicado?.nombre}
-            onVolver={() => setColegio(null)}
-            onIncompletos={setIncompletos}
-          />
-        ) : (
-          <BloqueLibros
-            filtros={aplicados}
-            contexto={contexto}
-            hayCambios={hayCambios}
-            anioEscolar={anioAplicado?.nombre}
-            alcance={alcanceEnTexto({ ...aplicados, colegios })}
-            onColegio={setColegio}
-            onIncompletos={setIncompletos}
-          />
-        ))}
+      {aplicados && vistaAplicada()}
     </div>
   )
 }
