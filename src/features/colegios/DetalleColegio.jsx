@@ -11,7 +11,7 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
 import ProgramacionDeClases from './ProgramacionDeClases'
-import { obtenerColegio } from '../../api/resources/administracion'
+import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import { mensajeDeError } from '../../api/client'
 import { useMigaExtra } from '../../store/migaStore'
 
@@ -21,11 +21,7 @@ export default function DetalleColegio({ colegio, onVolver }) {
    * subprogramas CON SU ID. La fila del listado solo trae lo que se pinta en
    * la tabla, y los filtros de la programación necesitan los ids.
    */
-  const consulta = useQuery({
-    queryKey: ['colegio', colegio?.id_colegio],
-    queryFn: () => obtenerColegio(colegio.id_colegio),
-    enabled: Boolean(colegio?.id_colegio),
-  })
+  const consulta = useQuery(consultaDetalleColegio(colegio?.id_colegio))
 
   const ficha = consulta.data ?? colegio
   useMigaExtra(ficha?.nombre)

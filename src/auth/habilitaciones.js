@@ -129,7 +129,22 @@ export function habilitacionPara({ habilitaciones, modulo, idColegio, idGrado, f
   if (!periodo) return { permitida: false, motivo: MOTIVO.SIN_CALENDARIO }
   if (!periodo.id_periodo_academico) return { permitida: false, motivo: MOTIVO.FUERA_DE_PERIODO }
 
-  const idPeriodo = periodo.id_periodo_academico
+  return habilitacionEnPeriodo({
+    habilitaciones: { asignaciones, permisos },
+    modulo,
+    idColegio,
+    idGrado,
+    idPeriodo: periodo.id_periodo_academico,
+    instante,
+  })
+}
+
+/**
+ * Lo mismo que `habilitacionPara`, cuando el periodo ya se conoce (D114):
+ * Rúbrica y Registro de Vuelo lo reciben del servidor con su id.
+ */
+export function habilitacionEnPeriodo({ habilitaciones, modulo, idColegio, idGrado, idPeriodo, instante }) {
+  const { asignaciones = [], permisos = [] } = habilitaciones ?? {}
   const delGrupo = (x) => mismo(x.id_colegio, idColegio) && mismo(x.id_grado, idGrado)
 
   /**

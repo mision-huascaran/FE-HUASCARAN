@@ -101,6 +101,18 @@ export function destinoTrasLogin(desde, idRol) {
   return rolPuedeEntrar(desde, idRol) ? desde : rutaInicioDe(idRol)
 }
 
+/**
+ * D109 — Destino tras el login a partir de lo que dejó `ProtectedRoute`.
+ *
+ * Si la pantalla era de una cuenta (su sesión se cortó), solo esa MISMA cuenta
+ * vuelve a ella; cualquier otra va a su Inicio. Tras un cierre a mano no llega
+ * `desde`. Sin cuenta es un enlace abierto sin sesión: vale para quien entre.
+ */
+export function destinoTrasLoginDe(state, perfil) {
+  const deOtraCuenta = state?.idUsuario != null && String(state.idUsuario) !== String(perfil?.id_usuario)
+  return destinoTrasLogin(deOtraCuenta ? undefined : state?.desde, perfil?.id_rol)
+}
+
 /** Una URL desconocida lleva al inicio del rol; sin sesión, al login. */
 function Redireccion() {
   const usuario = useSessionStore((s) => s.usuario)

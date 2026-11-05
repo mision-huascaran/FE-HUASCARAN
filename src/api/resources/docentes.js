@@ -24,8 +24,8 @@ export const obtenerAsignaciones = () => listarMisAsignaciones()
  * Indicadores del panel del docente (tarjetas "Mis estudiantes", "Reporte de
  * esta semana"… y el aviso de la evaluación diagnóstica abierta).
  *
- * TODO BACKEND: todavía no vienen en `GET /inicio/docente` (§12 del
- * contrato). Antes se sacaban del simulador TAMBIÉN contra la API real, así
+ * PENDIENTE DEL BACKEND: todavía no vienen en `GET /inicio/docente` (§12
+ * del contrato). Antes se sacaban del simulador TAMBIÉN contra la API real, así
  * que un Docente con 3 alumnos veía "110 estudiantes" (D13). Ahora, cuando el
  * Inicio va contra el backend, se devuelve `null` y las tarjetas no se pintan:
  * el contrato pide no mostrarlas o dejarlas como placeholder, nunca inventar.

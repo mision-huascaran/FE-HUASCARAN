@@ -82,6 +82,32 @@ export function camposPorCompletar(periodos, dias) {
   return faltan
 }
 
+/**
+ * D116 — El mismo texto que responde el backend en `periodos.7.fecha_fin`
+ * (calendario general o particular de más de 12 meses).
+ */
+export const MAS_DE_DOCE_MESES =
+  'El año escolar no puede abarcar más de 12 meses: el receso posterior al cuarto periodo debe terminar antes del mismo mes en que empezó el primer periodo.'
+
+/**
+ * D116 — La regla de los 12 meses, antes de enviar.
+ *
+ * El PR4 tiene que terminar ANTES del día 1 del mismo mes del año siguiente al
+ * inicio del PA1 (PA1 desde el 15/03/2026 → PR4 hasta el 28/02/2027 como
+ * mucho). El error va en el fin del PR4, igual que lo devuelve el servidor.
+ *
+ * @returns `{ 'periodos.<i>.fecha_fin': texto }` o `{}`.
+ */
+export function erroresDeDuracion(periodos) {
+  const pa1 = periodos.find((p) => p.tipo === 'PA' && Number(p.numero) === 1)
+  const i = periodos.findIndex((p) => p.tipo === 'PR' && Number(p.numero) === 4)
+  const fin = periodos[i]?.fecha_fin
+  if (!pa1?.fecha_inicio || !fin) return {}
+  const [anio, mes] = pa1.fecha_inicio.split('-')
+  const limite = `${Number(anio) + 1}-${mes}-01`
+  return fin >= limite ? { [`periodos.${i}.fecha_fin`]: MAS_DE_DOCE_MESES } : {}
+}
+
 /** D73 — CU027, al crear las fechas particulares de un colegio (precargadas del general). */
 export const AVISO_FECHAS_PARTICULARES =
   'Al guardar, este colegio tendrá un calendario propio para el año escolar seleccionado. Los cambios posteriores del calendario general no se aplicarán automáticamente.'
@@ -190,6 +216,21 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0]
     if (propuesto) setAnio(String(propuesto))
   }, [anios, anio])
+
+  /**
+   * D117 — Lo que dejó la edición de un calendario no pasa a otro.
+   *
+   * "El cambio afecta a registros existentes" de un colegio seguía visible al
+   * consultar el de otro. Los filtros están bloqueados mientras se edita, así
+   * que esto solo corre en consulta y no descarta nada escrito.
+   */
+  useEffect(() => {
+    setIncompatibilidades([])
+    setErroresCampo({})
+    setConflicto(false)
+    setSinConfirmar(false)
+    setConfirmando(null)
+  }, [alcance, idColegio, anio])
 
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
@@ -332,6 +373,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   /** Vuelve a consulta descartando lo escrito. */
   const descartar = () => {
+    // D117 — El aviso de registros afectados era de ESTA edición: si se queda,
+    // se ve en consulta y al pasar a otro colegio.
+    setIncompatibilidades([])
     setConfirmando(null)
     setConflicto(false)
     setSinConfirmar(false)
@@ -365,6 +409,12 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   /** Guardar: crear va directo; editar el GENERAL pasa por confirmación. */
   const pedirGuardar = () => {
+    // D116 — Lo que se sabe antes de enviar se dice antes, junto a su campo.
+    const locales = erroresDeDuracion(periodos)
+    if (Object.keys(locales).length) {
+      setErroresCampo(locales)
+      return
+    }
     if (modo === 'editar' && !porColegio) {
       setConfirmando({ tipo: 'actualizar' })
       return

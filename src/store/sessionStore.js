@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { tokenCaducado } from '../auth/jwt'
+import { leerPayload, tokenCaducado } from '../auth/jwt'
 
 /**
  * Sesión activa.
@@ -60,11 +60,30 @@ export const useSessionStore = create((set, get) => ({
   setCargando: (cargando) => set({ cargando }),
 
   /**
+   * D109 — Cómo terminó la última sesión de esta pestaña.
+   *
+   *   · `null`: no terminó ninguna (se abrió un enlace sin sesión).
+   *   · `{ idUsuario: null }`: se cerró a mano. No queda pantalla de vuelta.
+   *   · `{ idUsuario }`: se cortó sola (expiró, el servidor la rechazó). Solo
+   *     esa MISMA cuenta vuelve a la pantalla en la que estaba.
+   *
+   * Vive en memoria: `localStorage` no es sitio para datos de la persona
+   * (D115) y el cierre de sesión lo vacía entero.
+   */
+  salida: null,
+
+  /**
    * @param motivo 'expiracion' cuando se cumplieron las 8 horas (CU007), para
    *   poder decirlo en el login. Vive aquí y no en `AuthProvider` porque quien
    *   lo detecta es el interceptor de axios, que está fuera de React.
+   * @param opciones.manual el usuario pulsó "Cerrar sesión": no queda pantalla
+   *   a la que volver (D109).
    */
-  cerrarSesion: (motivo = null) => {
+  cerrarSesion: (motivo = null, { manual = false } = {}) => {
+    // Antes del `set`: después ya no hay perfil. Si el perfil no llegó (un 401
+    // de `/me` al recargar), la cuenta se lee del token.
+    const { usuario, token } = get()
+    const idUsuario = usuario?.id_usuario ?? leerPayload(token)?.id_usuario ?? null
     try {
       sessionStorage.removeItem(CLAVE_TOKEN)
       // D4: la sesión de ACTIVIDADES muere con la de autenticación, tanto al
@@ -75,7 +94,14 @@ export const useSessionStore = create((set, get) => ({
     } catch {
       // nada que limpiar
     }
-    set({ token: null, usuario: null, cargando: false, motivoCierre: motivo, servidorInalcanzable: false })
+    set({
+      token: null,
+      usuario: null,
+      cargando: false,
+      motivoCierre: motivo,
+      servidorInalcanzable: false,
+      salida: { idUsuario: manual ? null : idUsuario },
+    })
   },
 
   limpiarMotivoCierre: () => set({ motivoCierre: null }),

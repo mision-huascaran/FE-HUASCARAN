@@ -180,7 +180,12 @@ registrarEnviador(
  */
 registrarEnviador(
   TIPOS_ENVIO.ACTIVIDAD_INICIO,
-  ({ id, inicio, id_sesion: idSesion }) => iniciarActividad({ id, inicio, id_sesion: idSesion }),
+  async ({ id, inicio, id_sesion: idSesion }) => {
+    const respuesta = await iniciarActividad({ id, inicio, id_sesion: idSesion })
+    // D114 — Desde aquí el servidor la conoce: su `escritura` vuelve a mandar.
+    useActividadStore.getState().confirmarEnServidor(id)
+    return respuesta
+  },
   { modulo: 'actividad' },
 )
 registrarEnviador(

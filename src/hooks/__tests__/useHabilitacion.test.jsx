@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import useHabilitacion, { MOTIVO_LOCAL } from '../useHabilitacion'
+import useHabilitacion, { MOTIVO_LOCAL, SIN_HABILITACION_VERIFICABLE } from '../useHabilitacion'
 import { MOTIVO, TEXTO_MOTIVO } from '../../auth/habilitaciones'
 import { SIN_REFERENCIA_TEMPORAL } from '../../lib/relojServidor'
 import useActividadStore from '../../store/actividadStore'
@@ -16,9 +16,11 @@ const INSTANTE = new Date('2026-10-22T15:00:00Z')
 
 const habilitacionPara = vi.fn()
 const continuidad = vi.fn(() => true)
+const guardadas = vi.fn(async () => null)
 
 vi.mock('../../api/resources/habilitaciones', () => ({
   obtenerMisHabilitaciones: vi.fn(async () => PAQUETE),
+  habilitacionesGuardadas: () => guardadas(),
 }))
 
 vi.mock('../../auth/habilitaciones', async (importOriginal) => ({
@@ -44,6 +46,8 @@ const conRed = (enLinea) => Object.defineProperty(window.navigator, 'onLine', { 
 
 beforeEach(() => {
   habilitacionPara.mockReset()
+  guardadas.mockReset()
+  guardadas.mockResolvedValue(null)
   continuidad.mockReturnValue(true)
   conRed(true)
   useActividadStore.setState({ sesion: { id_actividad: 'a1' } })
@@ -128,5 +132,29 @@ describe('useHabilitacion', () => {
     useActividadStore.setState({ sesion: null })
     const { result } = usar({ ...GRUPO, exigeActividad: false, escrituraDelServidor: { permitida: true, motivo: MOTIVO.ASIGNACION } })
     expect(result.current.permitida).toBe(true)
+  })
+
+  describe('sin conexión (D95)', () => {
+    it('sin el paquete en IndexedDB bloquea con el literal de CU009 y CU022', async () => {
+      conRed(false)
+      const { result } = usar({ ...GRUPO, escrituraDelServidor: { permitida: true, motivo: MOTIVO.ASIGNACION } })
+
+      // Mientras se busca, bloqueado y sin texto.
+      expect(result.current).toMatchObject({ permitida: false, motivo: MOTIVO_LOCAL.POR_VERIFICAR, texto: null })
+      await waitFor(() => expect(result.current.motivo).toBe(MOTIVO_LOCAL.NO_VERIFICABLE))
+      expect(result.current.texto).toBe(SIN_HABILITACION_VERIFICABLE)
+      expect(habilitacionPara).not.toHaveBeenCalled()
+    })
+
+    it('con el paquete en IndexedDB decide con él, no con el `escritura` en caché', async () => {
+      conRed(false)
+      guardadas.mockResolvedValue(PAQUETE)
+      habilitacionPara.mockReturnValue({ permitida: false, motivo: MOTIVO.SIN_HABILITACION })
+      const { result } = usar({ ...GRUPO, escrituraDelServidor: { permitida: true, motivo: MOTIVO.ASIGNACION } })
+
+      await waitFor(() => expect(result.current.motivo).toBe(MOTIVO.SIN_HABILITACION))
+      expect(result.current.permitida).toBe(false)
+      expect(habilitacionPara).toHaveBeenLastCalledWith(expect.objectContaining({ habilitaciones: PAQUETE }))
+    })
   })
 })

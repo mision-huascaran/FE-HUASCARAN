@@ -10,8 +10,9 @@ export default function Skeleton({ variant = 'block', rows = 5, className }) {
     return (
       <div className={cn('space-y-2', className)} aria-hidden="true">
         <Bloque className="h-10 w-full" />
-        {Array.from({ length: rows }).map((_, i) => (
-          <Bloque key={i} className="h-12 w-full" />
+        {/* Las filas no tienen identidad propia: se numeran (1, 2, 3…) y el número es la clave. */}
+        {Array.from({ length: rows }, (_, n) => n + 1).map((fila) => (
+          <Bloque key={fila} className="h-12 w-full" />
         ))}
       </div>
     )

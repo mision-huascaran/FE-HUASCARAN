@@ -9,7 +9,11 @@
 //     pasa a este hook en `escrituraDelServidor` y aquí no se discute.
 //
 //   · SIN CONEXIÓN se deduce del paquete de `GET /me/habilitaciones` guardado
-//     en IndexedDB, con las reglas de `auth/habilitaciones.js`.
+//     en IndexedDB, con las reglas de `auth/habilitaciones.js`. Se lee de
+//     IndexedDB al abrir la pantalla, no de la caché de consultas (D95): esa
+//     caché también se restaura de una copia, y con ella se dejaba registrar
+//     aunque el paquete ya no estuviera en el equipo. Si no está, se bloquea
+//     con "No se puede verificar tu habilitación sin conexión…" (CU009, CU022).
 //
 // A eso se le suman dos condiciones que son del cliente y no del servidor: que
 // haya una ACTIVIDAD DE TRABAJO abierta (CU010) y que la referencia temporal
@@ -19,17 +23,25 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MOTIVO, TEXTO_MOTIVO, habilitacionPara } from '../auth/habilitaciones'
-import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
+import { habilitacionesGuardadas, obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { SIN_ACTIVIDAD } from '../api/resources/sincronizacion'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../lib/relojServidor'
-import useActividadStore from '../store/actividadStore'
+import { useActividadEnCurso } from '../store/actividadStore'
 import useConexion from './useConexion'
 
 /** Motivos propios del cliente, que no vienen del contrato. */
 export const MOTIVO_LOCAL = {
   SIN_ACTIVIDAD: 'sin_actividad',
   SIN_REFERENCIA: 'sin_referencia_temporal',
+  /** D95 — Sin conexión, mientras se busca el paquete en IndexedDB. Sin texto: aún no hay nada que decir. */
+  POR_VERIFICAR: 'habilitacion_por_verificar',
+  /** D95 — Sin conexión y sin el paquete en IndexedDB. */
+  NO_VERIFICABLE: 'habilitacion_no_verificable',
 }
+
+/** Literal de CU009 y CU022 (D95). */
+export const SIN_HABILITACION_VERIFICABLE =
+  'No se puede verificar tu habilitación sin conexión. Conéctate a Internet para actualizar los datos y continuar.'
 
 // El texto de "falta la actividad" es el MISMO que responde el servidor: así
 // el docente lee lo mismo cuando la pantalla se lo adelanta y cuando el
@@ -38,6 +50,7 @@ const TEXTOS = {
   ...TEXTO_MOTIVO,
   [MOTIVO_LOCAL.SIN_ACTIVIDAD]: SIN_ACTIVIDAD,
   [MOTIVO_LOCAL.SIN_REFERENCIA]: SIN_REFERENCIA_TEMPORAL,
+  [MOTIVO_LOCAL.NO_VERIFICABLE]: SIN_HABILITACION_VERIFICABLE,
 }
 
 /**
@@ -59,7 +72,8 @@ export default function useHabilitacion({
   exigeActividad = true,
 }) {
   const enLinea = useConexion()
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
 
   /**
    * El paquete local solo se pide cuando puede hacer falta.
@@ -72,6 +86,22 @@ export default function useHabilitacion({
     queryFn: obtenerMisHabilitaciones,
     staleTime: 5 * 60 * 1000,
     gcTime: Infinity,
+    retry: false,
+  })
+
+  /**
+   * D95 — Sin conexión, el paquete se busca en IndexedDB cada vez que se abre
+   * la pantalla. Raíz propia: no entra en la copia de `cacheConsultas`, que es
+   * justo lo que hacía creer que seguía ahí.
+   */
+  const { data: guardadas, isPending: buscandoGuardadas } = useQuery({
+    queryKey: ['habilitaciones-en-equipo'],
+    queryFn: async () => (await habilitacionesGuardadas()) ?? null,
+    enabled: !enLinea,
+    networkMode: 'always',
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
     retry: false,
   })
 
@@ -89,8 +119,18 @@ export default function useHabilitacion({
     if (exigeActividad && !conActividad) return responder(false, MOTIVO_LOCAL.SIN_ACTIVIDAD)
     if (!enLinea && !hayContinuidad()) return responder(false, MOTIVO_LOCAL.SIN_REFERENCIA)
 
+    /**
+     * Sin conexión NO vale el `escritura` que trajo la consulta en caché: es
+     * de cuando había red, y un permiso pudo vencer o un periodo cerrarse.
+     * Se decide con el paquete del equipo, o no se decide.
+     */
+    if (!enLinea) {
+      if (buscandoGuardadas) return responder(false, MOTIVO_LOCAL.POR_VERIFICAR)
+      if (!guardadas) return responder(false, MOTIVO_LOCAL.NO_VERIFICABLE)
+    }
+
     // Con conexión, lo que diga el servidor.
-    if (escrituraDelServidor) {
+    if (enLinea && escrituraDelServidor) {
       const { permitida, motivo, id_permiso: idPermiso } = escrituraDelServidor
       return responder(Boolean(permitida), motivo, { id_permiso: idPermiso })
     }
@@ -98,7 +138,7 @@ export default function useHabilitacion({
     if (!modulo || !idColegio || !idGrado || !fecha) return responder(false, MOTIVO.SIN_HABILITACION)
 
     const local = habilitacionPara({
-      habilitaciones,
+      habilitaciones: enLinea ? habilitaciones : guardadas,
       modulo,
       idColegio,
       idGrado,
@@ -107,5 +147,17 @@ export default function useHabilitacion({
       instante: ahora(),
     })
     return responder(local.permitida, local.motivo, local)
-  }, [modulo, idColegio, idGrado, fecha, escrituraDelServidor, exigeActividad, conActividad, enLinea, habilitaciones])
+  }, [
+    modulo,
+    idColegio,
+    idGrado,
+    fecha,
+    escrituraDelServidor,
+    exigeActividad,
+    conActividad,
+    enLinea,
+    habilitaciones,
+    guardadas,
+    buscandoGuardadas,
+  ])
 }

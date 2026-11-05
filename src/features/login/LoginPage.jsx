@@ -16,7 +16,7 @@ import ModalPrimerIngreso from './ModalPrimerIngreso'
 import ModalRecuperarPassword from './ModalRecuperarPassword'
 import Logo from '../../components/ui/Logo'
 import { useAuth } from '../../auth/AuthProvider'
-import { destinoTrasLogin } from '../../rutas'
+import { destinoTrasLoginDe } from '../../rutas'
 import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
 import CredencialesDemo from './CredencialesDemo'
@@ -62,14 +62,14 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(esquema), defaultValues: { correo: '', password: '' } })
 
-  if (autenticado) return <Navigate to={destinoTrasLogin(state?.desde, usuario.id_rol)} replace />
+  if (autenticado) return <Navigate to={destinoTrasLoginDe(state, usuario)} replace />
 
   const enviar = async ({ correo, password }) => {
     setErrorGeneral(null)
     limpiarMotivoCierre()
     try {
       const perfil = await entrar({ correo, password })
-      void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+      void navegar(destinoTrasLoginDe(state, perfil), { replace: true })
     } catch (error) {
       const estado = estadoDe(error)
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
   /** Tras el primer ingreso el usuario YA tiene token: entra sin repetir login. */
   const entrarTrasPrimerIngreso = async (sesion) => {
     const perfil = await entrarConToken(sesion.access_token)
-    void navegar(destinoTrasLogin(state?.desde, perfil.id_rol), { replace: true })
+    void navegar(destinoTrasLoginDe(state, perfil), { replace: true })
   }
 
 
@@ -146,16 +146,14 @@ export default function LoginPage() {
           {/* CU007: si la sesión venció sola hay que decirlo, o el usuario
               aparece aquí sin saber por qué y cree que perdió su trabajo. */}
           {motivoCierre === 'expiracion' && (
-            <div
-              role="status"
-              className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600"
-            >
+            // `<output>` tiene el rol `status` de forma nativa (antes, `div role="status"`).
+            <output className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
                 Su sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
                 hubieran enviado siguen guardados y se sincronizarán al volver a entrar.
               </span>
-            </div>
+            </output>
           )}
 
           {!enLinea && (

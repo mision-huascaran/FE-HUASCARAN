@@ -49,15 +49,13 @@ export default function AvisoDatosLocales({ rol = 'directivo', sinDatos = false,
   // decir "Sin conexión" a quien tiene internet sería falso.
   const Icono = enLinea ? ServerCrash : WifiOff
   return (
-    <div
-      role="status"
-      className="flex items-start gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-warning-600"
-    >
+    // `<output>` tiene el rol `status` de forma nativa (antes, `div role="status"`).
+    <output className="flex items-start gap-2 rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-warning-600">
       <Icono className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>
         {enLinea ? 'No se pudo recuperar la información del servidor' : 'Sin conexión'}: se muestra el último
         resumen guardado y <strong>puede estar desactualizado</strong>.
       </span>
-    </div>
+    </output>
   )
 }

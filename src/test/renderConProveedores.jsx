@@ -23,11 +23,11 @@ export function clienteDePrueba() {
 /** Deja la sesión como si el login ya hubiera ocurrido, o sin sesión con `null`. */
 export function iniciarSesionComo(idRol, extra = {}) {
   if (idRol == null) {
-    useSessionStore.setState({ token: null, usuario: null, cargando: false, motivoCierre: null })
+    useSessionStore.setState({ token: null, usuario: null, cargando: false, motivoCierre: null, salida: null })
     return null
   }
   const usuario = usuarioDe(idRol, extra)
-  useSessionStore.setState({ token: tokenMockDe(idRol), usuario, cargando: false, motivoCierre: null })
+  useSessionStore.setState({ token: tokenMockDe(idRol), usuario, cargando: false, motivoCierre: null, salida: null })
   return usuario
 }
 

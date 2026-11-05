@@ -47,12 +47,19 @@ export default function Modal({
           className="absolute inset-0 h-full w-full cursor-default"
         />
       )}
-      <div
-        role="dialog"
+      {/*
+        `<dialog>` nativo ABIERTO POR ATRIBUTO (no con `showModal()`): mismo rol
+        y nombre que el `div role="dialog"` de antes, y se sigue abriendo y
+        cerrando igual, con `useOnEscape` y el fondo. Las clases `mx-0`,
+        `h-auto` y `text-inherit` anulan los estilos por defecto del navegador
+        para `dialog` (margen automático, alto ajustado y color de texto).
+      */}
+      <dialog
+        open
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'relative z-10 my-0 w-full rounded-t-xl bg-surface-0 shadow-card animate-slide-up sm:my-8 sm:rounded-xl',
+          'relative z-10 mx-0 my-0 h-auto w-full rounded-t-xl bg-surface-0 text-inherit shadow-card animate-slide-up sm:my-8 sm:rounded-xl',
           size,
         )}
       >
@@ -80,7 +87,7 @@ export default function Modal({
             {footer}
           </footer>
         )}
-      </div>
+      </dialog>
     </div>,
     document.body,
   )

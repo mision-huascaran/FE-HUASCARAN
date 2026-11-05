@@ -46,46 +46,35 @@ import FiltrosAsistencia from './FiltrosAsistencia'
 import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
 import { marcadorDeColegio, debeElegirColegio } from '../../hooks/useFiltrosDeGrupo'
+import useHabilitacion from '../../hooks/useHabilitacion'
+import { consultaDetalleColegio } from '../../hooks/consultaColegio'
+import { MODULOS } from '../../auth/habilitaciones'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
-import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
+import { listarDocentes, listarMisAsignaciones } from '../../api/resources/administracion'
 import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 import { ahora } from '../../lib/relojServidor'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
-import useActividadStore from '../../store/actividadStore'
+import { useActividadEnCurso } from '../../store/actividadStore'
+import useEscrituraConActividad from '../../hooks/useEscrituraConActividad'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { formatearDiaLargo } from '../../lib/format'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
-// Literales de CU022, tal cual los da el caso de uso.
 /**
  * D95 — CU009 y CU022: sin conexión y sin el paquete de habilitaciones en
- * IndexedDB no hay con qué decidir si el Docente puede escribir aquí.
+ * IndexedDB no hay con qué decidir si el Docente puede escribir aquí. El texto
+ * y la decisión viven en `useHabilitacion`.
  */
-export const SIN_HABILITACION_VERIFICABLE =
-  'No se puede verificar tu habilitación sin conexión. Conéctate a Internet para actualizar los datos y continuar.'
-/**
- * D95 — SIN CONEXIÓN, LA HABILITACIÓN TIENE QUE PODER VERIFICARSE.
- *
- * La clase en caché trae el `escritura` de cuando había red, y con eso se
- * dejaba registrar aunque el paquete de `/me/habilitaciones` no estuviera en
- * el equipo. Sin ese paquete no hay forma de saber si sigue habilitado (un
- * permiso pudo vencer, un periodo cerrarse): se bloquea y se dice.
- *
- * `porVerificar` bloquea ya mientras se busca; `noVerificable` es cuando la
- * búsqueda terminó sin nada y toca explicarlo.
- */
-function verificacionSinConexion({ esDocente, enLinea, habilitaciones, buscando }) {
-  const porVerificar = esDocente && !enLinea && !habilitaciones
-  return { porVerificar, noVerificable: porVerificar && !buscando }
-}
+export { SIN_HABILITACION_VERIFICABLE } from '../../hooks/useHabilitacion'
 
+// Literales de CU022, tal cual los da el caso de uso.
 const SIN_ALUMNOS = 'No hay alumnos matriculados o activos en esta clase para la fecha seleccionada.'
 const NO_LECTIVO = 'La fecha seleccionada no corresponde a un día lectivo válido del periodo vigente.'
 
@@ -126,7 +115,8 @@ function EtiquetaDeClase({ etiqueta, fecha }) {
 export default function AsistenciaPage() {
   const toast = useToast()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
   const puedeEditar = puede('asistencia', idRol, ACCION.EDITAR)
   const enLinea = useConexion()
 
@@ -158,7 +148,7 @@ export default function AsistenciaPage() {
    * Salen del paquete offline, que desde la tanda I trae los nombres: así el
    * aula se ofrece también sin conexión, que es cuando hace falta.
    */
-  const { data: habilitaciones, isPending: buscandoHabilitaciones } = useQuery({
+  const { data: habilitaciones } = useQuery({
     queryKey: ['me', 'habilitaciones'],
     queryFn: obtenerMisHabilitaciones,
     enabled: esDocente,
@@ -193,12 +183,8 @@ export default function AsistenciaPage() {
   }, [esDocente, asignaciones, permisos, todosLosColegios])
 
   // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
-  const { data: colegio } = useQuery({
-    queryKey: ['colegio', 'detalle', filtros.idColegio],
-    queryFn: () => obtenerColegio(filtros.idColegio),
-    enabled: Boolean(filtros.idColegio),
-    ...SIEMPRE,
-  })
+  // D110 — Se vuelve a pedir al abrir la pantalla: trae las secciones nuevas.
+  const { data: colegio } = useQuery(consultaDetalleColegio(filtros.idColegio))
 
   const asignacion = useMemo(
     () => asignaciones.find((a) => String(a.id_colegio) === String(filtros.idColegio)),
@@ -377,7 +363,15 @@ export default function AsistenciaPage() {
    * que llega la escritura, y para entonces el docente ya rellenó la pantalla.
    */
   const datosClase = clase.data?.clase
-  const escritura = clase.data?.escritura
+  // D114 — Con una actividad que el servidor aún no conoce, su "no" no cuenta.
+  const escritura = useEscrituraConActividad({
+    escritura: clase.data?.escritura ?? null,
+    registra: puedeEditar,
+    modulo: MODULOS.ASISTENCIAS,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    fecha: filtros.fecha,
+  })
 
   /**
    * ESA FECHA NO TIENE CLASE (CU022, flujo "Identificar la clase seleccionada").
@@ -394,20 +388,22 @@ export default function AsistenciaPage() {
   // registrarían adicionales en días que el docente ni miró.
   useEffect(() => setRegistrandoAdicional(false), [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha])
 
-  const habilitacion = verificacionSinConexion({
-    esDocente,
-    enLinea,
-    habilitaciones,
-    buscando: buscandoHabilitaciones,
+  /**
+   * D95 — Quién marca lo decide `useHabilitacion`: con conexión, el
+   * `escritura` del servidor; sin conexión, el paquete de habilitaciones que
+   * haya en IndexedDB, y si no hay, se bloquea y se explica (CU009, CU022).
+   * Antes se miraba el paquete de la caché de consultas, que se restaura de
+   * una copia y seguía ahí aunque el equipo ya no lo tuviera.
+   */
+  const habilitacion = useHabilitacion({
+    modulo: MODULOS.ASISTENCIAS,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    fecha: filtros.fecha,
+    escrituraDelServidor: escritura ?? null,
   })
 
-  const autoguardado = [
-    escritura?.permitida,
-    puedeEditar,
-    conActividad,
-    !habilitacion.porVerificar,
-    !sinClase || registrandoAdicional,
-  ].every(Boolean)
+  const autoguardado = [habilitacion.permitida, puedeEditar, !sinClase || registrandoAdicional].every(Boolean)
   const soloLectura = !autoguardado
 
   /**
@@ -473,11 +469,14 @@ export default function AsistenciaPage() {
         Si la actividad ya se avisó arriba no se repite: es el mismo motivo
         dicho dos veces.
       */}
-      {escritura?.permitida === false && escritura.motivo && conActividad && (
+      {enLinea && escritura?.permitida === false && escritura.motivo && conActividad && (
         <AvisoActividades mensaje={escritura.motivo} />
       )}
 
-      {habilitacion.noVerificable && conActividad && <AvisoActividades mensaje={SIN_HABILITACION_VERIFICABLE} />}
+      {/* D95 — Sin conexión, el motivo lo da el paquete del equipo, no la clase en caché. */}
+      {puedeEditar && !enLinea && conActividad && habilitacion.texto && (
+        <AvisoActividades mensaje={habilitacion.texto} />
+      )}
 
       {/* Una corrección excepcional SÍ hay que anunciarla: el docente está
           escribiendo en un periodo cerrado y con fecha de caducidad. */}
@@ -543,7 +542,7 @@ export default function AsistenciaPage() {
             siguen decidiendo—, por eso solo sale cuando lo demás ya deja
             escribir.
           */}
-          {sinClase && !registrandoAdicional && puedeEditar && conActividad && escritura?.permitida && (
+          {sinClase && !registrandoAdicional && puedeEditar && conActividad && habilitacion.permitida && (
             <Button size="sm" variant="secondary" onClick={() => setRegistrandoAdicional(true)}>
               Registrar clase adicional
             </Button>
