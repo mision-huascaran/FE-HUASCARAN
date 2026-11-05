@@ -26,6 +26,8 @@ import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
 import { elegirPrimerColegio } from '../../../test/elegirColegio'
 import { errorHttp } from '../../../test/fabricas'
+import handlers from '../../../api/mock/handlers'
+import { MOTIVO, TEXTO_MOTIVO } from '../../../auth/habilitaciones'
 
 const ESPERA = { timeout: 8000 }
 const ESCRITURA = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
@@ -488,5 +490,71 @@ describe('Quién puede escribir', () => {
 
     await screen.findByText('Debes iniciar una actividad de trabajo para registrar o modificar información.', {}, ESPERA)
     expect(await screen.findByLabelText(/fluidez de/i, {}, ESPERA)).toBeDisabled()
+  })
+})
+
+/**
+ * D114 — CP-INI-15. Una actividad iniciada SIN CONEXIÓN todavía no existe para
+ * el servidor, así que el `escritura` que él calcula —el de la respuesta en
+ * caché o el de una respuesta que llega antes de sincronizar el inicio— dice
+ * "Debes iniciar una actividad…". La cabecera ya mostraba "Finalizar
+ * actividad" y Rúbrica seguía bloqueada: dos fuentes para lo mismo.
+ */
+describe('Actividad iniciada sin conexión (D114)', () => {
+  const SIN_ACTIVIDAD_DEL_SERVIDOR = {
+    permitida: false,
+    motivo: 'Debes iniciar una actividad de trabajo para registrar o modificar información.',
+    id_permiso: null,
+    aviso_permiso: null,
+  }
+
+  /** El paquete de `/me/habilitaciones`, con o sin el aula de la prueba en su PA. */
+  const conPaquete = (asignaciones) =>
+    vi.spyOn(handlers.habilitaciones, 'mias').mockResolvedValue({
+      generado_en: '2026-11-05T12:00:00Z',
+      asignaciones,
+      permisos: [],
+      calendarios: [],
+    })
+  const ASIGNADA = { id_colegio: 1, id_grado: 2, id_periodo_academico: 2, retroactiva: false }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('Rúbrica deja evaluar aunque el servidor todavía no la conozca', async () => {
+    conPaquete([ASIGNADA])
+    listarRubricas.mockResolvedValue(pagina({ escritura: SIN_ACTIVIDAD_DEL_SERVIDOR }))
+    // `iniciar` es lo que hace la barra sin conexión: el servidor aún no la sabe.
+    useActividadStore.getState().limpiar()
+    useActividadStore.getState().iniciar({ idDocente: 1 })
+
+    montar()
+
+    const fluidez = await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)
+    await waitFor(() => expect(fluidez).not.toBeDisabled(), ESPERA)
+    expect(screen.queryByText(SIN_ACTIVIDAD_DEL_SERVIDOR.motivo)).not.toBeInTheDocument()
+  })
+
+  it('sin habilitación en el paquete sigue bloqueada, y dice por qué', async () => {
+    conPaquete([{ ...ASIGNADA, id_periodo_academico: 3 }])
+    listarRubricas.mockResolvedValue(pagina({ escritura: SIN_ACTIVIDAD_DEL_SERVIDOR }))
+    useActividadStore.getState().limpiar()
+    useActividadStore.getState().iniciar({ idDocente: 1 })
+
+    montar()
+
+    await screen.findByText(TEXTO_MOTIVO[MOTIVO.SIN_HABILITACION], {}, ESPERA)
+    expect(await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)).toBeDisabled()
+  })
+
+  it('una vez que el servidor la conoce, su "no" vuelve a contar', async () => {
+    conPaquete([ASIGNADA])
+    listarRubricas.mockResolvedValue(pagina({ escritura: SIN_ACTIVIDAD_DEL_SERVIDOR }))
+    const abierta = useActividadStore.getState().sesion
+    useActividadStore.setState({ sesion: { ...abierta, delServidor: true } })
+
+    montar()
+
+    await screen.findByText(SIN_ACTIVIDAD_DEL_SERVIDOR.motivo, {}, ESPERA)
+    expect(await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)).toBeDisabled()
   })
 })

@@ -33,7 +33,9 @@ import { useNivelesRazkids } from '../../hooks/useCatalogos'
 import { mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
-import useActividadStore from '../../store/actividadStore'
+import { useActividadEnCurso } from '../../store/actividadStore'
+import { MODULOS } from '../../auth/habilitaciones'
+import useEscrituraConActividad from '../../hooks/useEscrituraConActividad'
 import useSessionStore from '../../store/sessionStore'
 import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
 import { formatearFecha } from '../../lib/format'
@@ -49,7 +51,8 @@ const TONO = {
 export default function RegistroVueloAnualPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const esDocente = idRol === ROLES.PROFESOR
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
   // La clave de la matriz es `vuelo`, no `registro_vuelo`: ese es el nombre
   // del MÓDULO en el contrato, no el de la sección de permisos.
   const puedeEditar = puede('vuelo', idRol, ACCION.EDITAR)
@@ -92,7 +95,15 @@ export default function RegistroVueloAnualPage() {
   }, [periodos, numeroPA])
 
   const periodo = periodos.find((p) => p.numero === numeroPA) ?? null
-  const escritura = periodo?.escritura ?? null
+  // D114 — Con una actividad que el servidor aún no conoce, su "no" no cuenta.
+  const escritura = useEscrituraConActividad({
+    escritura: periodo?.escritura ?? null,
+    registra: puedeEditar,
+    modulo: MODULOS.REGISTRO_VUELO,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    idPeriodo: periodo?.id_periodo_academico ?? null,
+  })
   const puedeEscribir = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !puedeEscribir
 

@@ -40,7 +40,9 @@ import { ACCION, puede } from '../../auth/permisos'
 import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
 import { esFutura } from '../../lib/relojServidor'
 import { ROLES } from '../../auth/roles'
-import useActividadStore from '../../store/actividadStore'
+import { useActividadEnCurso } from '../../store/actividadStore'
+import { MODULOS } from '../../auth/habilitaciones'
+import useEscrituraConActividad from '../../hooks/useEscrituraConActividad'
 import useSessionStore from '../../store/sessionStore'
 import useConexion from '../../hooks/useConexion'
 
@@ -75,7 +77,8 @@ const opcionDeSemana = (s) => {
 export default function LecturaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const esDocente = idRol === ROLES.PROFESOR
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
   const puedeEditar = puede('lectura', idRol, ACCION.EDITAR)
 
   const [observando, setObservando] = useState(null)
@@ -155,7 +158,15 @@ export default function LecturaPage() {
    * la habilitación y el permiso excepcional—, y la actividad abierta se
    * comprueba aquí porque es del cliente.
    */
-  const escritura = tabla?.escritura ?? porCrear?.escritura ?? null
+  // D114 — Con una actividad que el servidor aún no conoce, su "no" no cuenta.
+  const escritura = useEscrituraConActividad({
+    escritura: tabla?.escritura ?? porCrear?.escritura ?? null,
+    registra: puedeEditar,
+    modulo: MODULOS.LECTURA,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    fecha: tabla?.clase_referencia?.fecha ?? porCrear?.claseSugerida?.fecha ?? null,
+  })
   const puedeEscribir = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !puedeEscribir
 

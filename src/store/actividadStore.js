@@ -127,6 +127,18 @@ const useActividadStore = create((set, get) => ({
     return sesion
   },
 
+  /**
+   * D114 — El inicio encolado sin conexión ya llegó al servidor: a partir de
+   * aquí, lo que el servidor diga de esta actividad es con conocimiento.
+   */
+  confirmarEnServidor: (id) => {
+    const { sesion } = get()
+    if (!sesion || sesion.id !== id || sesion.delServidor) return
+    const confirmada = { ...sesion, delServidor: true }
+    guardar(confirmada)
+    set({ sesion: confirmada })
+  },
+
   /** Al cerrar sesión o vencer el JWT: las actividades se cierran con ella. */
   limpiar: () => {
     guardar(null)
@@ -136,5 +148,23 @@ const useActividadStore = create((set, get) => ({
 
 /** ¿Hay actividades iniciadas? Lo usan las grillas para habilitar la edición. */
 export const hayActividadesIniciadas = () => Boolean(useActividadStore.getState().sesion)
+
+/**
+ * D114 — LA FUENTE ÚNICA DE "HAY ACTIVIDAD EN CURSO".
+ *
+ * La usan la cabecera, Asistencias, Lectura, Rúbrica y Registro de Vuelo. Antes
+ * la cabecera miraba este store y los módulos, además, el `escritura` del
+ * servidor, que también dice si hay actividad. Una actividad iniciada sin
+ * conexión no existe para el servidor hasta que su inicio se sincroniza, así
+ * que la cabecera decía "Finalizar actividad" y Rúbrica, "Debes iniciar una
+ * actividad de trabajo…". Cómo se lee ese `escritura` mientras tanto lo decide
+ * `hooks/useEscrituraConActividad`.
+ *
+ * @returns `{ sesion, enCurso, conocidaPorServidor }`
+ */
+export function useActividadEnCurso() {
+  const sesion = useActividadStore((s) => s.sesion)
+  return { sesion, enCurso: Boolean(sesion), conocidaPorServidor: Boolean(sesion?.delServidor) }
+}
 
 export default useActividadStore

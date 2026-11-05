@@ -32,7 +32,9 @@ import { anioVigente, listarAniosEscolares } from '../../api/resources/administr
 import { mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
-import useActividadStore from '../../store/actividadStore'
+import { useActividadEnCurso } from '../../store/actividadStore'
+import { MODULOS } from '../../auth/habilitaciones'
+import useEscrituraConActividad from '../../hooks/useEscrituraConActividad'
 import useSessionStore from '../../store/sessionStore'
 import useRechazosStore from '../../store/rechazosStore'
 import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
@@ -42,7 +44,8 @@ const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 export default function RubricaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const esDocente = idRol === ROLES.PROFESOR
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
   const puedeEditar = puede('rubrica', idRol, ACCION.EDITAR)
 
   const [pagina, setPagina] = useState(1)
@@ -75,7 +78,15 @@ export default function RubricaPage() {
     [programas, filtros.idPrograma],
   )
 
-  const escritura = datos?.escritura ?? null
+  // D114 — Con una actividad que el servidor aún no conoce, su "no" no cuenta.
+  const escritura = useEscrituraConActividad({
+    escritura: datos?.escritura ?? null,
+    registra: puedeEditar,
+    modulo: MODULOS.RUBRICA,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    idPeriodo: datos?.id_periodo_academico ?? null,
+  })
   const puedeEscribir = Boolean(escritura?.permitida) && puedeEditar && conActividad
   const soloLectura = !puedeEscribir
 

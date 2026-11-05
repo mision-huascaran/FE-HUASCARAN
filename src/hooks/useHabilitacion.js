@@ -26,7 +26,7 @@ import { MOTIVO, TEXTO_MOTIVO, habilitacionPara } from '../auth/habilitaciones'
 import { habilitacionesGuardadas, obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
 import { SIN_ACTIVIDAD } from '../api/resources/sincronizacion'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../lib/relojServidor'
-import useActividadStore from '../store/actividadStore'
+import { useActividadEnCurso } from '../store/actividadStore'
 import useConexion from './useConexion'
 
 /** Motivos propios del cliente, que no vienen del contrato. */
@@ -72,7 +72,8 @@ export default function useHabilitacion({
   exigeActividad = true,
 }) {
   const enLinea = useConexion()
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
 
   /**
    * El paquete local solo se pide cuando puede hacer falta.

@@ -33,7 +33,7 @@ import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resource
 import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { precargarParaOffline, propietarioDe } from '../../lib/precarga'
-import useActividadStore from '../../store/actividadStore'
+import useActividadStore, { useActividadEnCurso } from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import useConexion from '../../hooks/useConexion'
@@ -69,7 +69,8 @@ export default function useActividad() {
   // QUE ocurrió la actividad. Sin él, un envío que se sincroniza tras un nuevo
   // login quedaría colgado de la sesión equivocada.
   const idSesion = useSessionStore((s) => idSesionDe(s.token))
-  const sesion = useActividadStore((s) => s.sesion)
+  // D114 — La misma fuente que leen los módulos.
+  const { sesion, conocidaPorServidor } = useActividadEnCurso()
 
   /** `['inicio']` y las pantallas con `escritura`: todas dependen de la actividad. */
   const refrescarTrasActividad = () => {
@@ -77,6 +78,16 @@ export default function useActividad() {
       [['inicio'], ...CON_ESCRITURA_DEL_SERVIDOR].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     ).catch(() => null)
   }
+  /**
+   * D114 — Cuando el inicio encolado sin conexión llega al servidor, lo que
+   * los módulos tenían de él se calculó sin esta actividad: se vuelve a pedir.
+   */
+  useEffect(() => {
+    if (conocidaPorServidor) refrescarTrasActividad()
+    // Solo al pasar a conocida: `refrescarTrasActividad` cambia en cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conocidaPorServidor, sesion?.id])
+
   const iniciarLocal = useActividadStore((s) => s.iniciar)
   const cerrarLocal = useActividadStore((s) => s.cerrar)
   const pendientes = useSyncStore((s) => s.pendientes)

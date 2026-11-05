@@ -59,7 +59,8 @@ import { ahora } from '../../lib/relojServidor'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { useColegiosReales } from '../../hooks/useCatalogos'
 import { ACCION, puede } from '../../auth/permisos'
-import useActividadStore from '../../store/actividadStore'
+import { useActividadEnCurso } from '../../store/actividadStore'
+import useEscrituraConActividad from '../../hooks/useEscrituraConActividad'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { formatearDiaLargo } from '../../lib/format'
@@ -114,7 +115,8 @@ function EtiquetaDeClase({ etiqueta, fecha }) {
 export default function AsistenciaPage() {
   const toast = useToast()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
-  const conActividad = Boolean(useActividadStore((s) => s.sesion))
+  // D114 — La fuente única de la actividad (la misma que la cabecera).
+  const { enCurso: conActividad } = useActividadEnCurso()
   const puedeEditar = puede('asistencia', idRol, ACCION.EDITAR)
   const enLinea = useConexion()
 
@@ -361,7 +363,15 @@ export default function AsistenciaPage() {
    * que llega la escritura, y para entonces el docente ya rellenó la pantalla.
    */
   const datosClase = clase.data?.clase
-  const escritura = clase.data?.escritura
+  // D114 — Con una actividad que el servidor aún no conoce, su "no" no cuenta.
+  const escritura = useEscrituraConActividad({
+    escritura: clase.data?.escritura ?? null,
+    registra: puedeEditar,
+    modulo: MODULOS.ASISTENCIAS,
+    idColegio: filtros.idColegio,
+    idGrado: filtros.idGrado,
+    fecha: filtros.fecha,
+  })
 
   /**
    * ESA FECHA NO TIENE CLASE (CU022, flujo "Identificar la clase seleccionada").

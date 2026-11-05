@@ -48,3 +48,27 @@ describe('sesión de actividades', () => {
     expect(sessionStorage.getItem('sicedu.actividad')).toBeNull()
   })
 })
+
+/**
+ * D114 — Una sola fuente para "hay actividad en curso", y la marca de cuándo
+ * la conoce el servidor: mientras no la conozca, su `escritura` se calculó sin
+ * ella.
+ */
+describe('la actividad iniciada sin conexión y el servidor (D114)', () => {
+  it('nace sin confirmar y se confirma cuando su inicio llega al servidor', () => {
+    const { id } = useActividadStore.getState().iniciar({ idDocente: 1 })
+    expect(useActividadStore.getState().sesion.delServidor).toBeUndefined()
+
+    useActividadStore.getState().confirmarEnServidor(id)
+
+    expect(useActividadStore.getState().sesion.delServidor).toBe(true)
+    // Y sobrevive a la recarga con la marca.
+    expect(JSON.parse(sessionStorage.getItem('sicedu.actividad')).delServidor).toBe(true)
+  })
+
+  it('la confirmación de OTRA actividad no toca la abierta', () => {
+    useActividadStore.getState().iniciar({ idDocente: 1 })
+    useActividadStore.getState().confirmarEnServidor('otra')
+    expect(useActividadStore.getState().sesion.delServidor).toBeUndefined()
+  })
+})
