@@ -38,7 +38,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
    * cuando el docente ya perdió el trabajo.
    *
    * Es por alumno Y periodo, y se suma a `soloLectura` en vez de sustituirlo:
-   * `escritura` decide si el PA se puede escribir para TODO el grupo, y esto
+   * `escritura` decide si el PA se puede escribir para el grupo ENTERO, y esto
    * decide si esta fila concreta entra en ese PA. Las dos tienen que valer.
    *
    * Por qué deshabilitar y no dejar intentarlo: el servidor rechaza ese
