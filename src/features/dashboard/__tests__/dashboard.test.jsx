@@ -198,6 +198,50 @@ describe('Consolidado de libros leídos (CU034)', () => {
   })
 })
 
+/**
+ * El detalle de "Información incompleta" (Tanda O, CU034) — antes el aviso
+ * era una palabra sin salida: decía que algo faltaba, no QUÉ ni DÓNDE.
+ *
+ * Se entra por el detalle de un colegio, no por la tabla consolidada: ahí la
+ * "—" es por ALUMNO (`libroDeAlumno`), así que un mes YA PASADO sin registro
+ * aparece con certeza. En la tabla consolidada la "—" es por COLEGIO ENTERO
+ * —todos sus alumnos sin dato el mismo mes—, algo que con decenas de alumnos
+ * por colegio el simulador casi nunca produce fuera de los meses futuros.
+ */
+describe('El detalle de "Información incompleta" del consolidado de libros (Tanda O)', () => {
+  const RUTA = '/dashboard/libros?anio=2&todos=1'
+
+  it('una celda "—" de un alumno abre el detalle acotado, y "Volver" regresa al colegio', async () => {
+    montar(ROLES.SUPERVISOR, RUTA)
+
+    const [verGrados] = await screen.findAllByRole('button', { name: /Ver grados/ }, ESPERA)
+    await userEvent.click(verGrados)
+    const detalle = (await screen.findByRole('heading', { name: /Libros leídos en/ }, ESPERA)).closest('section')
+    const [grado] = await within(detalle).findAllByRole('button', { expanded: false }, ESPERA)
+    await userEvent.click(grado)
+    await screen.findByText('Nombres y apellidos', {}, ESPERA)
+
+    // El accesible de un botón es su texto visible ("—"); el motivo largo va
+    // en `title`, así que se busca por ese atributo y no por el nombre.
+    const celdas = screen.getAllByTitle('Sin información — ver qué falta')
+    expect(celdas.length).toBeGreaterThan(0)
+    await userEvent.click(celdas[0])
+
+    expect(
+      await screen.findByRole('heading', { name: 'Información incompleta del consolidado de libros' }, ESPERA),
+    ).toBeInTheDocument()
+    // La tabla depende de la consulta, que llega DESPUÉS del encabezado: se
+    // espera a su contenido, no se comprueba en frío justo tras el título.
+    expect(await screen.findAllByText('Sin tabla', {}, ESPERA)).not.toHaveLength(0)
+    expect(screen.getByRole('columnheader', { name: 'Semana' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Qué falta' })).toBeInTheDocument()
+
+    // Vuelve al DETALLE DEL COLEGIO del que salió, no al consolidado entero.
+    await userEvent.click(screen.getByRole('button', { name: 'Volver al consolidado' }))
+    expect(await screen.findByRole('heading', { name: /Libros leídos en/ }, ESPERA)).toBeInTheDocument()
+  })
+})
+
 describe('Dashboard del Directivo (CU035)', () => {
   it('ve su resumen anual y la comparación, sin los bloques nominales', async () => {
     montar(ROLES.DIRECTIVO)

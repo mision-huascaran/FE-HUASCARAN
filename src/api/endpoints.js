@@ -305,6 +305,7 @@ export const ENDPOINTS = {
     libros: '/dashboard/libros',
     librosDeColegio: (idColegio) => `/dashboard/libros/colegios/${idColegio}`, // Supervisor
     librosDesglose: '/dashboard/libros/desglose', // Supervisor
+    librosIncompletos: '/dashboard/libros/incompletos', // Supervisor (Tanda O)
     evolucionAnual: '/dashboard/evolucion-anual',
     comparacionColegios: '/dashboard/comparacion-colegios',
   },

@@ -81,7 +81,7 @@ export const MOTIVO_RUBRICA = {
     'No tienes una habilitación vigente para registrar o modificar las rúbricas del grupo y mes seleccionados.',
   modificacion_concurrente:
     'Esta evaluación fue modificada desde que la consultaste. Revisa la versión actual antes de guardar nuevamente.',
-  alumno_fuera_del_grupo: 'El estudiante no pertenecía a este grupo en el mes seleccionado.',
+  alumno_fuera_del_grupo: 'El alumno no pertenecía a este grupo en el mes seleccionado.',
   /**
    * UNA SOLA EVALUACIÓN POR ALUMNO Y MES, en cualquier grupo (tanda 0).
    *

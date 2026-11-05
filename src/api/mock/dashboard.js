@@ -776,6 +776,149 @@ export function librosDesglose(params = {}) {
   }
 }
 
+/**
+ * `IncompletosLibros` (Tanda O, CU034) — el detalle del aviso "Información
+ * incompleta": qué semana o clase de referencia concreta falta.
+ *
+ * SIMPLIFICACIÓN DEL SIMULADOR, y queda dicho aquí para quien lo lea después:
+ * el modelo de datos del simulador no tiene una tabla semanal por alumno y
+ * clase, solo un total mensual por alumno (`libroDeAlumno`). No hay semanas
+ * de verdad que enumerar, así que se sintetiza COMO MÁXIMO una semana
+ * representativa por colegio, grado y mes incompleto —el primer lunes de ese
+ * mes—, no una por cada semana real que falte. Sirve para ejercitar la
+ * pantalla con datos de forma correcta; el conteo exacto de semanas no se
+ * puede comparar contra el backend real.
+ */
+/** 422 si falta uno de los dos: el rango de un mes no se entiende con solo uno. */
+function validarAnioYMesJuntos(params) {
+  const tieneAnio = params.anio != null && params.anio !== ''
+  const tieneMes = params.mes != null && params.mes !== ''
+  if (tieneAnio === tieneMes) return tieneAnio
+  throw errorMock(422, 'Elige el año y el mes juntos.', 'validacion', {
+    errores: [{ campo: tieneAnio ? 'mes' : 'anio', mensaje: 'Elige el año y el mes juntos.' }],
+  })
+}
+
+/** 422 si el grado pedido no tiene ningún alumno en el colegio pedido. */
+function validarGradoDelColegio(params, idGrado) {
+  if (!idGrado || !params.id_colegio) return
+  const perteneceAlColegio = db.ALUMNOS.some(
+    (a) => a.id_colegio === Number(params.id_colegio) && a.id_grado === idGrado,
+  )
+  if (!perteneceAlColegio) {
+    throw errorMock(422, 'El grado no pertenece al colegio seleccionado.', 'validacion', {
+      errores: [{ campo: 'id_grado', mensaje: 'El grado no pertenece al colegio seleccionado.' }],
+    })
+  }
+}
+
+/** El lunes de la primera semana completa del mes. */
+function primerLunesDelMes(anio, mes) {
+  let cursor = dayjs(`${anio}-${String(mes).padStart(2, '0')}-01`)
+  while (cursor.day() !== 1) cursor = cursor.add(1, 'day')
+  return cursor
+}
+
+/** Los alumnos de un grado, con sus datos de lectura del mes ya resueltos. */
+function datosDelGrupo(colegio, suyos, mes) {
+  const datos =
+    colegio.id_colegio === COLEGIO_SIN_LECTURA
+      ? suyos.map(() => ({ total: null }))
+      : suyos.map((a) => libroDeAlumno(a.id_alumno, mes))
+  return { datos, conDatos: datos.filter((d) => d.total != null) }
+}
+
+/** El ítem de `IncompletosLibros` de un (colegio, grado, mes) incompleto, o `null` si está completo. */
+function itemIncompletoDeGrupo({ colegio, idGradoDeGrupo, suyos, mes }) {
+  const { datos, conDatos } = datosDelGrupo(colegio, suyos, mes)
+  if (conDatos.length === datos.length) return null // Completo: nada que listar.
+
+  const grado = db.GRADOS.find((g) => g.id_grado === idGradoDeGrupo)
+  const programa = db.PROGRAMAS.find((p) => p.id_programa === suyos[0].id_programa)
+  const lunes = primerLunesDelMes(mes.anio, mes.mes)
+  const semana = { lunes: lunes.format('YYYY-MM-DD'), viernes: lunes.add(4, 'day').format('YYYY-MM-DD') }
+  const base = {
+    colegio: itemColegio(colegio),
+    grado: itemGrado(grado),
+    seccion: SECCION,
+    subprograma: itemPrograma(programa),
+    semana,
+    anio: mes.anio,
+    mes: mes.mes,
+  }
+
+  if (!conDatos.length) {
+    // Sin ninguna cantidad: semana esperada y vencida, sin tabla.
+    return { ...base, clase_referencia: { id_clase: null, fecha: semana.lunes }, motivo: 'sin_tabla', id_lectura_semanal: null, filas_pendientes: null }
+  }
+  // Con datos a medias: hay tabla, con filas "Pendiente".
+  const idSintetico = colegio.id_colegio * 1000 + idGradoDeGrupo * 10 + mes.mes
+  return {
+    ...base,
+    clase_referencia: { id_clase: idSintetico, fecha: semana.lunes },
+    motivo: 'filas_pendientes',
+    id_lectura_semanal: idSintetico,
+    filas_pendientes: datos.length - conDatos.length,
+  }
+}
+
+/** Los alumnos de un colegio con los filtros `id_grado`/`id_alumno` ya aplicados. */
+function alumnosDelColegioFiltrados(colegio, idGrado, idAlumno) {
+  let alumnos = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio)
+  if (idGrado) alumnos = alumnos.filter((a) => a.id_grado === idGrado)
+  if (idAlumno) alumnos = alumnos.filter((a) => a.id_alumno === idAlumno)
+  return alumnos
+}
+
+/** Agrupa una lista de alumnos por `id_grado` (es la granularidad que ya usa `librosDeColegio`). */
+function agrupadosPorGrado(alumnos) {
+  const porGrado = new Map()
+  for (const alumno of alumnos) {
+    const lista = porGrado.get(alumno.id_grado) ?? []
+    lista.push(alumno)
+    porGrado.set(alumno.id_grado, lista)
+  }
+  return porGrado
+}
+
+/** Los ítems incompletos de un colegio en un mes, uno por grado incompleto. */
+function itemsDelColegioEnMes(colegio, mes, idGrado, idAlumno) {
+  if (tiempoDeMes(mes) === 'futuro') return []
+  const alumnos = alumnosDelColegioFiltrados(colegio, idGrado, idAlumno)
+  if (!alumnos.length) return []
+
+  return [...agrupadosPorGrado(alumnos)]
+    .map(([idGradoDeGrupo, suyos]) => itemIncompletoDeGrupo({ colegio, idGradoDeGrupo, suyos, mes }))
+    .filter(Boolean)
+}
+
+export function librosIncompletos(params = {}) {
+  const colegios = colegiosDe(params)
+  periodoDe(params, { obligatorio: false })
+
+  const tieneAnio = validarAnioYMesJuntos(params)
+  const colegiosAlcance = params.id_colegio ? [colegioDeLaSeleccion(colegios, params.id_colegio)] : colegios
+  const idGrado = params.id_grado ? Number(params.id_grado) : null
+  validarGradoDelColegio(params, idGrado)
+  const idAlumno = params.id_alumno ? Number(params.id_alumno) : null
+  const meses = tieneAnio ? [{ anio: Number(params.anio), mes: Number(params.mes) }] : mesesDelAnio()
+
+  const items = colegiosAlcance.flatMap((colegio) =>
+    meses.flatMap((mes) => itemsDelColegioEnMes(colegio, mes, idGrado, idAlumno)),
+  )
+
+  const pagina = Math.max(1, Number(params.page) || 1)
+  const porPagina = 40
+  const inicio = (pagina - 1) * porPagina
+  return {
+    items: items.slice(inicio, inicio + porPagina),
+    total: items.length,
+    page: pagina,
+    page_size: porPagina,
+    total_pages: Math.max(1, Math.ceil(items.length / porPagina)),
+  }
+}
+
 /** `EvolucionAnual`. */
 export function evolucionAnual(params) {
   const colegios = colegiosDe(params)

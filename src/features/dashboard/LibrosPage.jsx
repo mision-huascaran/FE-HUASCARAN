@@ -24,6 +24,7 @@ import FiltrosDashboard from './FiltrosDashboard'
 import useFiltrosDashboard from './useFiltrosDashboard'
 import BloqueLibros from './BloqueLibros'
 import DetalleColegioLibros from './DetalleColegioLibros'
+import DetalleLibrosIncompletos from './DetalleLibrosIncompletos'
 import { FALTAN_FILTROS_LIBROS, ROL_SIN_CONSOLIDADO, SIN_COLEGIOS_AUTORIZADOS, alcanceEnTexto } from './estados'
 
 /** Lo que CU033 dejó en la URL, en la forma que usan los filtros. */
@@ -48,6 +49,9 @@ export default function LibrosPage() {
   const { usuario } = useAuth()
   const esSupervisor = Number(usuario?.id_rol) === ROLES.JEFA
   const [colegio, setColegio] = useState(null)
+  // `undefined` = cerrado; `{}` = abierto sin acotar; `{idColegio, anio, mes}`
+  // = abierto desde una celda concreta (Tanda O, CU034).
+  const [incompletos, setIncompletos] = useState(undefined)
 
   const {
     catalogo,
@@ -176,13 +180,21 @@ export default function LibrosPage() {
       )}
 
       {aplicados &&
-        (colegio ? (
+        (incompletos ? (
+          <DetalleLibrosIncompletos
+            filtros={aplicados}
+            scope={incompletos}
+            contexto={contexto}
+            onVolver={() => setIncompletos(undefined)}
+          />
+        ) : colegio ? (
           <DetalleColegioLibros
             filtros={aplicados}
             colegio={colegio}
             contexto={contexto}
             anioEscolar={anioAplicado?.nombre}
             onVolver={() => setColegio(null)}
+            onIncompletos={setIncompletos}
           />
         ) : (
           <BloqueLibros
@@ -192,6 +204,7 @@ export default function LibrosPage() {
             anioEscolar={anioAplicado?.nombre}
             alcance={alcanceEnTexto({ ...aplicados, colegios })}
             onColegio={setColegio}
+            onIncompletos={setIncompletos}
           />
         ))}
     </div>

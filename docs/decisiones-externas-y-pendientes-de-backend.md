@@ -828,6 +828,13 @@ servidor**, y la Tanda O lo cambia a "Selecciona": el simulador se adelanta
 para que las dos fuentes digan lo mismo. **Nada que hacer en el backend**,
 ya está en su lista.
 
+> **Confirmado por la Tanda O (`b769e05`).** El "adelanto" ya es la regla
+> definitiva, no una anticipación. De paso se sincronizaron contra el mismo
+> texto del backend los cinco mensajes "estudiante" → "alumno" que faltaban
+> fuera de este (sin alumnos en Lectura; alumno fuera de la tabla, dos veces,
+> en Lectura; fuera del grupo, en Rúbrica y en Registro de Vuelo), tanto en
+> el simulador como en los textos de respaldo (`MOTIVO_*`) de cada recurso.
+
 **e) De dónde viene la Entrada de Registro de Vuelo, sin cursor (CU031).**
 El texto vivía solo en un `title` de hover: en un teléfono no existe y con
 teclado tampoco. Ahora va en un botón con el tooltip de la casa, que abre
@@ -922,6 +929,37 @@ de alto variable compartiendo fila con controles de alto fijo, con
 `items-start` y, en un caso, un botón en `size="sm"` que no coincidía con
 la altura de los `Select` (`h-10`). Se separaron en dos filas donde hacía
 falta, en vez de forzar la alineación con CSS.
+
+**S33 (nuevo). Tanda O del backend (`b769e05`): implementado.**
+
+- **Productividad y textos (puntos 1 y 2 de la Tanda O):** nada que cambiar
+  en el front — "en Asistencias" ya se pintaba tal cual, y "estudiante" →
+  "alumno" / "Seleccione" → "Selecciona" ya estaban aplicados en S31.
+- **`GET /dashboard/libros/incompletos` (punto 3), implementado entero.**
+  Antes "Información incompleta" era una palabra sin salida: decía que algo
+  faltaba, no QUÉ ni DÓNDE. Ahora se abre desde dos sitios: el aviso del
+  resumen (sin acotar) y cada celda "—" de un mes sin información, que lleva
+  acotado a ese colegio/alumno y ese mes exactos. Vista nueva
+  `DetalleLibrosIncompletos.jsx`, con las dos columnas que distinguen los
+  motivos —`sin_tabla` y `filas_pendientes`, nunca confundidos por texto,
+  solo por el campo— y un enlace a Seguimiento de Lectura cuando hay tabla
+  que abrir.
+
+  **El simulador es una SIMPLIFICACIÓN, documentada en su propio código**: no
+  tiene una tabla semanal real por alumno, solo un total mensual, así que
+  sintetiza como mucho una semana representativa por colegio, grado y mes
+  incompleto (el primer lunes de ese mes), no una por cada semana real que
+  falte. Sirve para ejercitar la pantalla correctamente; el conteo exacto de
+  semanas no se puede comparar contra el backend real.
+
+  **Encontrado al escribir la prueba, no es un defecto:** el badge del
+  resumen (`acciones` de `BloqueLibros`) casi nunca se activa con "Todos los
+  colegios" contra el simulador, porque su modelo agrega por colegio+mes, no
+  por alumno: un colegio con alumnos a medias sigue sumando un total no nulo
+  al agregado, así que el agregado rara vez sale "incompleto" aunque celdas
+  sueltas sí lo estén. La prueba de la pantalla entra por una celda de
+  alumno, que sí es determinista. El código del badge es correcto y se
+  activará igual contra el servidor real.
 
 ## Fuera de alcance
 

@@ -612,7 +612,7 @@ describe('Pertenencia por periodo (Tanda N)', () => {
             periodo(1),
             periodo(2, {
               pertenece: false,
-              aviso: 'El estudiante no pertenecía a este grupo en el periodo seleccionado.',
+              aviso: 'El alumno no pertenecía a este grupo en el periodo seleccionado.',
               incompleto: false,
               ...extra,
             }),
@@ -639,7 +639,7 @@ describe('Pertenencia por periodo (Tanda N)', () => {
     montar()
 
     expect(
-      await screen.findByText('El estudiante no pertenecía a este grupo en el periodo seleccionado.', {}, ESPERA),
+      await screen.findByText('El alumno no pertenecía a este grupo en el periodo seleccionado.', {}, ESPERA),
     ).toBeInTheDocument()
   })
 

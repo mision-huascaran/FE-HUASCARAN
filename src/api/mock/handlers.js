@@ -557,7 +557,7 @@ function periodoDeAlumno(alumno, periodo, periodos) {
     // uno, el contrato dice que llega ese y no el nuevo.
     aviso: (() => {
       if (cambio) return 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
-      if (!pertenece) return 'El estudiante no pertenecía a este grupo en el periodo seleccionado.'
+      if (!pertenece) return 'El alumno no pertenecía a este grupo en el periodo seleccionado.'
       return null
     })(),
     pertenece,
@@ -1893,7 +1893,7 @@ export const handlers = {
       if (alumnos.length === 0) {
         throw errorMock(
           422,
-          'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.',
+          'No hay alumnos que pertenecieran a este grupo en la fecha de la clase seleccionada.',
           'sin_alumnos',
         )
       }
@@ -1971,7 +1971,7 @@ export const handlers = {
         if (!filaDe(tabla, f.id_alumno)) {
           return rechazo(
             'alumno_fuera_de_la_tabla',
-            'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
+            'El alumno no corresponde a la clase de referencia de esta tabla semanal.',
           )
         }
 
@@ -1984,7 +1984,7 @@ export const handlers = {
         if (tocaLibros && !soloBorra(f) && !asistioALaReferencia(tabla, f.id_alumno)) {
           return rechazo(
             'sin_asistencia',
-            'El estudiante debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
+            'El alumno debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
           )
         }
 
@@ -2158,7 +2158,7 @@ export const handlers = {
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
-            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el mes seleccionado.')
+            return rechazo('alumno_fuera_del_grupo', 'El alumno no pertenecia a este grupo en el mes seleccionado.')
           }
 
           const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(it.id_programa))
@@ -2317,7 +2317,7 @@ export const handlers = {
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
-            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el periodo seleccionado.')
+            return rechazo('alumno_fuera_del_grupo', 'El alumno no pertenecia a este grupo en el periodo seleccionado.')
           }
 
           const periodo = periodos.find((p) => p.id_periodo_academico === Number(it.id_periodo_academico))
@@ -2866,6 +2866,7 @@ export const handlers = {
     libros: (params) => responder(panel.libros(params)),
     librosDeColegio: (idColegio, params) => responder(panel.librosDeColegio(idColegio, params)),
     librosDesglose: (params) => responder(panel.librosDesglose(params)),
+    librosIncompletos: (params) => responder(panel.librosIncompletos(params)),
     evolucionAnual: (params) => responder(panel.evolucionAnual(params)),
     comparacionColegios: (params) => responder(panel.comparacionColegios(params)),
   },

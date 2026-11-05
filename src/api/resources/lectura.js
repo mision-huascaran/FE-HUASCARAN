@@ -54,10 +54,10 @@ export const ESTADO_FILA = {
  */
 export const MOTIVO_FILA = {
   sin_asistencia:
-    'El estudiante debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
+    'El alumno debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
   lsn_incompleto: 'Para registrar un LSN, completa el título, la nota obtenida y el puntaje máximo.',
   lsn_invalido: 'Selecciona un máximo de 5 o 10 e ingresa una nota entre 0 y ese máximo.',
-  alumno_fuera_de_la_tabla: 'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
+  alumno_fuera_de_la_tabla: 'El alumno no corresponde a la clase de referencia de esta tabla semanal.',
   sin_habilitacion: 'No tienes una habilitación vigente para registrar o corregir la lectura de esta semana.',
   lectura_no_realizada: 'La lectura semanal de esta tabla fue marcada como no realizada.',
   modificacion_concurrente:
