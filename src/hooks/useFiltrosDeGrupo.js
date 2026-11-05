@@ -21,7 +21,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { listarMisAsignaciones, obtenerColegio } from '../api/resources/administracion'
+import { listarMisAsignaciones } from '../api/resources/administracion'
+import { consultaDetalleColegio } from './consultaColegio'
 import { obtenerSemanas } from '../api/resources/catalogos'
 import { obtenerInicioDocente } from '../api/resources/inicio'
 import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
@@ -238,12 +239,8 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
 
   // El detalle del colegio es lo único que trae grados, secciones y
   // subprogramas CON ID: `/me/asignaciones` los manda por texto.
-  const { data: colegio } = useQuery({
-    queryKey: ['colegio', idColegio],
-    queryFn: () => obtenerColegio(idColegio),
-    enabled: Boolean(idColegio),
-    ...SIEMPRE,
-  })
+  // D110 — Se vuelve a pedir al abrir la pantalla: trae las secciones nuevas.
+  const { data: colegio } = useQuery(consultaDetalleColegio(idColegio))
 
   const asignacion = useMemo(
     () => asignaciones.find((a) => String(a.id_colegio) === String(idColegio)) ?? null,

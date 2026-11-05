@@ -47,12 +47,13 @@ import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
 import { marcadorDeColegio, debeElegirColegio } from '../../hooks/useFiltrosDeGrupo'
 import useHabilitacion from '../../hooks/useHabilitacion'
+import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import { MODULOS } from '../../auth/habilitaciones'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
 import { useToast } from '../../components/ui/Toast'
 import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
-import { listarDocentes, listarMisAsignaciones, obtenerColegio } from '../../api/resources/administracion'
+import { listarDocentes, listarMisAsignaciones } from '../../api/resources/administracion'
 import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 import { ahora } from '../../lib/relojServidor'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -180,12 +181,8 @@ export default function AsistenciaPage() {
   }, [esDocente, asignaciones, permisos, todosLosColegios])
 
   // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
-  const { data: colegio } = useQuery({
-    queryKey: ['colegio', 'detalle', filtros.idColegio],
-    queryFn: () => obtenerColegio(filtros.idColegio),
-    enabled: Boolean(filtros.idColegio),
-    ...SIEMPRE,
-  })
+  // D110 — Se vuelve a pedir al abrir la pantalla: trae las secciones nuevas.
+  const { data: colegio } = useQuery(consultaDetalleColegio(filtros.idColegio))
 
   const asignacion = useMemo(
     () => asignaciones.find((a) => String(a.id_colegio) === String(filtros.idColegio)),
