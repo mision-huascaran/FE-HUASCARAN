@@ -217,6 +217,21 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     if (propuesto) setAnio(String(propuesto))
   }, [anios, anio])
 
+  /**
+   * D117 — Lo que dejó la edición de un calendario no pasa a otro.
+   *
+   * "El cambio afecta a registros existentes" de un colegio seguía visible al
+   * consultar el de otro. Los filtros están bloqueados mientras se edita, así
+   * que esto solo corre en consulta y no descarta nada escrito.
+   */
+  useEffect(() => {
+    setIncompatibilidades([])
+    setErroresCampo({})
+    setConflicto(false)
+    setSinConfirmar(false)
+    setConfirmando(null)
+  }, [alcance, idColegio, anio])
+
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
   const listo = Boolean(anio) && (!porColegio || Boolean(idColegio))
@@ -358,6 +373,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   /** Vuelve a consulta descartando lo escrito. */
   const descartar = () => {
+    // D117 — El aviso de registros afectados era de ESTA edición: si se queda,
+    // se ve en consulta y al pasar a otro colegio.
+    setIncompatibilidades([])
     setConfirmando(null)
     setConflicto(false)
     setSinConfirmar(false)

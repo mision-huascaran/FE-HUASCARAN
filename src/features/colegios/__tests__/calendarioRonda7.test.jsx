@@ -3,7 +3,9 @@
 // D116 — Más de 12 meses: el backend responde 422 con el error en
 // `periodos.7.fecha_fin`, y tiene que verse junto al fin del PR4 (general y
 // particular). El front lo detecta antes de enviar con la misma regla y texto.
-
+//
+// D117 — "El cambio afecta a registros existentes" de un colegio seguía
+// visible al consultar el calendario de otro.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -177,5 +179,38 @@ describe('D116 · más de 12 meses junto al fin del PR4', () => {
     expect(erroresDeDuracion(conFinDePR4('2027-03-01'))).toEqual({ 'periodos.7.fecha_fin': MAS_DE_DOCE_MESES })
     // Incompleto: no hay con qué medir y no se adelanta nada.
     expect(erroresDeDuracion(conFinDePR4(''))).toEqual({})
+  })
+})
+
+describe('D117 · lo de un colegio no pasa a otro', () => {
+  it('el aviso de registros afectados del colegio A no aparece al consultar B', async () => {
+    obtenerCalendario.mockImplementation(async ({ idColegio }) =>
+      idColegio ? calendario({ id_calendario: 9, version: 1, origen: 'particular' }) : calendario(),
+    )
+    actualizar.mockRejectedValueOnce(
+      errorHttp(409, {
+        detail: 'El cambio deja registros fuera de su periodo.',
+        motivo: 'calendario_incompatible',
+        incompatibilidades: [
+          { colegio: { nombre: RANRAHIRCA }, fecha: '2026-05-15', tipo_registro: 'asistencia', mensaje: 'quedaría en un receso' },
+        ],
+      }),
+    )
+    montar()
+    await screen.findByText(INICIO_PA1, {}, ESPERA)
+    await verColegio('1')
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-08' } })
+    fireEvent.click(boton('Guardar'))
+    expect(await screen.findByText('El cambio afecta a registros existentes', {}, ESPERA)).toBeInTheDocument()
+
+    fireEvent.click(boton('Cancelar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar cambios' }, ESPERA))
+    await screen.findByRole('button', { name: EDITAR }, ESPERA)
+    fireEvent.change(screen.getByLabelText(/^Colegio/), { target: { value: '2' } })
+
+    await waitFor(() => expect(obtenerCalendario).toHaveBeenLastCalledWith({ anio: '2026', idColegio: '2' }), ESPERA)
+    await screen.findByText(INICIO_PA1, {}, ESPERA)
+    expect(screen.queryByText('El cambio afecta a registros existentes')).not.toBeInTheDocument()
   })
 })
