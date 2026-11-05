@@ -12,9 +12,11 @@
 // esta pantalla pide los filtros con `exigePeriodo: false`.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ShieldOff } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import { useAuth } from '../../auth/AuthProvider'
+import { ROLES } from '../../auth/roles'
 import Skeleton from '../../components/ui/Skeleton'
 import RequiereConexion from '../../components/layout/RequiereConexion'
 import useConexion from '../../hooks/useConexion'
@@ -22,7 +24,8 @@ import FiltrosDashboard from './FiltrosDashboard'
 import useFiltrosDashboard from './useFiltrosDashboard'
 import BloqueLibros from './BloqueLibros'
 import DetalleColegioLibros from './DetalleColegioLibros'
-import { FALTAN_FILTROS_LIBROS, SIN_COLEGIOS_AUTORIZADOS, alcanceEnTexto } from './estados'
+import DetalleLibrosIncompletos from './DetalleLibrosIncompletos'
+import { FALTAN_FILTROS_LIBROS, ROL_SIN_CONSOLIDADO, SIN_COLEGIOS_AUTORIZADOS, alcanceEnTexto } from './estados'
 
 /** Lo que CU033 dejó en la URL, en la forma que usan los filtros. */
 function heredadosDe(parametros) {
@@ -43,7 +46,12 @@ function heredadosDe(parametros) {
 export default function LibrosPage() {
   const [parametros] = useSearchParams()
   const enLinea = useConexion()
+  const { usuario } = useAuth()
+  const esSupervisor = Number(usuario?.id_rol) === ROLES.JEFA
   const [colegio, setColegio] = useState(null)
+  // `undefined` = cerrado; `{}` = abierto sin acotar; `{idColegio, anio, mes}`
+  // = abierto desde una celda concreta (Tanda O, CU034).
+  const [incompletos, setIncompletos] = useState(undefined)
 
   const {
     catalogo,
@@ -89,6 +97,24 @@ export default function LibrosPage() {
     [aplicados, anioAplicado, colegios],
   )
 
+  /**
+   * El rol cambió con la pantalla abierta (CU034). El consolidado es solo del
+   * Supervisor: si deja de serlo, se retira lo que ya se ve. Va antes que el
+   * aviso de conexión porque sin autorización da igual si hay red.
+   */
+  if (!esSupervisor) {
+    return (
+      <div className="flex flex-col gap-5">
+        <header>
+          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Consolidado de libros leídos</h1>
+        </header>
+        <Card>
+          <EmptyState icon={ShieldOff} title={ROL_SIN_CONSOLIDADO} />
+        </Card>
+      </div>
+    )
+  }
+
   if (!enLinea) {
     return (
       <div className="flex flex-col gap-5">
@@ -99,6 +125,44 @@ export default function LibrosPage() {
           <RequiereConexion seccion="El consolidado de libros leídos" />
         </Card>
       </div>
+    )
+  }
+
+  // Lo que se ve con los filtros aplicados, por prioridad: el detalle de lo
+  // incompleto, el de un colegio o el bloque general.
+  const vistaAplicada = () => {
+    if (incompletos) {
+      return (
+        <DetalleLibrosIncompletos
+          filtros={aplicados}
+          scope={incompletos}
+          contexto={contexto}
+          onVolver={() => setIncompletos(undefined)}
+        />
+      )
+    }
+    if (colegio) {
+      return (
+        <DetalleColegioLibros
+          filtros={aplicados}
+          colegio={colegio}
+          contexto={contexto}
+          anioEscolar={anioAplicado?.nombre}
+          onVolver={() => setColegio(null)}
+          onIncompletos={setIncompletos}
+        />
+      )
+    }
+    return (
+      <BloqueLibros
+        filtros={aplicados}
+        contexto={contexto}
+        hayCambios={hayCambios}
+        anioEscolar={anioAplicado?.nombre}
+        alcance={alcanceEnTexto({ ...aplicados, colegios })}
+        onColegio={setColegio}
+        onIncompletos={setIncompletos}
+      />
     )
   }
 
@@ -153,25 +217,7 @@ export default function LibrosPage() {
         </Card>
       )}
 
-      {aplicados &&
-        (colegio ? (
-          <DetalleColegioLibros
-            filtros={aplicados}
-            colegio={colegio}
-            contexto={contexto}
-            anioEscolar={anioAplicado?.nombre}
-            onVolver={() => setColegio(null)}
-          />
-        ) : (
-          <BloqueLibros
-            filtros={aplicados}
-            contexto={contexto}
-            hayCambios={hayCambios}
-            anioEscolar={anioAplicado?.nombre}
-            alcance={alcanceEnTexto({ ...aplicados, colegios })}
-            onColegio={setColegio}
-          />
-        ))}
+      {aplicados && vistaAplicada()}
     </div>
   )
 }

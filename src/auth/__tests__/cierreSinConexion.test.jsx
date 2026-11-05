@@ -29,7 +29,10 @@ vi.mock('../../lib/colaOffline', () => ({
 }))
 
 const limpiarLocal = vi.fn(async () => {})
-vi.mock('../../lib/datosLocales', () => ({ limpiarDatosLocalesDeSesion: () => limpiarLocal() }))
+vi.mock('../../lib/datosLocales', () => ({
+  limpiarDatosLocalesDeSesion: () => limpiarLocal(),
+  borrarPerfilDeLocalStorage: () => {},
+}))
 
 const logout = vi.fn()
 vi.mock('../../api/resources/auth', async (importOriginal) => ({

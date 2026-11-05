@@ -27,6 +27,7 @@ import BloqueDashboard from './BloqueDashboard'
 import Grafica from './graficas/Grafica'
 import GraficaBarras from './graficas/GraficaBarras'
 import {
+  INFORMACION_INCOMPLETA,
   SIN_INFORMACION,
   SIN_REGISTROS_LECTURA,
   TOTAL_PARCIAL,
@@ -46,7 +47,7 @@ export function abreviarMes(nombre, anio = null) {
   return anio ? `${corto} ${anio}` : corto
 }
 
-export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscolar, alcance, onColegio }) {
+export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscolar, alcance, onColegio, onIncompletos }) {
   const consulta = useQuery({
     queryKey: ['dashboard', 'libros', filtros],
     queryFn: () => obtenerLibros(filtros),
@@ -73,12 +74,28 @@ export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscola
     align: 'right',
     render: (fila) => {
       const suyo = fila.meses?.find((m) => m.mes === mes.mes && m.anio === mes.anio)
-      return sinInformacion(suyo, 'cantidad') ? (
-        <span title={SIN_INFORMACION} className="text-ink-400">
+      if (!sinInformacion(suyo, 'cantidad')) return celda(suyo, 'cantidad')
+      // "—" lleva al detalle de ESTE colegio y ESTE mes (Tanda O): es la
+      // misma celda que explica por qué falta, sin tener que adivinar entre
+      // los doce meses de los colegios de la selección. Un mes FUTURO no
+      // lleva a ningún sitio —todavía no hay nada que registrar, y abrir el
+      // detalle solo enseñaría "no hay nada"— así que ese se queda sin botón.
+      if (!onIncompletos || suyo?.estado === 'futuro') {
+        return (
+          <span title={SIN_INFORMACION} className="text-ink-400">
+            {SIN_DATO}
+          </span>
+        )
+      }
+      return (
+        <button
+          type="button"
+          title={`${SIN_INFORMACION} — ver qué falta`}
+          onClick={() => onIncompletos({ idColegio: fila.id_colegio, anio: mes.anio, mes: mes.mes })}
+          className="text-ink-400 underline decoration-dotted underline-offset-4 hover:text-ink-700"
+        >
           {SIN_DATO}
-        </span>
-      ) : (
-        celda(suyo, 'cantidad')
+        </button>
       )
     },
   }))
@@ -94,7 +111,18 @@ export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscola
       hayCambios={hayCambios}
       vacio={Boolean(datos) && sinInformacion(resumen, 'total') && colegios.length === 0}
       mensajeVacio={SIN_REGISTROS_LECTURA}
-      acciones={aviso && <Badge tone="warning">{aviso}</Badge>}
+      acciones={
+        aviso &&
+        (aviso === INFORMACION_INCOMPLETA && onIncompletos ? (
+          <button type="button" onClick={() => onIncompletos({})} className="rounded-full">
+            <Badge tone="warning" className="cursor-pointer hover:brightness-95">
+              {aviso}
+            </Badge>
+          </button>
+        ) : (
+          <Badge tone="warning">{aviso}</Badge>
+        ))
+      }
     >
       <div className="flex flex-col gap-5">
         <div className="grid gap-3 sm:grid-cols-3">

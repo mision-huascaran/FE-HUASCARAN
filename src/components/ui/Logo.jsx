@@ -18,6 +18,13 @@ import cn from '../../lib/cn'
  */
 const ASPECTO = 734 / 300 // proporción real del archivo
 
+/**
+ * Un GIF transparente de 1×1 como `src` del `<img>`: lo que se ve es el
+ * relleno (`currentColor`) recortado por la máscara, igual que antes con el
+ * `<span role="img">`. El `<img alt>` da el mismo rol y nombre de forma nativa.
+ */
+const PIXEL_TRANSPARENTE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
 const ALTURAS = { sm: 'h-6', md: 'h-8', lg: 'h-10', xl: 'h-12' }
 
 export default function Logo({ tone = 'light', size = 'md', showLabel = true, className }) {
@@ -29,9 +36,9 @@ export default function Logo({ tone = 'light', size = 'md', showLabel = true, cl
         className,
       )}
     >
-      <span
-        role="img"
-        aria-label="Misión Huascarán"
+      <img
+        src={PIXEL_TRANSPARENTE}
+        alt="Misión Huascarán"
         className={cn('block shrink-0', ALTURAS[size] ?? ALTURAS.md)}
         style={{
           aspectRatio: String(ASPECTO),

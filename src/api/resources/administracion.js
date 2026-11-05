@@ -12,7 +12,7 @@
 //     ya no hay `listarSecciones`.
 //   · El CICLO del alumno lo calcula el backend a partir de subprograma y
 //     grado. No se envía.
-//   · Todo lista de 10 en 10 con `page` y responde con el esquema `Paginado`.
+//   · Cada lista va de 10 en 10 con `page` y responde con el esquema `Paginado`.
 import { api, resolver, adminContraApiReal } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'

@@ -28,7 +28,7 @@ import useActividad from '../../features/inicio/useActividad'
 import { ROLES } from '../../auth/roles'
 
 /** Cómo se nombra lo que se gestiona en el aviso sin conexión (contrato §11). */
-const GESTIONADO = { alumnos: 'estudiantes', colegios: 'colegios', usuarios: 'usuarios' }
+const GESTIONADO = { alumnos: 'alumnos', colegios: 'colegios', usuarios: 'usuarios' }
 const VER_DETALLE = 'Ver detalle'
 
 export const avisoSinConexion = (seccion) =>

@@ -149,7 +149,7 @@ export default function InicioDocente() {
         </div>
       ) : resumen && (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={Users} label="Mis estudiantes" value={resumen?.mis_estudiantes ?? 0} />
+          <StatCard icon={Users} label="Mis alumnos" value={resumen?.mis_estudiantes ?? 0} />
           <StatCard
             icon={ClipboardList}
             label="Reporte de esta semana"

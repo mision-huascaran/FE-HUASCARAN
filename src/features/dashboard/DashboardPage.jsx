@@ -11,7 +11,7 @@
 // lectura: no requiere actividad de trabajo y no modifica ningún registro.
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, ShieldOff } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
@@ -32,6 +32,7 @@ import ResumenAnual from './ResumenAnual'
 import {
   FALTAN_FILTROS,
   FALTAN_FILTROS_DIRECTIVO,
+  ROL_SIN_DASHBOARD,
   SIN_COLEGIOS_AUTORIZADOS,
   alcanceEnTexto,
 } from './estados'
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const { usuario } = useAuth()
   const enLinea = useConexion()
   const esDirectivo = Number(usuario?.id_rol) === ROLES.DIRECTIVO
+  const esSupervisor = Number(usuario?.id_rol) === ROLES.JEFA
   // El bloque de comparación necesita los catálogos de grados y subprogramas
   // para sus filtros propios. El Directivo no tiene ese bloque, así que no se
   // los pide: `GET /grados` y `GET /programas` son de administración.
@@ -96,6 +98,28 @@ export default function DashboardPage() {
   )
 
   const titulo = esDirectivo ? 'Dashboard del Directivo' : 'Dashboard'
+
+  /**
+   * EL ROL CAMBIÓ CON LA PANTALLA ABIERTA (CU033 y CU035).
+   *
+   * La ruta ya impide ENTRAR sin el rol; esto cubre lo otro: estar dentro y
+   * dejar de tenerlo —el Supervisor al que le cambian la cuenta mientras
+   * mira—. Va ANTES que el aviso de conexión a propósito: sin autorización no
+   * importa si hay red, y lo primero es retirar de la vista unos indicadores
+   * que ya no le corresponden.
+   */
+  if (!esDirectivo && !esSupervisor) {
+    return (
+      <div className="flex flex-col gap-5">
+        <header>
+          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+        </header>
+        <Card>
+          <EmptyState icon={ShieldOff} title={ROL_SIN_DASHBOARD} />
+        </Card>
+      </div>
+    )
+  }
 
   if (!enLinea) {
     return (

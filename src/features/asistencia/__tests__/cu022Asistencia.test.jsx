@@ -428,30 +428,65 @@ describe('Asistencia (CU022)', () => {
 
   /**
    * D95 — CP-ASI-06, CP-INI-28. La clase en caché trae el `escritura` de
-   * cuando había red; sin el paquete de habilitaciones en el equipo, eso
-   * dejaba registrar sin conexión con normalidad.
+   * cuando había red, y el paquete de habilitaciones seguía en la caché de
+   * consultas (que se restaura de su propia copia) aunque ya no estuviera en
+   * IndexedDB. Con eso se dejaba registrar sin conexión con normalidad.
    */
-  it('sin conexión y sin habilitaciones guardadas no deja registrar y lo explica', async () => {
-    sinPaqueteDeHabilitaciones = true
-    const { rerender, pantalla } = montarParaVolver()
-    await abrirClase()
-    // Con conexión manda el servidor: se puede marcar.
-    expect(ladoPresente(controles()[0])).not.toBeDisabled()
-
+  async function cortarLaRed(rerender, pantalla) {
     sinRed = true
     Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
     window.dispatchEvent(new Event('offline'))
     rerender(pantalla('sin-red'))
     await abrirFiltros()
     await screen.findByRole('table', {}, ESPERA)
+  }
 
-    expect(await screen.findByText(SIN_HABILITACION_VERIFICABLE, {}, ESPERA)).toBeInTheDocument()
-    expect(ladoPresente(controles()[0])).toBeDisabled()
-    expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
-
+  function volverLaRed() {
     sinRed = false
     Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
     window.dispatchEvent(new Event('online'))
+  }
+
+  it('sin conexión y sin habilitaciones en IndexedDB no deja registrar y lo explica', async () => {
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    // Con conexión manda el servidor: se puede marcar.
+    expect(ladoPresente(controles()[0])).not.toBeDisabled()
+
+    // Como en la prueba de QA: el paquete desaparece del equipo, pero la
+    // pantalla ya lo había cargado en memoria.
+    const idb = await import('idb-keyval')
+    await idb.del('sicedu.habilitaciones')
+    sinPaqueteDeHabilitaciones = true
+    try {
+      await cortarLaRed(rerender, pantalla)
+
+      expect(await screen.findByText(SIN_HABILITACION_VERIFICABLE, {}, ESPERA)).toBeInTheDocument()
+      expect(ladoPresente(controles()[0])).toBeDisabled()
+      expect(screen.queryByRole('button', { name: /marcar todos como presentes/i })).not.toBeInTheDocument()
+    } finally {
+      volverLaRed()
+    }
+  })
+
+  it('sin conexión y CON la habilitación guardada, deja marcar', async () => {
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    // Un día del PA3 del simulador: el paquete trae asignaciones por PA, y hoy
+    // puede caer en un receso, donde el Docente no tiene clase que marcar.
+    fireEvent.change(await screen.findByLabelText('Fecha', {}, ESPERA), { target: { value: '2026-10-30' } })
+    await waitFor(() => expect(ladoPresente(controles()[0])).not.toBeDisabled(), ESPERA)
+    const idb = await import('idb-keyval')
+    expect(await idb.get('sicedu.habilitaciones')).toBeTruthy()
+
+    try {
+      await cortarLaRed(rerender, pantalla)
+
+      await waitFor(() => expect(ladoPresente(controles()[0])).not.toBeDisabled(), ESPERA)
+      expect(screen.queryByText(SIN_HABILITACION_VERIFICABLE)).not.toBeInTheDocument()
+    } finally {
+      volverLaRed()
+    }
   })
 
   it('no deja elegir una fecha futura', async () => {

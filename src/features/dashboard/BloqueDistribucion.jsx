@@ -49,41 +49,56 @@ export default function BloqueDistribucion({ filtros, contexto, hayCambios, anio
       }
     >
       <div className="flex flex-col gap-5">
-        <Grafica
-          titulo="Distribución de alumnos por subprograma"
-          tituloVisible={false}
-          contexto={[...contexto, corte ? `Pertenencia al ${formatearFecha(corte)}` : null]}
-          anioEscolar={anioEscolar}
-          hayDatos={partes.length > 0}
-        >
-          <GraficaDona partes={partes} total={datos?.total} />
-        </Grafica>
+        {/*
+          LA DONA Y SU TABLA, EN UNA FILA DIVIDIDA EN DOS a partir de `lg`.
 
-        <DataTable
-          paginated={false}
-          rows={partes}
-          getRowId={(f) => f.id_programa}
-          columns={[
-            { key: 'nombre', header: 'Subprograma' },
-            {
-              key: 'cantidad',
-              header: 'Alumnos',
-              align: 'right',
-              render: (f) => (f.cantidad == null ? SIN_INFORMACION : f.cantidad),
-            },
-            {
-              key: 'porcentaje',
-              header: '% del total',
-              align: 'right',
-              render: (f) => formatearPorcentaje(f.porcentaje),
-            },
-          ]}
-          footNote={
-            datos?.total != null
-              ? `Total de alumnos considerados: ${datos.total}. Los porcentajes se calculan sobre ese total.`
-              : undefined
-          }
-        />
+          La dona tiene un ancho fijo pequeño (es un círculo con una leyenda al
+          lado, no una gráfica que deba estirarse): apilada sobre una tabla de
+          ancho completo, dejaba toda la mitad derecha de la tarjeta en blanco
+          desde "Descargar gráfica" hasta donde empezaba la tabla. Puesta junto
+          a la tabla, ese hueco pasa a ser donde vive la tabla.
+
+          En móvil se apilan igual que antes: dos columnas con una dona de 420
+          de ancho mínimo y una tabla de varias no caben lado a lado por debajo
+          de `lg`.
+        */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_1fr] lg:items-start">
+          <Grafica
+            titulo="Distribución de alumnos por subprograma"
+            tituloVisible={false}
+            contexto={[...contexto, corte ? `Pertenencia al ${formatearFecha(corte)}` : null]}
+            anioEscolar={anioEscolar}
+            hayDatos={partes.length > 0}
+          >
+            <GraficaDona partes={partes} total={datos?.total} />
+          </Grafica>
+
+          <DataTable
+            paginated={false}
+            rows={partes}
+            getRowId={(f) => f.id_programa}
+            columns={[
+              { key: 'nombre', header: 'Subprograma' },
+              {
+                key: 'cantidad',
+                header: 'Alumnos',
+                align: 'right',
+                render: (f) => (f.cantidad == null ? SIN_INFORMACION : f.cantidad),
+              },
+              {
+                key: 'porcentaje',
+                header: '% del total',
+                align: 'right',
+                render: (f) => formatearPorcentaje(f.porcentaje),
+              },
+            ]}
+            footNote={
+              datos?.total != null
+                ? `Total de alumnos considerados: ${datos.total}. Los porcentajes se calculan sobre ese total.`
+                : undefined
+            }
+          />
+        </div>
 
         {/* Un colegio cuyo periodo no empezó NO suma y se nombra: pintarlo
             como 0 alumnos sería decir que no tiene ninguno. */}

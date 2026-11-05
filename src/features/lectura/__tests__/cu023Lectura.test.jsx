@@ -35,7 +35,6 @@ const fila = (extra = {}) => ({
   nombre: 'Torres, Ana',
   inactivo: false,
   asistencia: 'presente',
-  nivel_academico: null,
   lsn_titulo: null,
   lsn_nota: null,
   lsn_maximo: null,
@@ -406,7 +405,7 @@ describe('Las filas de la tabla (CU024)', () => {
 })
 
 describe('Grupo sin alumnos en la fecha (Tanda M, D101)', () => {
-  const SIN_ALUMNOS = 'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.'
+  const SIN_ALUMNOS = 'No hay alumnos que pertenecieran a este grupo en la fecha de la clase seleccionada.'
   const errorSinAlumnos = () =>
     Object.assign(new Error('sin alumnos'), {
       response: { status: 422, data: { detail: SIN_ALUMNOS, motivo: 'sin_alumnos' } },

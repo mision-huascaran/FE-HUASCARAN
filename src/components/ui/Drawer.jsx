@@ -31,13 +31,20 @@ export default function Drawer({ open, onClose, title, subtitle, footer, side = 
         onClick={onClose}
         className="absolute inset-0 h-full w-full cursor-default"
       />
-      <aside
-        role="dialog"
+      {/*
+        `<dialog>` nativo ABIERTO POR ATRIBUTO (no con `showModal()`): mismo rol
+        y nombre que el `aside role="dialog"` de antes, y se sigue abriendo y
+        cerrando igual. `m-0`, `h-auto`, `text-inherit` y el lado contrario en
+        `auto` anulan los estilos por defecto del navegador para `dialog`
+        (margen automático, alto ajustado, color y `inset-inline: 0`).
+      */}
+      <dialog
+        open
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'absolute inset-y-0 flex w-full flex-col bg-surface-0 shadow-drawer animate-slide-in-right',
-          side === 'right' ? 'right-0' : 'left-0',
+          'absolute inset-y-0 m-0 flex h-auto w-full flex-col bg-surface-0 text-inherit shadow-drawer animate-slide-in-right',
+          side === 'right' ? 'left-auto right-0' : 'left-0 right-auto',
           width,
         )}
       >
@@ -61,7 +68,7 @@ export default function Drawer({ open, onClose, title, subtitle, footer, side = 
             {footer}
           </footer>
         )}
-      </aside>
+      </dialog>
     </div>,
     document.body,
   )

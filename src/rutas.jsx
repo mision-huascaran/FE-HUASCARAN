@@ -76,7 +76,7 @@ export const RUTAS_PROTEGIDAS = [
 
   // ── Fuera de la matriz: siguen accesibles por URL, pero no van en el menú ──
   { path: '/estudiantes', allow: [PROFESOR, JEFA], titulo: 'Alumnos', elemento: <Navigate to="/alumnos" replace /> },
-  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del estudiante', elemento: <FichaEstudiantePage /> },
+  { path: '/estudiantes/:id', allow: [PROFESOR, JEFA], titulo: 'Ficha del alumno', elemento: <FichaEstudiantePage /> },
   { path: '/reporte-semanal', allow: [PROFESOR], titulo: 'Seguimiento de Lectura', elemento: <Navigate to="/seguimiento-lectura" replace /> },
 ]
 
@@ -99,6 +99,18 @@ export function rolPuedeEntrar(ruta, idRol) {
 /** Destino tras iniciar sesión: la ruta pedida si el rol la admite, o su inicio. */
 export function destinoTrasLogin(desde, idRol) {
   return rolPuedeEntrar(desde, idRol) ? desde : rutaInicioDe(idRol)
+}
+
+/**
+ * D109 — Destino tras el login a partir de lo que dejó `ProtectedRoute`.
+ *
+ * Si la pantalla era de una cuenta (su sesión se cortó), solo esa MISMA cuenta
+ * vuelve a ella; cualquier otra va a su Inicio. Tras un cierre a mano no llega
+ * `desde`. Sin cuenta es un enlace abierto sin sesión: vale para quien entre.
+ */
+export function destinoTrasLoginDe(state, perfil) {
+  const deOtraCuenta = state?.idUsuario != null && String(state.idUsuario) !== String(perfil?.id_usuario)
+  return destinoTrasLogin(deOtraCuenta ? undefined : state?.desde, perfil?.id_rol)
 }
 
 /** Una URL desconocida lleva al inicio del rol; sin sesión, al login. */

@@ -11,6 +11,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { Link } from 'react-router-dom'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import { useToast } from '../../components/ui/Toast'
+import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import {
   actualizarAlumno,
   cambiarEstadoAlumno,
@@ -25,7 +26,6 @@ import {
   cambiaDeGrupo,
   fechaDeCreacion,
   obtenerAlumno,
-  obtenerColegio,
 } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
@@ -118,16 +118,14 @@ export default function MantenimientoAlumnos() {
    * El listado (`ColegioItem`) no las tiene, y desde T3 `colegio.seccion`
    * desapareció: cada grado tiene las suyas. Se piden los detalles de los
    * colegios que esta persona puede elegir —uno o dos para un Docente, los
-   * nueve para el Supervisor— y se cachean para siempre, porque cambian
-   * cuando el Supervisor añade una sección y no más.
+   * nueve para el Supervisor—.
+   *
+   * D110 — Ya no se cachean para siempre: el Supervisor añade secciones desde
+   * otro equipo, y con la copia eterna "Nuevo alumno" seguía ofreciendo solo
+   * las de antes. Se vuelven a pedir al abrir la pantalla (`consultaColegio`).
    */
   const detalles = useQueries({
-    queries: colegios.map((c) => ({
-      queryKey: ['colegio', 'detalle', c.id_colegio],
-      queryFn: () => obtenerColegio(c.id_colegio),
-      enabled: enLinea,
-      ...SIEMPRE,
-    })),
+    queries: colegios.map((c) => consultaDetalleColegio(c.id_colegio, { enabled: enLinea })),
   })
 
   const seccionesPorGrado = useMemo(() => {

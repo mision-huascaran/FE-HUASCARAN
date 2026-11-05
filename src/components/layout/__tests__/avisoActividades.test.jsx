@@ -1,41 +1,26 @@
-// Auditoría de UX #737, U24: el aviso de "Debes iniciar una actividad" trae
-// su propio botón, y los demás motivos no llevan el ícono de "play".
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+// El aviso de "Debes iniciar una actividad" NO lleva botón.
+//
+// Lo llevó: lo añadió U24 (auditoría de UX #737) porque el de "Iniciar
+// actividad" había que buscarlo arriba a la derecha. Pero ese botón no se
+// esconde nunca —`BarraActividades` lo deja fijo en la barra superior—, así
+// que quedaban dos botones idénticos a dos dedos de distancia. Estas pruebas
+// sujetan la decisión nueva para que el botón no vuelva por un tercer camino.
+import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import AvisoActividades from '../AvisoActividades'
 import { SIN_ACTIVIDAD } from '../../../api/resources/sincronizacion'
 
-const iniciar = vi.fn()
-const estado = { sinAsignaciones: false, textoNoPuedeIniciar: null }
-vi.mock('../../../features/inicio/useActividad', () => ({
-  default: () => ({ iniciar, ...estado }),
-}))
-
-beforeEach(() => {
-  iniciar.mockReset().mockResolvedValue(undefined)
-  estado.sinAsignaciones = false
-  estado.textoNoPuedeIniciar = null
-})
-
 describe('AvisoActividades', () => {
-  it('sin actividad ofrece iniciarla desde el propio aviso', async () => {
+  it('dice qué falta, y no repite el botón que ya está en la barra superior', () => {
     render(<AvisoActividades />)
+
     expect(screen.getByText(SIN_ACTIVIDAD)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Iniciar actividad' }))
-    await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('sin asignaciones el botón se ve deshabilitado, con el motivo del servidor', () => {
-    estado.sinAsignaciones = true
-    estado.textoNoPuedeIniciar = 'No tienes asignaciones vigentes.'
-    render(<AvisoActividades />)
-    const boton = screen.getByRole('button', { name: 'Iniciar actividad' })
-    expect(boton).toBeDisabled()
-    expect(boton).toHaveAttribute('title', 'No tienes asignaciones vigentes.')
-  })
-
-  it('otro motivo se dice sin botón', () => {
+  it('otro motivo se dice igual, sin botón', () => {
     render(<AvisoActividades mensaje="No es posible adelantar registros." />)
+
     expect(screen.getByText('No es posible adelantar registros.')).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })

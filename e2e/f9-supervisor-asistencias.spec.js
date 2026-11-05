@@ -1,8 +1,9 @@
 // F9 — La Supervisora audita la jornada de asistencias en solo lectura
 // (CU020, CU021, CU022).
 //
-// En Seguimiento encuentra la jornada de F8 con su productividad («N
-// Asistencias», siempre en plural; N son los alumnos que marcó F8, al menos 2),
+// En Seguimiento encuentra la jornada de F8 con su productividad («N en
+// Asistencias», con el nombre fijo del módulo; N son los alumnos que marcó F8,
+// al menos 2),
 // y el atajo «Ver Asistencias» enseña lo que tocó ESA jornada (tanda 10: sale
 // de la auditoría de la actividad): la clase y sus N cambios. En la clase ve lo
 // que registró el Docente —la tardanza, la presencia y la observación— sin
@@ -11,14 +12,15 @@
 import { expect, test } from '@playwright/test'
 import { SUBPROGRAMA, elegirClase, lado } from './support/asistencia.js'
 import { SEED } from './support/cuentas.js'
+import { filasQueEmpiezan } from './support/actividad.js'
 import { exigirEstadoDe } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { fechaHoraLima } from './support/fechas.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
-/** La fila de la jornada: su hora de inicio y exactamente «N Asistencias». */
+/** La fila de la jornada: su hora de inicio y exactamente «N en Asistencias». */
 const jornadaDe = (page, { inicio, cambios }) =>
-  page.getByRole('row').filter({ hasText: fechaHoraLima(inicio) }).filter({ hasText: new RegExp(`(^|\\D)${cambios} Asistencias`) })
+  filasQueEmpiezan(page, inicio).filter({ hasText: new RegExp(`(^|\\D)${cambios} en Asistencias`) })
 
 test('F9 · Supervisora: la jornada de asistencias en Seguimiento y en Asistencias, solo lectura (CU020, CU021, CU022)', async ({ page }) => {
   const { asistencia } = exigirEstadoDe('F8', 'asistencia')
@@ -31,7 +33,7 @@ test('F9 · Supervisora: la jornada de asistencias en Seguimiento y en Asistenci
   await iniciarSesion(page, 'supervisor')
   await irPorMenu(page, 'Seguimiento', '/seguimiento')
 
-  await test.step(`En la bitácora del Docente E2E, la jornada muestra «${asistencia.cambios} Asistencias» (CU021)`, async () => {
+  await test.step(`En la bitácora del Docente E2E, la jornada muestra «${asistencia.cambios} en Asistencias» (CU021)`, async () => {
     await page.getByLabel('Colegio').selectOption({ label: SEED.colegio })
     // Seguimiento filtra al pulsar, no al cambiar el control.
     await page.getByRole('button', { name: 'Filtrar' }).click()
@@ -41,8 +43,10 @@ test('F9 · Supervisora: la jornada de asistencias en Seguimiento y en Asistenci
     await expect(page.getByRole('heading', { name: SEED.docente, level: 1 })).toBeVisible()
 
     // La jornada se reconoce por su hora de inicio y su productividad: la
-    // actividad de preparación de F8 («2 Alumnos») puede caer en el mismo minuto.
-    // Productividad: siempre en plural y en orden fijo (Asistencias primero).
+    // actividad de preparación de F8 («2 en Alumnos») puede caer en el mismo
+    // minuto. Productividad: «N en <módulo>», con el nombre del módulo fijo
+    // para cualquier cantidad (texto de CU021 desde la Tanda O del backend) y
+    // en orden fijo (Asistencias primero).
     await expect(jornadaDe(page, asistencia).first()).toBeVisible()
     await evidencia(page, 'seguimiento-jornada-asistencias')
   })

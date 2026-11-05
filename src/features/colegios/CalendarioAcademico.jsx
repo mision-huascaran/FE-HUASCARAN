@@ -45,7 +45,7 @@ import {
   ModalVersionActual,
 } from './ModalesDelCalendario'
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
-import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
+import { listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
@@ -80,6 +80,32 @@ export function camposPorCompletar(periodos, dias) {
     if (!d.motivo?.trim()) faltan.push(`Motivo del día no lectivo ${i + 1}`)
   })
   return faltan
+}
+
+/**
+ * D116 — El mismo texto que responde el backend en `periodos.7.fecha_fin`
+ * (calendario general o particular de más de 12 meses).
+ */
+export const MAS_DE_DOCE_MESES =
+  'El año escolar no puede abarcar más de 12 meses: el receso posterior al cuarto periodo debe terminar antes del mismo mes en que empezó el primer periodo.'
+
+/**
+ * D116 — La regla de los 12 meses, antes de enviar.
+ *
+ * El PR4 tiene que terminar ANTES del día 1 del mismo mes del año siguiente al
+ * inicio del PA1 (PA1 desde el 15/03/2026 → PR4 hasta el 28/02/2027 como
+ * mucho). El error va en el fin del PR4, igual que lo devuelve el servidor.
+ *
+ * @returns `{ 'periodos.<i>.fecha_fin': texto }` o `{}`.
+ */
+export function erroresDeDuracion(periodos) {
+  const pa1 = periodos.find((p) => p.tipo === 'PA' && Number(p.numero) === 1)
+  const i = periodos.findIndex((p) => p.tipo === 'PR' && Number(p.numero) === 4)
+  const fin = periodos[i]?.fecha_fin
+  if (!pa1?.fecha_inicio || !fin) return {}
+  const [anio, mes] = pa1.fecha_inicio.split('-')
+  const limite = `${Number(anio) + 1}-${mes}-01`
+  return fin >= limite ? { [`periodos.${i}.fecha_fin`]: MAS_DE_DOCE_MESES } : {}
 }
 
 /** D73 — CU027, al crear las fechas particulares de un colegio (precargadas del general). */
@@ -161,13 +187,50 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
     return [...new Set([...base, siguiente])].sort((a, b) => b - a).map(String)
   }, [anios])
 
-  // El año arranca en el vigente. CU027: se inicializa con el año actual.
+  /**
+   * EL AÑO QUE SE PROPONE AL ENTRAR (CU027).
+   *
+   * Primero manda lo que el usuario estaba mirando: `useFiltrosGuardados` ya
+   * restaura la selección anterior, y este efecto no se mete si hay una.
+   *
+   * Si no la hay, se propone el año escolar **vigente**, que es el que
+   * contiene hoy dentro de un PA o un PR. Eso incluye el caso que antes se
+   * leía mal: en enero de 2027, si todavía corre el receso posterior al PA4
+   * de 2026, el vigente sigue siendo **2026** aunque el año de calendario ya
+   * haya cambiado. El servidor lo resuelve con las fechas del propio año
+   * escolar (`GET /anios-escolares`), así que aquí no se recalcula.
+   *
+   * Y SI NO HAY NINGUNO VIGENTE, EL FILTRO SE QUEDA VACÍO. Antes caía al
+   * primer año de la lista: proponer un año al azar es peor que no proponer
+   * ninguno, porque la pantalla enseña un calendario que nadie pidió y parece
+   * el de hoy. CU027 lo pide expresamente: "permanece sin selección hasta que
+   * el usuario elija uno".
+   *
+   * Por eso NO se usa `anioVigente()`: ese ayudante cae a `anios[0]` cuando no
+   * hay vigente, que es justo lo que aquí no debe pasar. Otras pantallas sí
+   * quieren ese respaldo, así que se mira la marca directamente.
+   */
   useEffect(() => {
     if (anio || !anios.length) return
-    const vigente = anioVigente(anios)?.nombre
-    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0] ?? aniosOfrecidos[0]
+    const vigente = anios.find((a) => a.vigente)?.nombre
+    const propuesto = /\d{4}/.exec(String(vigente ?? ''))?.[0]
     if (propuesto) setAnio(String(propuesto))
-  }, [anios, anio, aniosOfrecidos])
+  }, [anios, anio])
+
+  /**
+   * D117 — Lo que dejó la edición de un calendario no pasa a otro.
+   *
+   * "El cambio afecta a registros existentes" de un colegio seguía visible al
+   * consultar el de otro. Los filtros están bloqueados mientras se edita, así
+   * que esto solo corre en consulta y no descarta nada escrito.
+   */
+  useEffect(() => {
+    setIncompatibilidades([])
+    setErroresCampo({})
+    setConflicto(false)
+    setSinConfirmar(false)
+    setConfirmando(null)
+  }, [alcance, idColegio, anio])
 
   const porColegio = alcance === 'colegio'
   const colegioConsultado = porColegio ? idColegio : undefined
@@ -310,6 +373,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   /** Vuelve a consulta descartando lo escrito. */
   const descartar = () => {
+    // D117 — El aviso de registros afectados era de ESTA edición: si se queda,
+    // se ve en consulta y al pasar a otro colegio.
+    setIncompatibilidades([])
     setConfirmando(null)
     setConflicto(false)
     setSinConfirmar(false)
@@ -343,6 +409,12 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   /** Guardar: crear va directo; editar el GENERAL pasa por confirmación. */
   const pedirGuardar = () => {
+    // D116 — Lo que se sabe antes de enviar se dice antes, junto a su campo.
+    const locales = erroresDeDuracion(periodos)
+    if (Object.keys(locales).length) {
+      setErroresCampo(locales)
+      return
+    }
     if (modo === 'editar' && !porColegio) {
       setConfirmando({ tipo: 'actualizar' })
       return
@@ -428,6 +500,14 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
             <Select
               label="Año escolar"
               value={anio}
+              /*
+               * El hueco es una opción de verdad, no la ausencia de valor
+               * (CU027). Sin ella, un `<select>` sin valor enseña su PRIMERA
+               * opción —el año siguiente, que encabeza la lista—, así que
+               * "sin selección" se veía como "2027" y la pantalla parecía
+               * proponer un año que nadie eligió.
+               */
+              placeholder="Selecciona un año"
               // En creación queda fijo: cambiarlo a medias dejaría las fechas
               // escritas colgando de otro año (CU027).
               disabled={editando}
@@ -774,7 +854,12 @@ function TablaPeriodos({ filas, editando, onCambio, erroresCampo = {}, periodoAc
   )
 }
 
-/** Feriados y suspensiones. Solo cuentan dentro de un PA. */
+/**
+ * Feriados y suspensiones. Van dentro de un periodo del calendario, **PA o
+ * PR** (CU027): se puede registrar un feriado en pleno receso, incluido el
+ * posterior al PA4 cuando se extiende al siguiente año de calendario. Hacerlo
+ * no divide el periodo ni amplía el plazo de regularización.
+ */
 function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
   const cambiar = (i, campo, valor) => onCambio(dias.map((d, n) => (n === i ? { ...d, [campo]: valor } : d)))
 
@@ -876,7 +961,8 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
 
       {editando && (
         <p className="mt-1.5 text-xs text-ink-500">
-          Cada día no lectivo debe caer dentro de un PA. Lo que se quite de esta tabla se elimina al guardar.
+          Cada día no lectivo debe caer dentro de un periodo, sea un PA o un receso. Lo que se quite de esta
+          tabla se elimina al guardar.
         </p>
       )}
     </div>

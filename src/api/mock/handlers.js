@@ -330,8 +330,6 @@ function filaDe(tabla, idAlumno) {
     nombre: `${alumno.apellidos}, ${alumno.nombres}`,
     inactivo: alumno.activo === false,
     asistencia,
-    // El nivel academico lo completa el Registro de Vuelo (tanda 9).
-    nivel_academico: null,
     lsn_titulo: d.lsn_titulo ?? null,
     lsn_nota: d.lsn_nota ?? null,
     lsn_maximo: d.lsn_maximo ?? null,
@@ -532,6 +530,17 @@ function periodoDeAlumno(alumno, periodo, periodos) {
   // decision del docente no se toca sola.
   const cambio = Boolean(colocado && decision.id_nivel_entrada && decision.id_nivel_entrada !== (entrada.nivel?.id ?? null))
 
+  /**
+   * TANDA N — `pertenece`: si el alumno estuvo en el grupo algun dia del PA.
+   *
+   * El simulador NO TIENE fechas de matricula, asi que no puede calcularlo de
+   * verdad: se fija un caso reproducible —uno de cada siete alumnos entro en
+   * el PA2— para que la pantalla se pueda probar sin inventar un historial de
+   * traslados que luego nadie mantendria. Contra el servidor real el campo
+   * llega calculado con las fechas del PA en el calendario del colegio.
+   */
+  const pertenece = !(alumno.id_alumno % 7 === 0 && periodo.numero === 1)
+
   return {
     numero: periodo.numero,
     id_periodo_academico: periodo.id_periodo_academico,
@@ -544,12 +553,18 @@ function periodoDeAlumno(alumno, periodo, periodos) {
     proyeccion: decision?.id_nivel_proyeccion ? nivelPorId(decision.id_nivel_proyeccion) : null,
     observacion: decision?.observacion ?? null,
     aviso_entrada_cambio: cambio,
-    aviso: cambio
-      ? 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
-      : null,
+    // El aviso de entrada cambiada MANDA sobre el de pertenencia: si ya habia
+    // uno, el contrato dice que llega ese y no el nuevo.
+    aviso: (() => {
+      if (cambio) return 'La entrada de este periodo cambio despues de registrar el nivel colocado: revisa la decision.'
+      if (!pertenece) return 'El alumno no pertenecía a este grupo en el periodo seleccionado.'
+      return null
+    })(),
+    pertenece,
     // Lo que falta es el NIVEL COLOCADO: la proyeccion y la observacion son
-    // opcionales, asi que no dejan el periodo incompleto.
-    incompleto: !colocado,
+    // opcionales, asi que no dejan el periodo incompleto. Y a un alumno que no
+    // estaba en el grupo NO SE LE EXIGE nivel: nunca esta incompleto.
+    incompleto: pertenece && !colocado,
   }
 }
 
@@ -1867,7 +1882,7 @@ export const handlers = {
       if (semana.inicio > hoyLima()) {
         throw errorMock(
           422,
-          'No es posible adelantar registros. Seleccione la semana actual o una anterior.',
+          'No es posible adelantar registros. Selecciona la semana actual o una anterior.',
           'semana_futura',
         )
       }
@@ -1878,7 +1893,7 @@ export const handlers = {
       if (alumnos.length === 0) {
         throw errorMock(
           422,
-          'No hay estudiantes que pertenecieran a este grupo en la fecha de la clase seleccionada.',
+          'No hay alumnos que pertenecieran a este grupo en la fecha de la clase seleccionada.',
           'sin_alumnos',
         )
       }
@@ -1956,7 +1971,7 @@ export const handlers = {
         if (!filaDe(tabla, f.id_alumno)) {
           return rechazo(
             'alumno_fuera_de_la_tabla',
-            'El estudiante no corresponde a la clase de referencia de esta tabla semanal.',
+            'El alumno no corresponde a la clase de referencia de esta tabla semanal.',
           )
         }
 
@@ -1969,7 +1984,7 @@ export const handlers = {
         if (tocaLibros && !soloBorra(f) && !asistioALaReferencia(tabla, f.id_alumno)) {
           return rechazo(
             'sin_asistencia',
-            'El estudiante debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
+            'El alumno debe tener asistencia Presente o Tardanza en la clase de referencia para registrar su lectura.',
           )
         }
 
@@ -2143,7 +2158,7 @@ export const handlers = {
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
-            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el mes seleccionado.')
+            return rechazo('alumno_fuera_del_grupo', 'El alumno no pertenecia a este grupo en el mes seleccionado.')
           }
 
           const programa = db.PROGRAMAS.find((p) => Number(p.id_programa) === Number(it.id_programa))
@@ -2302,7 +2317,7 @@ export const handlers = {
 
           const alumno = db.ALUMNOS.find((a) => Number(a.id_alumno) === Number(it.id_alumno))
           if (!alumno) {
-            return rechazo('alumno_fuera_del_grupo', 'El estudiante no pertenecia a este grupo en el periodo seleccionado.')
+            return rechazo('alumno_fuera_del_grupo', 'El alumno no pertenecia a este grupo en el periodo seleccionado.')
           }
 
           const periodo = periodos.find((p) => p.id_periodo_academico === Number(it.id_periodo_academico))
@@ -2851,6 +2866,7 @@ export const handlers = {
     libros: (params) => responder(panel.libros(params)),
     librosDeColegio: (idColegio, params) => responder(panel.librosDeColegio(idColegio, params)),
     librosDesglose: (params) => responder(panel.librosDesglose(params)),
+    librosIncompletos: (params) => responder(panel.librosIncompletos(params)),
     evolucionAnual: (params) => responder(panel.evolucionAnual(params)),
     comparacionColegios: (params) => responder(panel.comparacionColegios(params)),
   },

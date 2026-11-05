@@ -2,11 +2,17 @@
 
 **Para:** **analistas** (lo que necesita decisión de caso de uso) y **backend**
 (lo que falta publicar o corregir del lado del servidor).
-**Actualizado:** 29/10/2026, con la respuesta del backend (Paris, tandas I,
-L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
-(CU033 a CU035), que ya está implementado.
+**Actualizado:** 05/11/2026, con la **ronda 7** del tester (Tanda F1 del
+front, al final) y las **tandas O y P** del backend (`b769e05` y `8bc66d7`).
+Antes: 29/10/2026, con las tandas I, L y **M**, las dos partes de la
+**ronda 6** y el **Dashboard** (CU033 a CU035).
 
-> ## Del backend no queda nada
+> ## Del backend no queda nada bloqueante
+>
+> Lo único que sigue pedido es una mejora sin defecto detrás: que
+> `totales.ciclos` de `GET /inicio/docente` venga completo (**S29**; el front
+> ya une los dos orígenes). D110 (compartido) y D116 de la ronda 7 los cerró
+> la **Tanda P** del backend junto con la Tanda F1 del front.
 >
 > Los **once** pedidos originales de "Lo que falta del BACKEND" están
 > resueltos: seis ya existían con otro nombre de campo, y el resto llegó con
@@ -55,8 +61,8 @@ L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
 
 **Lo que queda.** Los siete son de Carlos (analista): los cinco primeros
 venían del sprint y los dos siguientes los abrió la **ronda 6** del tester.
-Del backend no queda nada (S23 se resolvió en el front y la Tanda M cerró
-D100 y D101):
+Del backend no queda nada bloqueante (S23 se resolvió en el front, la
+Tanda M cerró D100 y D101, y solo sigue pedida la mejora de S29):
 
 1. **CU028** — si el modal de permisos pide varios grados y módulos a la vez,
    hay que cambiar sus dropdowns de "selección única". El endpoint de lote ya
@@ -75,7 +81,7 @@ D100 y D101):
 **S1 (Dashboard) — ✅ RESUELTO: ya está implementado.** CU033, CU034 y
 CU035 llegaron completos en los casos de uso actualizados y el backend publicó
 los once endpoints de `/dashboard/*` (serie D1–D7). Está en `development`, en
-el commit `59eb6a9`, y la Fase 8 de `docs/plan-semana12-front.md` cuenta qué
+el commit del **front** `59eb6a9`, y la Fase 8 de `docs/plan-semana12-front.md` cuenta qué
 hace cada bloque.
 
 ---
@@ -685,6 +691,40 @@ el servidor los datos de matrícula o de rúbrica del alumno en cuestión. Los
 dos mensajes son literales del contrato, así que no es un error de
 interpretación del front.
 
+> **RESUELTO por la Tanda N del backend** (`cambiosFront_semana13_v1.md`).
+> No era ni un dato mal cargado ni una pantalla rota: faltaba el campo para
+> saberlo **antes** de pulsar. `GET /registro-vuelo` ahora manda
+> `items[].periodos[].pertenece`, y la pantalla lo respeta — ver abajo.
+
+**S27b. Lo que hace ahora la pantalla con `pertenece` (Tanda N).**
+La fila de un alumno que no estaba en el grupo ese PA va **deshabilitada**:
+nivel colocado, proyección y observación en solo lectura, y el `aviso` del
+servidor pintado tal como llega.
+
+Tres decisiones que conviene dejar escritas, porque son las que se romperían
+sin querer:
+
+- **Se decide por el campo `pertenece`, nunca comparando el texto del aviso.**
+  Un mensaje se reescribe cualquier día; quien compare textos se entera
+  cuando el Docente ya perdió el trabajo. Hay una prueba que fija justo el
+  caso raro: el PA sin fechas en el calendario del colegio llega con
+  `pertenece: false` y `aviso: null`, y la celda **igual** se bloquea.
+- **Se suma a `escritura`, no la sustituye.** `periodos[].escritura` decide
+  si el PA se puede escribir para todo el grupo; `pertenece` decide si esta
+  fila entra en ese PA. Tienen que valer las dos.
+- **El aviso no se arma en el front.** El servidor manda uno solo, ya
+  elegido, y si hay dos motivos a la vez —entrada cambiada y no
+  pertenencia— decide él cuál pesa. La pantalla pinta el que llegue.
+
+`incompleto` no hacía falta tocarlo: el front **nunca** lo usaba para contar
+nada, así que el punto 3 de la tanda ya se cumplía por omisión.
+
+**Lo que esto arregla en Seguimiento:** el Docente deja de generar rechazos
+`alumno_fuera_del_grupo` desde la pantalla, que es lo que lo dejaba en
+"Error" en CU020 sin haber hecho nada mal. Los rechazos **ya existentes**
+siguen contando hasta que los descarte: no se borran solos. Es decir, S28
+deja de alimentarse, pero no se limpia solo.
+
 **S28 (nuevo). Seguimiento del Supervisor: la columna "Sincronización" en
 Error para tres docentes — es dato real, no un bug de pantalla.**
 Antonio lo reportó como posible defecto del front. **No lo es**: `error` es
@@ -723,6 +763,231 @@ los dos orígenes en vez de elegir uno, con su prueba de regresión.
 asignados — el front ya no se cae si falta alguno, pero un resumen
 incompleto en el propio endpoint sigue siendo un dato a revisar.
 
+**S30 (nuevo). El año escolar "vigente" tiene que cubrir el receso posterior
+al PA4, aunque se pase al siguiente año de calendario.**
+Sale de la actualización de los CU del 04/11. CU027 dice que, al entrar al
+calendario sin una selección anterior, se propone **el año escolar cuyo
+calendario contiene hoy dentro de un PA o un PR**, y pone el ejemplo
+incómodo a propósito: *"si en enero de 2027 continúa el receso posterior a
+PA4 de 2026, selecciona 2026"*.
+
+El front ya no calcula eso —no tiene los calendarios de todos los años a
+mano—: **se fía de la marca `vigente` de `GET /anios-escolares`**, y si
+ninguno la trae deja el filtro sin selección, como pide el CU.
+
+Hoy el servidor la calcula como `fecha_inicio <= hoy <= fecha_fin` del propio
+año escolar (`app/routers/catalogos.py`). Eso da el resultado correcto
+**siempre que la `fecha_fin` del año escolar llegue hasta el final de su PR4**
+y no se corte el 31 de diciembre. Si se cortara, en enero ningún año saldría
+vigente y el Supervisor encontraría el filtro vacío en vez de "2026".
+
+> **CONFIRMADO por el backend el 04/11.** `fecha_fin` del año escolar es el
+> fin del PR4 del calendario general y **se recalcula cada vez que se edita**,
+> así que en enero, durante el PR4, 2026 sigue vigente.
+>
+> El propio backend avisó de dos casos en que NO habrá ningún año vigente, y
+> los dos están cubiertos: en **vacaciones** —entre el fin del PR4 y el PA1
+> siguiente— y cuando un colegio tiene un calendario particular cuyo PR4
+> termina **después** del general. En ambos el filtro se queda sin selección
+> y la pantalla pide elegir, en vez de proponer un año por aproximación.
+
+**S31 (nuevo). Decisiones de pantalla tomadas por el front el 04/11, para
+que el analista las recoja en los CU.**
+Antonio pidió cerrar los huecos restantes con criterio propio aunque no
+estuvieran escritos, y documentarlos aquí para incorporarlos después. Son
+estos, y ninguno cambia una regla: solo texto y una columna.
+
+**a) "estudiante" ya no se usa en pantalla.** El documento actualizado no
+dice "estudiante" **ni una sola vez** —443 veces "alumno"—, pero el código
+aún lo decía en tres sitios visibles. Ahora dicen "alumno": la tarjeta del
+Inicio del Docente (**"Mis alumnos"**), el aviso sin conexión de
+mantenimiento (**"…para gestionar alumnos."**) y el título de la ficha
+(**"Ficha del alumno"**). La RUTA sigue siendo `/estudiantes/:id`: cambiarla
+rompería los enlaces ya guardados y no la ve nadie.
+
+**b) Las columnas de la bitácora, con el nombre que les da el CU.** En
+Sesiones (CU017) y en el detalle del Supervisor (CU021):
+
+| Antes | Ahora | Por qué |
+|---|---|---|
+| Inicio / Fin | **Hora de inicio** / **Hora de finalización** | Desde U15 esas celdas traen SOLO la hora; "Inicio" a secas se leía como una fecha |
+| Cambios | **Cantidad de cambios** | Es el nombre del CU |
+| Estado | **Estado de la actividad** | Está al lado de la columna de sincronización: dos "Estado" seguidos no se distinguen |
+| Sincronización | **Estado de sincronización** | Lo mismo, por el otro lado |
+
+**Una desviación deliberada:** el CU llama a la última columna "Tipo de
+cierre de la actividad" y se queda en **"Tipo de cierre"**. En una tabla de
+actividades, "de la actividad" no añade significado y sí anchura, y esa
+columna ya es la más ancha —sus valores son del tipo "Manual por
+finalización de actividad"—. Si el analista prefiere el nombre largo, se
+cambia en una línea.
+
+**c) Falta(ba) una columna en CU021: "Estado de la actividad".** El detalle
+del Supervisor no la tenía. Importa para quien audita: que una jornada siga
+**En curso** cambia lo que está viendo, porque lo que falte todavía puede
+aparecer, y un "Sin registros" no significa lo mismo en una jornada abierta
+que en una cerrada.
+
+**d) El texto del adelanto de semana, tuteado.** El simulador respondía
+*"…Seleccione la semana actual o una anterior."* Es un mensaje **del
+servidor**, y la Tanda O lo cambia a "Selecciona": el simulador se adelanta
+para que las dos fuentes digan lo mismo. **Nada que hacer en el backend**,
+ya está en su lista.
+
+> **Confirmado por la Tanda O (`b769e05`).** El "adelanto" ya es la regla
+> definitiva, no una anticipación. De paso se sincronizaron contra el mismo
+> texto del backend los cinco mensajes "estudiante" → "alumno" que faltaban
+> fuera de este (sin alumnos en Lectura; alumno fuera de la tabla, dos veces,
+> en Lectura; fuera del grupo, en Rúbrica y en Registro de Vuelo), tanto en
+> el simulador como en los textos de respaldo (`MOTIVO_*`) de cada recurso.
+
+**e) De dónde viene la Entrada de Registro de Vuelo, sin cursor (CU031).**
+El texto vivía solo en un `title` de hover: en un teléfono no existe y con
+teclado tampoco. Ahora va en un botón con el tooltip de la casa, que abre
+con cursor, foco y toque. Cuando no hay nivel, el motivo ya se lee a secas
+en la celda y no se añade el botón.
+
+**f) El rol que deja de permitir la consulta (CU033, CU034, CU035).** Las
+pantallas del Dashboard y del consolidado retiran lo que muestran y dicen
+*"Tu rol actual no permite consultar este dashboard."* / *"…este
+consolidado."* **Importante para el analista:** por la ruta no se llega a
+ese mensaje —la guarda manda a `/403`, que ya explica el motivo con el
+nombre del rol y ofrece volver—. Lo añadido es la red de seguridad para el
+caso que describen los CU: perder el rol con la pantalla ya abierta. Si se
+quiere que ese mensaje sustituya a `/403`, es un cambio en la guarda del
+enrutador y afecta a toda la aplicación: queda fuera de esto.
+
+**g) El aviso de actividad ya no repite el botón.** U24 le había puesto uno
+propio porque el de "Iniciar actividad" había que buscarlo arriba a la
+derecha. Pero ese botón **no se esconde nunca** —`BarraActividades` lo deja
+fijo en la barra superior—, así que quedaban dos botones idénticos a dos
+dedos de distancia y el de abajo empujaba el texto del aviso. Un control
+repetido no es más fácil de encontrar: invita a preguntarse en qué se
+diferencian. **Esto revierte U24 de la auditoría de UX #737**, y conviene que
+lo sepa quien la escribió.
+
+**h) El "Tipo de cierre" se lee en una palabra.** La columna mostraba
+"Manual por finalización de actividad" en tres líneas y en casi todas las
+filas: una columna donde todo se lee igual deja de ayudar a encontrar la fila
+distinta, que es a lo que se viene en una bitácora. Ahora muestra **Manual**,
+**Forzado** o **Automático** —lo que de verdad las separa es quién cerró la
+actividad: el docente, la salida o el reloj— y el motivo completo sigue a un
+toque en el tooltip y entero en "Ver detalle". Vale para CU017 y CU021, con
+el mismo componente, y entiende tanto los códigos futuros como el texto
+completo que manda hoy el servidor.
+
+**i) Sesiones ya no tiene columna "Estado de la actividad".** La decidió
+Antonio y los analistas la recogen en el CU. El motivo: **la hora de
+finalización ya lo dice**. Una fila con hora está terminada y una sin ella
+sigue abierta, así que el badge solo confirmaba el dato de la celda de al
+lado y gastaba el ancho que necesitaban las demás columnas.
+
+Lo que sí cambia es la celda vacía: antes un guion, que se lee como "falta
+el dato", y ahora **"En curso"**, que es lo que de verdad pasa. El guion se
+queda solo en "Tipo de cierre", donde sí corresponde: una actividad abierta
+no se ha cerrado de ninguna manera.
+
+Dos cosas que NO se tocaron: el filtro "Estado" de la barra superior
+—filtrar por algo no obliga a darle una columna— y el estado completo en
+"Ver detalle".
+
+**Y se aplicó también a CU021**, el detalle del Supervisor, aunque Antonio
+habló solo de Sesiones: ahí la columna la había añadido yo el 04/11 y tiene
+exactamente la misma redundancia. Dejarla habría hecho que las dos tablas de
+la misma información se leyeran distinto. Si el analista prefiere
+conservarla en CU021, se repone en una línea.
+
+**Lo que se comprobó y NO se tocó, a propósito:** "autorización" y
+"habilitación" no son sinónimos en el CU —una es de consulta y otra de
+escritura— y el literal *"No tienes autorización vigente para registrar o
+modificar este periodo."* está en el documento tal cual. El código ya lo
+decía bien.
+
+**S32 (nuevo). "Descargar gráfica" no funcionaba — era un `blob:` donde la
+CSP solo permite `data:`.**
+Antonio lo reportó en Asistencia y en el consolidado de libros (CU033,
+CU034). El código cargaba la imagen rasterizada con
+`URL.createObjectURL(new Blob(...))`, una URL `blob:`. La cabecera de
+seguridad del servidor (RNF-003, `deploy/cabeceras-seguridad.conf`) declara
+`img-src 'self' data:` **a propósito para esto** —el propio comentario del
+archivo decía *"para exportar un gráfico a PNG... rasteriza el SVG desde una
+URL data:"*—, y `blob:` es otro esquema que esa cabecera no autoriza. En
+local, sin la cabecera, funcionaba; en cualquier sitio que la sirva —qa,
+producción— el navegador bloqueaba la carga en silencio y el botón "no
+hacía nada".
+
+Corregido: ahora carga desde una URL `data:` (`encodeURIComponent` del SVG
+serializado), como decía el comentario que ya existía. Sin cambios en el
+backend ni en la cabecera — el valor de `img-src` ya estaba bien, era el
+código quien no lo usaba. Esta función no tenía ninguna prueba; se le
+añadieron 8, incluida una que fija específicamente que la imagen se cargue
+por `data:` y nunca por `blob:`, para que esto no se repita.
+
+De paso, el mes del borde del gráfico de líneas ("Diciembre") se recortaba
+por un margen derecho insuficiente para su etiqueta — corregido con una
+prueba de geometría.
+
+Y los cuatro rediseños de espacio en blanco que pidió Antonio (la barra de
+filtros del Dashboard y del consolidado de libros, la dona con su tabla en
+"Distribución de alumnos", y el formulario de "Comparación de resultados"):
+en los tres, la causa de fondo era la misma — un panel de casillas o chips
+de alto variable compartiendo fila con controles de alto fijo, con
+`items-start` y, en un caso, un botón en `size="sm"` que no coincidía con
+la altura de los `Select` (`h-10`). Se separaron en dos filas donde hacía
+falta, en vez de forzar la alineación con CSS.
+
+**S33 (nuevo). Tanda O del backend (`b769e05`): implementado.**
+
+- **Productividad y textos (puntos 1 y 2 de la Tanda O):** nada que cambiar
+  en el front — "en Asistencias" ya se pintaba tal cual, y "estudiante" →
+  "alumno" / "Seleccione" → "Selecciona" ya estaban aplicados en S31.
+- **`GET /dashboard/libros/incompletos` (punto 3), implementado entero.**
+  Antes "Información incompleta" era una palabra sin salida: decía que algo
+  faltaba, no QUÉ ni DÓNDE. Ahora se abre desde dos sitios: el aviso del
+  resumen (sin acotar) y cada celda "—" de un mes sin información, que lleva
+  acotado a ese colegio/alumno y ese mes exactos. Vista nueva
+  `DetalleLibrosIncompletos.jsx`, con las dos columnas que distinguen los
+  motivos —`sin_tabla` y `filas_pendientes`, nunca confundidos por texto,
+  solo por el campo— y un enlace a Seguimiento de Lectura cuando hay tabla
+  que abrir.
+
+  **El simulador es una SIMPLIFICACIÓN, documentada en su propio código**: no
+  tiene una tabla semanal real por alumno, solo un total mensual, así que
+  sintetiza como mucho una semana representativa por colegio, grado y mes
+  incompleto (el primer lunes de ese mes), no una por cada semana real que
+  falte. Sirve para ejercitar la pantalla correctamente; el conteo exacto de
+  semanas no se puede comparar contra el backend real.
+
+  **Encontrado al escribir la prueba, no es un defecto:** el badge del
+  resumen (`acciones` de `BloqueLibros`) casi nunca se activa con "Todos los
+  colegios" contra el simulador, porque su modelo agrega por colegio+mes, no
+  por alumno: un colegio con alumnos a medias sigue sumando un total no nulo
+  al agregado, así que el agregado rara vez sale "incompleto" aunque celdas
+  sueltas sí lo estén. La prueba de la pantalla entra por una celda de
+  alumno, que sí es determinista. El código del badge es correcto y se
+  activará igual contra el servidor real.
+
+**S34 (nuevo). "Colegios" pasa de panel siempre abierto a desplegable.**
+Lo pidió Antonio, viendo que la barra de filtros del Dashboard seguía
+dejando espacio en blanco. La causa de fondo: `SelectorColegios` era un
+panel —casilla "Todos", buscador y lista— **siempre visible**, con una
+altura que no tenía nada que ver con los 40 px de un `Select` cerrado.
+Junto a "Año escolar" y "Periodo académico" eso partía la fila en dos y
+dejaba el hueco del alto del panel debajo de los dos primeros.
+
+Ahora es un desplegable: cerrado mide lo mismo que los demás controles
+—"Todos los colegios" o "N de M"—, y los tres filtros más "Aplicar" caben
+en una sola fila. Al pulsarlo abre el mismo contenido de siempre en un
+panel flotante que no empuja nada alrededor. Cierra con **Escape** y con un
+**clic fuera**, como cualquier desplegable del sistema (se reutiliza
+`useOnEscape`, el mismo hook de `Modal`). Vale para las tres pantallas que
+lo comparten: CU033, CU034 (incluida la herencia de filtros entre las dos)
+y CU035.
+
+Con esto, `FiltrosDashboard` vuelve a ser una fila sola en vez de dos: el
+cambio del 04/11 que separaba "Colegios" a su propia fila (S31) queda
+superado por este, que ataca la causa en vez de acomodar el síntoma.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -745,9 +1010,11 @@ lado de los datos si no se esperaban:
 | Seguimiento del Supervisor con filas sin nombre de docente | **S24** | ✅ Resuelto, confirmado contra el servidor real |
 | "Otorgar permiso" sin el PA3 en el desplegable | **S26** | ✅ Resuelto; el PA4 no aparece **a propósito** (todavía no empieza) |
 | Lectura deja pulsar "Crear la tabla" sobre una clase que aún no se ha dictado | **S25** | ✅ Resuelto, confirmado reprogramando una clase |
-| Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27** | ℹ️ Es dato real del servidor; revisar matrícula/rúbrica si no corresponde |
+| Registro de Vuelo: "Pendiente de evaluar" y el aviso `alumno_fuera_del_grupo` | **S27 / S27b** | ✅ Resuelto por la Tanda N: la pantalla respeta `pertenece` y la celda se bloquea antes de pulsar |
 | Seguimiento del Supervisor: tres docentes con Sincronización en Error | **S28** | ℹ️ Es dato real del servidor; revisar qué envío rechazó cada cuenta |
 | Inicio del Docente: faltaba un Ciclo en "Mis asignaciones" (D108) | **S29** | ✅ Resuelto en el front; pedir que `totales.ciclos` también venga completo |
+| Calendario: qué año se propone en enero, con el PR4 en curso | **S30** | ✅ Confirmado por el backend; el front ya cubre el caso de ningún año vigente |
+| Textos de pantalla y columnas decididos por el front el 04/11 | **S31** | 📝 Hechos; el analista los recoge en los CU |
 
 ## Versión para la ronda 7
 
@@ -755,5 +1022,42 @@ lado de los datos si no se esperaban:
   ajuste de las pantallas al teléfono") o posterior. Incluye la ronda 6
   completa, los hallazgos del 03/11 y la versión móvil (Fases 9 y 9b de
   `docs/plan-semana12-front.md`).
-- **Backend:** `development` en `34c6191` ("Tanda M: decisiones provisionales
-  documentadas, API.md y Sonar") o posterior.
+- **Backend:** `development` en `b769e05` (Tanda O) o posterior. Ahora
+  `qa` = `8bc66d7` (Tanda P: D69, D116 y la regla de 12 meses también en el
+  calendario particular).
+
+## Ronda 7 · Tanda F1 (Paris)
+
+Defectos de la ronda 7 de QA corregidos en el front (un commit por defecto,
+sobre `5f7e98d`; el detalle técnico está en la sección 7 de
+`docs/plan-semana12-front.md`):
+
+- **D109** (`b6f92f5`): cada cuenta entra a su Inicio; solo la misma cuenta
+  cuya sesión se cortó vuelve a su pantalla.
+- **D115** (`e4c29d6`): el perfil para recargar sin conexión sale de
+  `localStorage` y pasa a IndexedDB, atado a su `id_usuario`.
+- **D95** (`f43e3e5`): Asistencias bloquea sin conexión si el paquete de
+  habilitaciones no está en IndexedDB.
+- **D110** (`135b166`, compartido con el backend): el detalle del colegio se
+  vuelve a pedir al abrir la pantalla y trae las secciones nuevas. Que
+  "Única" siga junto a "A" y "B" lo decide el **analista**; el front no la
+  esconde.
+- **D116** (`6a8f09c`): el error de más de 12 meses se ve junto al fin del
+  PR4, y el front lo detecta antes de enviar con el texto del backend.
+- **D117** (`e72cb48`): el aviso de registros afectados no pasa a otro
+  colegio.
+- **D114** (`2eca40e`): una sola fuente para la actividad en curso; Rúbrica
+  reconoce la actividad iniciada sin conexión.
+
+**Para decidir (no cambiado en esta tanda):**
+
+- Lectura, Rúbrica y Registro de Vuelo tienen el mismo hueco que D95: sin
+  conexión deciden con el `escritura` de su consulta en caché y no comprueban
+  el paquete de habilitaciones.
+- `sicedu.rechazos` (D69) guarda en `localStorage` nombres de alumnos
+  ("Asistencia de …") y observaciones. Con la Ley N.º 29733 conviene moverlo
+  a IndexedDB como el perfil.
+- **Backend (sugerencia):** el bloque `escritura` solo trae el porqué como
+  texto. Un código (por ejemplo `sin_actividad`) dejaría al front distinguir
+  "falta la actividad" de "falta la habilitación" sin leer textos (D114).
+

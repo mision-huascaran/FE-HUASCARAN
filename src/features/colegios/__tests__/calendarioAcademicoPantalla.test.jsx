@@ -27,14 +27,19 @@ vi.mock('../../../api/resources/calendarios', async (importOriginal) => {
   }
 })
 
+/** Los años que devuelve el catálogo. Mutable: una prueba necesita que NINGUNO
+ *  esté vigente, que es el caso que CU027 resuelve dejando el filtro vacío. */
+const CON_VIGENTE = [
+  { id: 1, nombre: '2025', vigente: false },
+  { id: 2, nombre: '2026', vigente: true },
+]
+let aniosEscolares = CON_VIGENTE
+
 vi.mock('../../../api/resources/administracion', async (importOriginal) => {
   const original = await importOriginal()
   return {
     ...original,
-    listarAniosEscolares: async () => [
-      { id: 1, nombre: '2025', vigente: false },
-      { id: 2, nombre: '2026', vigente: true },
-    ],
+    listarAniosEscolares: async () => aniosEscolares,
   }
 })
 
@@ -91,6 +96,10 @@ const boton = (nombre) => screen.getByRole('button', { name: nombre })
 beforeEach(() => {
   for (const espia of [obtenerCalendario, crearGeneral, crearParticular, actualizar, volverAlGeneral]) espia.mockClear()
   Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+  // Los filtros se guardan entre visitas (D70): sin limpiarlos, una prueba
+  // heredaría el año que eligió la anterior.
+  localStorage.clear()
+  aniosEscolares = CON_VIGENTE
 })
 
 afterEach(() => {
@@ -359,5 +368,40 @@ describe('CU027 · Calendario académico', () => {
 
     expect(await screen.findByText(/Sin conexión. Estás consultando la última versión guardada del calendario/, {}, ESPERA)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeDisabled()
+  })
+})
+
+/**
+ * CU027 — Qué año se propone al entrar.
+ *
+ * La regla cambió: antes la pantalla caía al primer año de la lista cuando no
+ * había ninguno vigente. Proponer un año al azar es peor que no proponer
+ * ninguno, porque enseña un calendario que nadie pidió y parece el de hoy.
+ */
+describe('CU027 · el año que se propone al entrar', () => {
+  it('propone el año vigente, que es el que contiene hoy en un PA o PR', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+
+    montar()
+
+    await screen.findByText(INICIO_PA1, {}, ESPERA)
+    expect(screen.getByLabelText('Año escolar')).toHaveValue('2026')
+  })
+
+  it('sin ningún año vigente, el filtro se queda SIN SELECCIÓN y no consulta nada', async () => {
+    // Es el hueco entre dos años escolares: hoy no cae en ningún PA ni PR.
+    aniosEscolares = [
+      { id: 1, nombre: '2025', vigente: false },
+      { id: 2, nombre: '2026', vigente: false },
+    ]
+    obtenerCalendario.mockResolvedValue(calendario())
+
+    montar()
+
+    const año = await screen.findByLabelText('Año escolar', {}, ESPERA)
+    await waitFor(() => expect(año).toHaveValue(''), ESPERA)
+    // Sin año no hay nada que pedir: pedir el calendario de un año inventado
+    // llenaría la pantalla con el de otro periodo.
+    expect(obtenerCalendario).not.toHaveBeenCalled()
   })
 })

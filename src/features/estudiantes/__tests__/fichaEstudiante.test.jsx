@@ -78,10 +78,17 @@ describe('Detalle del alumno (CU015)', () => {
     await abrirFicha()
     await userEvent.click(screen.getByRole('tab', { name: 'Registro de Vuelo' }))
 
-    // Los PA salen DOS veces: en el eje de la gráfica y en la mini-grilla, así
-    // que las filas se buscan dentro de la tabla.
+    /**
+     * La tabla nombra los periodos, NO los codifica (CU015): "Primer
+     * periodo", no "PA1". El código solo significa algo para quien construye
+     * el sistema, y esta ficha la lee un Docente. En el eje de la gráfica el
+     * "PA1" sí se queda: ahí no cabe el nombre largo.
+     */
     const tabla = within(await screen.findByRole('table'))
-    ;['PA1', 'PA2', 'PA3', 'PA4'].forEach((pa) => expect(tabla.getByText(pa)).toBeInTheDocument())
+    ;['Primer periodo', 'Segundo periodo', 'Tercer periodo', 'Cuarto periodo'].forEach((nombre) =>
+      expect(tabla.getByText(nombre)).toBeInTheDocument(),
+    )
+    expect(tabla.queryByText('PA1')).not.toBeInTheDocument()
     expect(tabla.getByText('Pendiente del periodo anterior')).toBeInTheDocument()
     expect(tabla.getAllByText('Sin registrar')).toHaveLength(2)
   })

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { cerrarSesionEnServidor, iniciarSesion, obtenerPerfil } from '../api/resources/auth'
 import { encolar, limpiarSiTodoSincronizado } from '../lib/colaOffline'
 import {
+  borrarPerfilDeLocalStorage,
   guardarPerfilLocal,
   limpiarDatosLocalesDeSesion,
   limpiarSiEsOtroUsuario,
@@ -12,7 +13,7 @@ import { ahora } from '../lib/relojServidor'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
-import { idSesionDe, tokenCaducado } from './jwt'
+import { idSesionDe, leerPayload, tokenCaducado } from './jwt'
 import useExpiracionSesion from './useExpiracionSesion'
 
 /**
@@ -47,6 +48,9 @@ export function AuthProvider({ children }) {
 
   // Evita pedir /me dos veces con el StrictMode de desarrollo.
   const perfilPedidoPara = useRef(null)
+
+  // D115 — Las versiones anteriores dejaban el perfil en `localStorage`.
+  useEffect(() => borrarPerfilDeLocalStorage(), [])
   // Por qué se cerró la sesión, para poder explicarlo en el login.
 
   // Al recargar la página el token sobrevive en sessionStorage pero el perfil
@@ -73,11 +77,11 @@ export function AuthProvider({ children }) {
     obtenerPerfil()
       .then((perfil) => {
         setUsuario(perfil)
-        // D82 — Una copia, para poder recargar sin conexión.
-        guardarPerfilLocal(perfil)
+        // D82 — Una copia, para poder recargar sin conexión (D115: en IndexedDB).
+        void guardarPerfilLocal(perfil)
         setCargando(false)
       })
-      .catch((error) => {
+      .catch(async (error) => {
         /**
          * UN SERVIDOR CAÍDO NO ES UNA SESIÓN TERMINADA (D52).
          *
@@ -108,7 +112,8 @@ export function AuthProvider({ children }) {
          * ya se resolvió arriba—, solo cuando el servidor no contesta, que es
          * cuando el token sigue siendo bueno.
          */
-        const guardado = perfilLocalDe(null)
+        // D115 — Solo la copia de la cuenta que dice el token.
+        const guardado = await perfilLocalDe(leerPayload(token)?.id_usuario)
         if (guardado) {
           setUsuario(guardado)
           setCargando(false)
@@ -145,6 +150,7 @@ export function AuthProvider({ children }) {
        * datos ajenos, ni siquiera un instante.
        */
       await limpiarSiEsOtroUsuario(perfil?.id_usuario)
+      void guardarPerfilLocal(perfil)
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -166,6 +172,7 @@ export function AuthProvider({ children }) {
       setToken(accessToken)
       const perfil = await obtenerPerfil()
       await limpiarSiEsOtroUsuario(perfil?.id_usuario)
+      void guardarPerfilLocal(perfil)
       setUsuario(perfil)
       setCargando(false)
       return perfil
@@ -230,7 +237,8 @@ export function AuthProvider({ children }) {
     await limpiarSiTodoSincronizado()
     await limpiarDatosLocalesDeSesion()
 
-    limpiarSesion(motivo)
+    // D109 — Un cierre a mano no deja ruta de vuelta: quien entre después va a su Inicio.
+    limpiarSesion(motivo, { manual: motivo == null })
     perfilPedidoPara.current = null
     /**
      * Se vacía la caché de consultas para que ningún dato de alumnos quede

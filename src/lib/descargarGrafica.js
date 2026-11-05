@@ -82,67 +82,80 @@ export async function descargarGrafica(
   copia.setAttribute('height', String(altoGrafica))
 
   const fuente = new XMLSerializer().serializeToString(copia)
-  const url = URL.createObjectURL(new Blob([fuente], { type: 'image/svg+xml;charset=utf-8' }))
 
-  try {
-    const imagen = await new Promise((resolver, rechazar) => {
-      const img = new Image()
-      img.onload = () => resolver(img)
-      img.onerror = () => rechazar(new Error('No se pudo rasterizar la gráfica'))
-      img.src = url
+  /**
+   * UNA URL `data:`, NO `blob:`.
+   *
+   * No es una preferencia de estilo: la CSP del servidor (RNF-003,
+   * `deploy/cabeceras-seguridad.conf`) declara `img-src 'self' data:` a
+   * propósito para esto —"rasterizar el SVG desde una URL data:"—, y `blob:`
+   * no es `data:`: es OTRO esquema, que esa cabecera no autoriza. Cargar la
+   * imagen con una URL `blob:` funciona en local, sin la cabecera, y falla en
+   * cualquier sitio que sí la sirva —qa, producción— con el navegador
+   * bloqueando la carga en silencio: el único rastro es un `onerror` sin
+   * detalle, que este código convertía en el mismo mensaje genérico que
+   * cualquier otro fallo.
+   */
+  const urlDatos = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fuente)}`
+
+  const imagen = await new Promise((resolver, rechazar) => {
+    const img = new Image()
+    img.onload = () => resolver(img)
+    img.onerror = () => rechazar(new Error('No se pudo rasterizar la gráfica: el navegador bloqueó la imagen.'))
+    img.src = urlDatos
+  })
+
+  const lienzo = document.createElement('canvas')
+  lienzo.width = Math.round(ancho * escala)
+  lienzo.height = Math.round(alto * escala)
+  const ctx = lienzo.getContext('2d')
+  if (!ctx) throw new Error('El navegador no permite generar la imagen')
+
+  // El fondo blanco va ANTES del dibujo: el PNG nace transparente.
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, lienzo.width, lienzo.height)
+  ctx.scale(escala, escala)
+
+  let cursor = 0
+  if (lineasArriba.length) {
+    cursor = escribirLineas(ctx, [titulo].filter(Boolean), {
+      x: MARGEN,
+      y: MARGEN - 6,
+      tamano: 14,
+      color: '#0F1E3D',
+      negrita: true,
     })
-
-    const lienzo = document.createElement('canvas')
-    lienzo.width = Math.round(ancho * escala)
-    lienzo.height = Math.round(alto * escala)
-    const ctx = lienzo.getContext('2d')
-    if (!ctx) throw new Error('El navegador no permite generar la imagen')
-
-    // El fondo blanco va ANTES del dibujo: el PNG nace transparente.
-    ctx.fillStyle = '#FFFFFF'
-    ctx.fillRect(0, 0, lienzo.width, lienzo.height)
-    ctx.scale(escala, escala)
-
-    let cursor = 0
-    if (lineasArriba.length) {
-      cursor = escribirLineas(ctx, [titulo].filter(Boolean), {
-        x: MARGEN,
-        y: MARGEN - 6,
-        tamano: 14,
-        color: '#0F1E3D',
-        negrita: true,
-      })
-      escribirLineas(ctx, encabezado.filter(Boolean), {
-        x: MARGEN,
-        y: cursor - 4,
-        tamano: 11,
-        color: '#5B6577',
-      })
-    }
-
-    ctx.drawImage(imagen, 0, altoArriba, ancho, altoGrafica)
-
-    if (pie.length) {
-      escribirLineas(ctx, pie.filter(Boolean), {
-        x: MARGEN,
-        y: altoArriba + altoGrafica,
-        tamano: 11,
-        color: '#5B6577',
-      })
-    }
-
-    const blob = await new Promise((resolver, rechazar) =>
-      lienzo.toBlob((b) => (b ? resolver(b) : rechazar(new Error('No se pudo generar el PNG'))), 'image/png'),
-    )
-
-    const enlace = document.createElement('a')
-    enlace.href = URL.createObjectURL(blob)
-    enlace.download = nombreDeArchivo(titulo, anioEscolar)
-    enlace.click()
-    URL.revokeObjectURL(enlace.href)
-  } finally {
-    URL.revokeObjectURL(url)
+    escribirLineas(ctx, encabezado.filter(Boolean), {
+      x: MARGEN,
+      y: cursor - 4,
+      tamano: 11,
+      color: '#5B6577',
+    })
   }
+
+  ctx.drawImage(imagen, 0, altoArriba, ancho, altoGrafica)
+
+  if (pie.length) {
+    escribirLineas(ctx, pie.filter(Boolean), {
+      x: MARGEN,
+      y: altoArriba + altoGrafica,
+      tamano: 11,
+      color: '#5B6577',
+    })
+  }
+
+  const blob = await new Promise((resolver, rechazar) =>
+    lienzo.toBlob((b) => (b ? resolver(b) : rechazar(new Error('No se pudo generar el PNG'))), 'image/png'),
+  )
+
+  // El objeto URL del PNG SÍ se revoca después del clic: es un blob propio,
+  // de descarga directa, no una imagen que el navegador tenga que cargar —
+  // ahí `blob:` no tiene el problema de `img-src` de más arriba.
+  const enlace = document.createElement('a')
+  enlace.href = URL.createObjectURL(blob)
+  enlace.download = nombreDeArchivo(titulo, anioEscolar)
+  enlace.click()
+  URL.revokeObjectURL(enlace.href)
 }
 
 export default descargarGrafica

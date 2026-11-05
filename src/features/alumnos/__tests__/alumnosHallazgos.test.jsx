@@ -130,7 +130,7 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     expect(await screen.findByText('Ana María Quispe', {}, ESPERA)).toBeInTheDocument()
     expect(screen.getByText('Luis Huamán')).toBeInTheDocument()
 
-    const aviso = 'Acción no disponible sin conexión. Conéctate a internet para gestionar estudiantes.'
+    const aviso = 'Acción no disponible sin conexión. Conéctate a internet para gestionar alumnos.'
     const nuevo = screen.getByRole('button', { name: /^agregar$/i })
     expect(nuevo).toBeDisabled()
     expect(nuevo).toHaveAttribute('title', aviso)

@@ -13,7 +13,15 @@ import { esFuturo, sinInformacion } from '../estados'
 const ANCHO = 680
 const ALTO = 240
 const IZQUIERDA = 48
-const DERECHA = 16
+/**
+ * El margen derecho tiene que caber la MITAD de la etiqueta del último mes,
+ * no solo el punto. Con 16 alcanzaba para "Noviembre" porque esa etiqueta
+ * está centrada en un punto que no es el último, pero "Diciembre" —el mes del
+ * borde— se recortaba: su mitad derecha caía fuera del viewBox y el SVG, sin
+ * overflow visible, la corta en seco ("Diciembr"). 36 deja sitio para un
+ * nombre de mes completo centrado en el último punto.
+ */
+const DERECHA = 36
 const ARRIBA = 18
 const ABAJO = 44
 

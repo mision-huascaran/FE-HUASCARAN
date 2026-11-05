@@ -8,6 +8,7 @@ import { CalendarDays, Eye } from 'lucide-react'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { CLAVE_RAIZ_COLEGIO } from '../../hooks/consultaColegio'
 import {
   actualizarColegio,
   cambiarEstadoColegio,
@@ -131,6 +132,9 @@ export default function MantenimientoColegios() {
     // mostraban los grados y días anteriores hasta recargar.
     void queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
     void queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
+    // D110 — Y el detalle que leen Asistencias, Lectura, Rúbrica, Registro de
+    // Vuelo y "Nuevo alumno": ahí están las secciones que se acaban de agregar.
+    void queryClient.invalidateQueries({ queryKey: CLAVE_RAIZ_COLEGIO })
   }
 
   const guardado = useMutation({

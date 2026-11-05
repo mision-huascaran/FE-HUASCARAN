@@ -14,6 +14,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { History, WifiOff } from 'lucide-react'
+import CeldaCierre from '../../components/actividades/CeldaCierre'
+import CeldaFin from '../../components/actividades/CeldaFin'
 import Badge from '../../components/ui/Badge'
 import BarraDeFiltros, { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import Button from '../../components/ui/Button'
@@ -25,24 +27,12 @@ import Select from '../../components/ui/Select'
 import DetalleSesion from './DetalleSesion'
 import useFiltrosSesiones from './useFiltrosSesiones'
 import {
-  ETIQUETA_ESTADO,
   ETIQUETA_SINCRONIZACION,
-  SIN_FIN,
-  etiquetaTipoCierre,
   listarActividades,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { enOtroDia, formatearFecha, formatearFechaHora, formatearHora } from '../../lib/format'
+import { formatearFecha, formatearHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
-
-/**
- * La hora de fin: un guion en curso (CU017) y la fecha completa solo si la
- * actividad terminó otro día, para que "08:00 – 07:30" no parezca un error.
- */
-const horaDeFin = (s) => {
-  if (!s.fin) return SIN_FIN
-  return enOtroDia(s.inicio, s.fin) ? formatearFechaHora(s.fin) : formatearHora(s.fin)
-}
 
 const ESTADOS = [
   { value: 'en_curso', label: 'En curso' },
@@ -61,7 +51,6 @@ const CIERRES = [
   { value: 'Automático por expiración de sesión', label: 'Automático por expiración' },
 ]
 
-const TONO_ESTADO = { en_curso: 'info', finalizada: 'neutral' }
 const TONO_SINCRONIZACION = { sincronizada: 'success', pendiente: 'warning', error: 'danger' }
 
 /** Segundos a "1 h 25 min", que es como se lee una jornada. */
@@ -173,27 +162,43 @@ export default function SesionesPage() {
               // dd/mm/aaaa, y en Inicio y Fin SOLO LA HORA, como pide CU017: la
               // fecha ya está en su columna (auditoría de UX #737, U15).
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
-              { key: 'inicio', header: 'Inicio', render: (s) => formatearHora(s.inicio) },
-              { key: 'fin', header: 'Fin', render: (s) => horaDeFin(s) },
+              { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearHora(s.inicio) },
+              { key: 'fin', header: 'Hora de finalización', render: (s) => <CeldaFin sesion={s} /> },
               { key: 'duracion_segundos', header: 'Duración', render: (s) => duracion(s.duracion_segundos) },
-              { key: 'cambios', header: 'Cambios', align: 'center' },
+              { key: 'cambios', header: 'Cantidad de cambios', align: 'center' },
               {
-                key: 'estado',
-                header: 'Estado',
-                render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
-              },
-              {
-                // Columna aparte del estado a propósito (CU017): son dos cosas
-                // distintas y mezclarlas oculta las sesiones sin sincronizar.
+                /*
+                 * SIN columna "Estado de la actividad": la dice "Hora de
+                 * finalización". Una fila con hora está terminada y una sin
+                 * ella sigue abierta, asi que el badge repetía el dato de la
+                 * celda de al lado y gastaba el ancho que necesitaban las
+                 * demás. El estado completo sigue en "Ver detalle", y el
+                 * filtro "Estado" de arriba no se toca: filtrar por algo no
+                 * obliga a darle una columna.
+                 *
+                 * Esta sí es aparte (CU017): sincronización y estado son dos
+                 * cosas distintas, y mezclarlas oculta las sesiones sin
+                 * sincronizar.
+                 */
                 key: 'sincronizacion',
-                header: 'Sincronización',
+                header: 'Estado de sincronización',
                 render: (s) => (
                   <Badge tone={TONO_SINCRONIZACION[s.sincronizacion] ?? 'neutral'}>
                     {ETIQUETA_SINCRONIZACION[s.sincronizacion] ?? s.sincronizacion}
                   </Badge>
                 ),
               },
-              { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => etiquetaTipoCierre(s.tipo_cierre) },
+              {
+                key: 'tipo_cierre',
+                header: 'Tipo de cierre',
+                /*
+                 * Una palabra, y el motivo entero a un toque. El texto largo
+                 * se repetia en casi todas las filas ocupando tres lineas:
+                 * una columna donde todo se lee igual deja de ayudar a
+                 * encontrar la fila distinta, que es a lo que se viene.
+                 */
+                render: (s) => <CeldaCierre tipo={s.tipo_cierre} />,
+              },
               {
                 key: 'acciones',
                 header: '',

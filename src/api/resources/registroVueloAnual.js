@@ -66,7 +66,7 @@ export const MOTIVO_VUELO = {
   nivel_colocado_obligatorio: 'El nivel colocado ya registrado no se puede quitar; selecciona otro nivel.',
   periodo_futuro: 'No se puede registrar un periodo académico que todavía no empieza.',
   periodo_inexistente: 'El periodo académico no existe.',
-  alumno_fuera_del_grupo: 'El estudiante no pertenecía a este grupo en el periodo seleccionado.',
+  alumno_fuera_del_grupo: 'El alumno no pertenecía a este grupo en el periodo seleccionado.',
   sin_habilitacion: 'No tienes autorización vigente para registrar o modificar este periodo.',
 }
 

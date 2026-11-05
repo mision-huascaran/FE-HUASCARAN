@@ -6,7 +6,7 @@
 //
 // DOS COSAS QUE CAMBIARON tras la revisión del probador:
 //
-//   · Todo en UNA FILA. Antes cada filtro ocupaba el ancho completo y la
+//   · Los filtros en UNA FILA. Antes cada filtro ocupaba el ancho completo y la
 //     tabla quedaba empujada fuera de la pantalla: había que bajar seis veces
 //     para ver el primer alumno. De eso se encarga ahora `BarraDeFiltros`, que
 //     es la misma fila que usan Seguimiento y Sesiones.

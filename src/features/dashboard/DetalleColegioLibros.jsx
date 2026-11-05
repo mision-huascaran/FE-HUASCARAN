@@ -37,7 +37,7 @@ import {
   sinInformacion,
 } from './estados'
 
-function GrupoDeGrado({ grado, meses, onCantidad }) {
+function GrupoDeGrado({ grado, meses, onCantidad, onIncompletos, colegio }) {
   const [abierto, setAbierto] = useState(false)
   const Icono = abierto ? ChevronDown : ChevronRight
 
@@ -76,7 +76,25 @@ function GrupoDeGrado({ grado, meses, onCantidad }) {
                 align: 'right',
                 render: (alumno) => {
                   const suyo = alumno.meses?.find((m) => m.mes === mes.mes && m.anio === mes.anio)
-                  if (sinInformacion(suyo, 'cantidad')) return <span className="text-ink-400">—</span>
+                  if (sinInformacion(suyo, 'cantidad')) {
+                    // Tanda O: también se puede abrir por alumno, no solo por
+                    // colegio — "con id_alumno sigue siendo el total de la
+                    // tabla", así que entra igual aunque acote a uno solo. Un
+                    // mes futuro no lleva a ningún sitio (ver BloqueLibros).
+                    if (!onIncompletos || suyo?.estado === 'futuro') return <span className="text-ink-400">—</span>
+                    return (
+                      <button
+                        type="button"
+                        title="Sin información — ver qué falta"
+                        onClick={() =>
+                          onIncompletos({ idColegio: colegio.id_colegio, idAlumno: alumno.id_alumno, anio: mes.anio, mes: mes.mes })
+                        }
+                        className="text-ink-400 underline decoration-dotted underline-offset-4 hover:text-ink-700"
+                      >
+                        —
+                      </button>
+                    )
+                  }
                   return (
                     <button
                       type="button"
@@ -102,7 +120,7 @@ function GrupoDeGrado({ grado, meses, onCantidad }) {
   )
 }
 
-export default function DetalleColegioLibros({ filtros, colegio, contexto, anioEscolar, onVolver }) {
+export default function DetalleColegioLibros({ filtros, colegio, contexto, anioEscolar, onVolver, onIncompletos }) {
   const [desglose, setDesglose] = useState(null)
 
   const consulta = useQuery({
@@ -182,7 +200,14 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
 
           <div className="flex flex-col gap-2">
             {grados.map((grado) => (
-              <GrupoDeGrado key={grado.id_grado} grado={grado} meses={meses} onCantidad={setDesglose} />
+              <GrupoDeGrado
+                key={grado.id_grado}
+                grado={grado}
+                meses={meses}
+                onCantidad={setDesglose}
+                onIncompletos={onIncompletos}
+                colegio={colegio}
+              />
             ))}
           </div>
 

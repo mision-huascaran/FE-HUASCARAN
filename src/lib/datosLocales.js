@@ -18,6 +18,7 @@
 //     todavía no llegó al servidor, y se envía tras el siguiente login. CU008
 //     lo prohíbe expresamente ("prohibido vaciar IndexedDB durante el cierre si
 //     existen registros pendientes").
+import { del, get, set } from 'idb-keyval'
 import { borrarPrecarga } from './precarga'
 import { borrarCacheConsultas } from './cacheConsultas'
 import { borrarHabilitaciones } from '../api/resources/habilitaciones'
@@ -56,7 +57,8 @@ export async function limpiarDatosLocalesDeSesion() {
   useRechazosStore.getState().limpiar()
   // D51 — Y las habilitaciones: se quedaban en IndexedDB y el siguiente
   // usuario del mismo navegador heredaba con qué escribir sin conexión.
-  await Promise.all([borrarPrecarga(), borrarCacheConsultas(), borrarHabilitaciones()])
+  // D115: y la copia del perfil.
+  await Promise.all([borrarPrecarga(), borrarCacheConsultas(), borrarHabilitaciones(), borrarPerfilLocal()])
 }
 
 /**
@@ -75,37 +77,65 @@ const CLAVE_ULTIMO_USUARIO = 'sicedu.ultimo.usuario'
  * El perfil vive en memoria y una recarga lo pierde. Al volver, el
  * arranque pide `GET /me`; sin señal eso falla y la aplicación se quedaba
  * en "No se pudo contactar con el servidor", con el Docente sin poder
- * seguir trabajando —justo lo que el modo sin conexión promete—.
+ * seguir trabajando, justo lo que el modo sin conexión promete.
  *
  * Se guarda una copia y se usa **solo cuando el servidor no contesta**. Un
  * 401 o un 403 siguen cerrando la sesión: ahí el token no sirve, y esto no
  * puede servir para seguir dentro con una sesión que el servidor rechazó.
  *
- * No añade riesgo: es el mismo `localStorage` donde ya vive el token, y el
- * cierre de sesión lo borra con todo lo demás.
+ * D115 — VA EN INDEXEDDB, NO EN `localStorage`. El perfil trae el DNI, el
+ * correo y los nombres, y `localStorage` queda solo para filtros,
+ * preferencias y el desfase del reloj (Ley N.º 29733). Se guarda con el
+ * `id_usuario` de su dueño y se borra con el resto de datos de la sesión.
  */
 const CLAVE_PERFIL = 'sicedu.perfil'
 
-export function guardarPerfilLocal(perfil) {
+export async function guardarPerfilLocal(perfil) {
+  if (perfil?.id_usuario == null) return
   try {
-    if (perfil) localStorage.setItem(CLAVE_PERFIL, JSON.stringify(perfil))
+    await set(CLAVE_PERFIL, { idUsuario: String(perfil.id_usuario), perfil })
   } catch {
-    // Sin localStorage se trabaja solo en línea; no es un fallo que contar.
+    // Sin IndexedDB se trabaja solo en línea; no es un fallo que contar.
   }
 }
 
-/** El perfil guardado, si es del MISMO usuario que dice el token. */
-export function perfilLocalDe(idUsuario) {
+/**
+ * El perfil guardado, solo si es del MISMO usuario.
+ *
+ * Sin `idUsuario` no se devuelve nada: una copia que no se puede atribuir a
+ * nadie no se le da a nadie.
+ */
+export async function perfilLocalDe(idUsuario) {
+  if (idUsuario == null) return null
   try {
-    const guardado = JSON.parse(localStorage.getItem(CLAVE_PERFIL) ?? 'null')
-    if (!guardado) return null
-    // Si el token es de otra cuenta, la copia no le pertenece.
-    if (idUsuario != null && String(guardado.id_usuario) !== String(idUsuario)) return null
-    return guardado
+    const guardado = await get(CLAVE_PERFIL)
+    if (guardado?.idUsuario !== String(idUsuario)) return null
+    return guardado.perfil ?? null
   } catch {
     return null
   }
 }
+
+export async function borrarPerfilLocal() {
+  try {
+    await del(CLAVE_PERFIL)
+  } catch {
+    // Sin IndexedDB no hay copia que borrar.
+  }
+}
+
+/**
+ * D115 — La copia que las versiones anteriores dejaron en `localStorage`.
+ * Se borra al arrancar, aunque nadie vuelva a iniciar sesión.
+ */
+export function borrarPerfilDeLocalStorage() {
+  try {
+    localStorage.removeItem(CLAVE_PERFIL)
+  } catch {
+    // Almacenamiento bloqueado: no hay nada que borrar.
+  }
+}
+
 /**
  * Deja el navegador limpio si entra una cuenta DISTINTA de la anterior (D51).
  *

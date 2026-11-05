@@ -27,15 +27,18 @@ export default function ListaAsistencia({ alumnos, marcaDe, soloLectura, onMarca
             <th className="px-4 py-3 text-center">Observación</th>
           </tr>
         </thead>
-        <tbody>
-          {/* Espaciadores: solo reservan alto. `role="presentation"` los saca del
-              árbol de accesibilidad (no son filas de datos) y no son enfocables. */}
-          {huecoArriba > 0 && (
-            <tr role="presentation">
+        {/* Espaciadores: solo reservan alto. Cada uno va en su propio `tbody`
+            con `aria-hidden`, que lo saca del árbol de accesibilidad (no son
+            filas de datos). Va en el grupo y no en la fila porque `tr` cuenta
+            como elemento interactivo para las reglas de accesibilidad. */}
+        {huecoArriba > 0 && (
+          <tbody aria-hidden="true">
+            <tr>
               <td colSpan={3} style={{ height: huecoArriba }} />
             </tr>
-          )}
-
+          </tbody>
+        )}
+        <tbody>
           {alumnos.slice(desde, hasta).map((alumno) => {
             const marca = marcaDe(alumno)
             return (
@@ -51,13 +54,14 @@ export default function ListaAsistencia({ alumnos, marcaDe, soloLectura, onMarca
               />
             )
           })}
-
-          {huecoAbajo > 0 && (
-            <tr role="presentation">
+        </tbody>
+        {huecoAbajo > 0 && (
+          <tbody aria-hidden="true">
+            <tr>
               <td colSpan={3} style={{ height: huecoAbajo }} />
             </tr>
-          )}
-        </tbody>
+          </tbody>
+        )}
       </table>
     </div>
   )
