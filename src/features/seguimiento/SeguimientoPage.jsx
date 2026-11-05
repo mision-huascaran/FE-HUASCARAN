@@ -110,7 +110,7 @@ export default function SeguimientoPage() {
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Seguimiento</h1>
-        <p className="mt-1 text-sm text-ink-500">Actividad y estado de sincronización de su equipo.</p>
+        <p className="mt-1 text-sm text-ink-500">Actividad y estado de sincronización de tu equipo.</p>
       </header>
 
       <Card padded={false}>
@@ -183,7 +183,20 @@ export default function SeguimientoPage() {
               {
                 key: 'nombre',
                 header: 'Docente',
-                render: (d) => [d.nombres, d.apellidos].filter(Boolean).join(' '),
+                /**
+                 * El nombre se arma con lo que haya, no con un solo campo.
+                 *
+                 * La celda salía VACÍA en cuanto la respuesta no traía
+                 * `nombres` y `apellidos` por separado, y una tabla de filas
+                 * anónimas con un botón "Ver detalle" parece rota aunque los
+                 * datos estén bien. Se aceptan las tres formas que el sistema
+                 * usa para lo mismo antes de rendirse.
+                 */
+                render: (d) =>
+                  [d.nombres, d.apellidos].filter(Boolean).join(' ') ||
+                  d.nombre_completo ||
+                  d.nombre ||
+                  'Sin nombre registrado',
               },
               {
                 key: 'colegios',

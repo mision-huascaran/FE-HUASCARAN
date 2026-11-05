@@ -32,11 +32,13 @@ import ModalNoRealizada from './ModalNoRealizada'
 import ModalHabilitarRegistro from './ModalHabilitarRegistro'
 import ModalCambiarClase from './ModalCambiarClase'
 import TablaLectura from './TablaLectura'
-import useFiltrosDeGrupo, { MESES, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio, MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { ACCION, puede } from '../../auth/permisos'
+import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
+import { esFutura } from '../../lib/relojServidor'
 import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
@@ -49,6 +51,26 @@ const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
 const FECHA_LARGA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })
 const comoFecha = (iso) => (iso ? FECHA_LARGA.format(new Date(`${iso}T12:00:00`)) : null)
+
+/** Lo que dice el estado vacío de una tabla por crear: un solo mensaje, sin contradicciones (U02). */
+function descripcionPorCrear(clase, futura) {
+  if (!clase) return 'La semana no tiene una clase programada: hace falta elegir la clase de referencia para poder crearla.'
+  if (futura) return `La clase de referencia es el ${comoFecha(clase.fecha)}. Podrás crear la tabla a partir de ese día.`
+  return `Se creará sobre la clase del ${comoFecha(clase.fecha)}, con los alumnos que estaban en ella ese día.`
+}
+
+/**
+ * Una semana que todavía no empieza se ve, pero no se elige (U02): no tiene
+ * clase dictada, y abrirla solo llevaba a "la clase todavía no se ha dictado".
+ */
+const opcionDeSemana = (s) => {
+  const futura = esSemanaFutura(s)
+  return {
+    value: s.id_semana,
+    label: futura ? `${etiquetaDeSemanaDeGrupo(s)} (próxima)` : etiquetaDeSemanaDeGrupo(s),
+    disabled: futura,
+  }
+}
 
 export default function LecturaPage() {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
@@ -115,6 +137,9 @@ export default function LecturaPage() {
     [semanas, filtros.idSemana],
   )
 
+  // Un solo estado vacío a la vez (U07): sin clases en el mes no hay filtro que completar.
+  const sinClasesEsteMes = Boolean(filtros.idSeccion) && semanas.length === 0
+
   const listos = Boolean(
     filtros.idColegio &&
       filtros.idGrado &&
@@ -138,12 +163,43 @@ export default function LecturaPage() {
   const guardar = (fila, cambios) =>
     guardarFila({ idAlumno: fila.id_alumno, cambios, version: fila.version })
 
+  /**
+   * POR QUÉ NO SE PUEDE CREAR LA TABLA, dicho en el propio estado vacío.
+   *
+   * Antes el botón simplemente NO APARECÍA: la pantalla decía "Esta semana aún
+   * no tiene tabla de lectura. Se creará sobre la clase del 2 de noviembre" y
+   * ahí se acababa. Sin botón y sin motivo, Seguimiento de Lectura parece
+   * averiado —no hay nada que pulsar y nada que leer—, que es justo lo que
+   * reportó el Docente.
+   *
+   * Ahora el botón se muestra siempre y, cuando no se puede, va deshabilitado
+   * con su razón al lado. Es lo mismo que ya hacen CU029 y CU030 con
+   * "Registrar evaluaciones", y lo que pide D59: un control habilitado que no
+   * puede funcionar miente, pero uno que desaparece sin explicación también.
+   */
+  const claseFutura = esFutura(porCrear?.claseSugerida?.fecha)
+  const motivoParaNoCrear = (() => {
+    if (!porCrear?.claseSugerida) return 'Elige antes la clase de referencia de esta semana.'
+    if (!puedeEditar) return 'Tu rol consulta esta pantalla, no registra en ella.'
+    if (!conActividad) return SIN_ACTIVIDAD
+    if (escritura?.permitida === false) return escritura.motivo ?? 'No tienes habilitación para esta semana.'
+    /**
+     * CU024 exige que la fecha efectiva de la clase sea lectiva y NO futura.
+     * La fecha ya viene en el 404, así que se dice antes de pulsar en vez de
+     * dejar que el servidor responda "La clase de referencia todavía no se ha
+     * realizado" cuando ya es tarde.
+     */
+    if (claseFutura) return 'La clase de referencia todavía no se ha dictado. Podrás crear la tabla a partir de esa fecha.'
+    if (!enLinea) return REQUIERE_CONEXION
+    return null
+  })()
+
   return (
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Seguimiento de Lectura</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Una tabla por grupo, subprograma y semana, atada a la clase en la que se tomó la lectura.
+          Registro semanal de lectura de cada alumno.
         </p>
       </header>
 
@@ -163,6 +219,7 @@ export default function LecturaPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />
@@ -175,14 +232,14 @@ export default function LecturaPage() {
         <Select
           label="Sección"
           value={filtros.idSeccion}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />
@@ -195,13 +252,13 @@ export default function LecturaPage() {
         <Select
           label="Semana"
           value={filtros.idSemana}
-          placeholder={semanas.length ? 'Seleccione' : 'Sin clases este mes'}
+          placeholder={semanas.length ? 'Selecciona' : 'Sin clases este mes'}
           onChange={(e) => cambiar('semana', e.target.value)}
-          options={semanas.map((s) => ({ value: s.id_semana, label: etiquetaDeSemanaDeGrupo(s) }))}
+          options={semanas.map(opcionDeSemana)}
         />
       </FilterBar>
 
-      {!listos && (
+      {!listos && !sinClasesEsteMes && (
         <Card>
           <EmptyState
             title="Completa los filtros"
@@ -212,7 +269,7 @@ export default function LecturaPage() {
 
       {/* Una semana SIN CLASES del grupo no tiene tabla ni obligación: no es un
           hueco que el docente tenga que rellenar. */}
-      {!listos && filtros.idSeccion && semanas.length === 0 && (
+      {sinClasesEsteMes && (
         <Card>
           <EmptyState
             title="Sin clases este mes"
@@ -231,19 +288,29 @@ export default function LecturaPage() {
         <Card>
           <EmptyState
             icon={BookOpenCheck}
-            title="Esta semana aún no tiene tabla de lectura"
-            description={
-              porCrear.claseSugerida
-                ? `Se creará sobre la clase del ${comoFecha(porCrear.claseSugerida.fecha)}, con los alumnos que estaban en ella ese día.`
-                : 'La semana no tiene una clase programada: hace falta elegir la clase de referencia para poder crearla.'
+            title={
+              claseFutura
+                ? 'La clase de esta semana todavía no se ha dictado'
+                : 'Esta semana aún no tiene tabla de lectura'
             }
+            description={descripcionPorCrear(porCrear.claseSugerida, claseFutura)}
             action={
-              puedeEscribir && porCrear.claseSugerida ? (
+              porCrear.claseSugerida ? (
                 <div className="flex flex-col items-center gap-1">
-                  <Button iconLeft={CalendarPlus} loading={creando} disabled={!enLinea} onClick={() => crear({})}>
+                  <Button
+                    iconLeft={CalendarPlus}
+                    loading={creando}
+                    disabled={Boolean(motivoParaNoCrear)}
+                    onClick={() => crear({})}
+                  >
                     Crear la tabla de esta semana
                   </Button>
-                  {!enLinea && <p className="text-xs text-ink-500">{REQUIERE_CONEXION}</p>}
+                  {/* El motivo VISIBLE, no en un tooltip: CU029 lo pide así
+                      para el botón hermano de Rúbrica, y aquí vale igual. */}
+                  {/* Con la clase en el futuro, el motivo ya es la descripción: un solo mensaje (U02). */}
+                  {motivoParaNoCrear && !claseFutura && (
+                    <p className="max-w-sm text-xs text-ink-500">{motivoParaNoCrear}</p>
+                  )}
                 </div>
               ) : null
             }

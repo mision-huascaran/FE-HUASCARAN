@@ -64,7 +64,8 @@ describe('Plantilla de mantenimiento', () => {
     const { onCambiarEstado } = montar()
     expect(screen.queryByRole('button', { name: /eliminar|borrar/i })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^inactivar I\.E\. 86021/i }))
+    // El control es un INTERRUPTOR, no un botón: dice el estado y lo cambia.
+    fireEvent.click(screen.getByRole('switch', { name: /^inactivar I\.E\. 86021/i }))
 
     // No se cambia el estado hasta confirmar.
     expect(onCambiarEstado).not.toHaveBeenCalled()
@@ -78,16 +79,18 @@ describe('Plantilla de mantenimiento', () => {
 
   it('cancelar la confirmación deja el registro como estaba', () => {
     const { onCambiarEstado } = montar()
-    fireEvent.click(screen.getByRole('button', { name: /^inactivar I\.E\. 86021/i }))
+    fireEvent.click(screen.getByRole('switch', { name: /^inactivar I\.E\. 86021/i }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
 
     expect(onCambiarEstado).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Y el interruptor vuelve a su sitio: lo que pinta es el dato, no el clic.
+    expect(screen.getByRole('switch', { name: /^inactivar I\.E\. 86021/i })).toBeChecked()
   })
 
   it('un registro inactivo ofrece reactivarse', () => {
     const { onCambiarEstado } = montar()
-    fireEvent.click(screen.getByRole('button', { name: /^activar I\.E\. 86024/i }))
+    fireEvent.click(screen.getByRole('switch', { name: /^activar I\.E\. 86024/i }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Activar' }))
 
     expect(onCambiarEstado).toHaveBeenCalledWith(FILAS[1], true)
@@ -178,7 +181,7 @@ describe('Plantilla de mantenimiento', () => {
     const { onCambiarEstado } = montar(ROLES.SUPERVISOR, {
       fechaEfectiva: { etiqueta: 'Fecha efectiva' },
     })
-    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+    fireEvent.click(screen.getAllByRole('switch', { name: /inactivar/i })[0])
 
     const fecha = await screen.findByLabelText('Fecha efectiva')
     fireEvent.change(fecha, { target: { value: '2026-10-03' } })
@@ -190,7 +193,7 @@ describe('Plantilla de mantenimiento', () => {
   it('sin fecha efectiva, el diálogo no la pregunta ni la manda', () => {
     // Colegios y Usuarios no la usan: su backend no acepta cuerpo.
     const { onCambiarEstado } = montar()
-    fireEvent.click(screen.getAllByRole('button', { name: /inactivar/i })[0])
+    fireEvent.click(screen.getAllByRole('switch', { name: /inactivar/i })[0])
 
     expect(screen.queryByLabelText(/fecha/i)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /^inactivar$/i }))

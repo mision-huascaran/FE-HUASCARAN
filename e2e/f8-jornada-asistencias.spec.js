@@ -7,11 +7,13 @@
 //
 // Dos actividades, a propósito:
 //   · A (preparación): inactiva los alumnos «E2E-AS-» que hayan quedado y da de
-//     alta 2 alumnos nuevos en ese grado. Así la clase tiene exactamente 2
-//     alumnos sin marcar, aunque la fecha se repita entre corridas.
-//   · B (la jornada): «Marcar todos como presentes», una tardanza y una
-//     observación. Al finalizarla, Sesiones cuenta exactamente 2 cambios de
-//     Asistencia: varios cambios al mismo alumno en la misma clase cuentan uno.
+//     alta 2 alumnos nuevos en ese grado. Un resto que el servidor no deja
+//     inactivar hoy (figura en la lista de una clase de hoy) queda anotado como
+//     pendiente: la prueba no depende de que el grupo esté vacío.
+//   · B (la jornada): «Marcar todos como presentes» (al menos sus 2 alumnos),
+//     una tardanza y una observación. Al finalizarla, Sesiones cuenta un cambio
+//     de Asistencia por alumno marcado: varios cambios al mismo alumno en la
+//     misma clase cuentan uno.
 //
 // Deja en test-results/e2e-state.json la clase y la actividad B, que F9
 // revisa como Supervisora.
@@ -24,7 +26,7 @@ import {
   finalizarActividad,
   iniciarActividad,
 } from './support/actividad.js'
-import { activas, crearAlumno, filtrarAlumnos, inactivarAlumno } from './support/alumnos.js'
+import { crearAlumno, filtrarAlumnos, limpiarAlumnos } from './support/alumnos.js'
 import {
   SUBPROGRAMA,
   contarGuardados,
@@ -42,6 +44,8 @@ const PREFIJO = 'E2E-AS-'
 const OBSERVACION = 'Llegó con justificación de la familia (E2E)'
 const MARCAR_TODOS = 'Marcar todos como presentes'
 const PRESIONADO = 'aria-pressed'
+/** «N alumno(s) marcado(s) como presente», el aviso de «Marcar todos». */
+const AVISO_MARCADOS = /(\d+) alumnos? marcados? como presente/
 
 test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y una observación (CU022, CU009, CU017, CU019)', async ({ page }) => {
   test.setTimeout(240_000)
@@ -55,15 +59,30 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     await irPorMenu(page, 'Asistencias', '/asistencia')
     // Un feriado lo dice el servidor (422 `fecha_no_lectiva`): se prueba el
     // siguiente candidato, más antiguo. Tampoco sirve una clase que ya tiene
-    // asistencia registrada (de otra corrida del mismo día): el servidor la
-    // lista con los alumnos que ya tienen marca y no suma los nuevos.
+    // asistencia registrada (de otra corrida): el servidor la lista con los
+    // alumnos que ya tienen marca y no suma los nuevos.
+    //
+    // Ni una clase ANTERIOR a otra de su mismo grado con asistencia: un alumno
+    // dado de alta en esa fecha pertenecería al grupo el día de esa lista
+    // congelada sin figurar en ella, y el alta es un 409
+    // `conflicto_listas_historicas`. Los candidatos van del más reciente al más
+    // antiguo, así que basta recordar qué grados ya tienen una lista.
+    const gradosConLista = new Set()
     for (const candidato of candidatos) {
+      if (gradosConLista.has(candidato.grado)) {
+        test.info().annotations.push({
+          type: 'calendario',
+          description: `${candidato.fecha}: ${candidato.grado} ya tiene una clase posterior con asistencia: se probó el anterior`,
+        })
+        continue
+      }
       const estado = await elegirClase(page, candidato)
       if (estado === 'no_lectivo') {
         test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} no es lectivo: se probó el anterior` })
         continue
       }
       if (estado === 'lista' && (await page.locator(`[${PRESIONADO}="true"]`).count()) > 0) {
+        gradosConLista.add(candidato.grado)
         test.info().annotations.push({ type: 'calendario', description: `${candidato.fecha} ya tiene asistencia registrada: se probó el anterior` })
         continue
       }
@@ -71,8 +90,8 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     }
     return null
   })
-  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy son no lectivos o ya tienen asistencia de otra corrida, así que no hay clase limpia en la que registrar.
-  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo y sin asistencia registrada (CU022)')
+  // Se salta a propósito: todos los lunes, martes y miércoles del periodo vigente hasta hoy son no lectivos, ya tienen asistencia de otra corrida o son anteriores a una clase de su grado con asistencia, así que no hay clase limpia en la que registrar.
+  test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo, sin asistencia registrada ni anterior a otra clase de su grado con asistencia (CU022)')
   test.info().annotations.push({ type: 'clase', description: `${clase.fecha} · ${clase.grado} · ${SUBPROGRAMA}` })
 
   const marca = Date.now()
@@ -87,15 +106,9 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     await iniciarActividad(page)
 
     await filtrarAlumnos(page, PREFIJO)
-    const restos = activas(page, page.getByRole('row').filter({ hasText: PREFIJO }))
-    const cantidad = await restos.count()
     // Las fechas importan: de ellas depende quién aparece en la clase de
     // `clase.fecha`, que puede ser de un día anterior.
-    for (let i = 0; i < cantidad; i += 1) {
-      await inactivarAlumno(page, restos.first(), { desde: clase.fecha })
-      await expect(restos).toHaveCount(cantidad - i - 1)
-    }
-    test.info().annotations.push({ type: 'limpieza', description: `${cantidad} alumno(s) ${PREFIJO} inactivado(s) antes de empezar` })
+    await limpiarAlumnos(page, PREFIJO, { desde: clase.fecha })
 
     for (const alumno of alumnos) {
       await crearAlumno(page, { ...alumno, grado: clase.grado, subprograma: SUBPROGRAMA, desde: clase.fecha })
@@ -117,14 +130,20 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
     return iniciada
   })
 
-  await test.step('Marcar todos como presentes: marca exactamente los 2 sin marcar', async () => {
+  const marcados = await test.step('Marcar todos como presentes: marca a sus 2 alumnos y a quien quede sin marcar', async () => {
     const desde = guardados.respuestas.length
     await page.getByRole('button', { name: MARCAR_TODOS }).click()
-    await expect(page.getByRole('status').filter({ hasText: '2 alumnos marcados como presente' })).toBeVisible()
-    await guardados.esperar(2, desde)
+    // Cuántos marcó lo dice el aviso: además de los 2 de esta corrida puede
+    // haber alumnos del grupo que no son de la prueba.
+    const aviso = page.getByRole('status').filter({ hasText: AVISO_MARCADOS }).first()
+    await expect(aviso).toBeVisible()
+    const cuantos = Number((await aviso.textContent()).match(AVISO_MARCADOS)[1])
+    expect(cuantos, 'alumnos marcados').toBeGreaterThanOrEqual(alumnos.length)
+    await guardados.esperar(cuantos, desde)
     for (const alumno of alumnos) await expect(lado(page, 'Presente', alumno.nombre)).toHaveAttribute(PRESIONADO, 'true')
     // Ya no queda nadie sin marcar: el botón de lote desaparece.
     await expect(page.getByRole('button', { name: MARCAR_TODOS })).toHaveCount(0)
+    return cuantos
   })
 
   await test.step('Una tardanza', async () => {
@@ -171,18 +190,20 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
       tarde: tarde.nombre,
       observado: observado.nombre,
       observacion: OBSERVACION,
+      // Un cambio de Asistencia por alumno marcado: F9 lo vuelve a contar.
+      cambios: marcados,
     },
   })
 
-  await test.step('Sesiones: la jornada cuenta exactamente 2 cambios de Asistencia (CU017, CU019)', async () => {
+  await test.step('Sesiones: la jornada cuenta un cambio de Asistencia por alumno marcado (CU017, CU019)', async () => {
     await irPorMenu(page, 'Sesiones', '/sesiones')
     const detalle = await abrirDetalleDeSesion(page, actividad.id)
     await expect(dato(detalle, 'Tipo de cierre')).toHaveText('Manual por finalización de actividad')
-    await expect(dato(detalle, 'Cambios')).toHaveText('2')
+    await expect(dato(detalle, 'Cambios')).toHaveText(String(marcados))
     // Columnas: Módulo, Total, Creados, Editados, Activados, Inactivados.
     const fila = detalle.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Asistencia', exact: true }) })
     await expect(fila).toHaveCount(1)
-    await expect(fila.getByRole('cell').nth(1), 'total de Asistencia').toHaveText('2')
+    await expect(fila.getByRole('cell').nth(1), 'total de Asistencia').toHaveText(String(marcados))
     // Solo asistencias: los alumnos se dieron de alta en la actividad de preparación.
     await expect(detalle.getByRole('cell', { name: 'Alumnos', exact: true })).toHaveCount(0)
     await evidencia(page, 'asistencia-sesion-detalle')

@@ -92,7 +92,9 @@ export default function InicioSupervisor() {
 
       {desactualizado && <AvisoDatosLocales enLinea={enLinea} />}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Cinco tarjetas: 3 + 2 en pantallas medianas y todas en una fila en las
+          anchas. Con cuatro columnas la quinta quedaba sola abajo (U12). */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard icon={School} label="Colegios registrados" value={resumen.colegios} />
         <StatCard icon={Users} label="Docentes activos" value={resumen.docentesActivos} />
         <StatCard icon={ClipboardList} label="Con actividad en curso" value={resumen.docentesConActividad} />

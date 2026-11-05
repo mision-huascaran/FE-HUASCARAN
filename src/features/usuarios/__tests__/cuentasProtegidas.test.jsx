@@ -37,7 +37,8 @@ vi.mock('../../../api/resources/administracion', async (importOriginal) => ({
 }))
 
 const botonDe = (nombre) =>
-  screen.getAllByRole('button', { name: /^(inactivar|activar) /i }).find((b) => (b.getAttribute('aria-label') ?? '').includes(nombre))
+  // Interruptor, no botón: la columna "Estado" dice el estado y lo cambia.
+  screen.getAllByRole('switch', { name: /^(inactivar|activar) /i }).find((b) => (b.getAttribute('aria-label') ?? '').includes(nombre))
 
 function montar() {
   useSessionStore.setState({
@@ -66,7 +67,7 @@ beforeEach(() => {
 describe('Cuentas protegidas (D68, CU016)', () => {
   it('el Supervisor original no se puede desactivar, y el tooltip lo explica', async () => {
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     const boton = botonDe('Ada Original')
     expect(boton).toBeDisabled()
@@ -76,7 +77,7 @@ describe('Cuentas protegidas (D68, CU016)', () => {
   it('la propia cuenta tampoco, con el texto del backend', async () => {
     // El servidor responde `409 auto_desactivacion` con estas mismas palabras.
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     const boton = botonDe('Sara Supervisora')
     expect(boton).toBeDisabled()
@@ -87,7 +88,7 @@ describe('Cuentas protegidas (D68, CU016)', () => {
     // La protección es de DOS filas concretas, no del botón entero: si
     // deshabilitara todas, Usuarios dejaría de servir para lo que existe.
     montar()
-    await screen.findAllByRole('button', { name: /^inactivar /i }, ESPERA)
+    await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)
 
     const boton = botonDe('Rosa Docente')
     expect(boton).toBeEnabled()

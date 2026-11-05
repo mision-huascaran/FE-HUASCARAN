@@ -424,7 +424,7 @@ async function procesar() {
    * enterado igual, así que bloquear la cola detrás de este aviso solo
    * retrasaría el envío de verdad —y si el aviso fallara, lo pararía—.
    */
-  avisarDeLoPendiente()
+  void avisarDeLoPendiente()
 
   try {
     let siguiente = propias()[0]
@@ -523,18 +523,22 @@ export function encolar({
   }
 
   const promesa = new Promise((resolve, reject) => promesas.set(item.idOperacion, { resolve, reject }))
-  persistir().then((guardado) => {
-    if (!guardado && exigePersistencia) {
-      // Fuera de la cola: dejarlo ahí prometería un reintento que no
-      // sobrevivirá a cerrar la pestaña.
-      cola = cola.filter((pendiente) => pendiente.idOperacion !== item.idOperacion)
-      publicarEstado()
-      rechazarPromesa(item.idOperacion, errorDePersistencia())
-      return
-    }
-    if (!guardado) alNoPersistir?.()
-    procesar()
-  })
+  // `persistir` nunca rechaza (devuelve si pudo guardar en IndexedDB) y
+  // `procesar` ya maneja sus errores: el catch solo cierra la cadena.
+  persistir()
+    .then((guardado) => {
+      if (!guardado && exigePersistencia) {
+        // Fuera de la cola: dejarlo ahí prometería un reintento que no
+        // sobrevivirá a cerrar la pestaña.
+        cola = cola.filter((pendiente) => pendiente.idOperacion !== item.idOperacion)
+        publicarEstado()
+        rechazarPromesa(item.idOperacion, errorDePersistencia())
+        return null
+      }
+      if (!guardado) alNoPersistir?.()
+      return procesar()
+    })
+    .catch(() => null)
   return promesa
 }
 

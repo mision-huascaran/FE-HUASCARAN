@@ -37,6 +37,7 @@ import { ORIGEN_ENTRADA } from '../../api/resources/registroVueloAnual'
 import { mensajeDeError } from '../../api/client'
 import { MESES } from '../../hooks/useFiltrosDeGrupo'
 import { etiquetaDe, formatearRangoSemana } from '../../lib/format'
+import { useMigaExtra } from '../../store/migaStore'
 
 // El orden lo fija CU015, y no es decorativo: Registro de Vuelo va primero
 // porque es de donde sale el Nivel colocado del Resumen.
@@ -277,6 +278,9 @@ export default function FichaEstudiantePage() {
     queryKey: ['alumno', id],
     queryFn: () => obtenerAlumno(id),
   })
+
+  // "Alumnos › Abigail Alva Chávez" y no "Alumnos › Detalle" (U29).
+  useMigaExtra(alumno ? (alumno.nombre ?? [alumno.nombres, alumno.apellidos].filter(Boolean).join(' ')) : null)
 
   if (isLoading) return <Skeleton variant="card" />
   if (error || !alumno) {

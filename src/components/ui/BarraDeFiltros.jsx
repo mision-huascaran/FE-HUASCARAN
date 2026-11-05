@@ -35,7 +35,9 @@ export default function BarraDeFiltros({ onFiltrar, onLimpiar, filtrarDeshabilit
     >
       <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">{children}</div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+      {/* Los botones bajan a su propia fila en móvil, donde no caben al lado
+          de los filtros sin dejarlos en dos columnas de 100px. */}
+      <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
         <Button type="submit" iconLeft={Filter} disabled={filtrarDeshabilitado}>
           Filtrar
         </Button>

@@ -24,6 +24,8 @@ import { ROLES } from '../../../auth/roles'
 import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
+import { elegirPrimerColegio } from '../../../test/elegirColegio'
+import { errorHttp } from '../../../test/fabricas'
 
 const ESPERA = { timeout: 8000 }
 const ESCRITURA = { permitida: true, motivo: null, id_permiso: null, aviso_permiso: null }
@@ -313,6 +315,18 @@ describe('Guardar una evaluación', () => {
   })
 })
 
+describe('Un rechazo definitivo del servidor (4xx)', () => {
+  it('avisa que no se guardó, con el texto del servidor', async () => {
+    guardarRubricas.mockRejectedValue(errorHttp(403, { detail: 'No tienes permiso para registrar en este grupo.' }))
+
+    montar()
+    fireEvent.change(await screen.findByLabelText(/fluidez de/i, {}, ESPERA), { target: { value: '2' } })
+
+    expect(await screen.findByText('No se guardó la evaluación', {}, ESPERA)).toBeInTheDocument()
+    expect((await screen.findAllByText('No tienes permiso para registrar en este grupo.', {}, ESPERA)).length).toBeGreaterThan(0)
+  })
+})
+
 describe('Una sola evaluación por alumno y mes (tanda 0)', () => {
   it('el rechazo sale en la FILA del alumno y no se reintenta', async () => {
     /**
@@ -461,6 +475,7 @@ describe('Quién puede escribir', () => {
     )
 
     montar(ROLES.JEFA)
+    await elegirPrimerColegio(ESPERA)
 
     await screen.findByText(/el Supervisor consulta las rúbricas en solo lectura/i, {}, ESPERA)
     expect(screen.getByLabelText(/fluidez de/i)).toBeDisabled()

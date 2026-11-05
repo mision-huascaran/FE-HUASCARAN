@@ -139,7 +139,7 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
                   <Select
                     label="Colegio"
                     required
-                    placeholder="Seleccione"
+                    placeholder="Selecciona"
                     value={c.id_colegio ?? ''}
                     options={disponibles(i)}
                     error={erroresPorIndice[`${pos}.id_colegio`]}

@@ -104,7 +104,7 @@ export default function useRubricaMensual({ filtros, pagina }) {
       },
     }).catch((error) => {
       if (!esDefinitivo(error)) return
-      queryClient.invalidateQueries({ queryKey: ['rubricas'] })
+      void queryClient.invalidateQueries({ queryKey: ['rubricas'] })
       toast.error('No se guardó la evaluación', mensajeDeError(error))
     })
 

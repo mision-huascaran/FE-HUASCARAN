@@ -96,7 +96,9 @@ export default function useTablaLectura(filtros) {
   })
 
   const porCrear = esTablaPorCrear(tabla.error) ? datosParaCrear(tabla.error) : null
-  const refrescar = () => queryClient.invalidateQueries({ queryKey: ['lectura', 'tabla'] })
+  const refrescar = () => {
+    void queryClient.invalidateQueries({ queryKey: ['lectura', 'tabla'] })
+  }
 
   const crear = useMutation({
     mutationFn: ({ fechaClaseReferencia, idClaseReferencia } = {}) =>
@@ -115,7 +117,7 @@ export default function useTablaLectura(filtros) {
       refrescar()
       toast.success(
         'Tabla creada',
-        'Las filas nacen vacías y la lista de alumnos queda fijada a la clase de referencia.',
+        'Ya puedes registrar la lectura de esta semana.',
       )
     },
     onError: (error) => {

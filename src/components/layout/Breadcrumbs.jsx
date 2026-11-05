@@ -4,6 +4,18 @@ import { etiquetaDeSegmento } from './navegacion'
 import { rutaInicioDe } from '../../auth/roles'
 import useSessionStore from '../../store/sessionStore'
 import cn from '../../lib/cn'
+import useMigaStore from '../../store/migaStore'
+
+/**
+ * La miga de la vista sin ruta propia (U29): sustituye al "Detalle" genérico
+ * de un id en la URL, o se añade al final si la vista vive dentro de otra.
+ */
+export function conExtra(migas, extra, pathname) {
+  if (!extra) return migas
+  const ultima = migas.at(-1)
+  if (ultima && /^\d+$/.test(ultima.to.split('/').at(-1))) return [...migas.slice(0, -1), { ...ultima, label: extra }]
+  return [...migas, { to: `${pathname}#${extra}`, label: extra }]
+}
 
 /** Migas de pan de la barra superior: `Inicio › Registro de Vuelo › Detalle` (P2). */
 export default function Breadcrumbs({ className }) {
@@ -11,6 +23,7 @@ export default function Breadcrumbs({ className }) {
   const idRol = useSessionStore((s) => s.usuario?.id_rol)
   const inicio = rutaInicioDe(idRol)
 
+  const extra = useMigaStore((s) => s.extra)
   const segmentos = pathname.split('/').filter(Boolean)
   const migas = segmentos.map((segmento, i) => ({
     to: `/${segmentos.slice(0, i + 1).join('/')}`,
@@ -18,7 +31,8 @@ export default function Breadcrumbs({ className }) {
   }))
 
   // La primera miga siempre es el inicio del rol; si ya lo es, no se duplica.
-  const completas = migas[0]?.to === inicio ? migas : [{ to: inicio, label: 'Inicio' }, ...migas]
+  const conInicio = migas[0]?.to === inicio ? migas : [{ to: inicio, label: 'Inicio' }, ...migas]
+  const completas = conExtra(conInicio, extra, pathname)
 
   return (
     <nav aria-label="Ruta de navegación" className={cn('min-w-0', className)}>
@@ -27,7 +41,16 @@ export default function Breadcrumbs({ className }) {
           const ultima = i === completas.length - 1
           return (
             <li key={miga.to} className={cn('flex min-w-0 items-center gap-1', !ultima && 'hidden sm:flex')}>
-              {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />}
+              {/*
+                El separador se esconde con lo que separa.
+                
+                En el teléfono solo se ve la última miga —las demás van
+                `hidden sm:flex`—, pero su flecha seguía dibujándose: la barra
+                empezaba con un "› Alumnos" que apuntaba a nada.
+              */}
+              {i > 0 && (
+                <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-ink-400 sm:block" aria-hidden="true" />
+              )}
               {ultima ? (
                 <span className="truncate font-semibold text-ink-900" aria-current="page">
                   {miga.label}

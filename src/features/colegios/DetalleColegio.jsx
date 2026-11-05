@@ -13,6 +13,7 @@ import Skeleton from '../../components/ui/Skeleton'
 import ProgramacionDeClases from './ProgramacionDeClases'
 import { obtenerColegio } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
+import { useMigaExtra } from '../../store/migaStore'
 
 export default function DetalleColegio({ colegio, onVolver }) {
   /**
@@ -27,6 +28,7 @@ export default function DetalleColegio({ colegio, onVolver }) {
   })
 
   const ficha = consulta.data ?? colegio
+  useMigaExtra(ficha?.nombre)
 
   return (
     <div className="flex flex-col gap-5">

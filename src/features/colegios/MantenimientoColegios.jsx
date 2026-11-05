@@ -106,7 +106,7 @@ export default function MantenimientoColegios() {
         opciones: grados.map((g) => ({ value: String(g.id_grado), label: g.nombre })),
         validar: (valor) => {
           const elegidos = comoGradosConDia(valor)
-          if (!elegidos.length) return 'Elija al menos un grado'
+          if (!elegidos.length) return 'Elige al menos un grado'
           const faltan = sinDiaDeClase(valor)
           if (!faltan.length) return null
           // Les pasa a los colegios creados antes de que existiera el campo:
@@ -124,13 +124,13 @@ export default function MantenimientoColegios() {
   })
 
   const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ['colegios'] })
-    queryClient.invalidateQueries({ queryKey: ['catalogo'] })
-    queryClient.invalidateQueries({ queryKey: ['admin'] })
+    void queryClient.invalidateQueries({ queryKey: ['colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['catalogo'] })
+    void queryClient.invalidateQueries({ queryKey: ['admin'] })
     // El popup cachea el detalle y la auditoría: sin esto, "Ver"/"Editar"
     // mostraban los grados y días anteriores hasta recargar.
-    queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
-    queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['detalle', 'colegios'] })
+    void queryClient.invalidateQueries({ queryKey: ['auditoria', 'colegios'] })
   }
 
   const guardado = useMutation({

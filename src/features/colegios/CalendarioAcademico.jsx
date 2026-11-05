@@ -49,6 +49,7 @@ import { anioVigente, listarAniosEscolares } from '../../api/resources/administr
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFecha } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import { useMigaExtra } from '../../store/migaStore'
 
 const ALCANCES = [
   { value: 'general', label: 'General' },
@@ -95,6 +96,7 @@ function borradorPara(modo, calendario) {
 const SIN_SERVIDOR = new Set([502, 503, 504])
 
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
+  useMigaExtra('Calendario académico')
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -184,7 +186,9 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   // Un 404 NO es un fallo: es "este año todavía no tiene calendario".
   const sinConfigurar = motivoDe(consulta.error) === 'calendario_no_configurado'
 
-  const refrescar = () => queryClient.invalidateQueries({ queryKey: ['calendario'] })
+  const refrescar = () => {
+    void queryClient.invalidateQueries({ queryKey: ['calendario'] })
+  }
 
   const alFallar = (error) => {
     setConfirmando(null)
@@ -448,7 +452,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
               <Select
                 label="Colegio"
                 required
-                placeholder="Seleccione"
+                placeholder="Selecciona"
                 value={idColegio}
                 disabled={editando}
                 options={colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre }))}

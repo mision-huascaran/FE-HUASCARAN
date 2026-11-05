@@ -115,15 +115,15 @@ describe('Recuperar contraseña (CU004–CU006)', () => {
 
     // La política anterior aceptaba esto; CU006 ya no, porque no lleva símbolo.
     fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'Sicedu2026' } })
-    fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: 'Sicedu2026' } })
+    fireEvent.change(screen.getByLabelText(/Repite la nueva contraseña/), { target: { value: 'Sicedu2026' } })
     expect(guardar).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: VALIDA } })
-    fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: 'Sicedu2027!' } })
+    fireEvent.change(screen.getByLabelText(/Repite la nueva contraseña/), { target: { value: 'Sicedu2027!' } })
     expect(screen.getByText(MENSAJE.noCoinciden)).toBeInTheDocument()
     expect(guardar).toBeDisabled()
 
-    fireEvent.change(screen.getByLabelText(/Repita la nueva contraseña/), { target: { value: VALIDA } })
+    fireEvent.change(screen.getByLabelText(/Repite la nueva contraseña/), { target: { value: VALIDA } })
     expect(guardar).toBeEnabled()
   })
 

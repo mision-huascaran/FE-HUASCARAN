@@ -298,7 +298,7 @@ export default function ProgramacionDeClases({ colegio }) {
         onCerrar={() => setReprogramando(null)}
         onHecho={() => {
           setReprogramando(null)
-          consulta.refetch()
+          void consulta.refetch()
           /**
            * D83 — Y EL HISTORIAL, que se quedó con la versión de antes.
            *
@@ -306,7 +306,7 @@ export default function ProgramacionDeClases({ colegio }) {
            * volver a él se veía el traslado anterior y no el que se acababa de
            * hacer: parecía que no se había guardado.
            */
-          queryClient.invalidateQueries({ queryKey: ['reprogramaciones'] })
+          void queryClient.invalidateQueries({ queryKey: ['reprogramaciones'] })
         }}
       />
 

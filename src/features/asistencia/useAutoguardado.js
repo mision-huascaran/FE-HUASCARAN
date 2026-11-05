@@ -44,7 +44,7 @@ import useConexion from '../../hooks/useConexion'
 // "el mensaje exacto" y el probador los comprueba palabra por palabra.
 export const ERROR_LOCAL = 'Error al guardar la asistencia localmente. Inténtalo nuevamente.'
 export const ERROR_SERVIDOR =
-  'El servidor rechazó el registro de asistencia. Verifique su conexión o contacte al Supervisor.'
+  'El servidor rechazó el registro de asistencia. Verifica tu conexión o contacta al Supervisor.'
 
 /** Sin marcar: ni presente, ni tardanza, ni ausente. Es un estado, no un hueco. */
 const sinMarcar = (estado) => estado == null

@@ -28,6 +28,8 @@ export default function Grafica({
   anioEscolar,
   /** `false` deshabilita la descarga: sin datos no hay nada que exportar. */
   hayDatos = true,
+  /** `false` cuando el título repite el del bloque: queda para el lector de pantalla y el PNG. */
+  tituloVisible = true,
   children,
 }) {
   const caja = useRef(null)
@@ -55,9 +57,12 @@ export default function Grafica({
     <figure className="m-0">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <figcaption className="min-w-0">
-          <span className="block text-sm font-semibold text-ink-900">{titulo}</span>
+          <span className={tituloVisible ? 'block text-sm font-semibold text-ink-900' : 'sr-only'}>{titulo}</span>
+          {/* El contexto ya está en la cabecera del bloque: aquí se repetía en
+              tres líneas (U10). Sigue para el lector de pantalla, y el PNG lo
+              recibe aparte, en `encabezado`. */}
           {contexto.filter(Boolean).map((linea) => (
-            <span key={linea} className="block text-xs text-ink-500">
+            <span key={linea} className="sr-only">
               {linea}
             </span>
           ))}
@@ -76,7 +81,21 @@ export default function Grafica({
         </Button>
       </div>
 
-      <div ref={caja}>{children}</div>
+      {/*
+        EN MÓVIL LA GRÁFICA NO SE ENCOGE: SE DESPLAZA.
+        
+        Un gráfico de 680 de ancho metido en 360 reduce sus etiquetas a la
+        mitad: los meses y los valores dejan de leerse, y una gráfica que no se
+        lee no es una gráfica. Se le deja su ancho mínimo y se desliza en
+        horizontal, que es lo que ya hacen las tablas anchas de la aplicación.
+        
+        A partir de `sm` entra entera y el `min-w` no estorba.
+      */}
+      <div className="sicedu-scrollbar -mx-1 overflow-x-auto px-1">
+        <div ref={caja} className="min-w-[560px] sm:min-w-0">
+          {children}
+        </div>
+      </div>
 
       {avisos.filter(Boolean).map((aviso) => (
         <p key={aviso} className="mt-2 text-xs text-warning-600">

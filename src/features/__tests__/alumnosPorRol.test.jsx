@@ -35,8 +35,9 @@ describe('Módulo Alumnos (CU008)', () => {
     montar(ROLES.DOCENTE)
     expect(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA)).toBeInTheDocument()
     expect((await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)).length).toBeGreaterThan(0)
-    // Nunca se borra: inactivar cambia el estado y deja auditoría (D5).
-    expect(screen.getAllByRole('button', { name: /^inactivar /i }).length).toBeGreaterThan(0)
+    // Nunca se borra: inactivar cambia el estado y deja auditoría (D5). El
+    // control es el interruptor de la columna "Estado".
+    expect(screen.getAllByRole('switch', { name: /^inactivar /i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /eliminar/i })).not.toBeInTheDocument()
   })
 

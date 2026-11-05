@@ -26,7 +26,7 @@ import Button from '../../components/ui/Button'
 import FilaRubrica from './FilaRubrica'
 import PanelCriterios from './PanelCriterios'
 import useRubricaMensual from './useRubricaMensual'
-import useFiltrosDeGrupo, { MESES } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { marcadorDeColegio, MESES } from '../../hooks/useFiltrosDeGrupo'
 import { MOTIVO_RUBRICA } from '../../api/resources/rubricaMensual'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { mensajeDeError } from '../../api/client'
@@ -35,6 +35,7 @@ import { ROLES } from '../../auth/roles'
 import useActividadStore from '../../store/actividadStore'
 import useSessionStore from '../../store/sessionStore'
 import useRechazosStore from '../../store/rechazosStore'
+import { CABECERA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -119,6 +120,7 @@ export default function RubricaPage() {
         <Select
           label="Colegio"
           value={filtros.idColegio}
+          placeholder={marcadorDeColegio(esDocente)}
           onChange={(e) => cambiar('colegio', e.target.value)}
           options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
         />
@@ -131,14 +133,14 @@ export default function RubricaPage() {
         <Select
           label="Sección"
           value={filtros.idSeccion}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
-          placeholder="Seleccione"
+          placeholder="Selecciona"
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />
@@ -201,7 +203,7 @@ export default function RubricaPage() {
             <table className="w-full min-w-[44rem] text-sm">
               <thead className="bg-surface-100 text-left text-xs uppercase tracking-wide text-ink-500">
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-semibold">
+                  <th scope="col" className={`px-3 py-2 font-semibold ${CABECERA_ALUMNO}`}>
                     Alumno
                   </th>
                   <th scope="col" className="px-3 py-2 font-semibold">

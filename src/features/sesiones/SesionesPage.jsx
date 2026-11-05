@@ -27,12 +27,22 @@ import useFiltrosSesiones from './useFiltrosSesiones'
 import {
   ETIQUETA_ESTADO,
   ETIQUETA_SINCRONIZACION,
+  SIN_FIN,
   etiquetaTipoCierre,
   listarActividades,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFechaHora } from '../../lib/format'
+import { enOtroDia, formatearFecha, formatearFechaHora, formatearHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+
+/**
+ * La hora de fin: un guion en curso (CU017) y la fecha completa solo si la
+ * actividad terminó otro día, para que "08:00 – 07:30" no parezca un error.
+ */
+const horaDeFin = (s) => {
+  if (!s.fin) return SIN_FIN
+  return enOtroDia(s.inicio, s.fin) ? formatearFechaHora(s.fin) : formatearHora(s.fin)
+}
 
 const ESTADOS = [
   { value: 'en_curso', label: 'En curso' },
@@ -160,10 +170,11 @@ export default function SesionesPage() {
               />
             }
             columns={[
-              { key: 'fecha', header: 'Fecha' },
-              { key: 'inicio', header: 'Inicio', render: (s) => formatearFechaHora(s.inicio) },
-              // En curso, el caso de uso pide "No aplica", no una celda vacía.
-              { key: 'fin', header: 'Fin', render: (s) => (s.fin ? formatearFechaHora(s.fin) : 'No aplica') },
+              // dd/mm/aaaa, y en Inicio y Fin SOLO LA HORA, como pide CU017: la
+              // fecha ya está en su columna (auditoría de UX #737, U15).
+              { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
+              { key: 'inicio', header: 'Inicio', render: (s) => formatearHora(s.inicio) },
+              { key: 'fin', header: 'Fin', render: (s) => horaDeFin(s) },
               { key: 'duracion_segundos', header: 'Duración', render: (s) => duracion(s.duracion_segundos) },
               { key: 'cambios', header: 'Cambios', align: 'center' },
               {

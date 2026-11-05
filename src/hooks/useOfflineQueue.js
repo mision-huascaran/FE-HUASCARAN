@@ -230,7 +230,7 @@ export default function useOfflineQueue() {
   const items = useSyncStore((s) => s.items)
 
   useEffect(() => {
-    iniciarCola()
+    void iniciarCola()
   }, [])
 
   return { pendientes, sincronizando, ultimoError, items, encolar, reintentarAhora }

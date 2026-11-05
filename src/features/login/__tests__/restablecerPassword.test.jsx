@@ -25,7 +25,7 @@ async function llenarSegundoPaso({ pin = '123456' } = {}) {
   await userEvent.type(await screen.findByLabelText(/PIN recibido/), pin)
   await userEvent.click(screen.getByRole('button', { name: /verificar y continuar/i }))
   await userEvent.type(await screen.findByLabelText('Nueva contraseña'), VALIDA)
-  await userEvent.type(screen.getByLabelText(/Repita la nueva contraseña/), VALIDA)
+  await userEvent.type(screen.getByLabelText(/Repite la nueva contraseña/), VALIDA)
   await userEvent.click(screen.getByRole('button', { name: /cambiar contraseña/i }))
 }
 

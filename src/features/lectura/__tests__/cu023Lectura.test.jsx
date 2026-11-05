@@ -23,6 +23,7 @@ import { ROLES } from '../../../auth/roles'
 import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
+import { elegirPrimerColegio } from '../../../test/elegirColegio'
 
 const ESPERA = { timeout: 8000 }
 
@@ -647,6 +648,7 @@ describe('Quién puede escribir', () => {
     )
 
     montar(ROLES.JEFA)
+    await elegirPrimerColegio(ESPERA)
 
     await screen.findByText(/el Supervisor consulta el Seguimiento de Lectura en solo lectura/i, {}, ESPERA)
     expect(screen.getByLabelText(/título del LSN/i)).toBeDisabled()

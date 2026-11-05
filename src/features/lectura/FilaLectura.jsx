@@ -18,6 +18,7 @@ import { AlertTriangle, MessageSquare, MessageSquareText } from 'lucide-react'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import { ESTADO_FILA, MAXIMOS_LSN, MOTIVO_FILA } from '../../api/resources/lectura'
+import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -104,7 +105,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
 
   return (
     <tr className="border-t border-line align-top">
-      <td className="px-3 py-2">
+      <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <span className="font-medium text-ink-900">{fila.nombre}</span>
         {fila.inactivo && (
           <span
