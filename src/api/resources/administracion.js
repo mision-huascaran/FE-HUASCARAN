@@ -179,6 +179,21 @@ export const listarColegiosAdmin = async (filtros = {}) => {
   return { ...pagina, items: porNombre }
 }
 
+/**
+ * Filtros de Colegios aplicados en el cliente.
+ *
+ * D61 — Con la copia de IndexedDB, sin conexión: ahí no hay servidor que
+ * resuelva `departamento`, `distrito` ni `activo`, así que los tres se
+ * filtran aquí, igual que `filtrarAlumnos` hace con los suyos.
+ */
+export function filtrarColegios(filas, filtros = {}) {
+  const igual = (a, b) => b == null || b === '' || String(a) === String(b)
+  const porUbicacion = porEstado(filas, filtros.estado ?? 'todos').filter(
+    (c) => igual(c.departamento, filtros.departamento) && igual(c.distrito, filtros.distrito),
+  )
+  return buscarEn(porUbicacion, filtros.q, 'nombre')
+}
+
 /** Valores existentes de departamento y distrito, para los desplegables de filtro. */
 export const listarUbicaciones = () =>
   resolver({

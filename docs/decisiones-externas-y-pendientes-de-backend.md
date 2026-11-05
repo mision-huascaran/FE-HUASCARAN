@@ -988,6 +988,89 @@ Con esto, `FiltrosDashboard` vuelve a ser una fila sola en vez de dos: el
 cambio del 04/11 que separaba "Colegios" a su propia fila (S31) queda
 superado por este, que ataca la causa en vez de acomodar el síntoma.
 
+**S35 (nuevo). Ronda 7 — D92, D82 y D61, del reporte del tester con
+frontend `53e8588`.**
+
+El tester avisó que D92 (Crítico), D82, D61, D75 y D52 seguían ocurriendo
+pese a estar marcados como corregidos en commits anteriores. Investigados
+en orden de prioridad:
+
+- **D92 (Crítico) — Corregido de verdad, con una parte que faltaba.** La
+  mitad "la cola sobrevive al cierre de sesión" ya estaba bien (verificado
+  leyendo `colaOffline.js` y `AuthProvider.jsx`: por ownership de usuario,
+  no por texto). La mitad que SÍ fallaba: una asistencia marcada sin
+  conexión —todavía solo en la cola, sin confirmar por el servidor— no
+  habilitaba la fila de Lectura, porque `useTablaLectura` solo miraba
+  `fila.asistencia` del servidor. Se agregó `pendientesDeTipo` a
+  `colaOffline.js` y un cruce por `claveDeMarca` en `useTablaLectura.js`
+  que completa la fila con la marca pendiente y la etiqueta "(pendiente)"
+  en `FilaLectura.jsx`. Con prueba nueva en `cu023Lectura.test.jsx`.
+- **D82 — No es un defecto actual; el reporte está desactualizado.**
+  Confirmado por ascendencia de git: el commit `e4c29d6` (D115, que mueve
+  la copia del perfil de `localStorage` a IndexedDB) es posterior al
+  frontend que probó el tester (`53e8588`) y ya está en `development`. Los
+  8 casos de `perfilSinConexion.test.jsx` pasan contra el código actual.
+  No se tocó nada.
+- **D61 — Corregido: Colegios no tenía la copia local que Alumnos ya
+  tenía.** Alumnos cae a `precarga.alumnos` sin conexión (`D8`); Colegios
+  no tenía ese camino y, al reabrir sin red (sin nada en memoria de
+  TanStack Query), se quedaba en "Sin registros" aunque el Supervisor
+  tuviera los colegios precargados. Se agregó `filtrarColegios` en
+  `api/resources/administracion.js` y el mismo patrón de `MantenimientoAlumnos`
+  en `MantenimientoColegios.jsx`.
+
+  **Hallazgo aparte, más de fondo:** el patrón `queryKey` con `enLinea` de
+  por medio (el que ya usaba Alumnos) tiene un defecto propio con el
+  `networkMode` por defecto de TanStack Query ('online'). Al perder la
+  conexión de verdad —evento `offline` del navegador, no solo la
+  propiedad— la consulta NUEVA que ese cambio de clave dispara queda EN
+  PAUSA por la librería, sin llegar a llamar a `queryFn`: la pantalla se
+  queda cargando hasta reconectar, porque el "sin conexión" ya lo decide
+  `enLinea` a mano y no hace falta que TanStack Query lo decida también.
+  Se corrigió con `networkMode: 'always'` en las dos pantallas (Colegios y
+  Alumnos). Sin esto, el "Ver detalle" → Programación de clases también se
+  habría visto afectado si el Supervisor abría un colegio nunca visto
+  antes mientras ya estaba sin conexión.
+
+- **D75 — Corregido: faltaba la mitad de "sin conexión durante la
+  edición" de CU027.** Lo de 502/503/504 ("sin respuesta") ya estaba
+  (`0c58e3f`); lo que nunca se escribió es la otra mitad del mismo punto
+  2.4d del plan: perder la conexión A MITAD de editar (no al entrar, eso
+  ya bloqueaba "Editar calendario") no tocaba "Guardar" para nada —
+  `completo` nunca miraba `enLinea`— y el aviso que se mostraba era el de
+  "estás consultando", que no es lo mismo que "lo que escribiste no se ha
+  guardado todavía". En `CalendarioAcademico.jsx`: `completo` ahora exige
+  también `enLinea`; el aviso offline distingue edición ("Sin conexión.
+  Tus cambios aún no se han guardado. Mantén esta vista abierta para
+  conservarlos.") de consulta, y el de consulta dice desde cuándo es la
+  copia con `consulta.dataUpdatedAt` (lo trae gratis TanStack Query, y
+  sobrevive a un reinicio porque `cacheConsultas.js` restaura también la
+  fecha original, no la de la rehidratación). Con dos pruebas nuevas en
+  `calendarioAcademicoPantalla.test.jsx`.
+
+- **D52 — Corregido: el Docente nunca tuvo la mitad de CU011/CU012 que
+  Supervisor y Directivo ya tenían.** El commit que marcaba D52 como
+  corregido (`09efe45`) construyó `useResumenLocal` y `AvisoDatosLocales`,
+  pero `rol` solo admitía `'supervisor'` y `'directivo'`; `useResumenDocente`
+  es un `useQuery` sin ninguna rama de copia local ni de `enLinea`, e
+  `InicioDocente.jsx` no importaba ninguno de los dos. Con el backend caído
+  (o sin conexión), las tarjetas mostraban lo último que hubiera en memoria
+  SIN aviso, o desaparecían sin decir por qué. Se agregó el literal
+  `docente` a `AvisoDatosLocales.jsx` (pendiente que el analista confirme el
+  texto exacto de CU010), se le pasó `enLinea` a `useResumenDocente` para
+  que no intente la red sin ella, y se conectó `useResumenLocal('docente',
+  ...)` en `InicioDocente.jsx`, igual que ya hacían Supervisor y Directivo.
+  Con dos pruebas nuevas en `inicioDocente.test.jsx`.
+
+  La otra mitad del reporte del tester ("al recargar vuelve al login") es
+  el mismo mecanismo que D82: con un 401/403 sí cierra, pero sin respuesta
+  del servidor el token se conserva y se usa la copia del perfil — ya
+  verificado ahí, no hacía falta nada aparte para el Docente.
+
+Las cinco defectos del reporte del tester (D92, D82, D61, D75, D52) quedan
+revisados: D92, D61, D75 y D52 tenían algo real por corregir y D82 estaba al
+día en `development`, solo desactualizado en el reporte.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse

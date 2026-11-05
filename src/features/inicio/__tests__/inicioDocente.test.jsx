@@ -7,7 +7,7 @@ import useSessionStore from '../../../store/sessionStore'
 import { PERIODO_VIGENTE } from '../../../api/mock/db'
 import { ROLES } from '../../../auth/roles'
 import { SIN_HABILITACIONES } from '../useActividad'
-import { jwtDePrueba } from '../../../test/fabricas'
+import { cuentaDe, jwtDePrueba } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 
 const estado = vi.hoisted(() => ({ resumen: {}, actividad: {} }))
@@ -39,6 +39,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   estado.resumen = { data: RESUMEN, isLoading: false, semanaActual: null }
   estado.actividad = { sesion: null, sinAsignaciones: false }
+  // D52 — `useResumenLocal` guarda una copia real en localStorage; sin
+  // limpiarla, una prueba hereda la copia que dejó la anterior y "sin datos
+  // del servidor" deja de ser cierto.
+  localStorage.clear()
 })
 
 afterEach(() => {
@@ -165,5 +169,39 @@ describe('Tarjetas del panel', () => {
     montar()
     await screen.findByRole('heading', { level: 1 })
     expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
+  })
+
+  /**
+   * D52 — Supervisor y Directivo ya avisaban con la copia local y CU011/CU012
+   * cuando el servidor no contestaba; el Docente se quedaba sin eso: con el
+   * backend caído, `resumen` se iba a `undefined` y las tarjetas
+   * desaparecían sin ningún aviso de que había una copia más vieja.
+   */
+  it('D52: con el servidor caído muestra la copia local y avisa de que puede estar desactualizada', async () => {
+    const { id_usuario: idUsuario } = cuentaDe(ROLES.DOCENTE)
+    localStorage.setItem(
+      `sicedu.resumen.docente.${idUsuario}`,
+      JSON.stringify({ datos: RESUMEN, fecha: '2026-10-09T12:00:00Z' }),
+    )
+    estado.resumen = { data: undefined, isLoading: false, isError: true, semanaActual: null }
+
+    montar()
+
+    const aviso = await screen.findByRole('status')
+    expect(aviso).toHaveTextContent(/No se pudo recuperar la información del servidor/)
+    expect(aviso).toHaveTextContent(/puede estar desactualizado/)
+    expect(screen.getByText('48')).toBeInTheDocument()
+  })
+
+  it('D52: sin conexión y sin copia local, dice que no hay nada que mostrar', async () => {
+    estado.resumen = { data: undefined, isLoading: false, isError: false, semanaActual: null }
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+
+    montar()
+
+    expect(await screen.findByText(/no existe información de tu avance disponible sin conexión/i)).toBeInTheDocument()
+    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
   })
 })

@@ -47,7 +47,7 @@ import {
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import { listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
-import { formatearFecha } from '../../lib/format'
+import { formatearFecha, formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { useMigaExtra } from '../../store/migaStore'
 
@@ -454,9 +454,15 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           enLinea={enLinea}
           restableciendo={restablecer.isPending}
           guardando={crear.isPending || editar.isPending}
-          // Con un conflicto o un envío sin confirmar, "Guardar" se bloquea:
-          // volver a mandarlo pisaría lo ajeno o escribiría dos veces (D75).
-          completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar}
+          /**
+           * D75 — Con un conflicto, un envío sin confirmar o SIN CONEXIÓN,
+           * "Guardar" se bloquea: volver a mandarlo pisaría lo ajeno,
+           * escribiría dos veces, o se perdería en un envío que nunca
+           * sale. El calendario no se encola ni se guarda en
+           * `localStorage` (CU027): lo único que lo protege mientras no
+           * hay red es dejar la vista abierta con "Guardar" deshabilitado.
+           */
+          completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar && enLinea}
           faltan={camposPorCompletar(periodos, dias)}
           onEmpezar={empezar}
           onRestablecer={() => setConfirmando({ tipo: 'usarGeneral' })}
@@ -465,10 +471,24 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         />
       </header>
 
-      {!enLinea && (
+      {/*
+        D75 — El aviso de EDITAR es distinto del de CONSULTAR. Editando, lo
+        que importa es que lo escrito no se pierde si la vista se queda
+        abierta (CU027: nunca se encola ni se guarda en `localStorage`), así
+        que se dice eso y no "estás consultando". Consultando, importa desde
+        CUÁNDO es la copia: sin esa fecha "puede estar desactualizada" no
+        dice nada que el Supervisor pueda usar para decidir si confiar en ella.
+      */}
+      {!enLinea && editando && (
         <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
-          Sin conexión. Estás consultando la última versión guardada del calendario. Conéctate a Internet para
-          gestionar el calendario.
+          Sin conexión. Tus cambios aún no se han guardado. Mantén esta vista abierta para conservarlos.
+        </p>
+      )}
+
+      {!enLinea && !editando && (
+        <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          Sin conexión. Estás consultando la versión guardada el {formatearFechaHora(consulta.dataUpdatedAt)}.
+          Conéctate a Internet para gestionar el calendario.
         </p>
       )}
 
@@ -635,7 +655,14 @@ function AccionesDelCalendario({
   onGuardar,
 }) {
   if (modo !== 'consulta') {
-    const porQue = faltan.length ? `Completa para guardar: ${faltan.join(', ')}.` : undefined
+    // D75 — Si falta algo Y además falta la red, lo primero es lo primero:
+    // conectarse es lo que de verdad bloquea, completar los campos no sirve
+    // de nada todavía.
+    const porQue = !enLinea
+      ? 'Sin conexión. Conéctate a Internet para guardar.'
+      : faltan.length
+        ? `Completa para guardar: ${faltan.join(', ')}.`
+        : undefined
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center gap-2">

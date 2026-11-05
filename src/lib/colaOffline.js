@@ -635,6 +635,25 @@ export async function iniciarCola() {
 export const hayPendientes = () => cola.length
 
 /**
+ * Los pendientes de UN TIPO, de la sesión actual (D92, la segunda mitad).
+ *
+ * Lo necesita Lectura para saber si una fila "Sin marcar" tiene en realidad
+ * una asistencia que el Docente ya marcó, pero que todavía no llegó al
+ * servidor: `GET /lectura/tablas` solo conoce lo que el servidor confirmó, y
+ * sin esto una marca hecha hace un minuto, en la MISMA sesión, dejaba la fila
+ * bloqueada hasta que la cola lograra sincronizar.
+ *
+ * Devuelve los ítems completos (con su `payload`), no el resumen recortado
+ * que ve el panel de sincronización (`useSyncStore`, que solo guarda
+ * `clave/tipo/descripcion/intentos/error` para no acoplar la cola a lo que
+ * cada módulo manda). Solo los de la cuenta actual: la de otro Docente que
+ * todavía espera en el mismo navegador no es asistencia de esta sesión.
+ */
+export function pendientesDeTipo(tipo) {
+  return propias().filter((item) => item.tipo === tipo)
+}
+
+/**
  * Limpia los datos locales al cerrar sesión — pero SOLO si no queda nada
  * pendiente.
  *

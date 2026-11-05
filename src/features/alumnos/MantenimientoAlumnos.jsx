@@ -324,6 +324,17 @@ export default function MantenimientoAlumnos() {
       if (!enLinea) return filtrarAlumnos(precarga?.alumnos ?? [], filtros)
       return (await listarAlumnosAdmin(filtros)).items
     },
+    /**
+     * D61 — SIN ESTO, TANSTACK QUERY PAUSA LA CONSULTA ÉL SOLO.
+     *
+     * Al perder la conexión el `queryKey` cambia (lleva `enLinea`) y arranca
+     * una consulta NUEVA; con el `networkMode` de por defecto ('online'),
+     * TanStack Query ve el navegador sin red y la deja en pausa SIN LLEGAR A
+     * LLAMAR a `queryFn`, así que la rama de arriba nunca corre y la pantalla
+     * se queda cargando hasta reconectar. Aquí el "sin conexión" ya lo decide
+     * `enLinea`, a mano: no hace falta que la librería también lo decida.
+     */
+    networkMode: 'always',
   })
 
   const sinAsignaciones = soloSusSecciones && enLinea && asignacionesCargadas && asignaciones.length === 0

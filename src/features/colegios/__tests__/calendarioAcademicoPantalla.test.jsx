@@ -366,8 +366,43 @@ describe('CU027 · Calendario académico', () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
 
-    expect(await screen.findByText(/Sin conexión. Estás consultando la última versión guardada del calendario/, {}, ESPERA)).toBeInTheDocument()
+    // D75 — El aviso dice DESDE CUÁNDO es la copia (la fecha la pone
+    // `dataUpdatedAt`, que es del momento del `obtenerCalendario` de arriba).
+    expect(await screen.findByText(/Sin conexión. Estás consultando la versión guardada el/, {}, ESPERA)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeDisabled()
+  })
+
+  /**
+   * D75 — Perder la conexión A MITAD de la edición es otra cosa: entrar a
+   * editar ya exige red, pero una vez dentro nada volvía a mirarla, y
+   * "Guardar" seguía habilitado con el formulario completo aunque el envío
+   * no tuviera cómo salir. El calendario nunca se encola ni se guarda en
+   * `localStorage` (CU027): lo único que evita perderlo es que la vista se
+   * quede abierta, con "Guardar" deshabilitado y diciéndolo.
+   */
+  it('sin conexión A MITAD de la edición bloquea Guardar y lo dice, sin perder lo escrito', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-14' } })
+    expect(boton('Guardar')).toBeEnabled()
+
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+
+    expect(await screen.findByText(/Sin conexión. Tus cambios aún no se han guardado/, {}, ESPERA)).toBeInTheDocument()
+    expect(boton('Guardar')).toBeDisabled()
+    // Lo escrito se conserva: no se vacía ni se descarta solo.
+    expect(screen.getByLabelText(FIN_PA1)).toHaveValue('2026-05-14')
+
+    /**
+     * El `onlineManager` de TanStack Query es un singleton GLOBAL que
+     * escucha estos mismos eventos del `window`, no algo propio de este
+     * `QueryClient`: sin devolver el 'online', las pruebas que vengan
+     * después se quedan pausadas igual que se pausaba el calendario.
+     */
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('online'))
   })
 })
 

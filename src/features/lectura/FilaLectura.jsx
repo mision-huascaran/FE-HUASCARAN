@@ -131,6 +131,16 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
       {/* La asistencia se MUESTRA, no se edita: su sitio es Asistencias. */}
       <td className="px-3 py-2 text-center text-sm text-ink-700">
         {ASISTENCIA[fila.asistencia] ?? 'Sin marcar'}
+        {/* D92 — Marcada hace un instante (o sin conexión) y todavía sin
+            confirmar: se dice, para que no parezca un dato ya firme. */}
+        {fila.asistencia_pendiente && (
+          <span
+            title="Marcada en este dispositivo; todavía no la confirma el servidor."
+            className="ml-1 text-xs font-normal text-warning-600"
+          >
+            (pendiente)
+          </span>
+        )}
       </td>
 
       <td className="px-3 py-2">

@@ -3,7 +3,9 @@ import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
+import AvisoDatosLocales from './AvisoDatosLocales'
 import useResumenDocente from './useResumenDocente'
+import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
 import ResumenesAccion from './ResumenesAccion'
@@ -11,6 +13,7 @@ import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
+import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
@@ -40,7 +43,20 @@ const MOTIVO_SIN_ACTIVIDAD = {
 
 export default function InicioDocente() {
   const usuario = useSessionStore((s) => s.usuario)
-  const { data: resumen, isLoading, semanaActual } = useResumenDocente()
+  const enLinea = useConexion()
+  const { data: datosServidor, isLoading, isError, semanaActual } = useResumenDocente(enLinea)
+  /**
+   * D52 — CON EL SERVIDOR CAÍDO, INICIO MOSTRABA DATOS SIN AVISAR.
+   *
+   * `useResumenDocente` solo sabía pedir al servidor: sin conexión o con un
+   * fallo de red, `resumen` se quedaba con lo último que había en memoria
+   * (o en nada si era una recarga), sin ninguna señal de que podía estar
+   * desactualizado. Supervisor y Directivo ya resuelven esto con la copia
+   * de `useResumenLocal` (CU011, CU012); el Docente nunca la tuvo.
+   */
+  const { resumen, desactualizado } = useResumenLocal('docente', datosServidor, enLinea, {
+    falloServidor: isError,
+  })
 
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
@@ -147,8 +163,12 @@ export default function InicioDocente() {
             <Skeleton key={i} variant="card" />
           ))}
         </div>
-      ) : resumen && (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      ) : !resumen ? (
+        <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
+      ) : (
+        <>
+          {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={Users} label="Mis alumnos" value={resumen?.mis_estudiantes ?? 0} />
           <StatCard
             icon={ClipboardList}
@@ -168,7 +188,8 @@ export default function InicioDocente() {
             value={resumen?.ajustes_por_revisar ?? 0}
             hint="Sugerencias sin confirmar del periodo"
           />
-        </div>
+          </div>
+        </>
       )}
 
       {/* Las asignaciones las pinta `ResumenesAccion`, que lee el endpoint
