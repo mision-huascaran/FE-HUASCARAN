@@ -96,9 +96,28 @@ export async function iniciarSesion(page, rol) {
   const inicioDocente =
     rol === 'docente' ? page.waitForResponse((r) => esApi(r, '/inicio/docente') && r.ok()) : null
 
-  const respuesta = await enviarLogin(page, rol)
-  expect(respuesta.status(), `POST /login de la cuenta ${rol}`).toBe(200)
-  await expect(page).toHaveURL(/\/inicio$/)
+  // Tras el 200 la app pide GET /me antes de entrar: si no llega a /inicio,
+  // el error dice qué respondió /me y qué aviso quedó en el login, en vez de
+  // solo «sigue en /login».
+  const perfil = []
+  const alResponder = (r) => esApi(r, '/me') && perfil.push(String(r.status()))
+  const alFallar = (p) => new URL(p.url()).pathname === '/api/me' && perfil.push(`sin respuesta (${p.failure()?.errorText})`)
+  page.on('response', alResponder)
+  page.on('requestfailed', alFallar)
+  try {
+    const respuesta = await enviarLogin(page, rol)
+    expect(respuesta.status(), `POST /login de la cuenta ${rol}`).toBe(200)
+    try {
+      await expect(page).toHaveURL(/\/inicio$/)
+    } catch (error) {
+      const avisos = (await page.getByRole('alert').allInnerTexts()).join(' · ') || 'ninguno'
+      error.message += `\n\nEl login de ${rol} respondió 200 pero la app no llegó a /inicio. GET /api/me: ${perfil.join(', ') || 'sin respuesta todavía'}. Aviso en el login: «${avisos}»`
+      throw error
+    }
+  } finally {
+    page.off('response', alResponder)
+    page.off('requestfailed', alFallar)
+  }
 
   return { inicio: inicioDocente ? await (await inicioDocente).json() : null }
 }
