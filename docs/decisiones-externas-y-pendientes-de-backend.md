@@ -890,6 +890,39 @@ escritura— y el literal *"No tienes autorización vigente para registrar o
 modificar este periodo."* está en el documento tal cual. El código ya lo
 decía bien.
 
+**S32 (nuevo). "Descargar gráfica" no funcionaba — era un `blob:` donde la
+CSP solo permite `data:`.**
+Antonio lo reportó en Asistencia y en el consolidado de libros (CU033,
+CU034). El código cargaba la imagen rasterizada con
+`URL.createObjectURL(new Blob(...))`, una URL `blob:`. La cabecera de
+seguridad del servidor (RNF-003, `deploy/cabeceras-seguridad.conf`) declara
+`img-src 'self' data:` **a propósito para esto** —el propio comentario del
+archivo decía *"para exportar un gráfico a PNG... rasteriza el SVG desde una
+URL data:"*—, y `blob:` es otro esquema que esa cabecera no autoriza. En
+local, sin la cabecera, funcionaba; en cualquier sitio que la sirva —qa,
+producción— el navegador bloqueaba la carga en silencio y el botón "no
+hacía nada".
+
+Corregido: ahora carga desde una URL `data:` (`encodeURIComponent` del SVG
+serializado), como decía el comentario que ya existía. Sin cambios en el
+backend ni en la cabecera — el valor de `img-src` ya estaba bien, era el
+código quien no lo usaba. Esta función no tenía ninguna prueba; se le
+añadieron 8, incluida una que fija específicamente que la imagen se cargue
+por `data:` y nunca por `blob:`, para que esto no se repita.
+
+De paso, el mes del borde del gráfico de líneas ("Diciembre") se recortaba
+por un margen derecho insuficiente para su etiqueta — corregido con una
+prueba de geometría.
+
+Y los cuatro rediseños de espacio en blanco que pidió Antonio (la barra de
+filtros del Dashboard y del consolidado de libros, la dona con su tabla en
+"Distribución de alumnos", y el formulario de "Comparación de resultados"):
+en los tres, la causa de fondo era la misma — un panel de casillas o chips
+de alto variable compartiendo fila con controles de alto fijo, con
+`items-start` y, en un caso, un botón en `size="sm"` que no coincidía con
+la altura de los `Select` (`h-10`). Se separaron en dos filas donde hacía
+falta, en vez de forzar la alineación con CSS.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse

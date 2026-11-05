@@ -21,11 +21,12 @@
 //    "Aplicar".
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Filter } from 'lucide-react'
+import { Filter, Info } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import DataTable from '../../components/ui/DataTable'
 import Select from '../../components/ui/Select'
+import Tooltip from '../../components/ui/Tooltip'
 import { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import SelectorMultiple from '../usuarios/SelectorMultiple'
 import { obtenerComparacionResultados } from '../../api/resources/dashboard'
@@ -49,6 +50,38 @@ const NIVELES_GLOBALES = ['Inicio', 'En proceso', 'Logrado', 'Avanzado']
 
 const NOTA_INDICE =
   'El índice comparativo asigna 1 a Inicio, 2 a En proceso, 3 a Logrado y 4 a Avanzado, y se calcula solo con los alumnos con evaluación completa. Es una convención para comparar la distribución de resultados: no modifica los niveles de los alumnos, no es una nota individual y no demuestra por sí solo la calidad de la enseñanza.'
+
+/**
+ * EL AVISO DEL ÍNDICE SE QUEDA, PERO DEJA DE SER UN PIE DE PÁGINA FIJO.
+ *
+ * El CU insiste en esto —"se dice", en sus propias palabras— porque un número
+ * sin esa frase se cita luego como si fuera una calificación del colegio: no
+ * es decorativo, es la salvedad que evita que alguien lea el Índice como una
+ * nota. Pero como pie de tabla, en cada pantalla, con esa longitud, es lo
+ * primero que se ve y lo que más espacio ocupa.
+ *
+ * Se mueve al mismo lugar que ya usa el resto del sistema para "dato que hay
+ * que leer antes de usar la cifra, no todo el tiempo" (CU029, CU031): un
+ * ícono junto a la columna que explica, con el texto completo en un tooltip
+ * accesible por cursor, foco y toque. El texto no desaparece del producto —lo
+ * exige el CU—, deja de estar siempre a la vista.
+ */
+function ColumnaIndice() {
+  return (
+    <span className="inline-flex items-center gap-1">
+      Índice
+      <Tooltip content={NOTA_INDICE}>
+        <button
+          type="button"
+          aria-label="Qué significa el Índice"
+          className="inline-flex rounded-full text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    </span>
+  )
+}
 
 export default function BloqueComparacion({ filtros, contexto, hayCambios, programas = [], grados = [] }) {
   const inicial = useMemo(
@@ -101,7 +134,7 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
     },
     { key: 'nombre', header: propios.vista === 'detalle_grado' ? 'Colegio y grado' : 'Colegio' },
     ...(conIndice
-      ? [{ key: 'indice', header: 'Índice', align: 'right', render: (g) => formatearIndice(g.indice) }]
+      ? [{ key: 'indice', header: <ColumnaIndice />, align: 'right', render: (g) => formatearIndice(g.indice) }]
       : []),
     // Las columnas son la escala del resultado elegido: la de Fluidez o la del
     // nivel alfabético no es la de Inicio a Avanzado.
@@ -136,39 +169,56 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
       vacio={Boolean(datos) && grupos.length === 0 && (datos.sin_evaluaciones?.length ?? 0) === 0}
     >
       <div className="flex flex-col gap-4">
+        {/*
+          DOS FILAS, por la misma razón que en `FiltrosDashboard`: el panel de
+          Grados (casilla + chips, y a veces un error debajo) no tiene nada
+          que ver en altura con un `Select` cerrado. Compartir fila con
+          `items-start` dejaba a "Aplicar" —sin etiqueta encima— sin ninguna
+          caja de igual altura con la que alinearse, y con `size="sm"` además
+          no tenía ni el alto de los `Select` (h-10) con los que se compara a
+          simple vista. Separado y a tamaño normal, cuadra con el resto.
+        */}
         <form
-          className="flex flex-wrap items-start gap-3 rounded-lg border border-line bg-surface-50 p-3"
+          className="flex flex-col gap-3 rounded-lg border border-line bg-surface-50 p-3"
           onSubmit={(e) => {
             e.preventDefault()
             setPropios(borrador)
           }}
         >
-          <CeldaFiltro>
-            <Select
-              label="Subprograma"
-              required
-              value={borrador.idPrograma}
-              options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
-              onChange={(e) => cambiar('idPrograma', e.target.value)}
-            />
-          </CeldaFiltro>
-          <CeldaFiltro>
-            <Select
-              label="Vista"
-              value={borrador.vista}
-              options={VISTAS}
-              onChange={(e) => cambiar('vista', e.target.value)}
-            />
-          </CeldaFiltro>
-          <CeldaFiltro>
-            <Select
-              label="Resultado"
-              value={borrador.resultado}
-              options={RESULTADOS}
-              onChange={(e) => cambiar('resultado', e.target.value)}
-            />
-          </CeldaFiltro>
-          <CeldaFiltro className="min-w-[240px] basis-[240px]">
+          <div className="flex flex-wrap items-end gap-3">
+            <CeldaFiltro>
+              <Select
+                label="Subprograma"
+                required
+                value={borrador.idPrograma}
+                options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
+                onChange={(e) => cambiar('idPrograma', e.target.value)}
+              />
+            </CeldaFiltro>
+            <CeldaFiltro>
+              <Select
+                label="Vista"
+                value={borrador.vista}
+                options={VISTAS}
+                onChange={(e) => cambiar('vista', e.target.value)}
+              />
+            </CeldaFiltro>
+            <CeldaFiltro>
+              <Select
+                label="Resultado"
+                value={borrador.resultado}
+                options={RESULTADOS}
+                onChange={(e) => cambiar('resultado', e.target.value)}
+              />
+            </CeldaFiltro>
+            <div className="ml-auto flex w-full shrink-0 justify-end sm:w-auto">
+              <Button type="submit" iconLeft={Filter} disabled={sinGrados || !borrador.idPrograma}>
+                Aplicar
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-w-md">
             <label className="mb-1 flex items-center gap-2 text-sm font-medium text-ink-700">
               <input
                 type="checkbox"
@@ -190,11 +240,6 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
                 onChange={(valores) => cambiar('idGrados', valores)}
               />
             )}
-          </CeldaFiltro>
-          <div className="ml-auto self-end">
-            <Button type="submit" size="sm" iconLeft={Filter} disabled={sinGrados || !borrador.idPrograma}>
-              Aplicar
-            </Button>
           </div>
         </form>
 
@@ -203,7 +248,7 @@ export default function BloqueComparacion({ filtros, contexto, hayCambios, progr
           rows={grupos}
           getRowId={(g) => `${g.id_colegio}-${g.id_grado ?? 'todos'}`}
           columns={columnas}
-          footNote={conIndice ? NOTA_INDICE : 'Esta vista usa su propia escala: no se le aplica el índice de 1 a 4 del nivel global.'}
+          footNote={conIndice ? undefined : 'Esta vista usa su propia escala: no se le aplica el índice de 1 a 4 del nivel global.'}
         />
 
         {/* Sin ninguna evaluación completa: aparte, sin índice ni posición. */}
