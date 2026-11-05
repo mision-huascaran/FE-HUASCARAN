@@ -26,10 +26,7 @@ import Select from '../../components/ui/Select'
 import DetalleSesion from './DetalleSesion'
 import useFiltrosSesiones from './useFiltrosSesiones'
 import {
-  ETIQUETA_ESTADO,
-  TONO_ESTADO,
   ETIQUETA_SINCRONIZACION,
-  SIN_FIN,
   listarActividades,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
@@ -37,12 +34,27 @@ import { enOtroDia, formatearFecha, formatearFechaHora, formatearHora } from '..
 import useConexion from '../../hooks/useConexion'
 
 /**
- * La hora de fin: un guion en curso (CU017) y la fecha completa solo si la
- * actividad terminó otro día, para que "08:00 – 07:30" no parezca un error.
+ * La hora de fin, que además DICE SI LA ACTIVIDAD SIGUE ABIERTA.
+ *
+ * Antes había una columna "Estado de la actividad" al lado repitiendo lo
+ * mismo: una fila con hora de fin está terminada y una sin ella no, así que
+ * el badge solo confirmaba lo que la hora ya decía. Se quitó la columna y
+ * esta celda se queda con el dato: un guion no explica nada —se lee como
+ * "falta el dato"—, y "En curso" sí.
+ *
+ * La fecha completa solo si la actividad terminó otro día, para que
+ * "08:00 – 07:30" no parezca un error.
  */
 const horaDeFin = (s) => {
-  if (!s.fin) return SIN_FIN
+  if (!s.fin) return null
   return enOtroDia(s.inicio, s.fin) ? formatearFechaHora(s.fin) : formatearHora(s.fin)
+}
+
+/** La celda: la hora, o que todavía se está trabajando en ella. */
+function CeldaFin({ sesion }) {
+  const hora = horaDeFin(sesion)
+  if (hora) return hora
+  return <span className="font-medium text-info-600">En curso</span>
 }
 
 const ESTADOS = [
@@ -174,17 +186,23 @@ export default function SesionesPage() {
               // fecha ya está en su columna (auditoría de UX #737, U15).
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
               { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearHora(s.inicio) },
-              { key: 'fin', header: 'Hora de finalización', render: (s) => horaDeFin(s) },
+              { key: 'fin', header: 'Hora de finalización', render: (s) => <CeldaFin sesion={s} /> },
               { key: 'duracion_segundos', header: 'Duración', render: (s) => duracion(s.duracion_segundos) },
               { key: 'cambios', header: 'Cantidad de cambios', align: 'center' },
               {
-                key: 'estado',
-                header: 'Estado de la actividad',
-                render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
-              },
-              {
-                // Columna aparte del estado a propósito (CU017): son dos cosas
-                // distintas y mezclarlas oculta las sesiones sin sincronizar.
+                /*
+                 * SIN columna "Estado de la actividad": la dice "Hora de
+                 * finalización". Una fila con hora está terminada y una sin
+                 * ella sigue abierta, asi que el badge repetía el dato de la
+                 * celda de al lado y gastaba el ancho que necesitaban las
+                 * demás. El estado completo sigue en "Ver detalle", y el
+                 * filtro "Estado" de arriba no se toca: filtrar por algo no
+                 * obliga a darle una columna.
+                 *
+                 * Esta sí es aparte (CU017): sincronización y estado son dos
+                 * cosas distintas, y mezclarlas oculta las sesiones sin
+                 * sincronizar.
+                 */
                 key: 'sincronizacion',
                 header: 'Estado de sincronización',
                 render: (s) => (

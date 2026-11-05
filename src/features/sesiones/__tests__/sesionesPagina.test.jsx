@@ -71,15 +71,27 @@ describe('Listado de sesiones (CU017)', () => {
     expect(await screen.findByText('4 h 30 min', {}, ESPERA)).toBeInTheDocument()
   })
 
-  it('una sesión en curso muestra un guion en fin y tipo de cierre (CU017)', async () => {
+  it('una sesión en curso lo dice en la hora de fin, no con un guion', async () => {
+    /*
+     * Ya no hay columna "Estado de la actividad": la hora de finalización
+     * carga con el dato. Un guion ahí se leía como "falta el dato"; lo que
+     * pasa es que la jornada sigue abierta, y eso se dice.
+     */
     listar.mockResolvedValue(
       pagina([{ ...FINALIZADA, fin: null, tipo_cierre: null, estado: 'en_curso', duracion_segundos: 1800 }]),
     )
     montar()
-    // Se espera a la DURACIÓN, no a "En curso": ese texto también es una
-    // opción del filtro de estado y existe antes de que carguen los datos.
+    // Se espera a la DURACIÓN: "En curso" también es una opción del filtro de
+    // estado y existe antes de que carguen los datos.
     expect(await screen.findByText('30 min', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.getAllByText('–')).toHaveLength(2)
+
+    const fila = screen.getAllByRole('row')[1]
+    expect(within(fila).getByText('En curso')).toBeInTheDocument()
+    // El guion se queda SOLO en el tipo de cierre: una actividad abierta no
+    // se ha cerrado de ninguna manera.
+    expect(within(fila).getAllByText('–')).toHaveLength(1)
+    // Y la columna que repetía el dato ya no está.
+    expect(screen.queryByRole('columnheader', { name: 'Estado de la actividad' })).not.toBeInTheDocument()
   })
 
   it('sin sesiones lo dice en vez de dejar la tabla muda', async () => {

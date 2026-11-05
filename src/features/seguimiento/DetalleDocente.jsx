@@ -26,11 +26,8 @@ import RegistrosDeActividad from './RegistrosDeActividad'
 import { MODULOS_DE_ACTIVIDAD, listarActividadesDe } from '../../api/resources/seguimiento'
 import {
   AYUDA_SINCRONIZACION,
-  ETIQUETA_ESTADO,
   ETIQUETA_SINCRONIZACION,
-  TONO_ESTADO,
   TONO_SINCRONIZACION,
-  SIN_FIN,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
 import { formatearFecha, formatearFechaHora } from '../../lib/format'
@@ -131,18 +128,25 @@ export default function DetalleDocente({ docente, onVolver }) {
             columns={[
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
               { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearFechaHora(s.inicio) },
-              { key: 'fin', header: 'Hora de finalización', render: (s) => (s.fin ? formatearFechaHora(s.fin) : SIN_FIN) },
               {
                 /*
-                 * CU021 lista esta columna y faltaba. Para quien audita, que
-                 * una actividad siga EN CURSO cambia lo que está viendo: lo
-                 * que falte todavía puede aparecer, y un "Sin registros" no
-                 * significa lo mismo en una jornada abierta que en una
-                 * cerrada.
+                 * LA HORA DE FIN DICE TAMBIÉN SI LA JORNADA SIGUE ABIERTA.
+                 *
+                 * Para quien audita eso importa —lo que falte todavía puede
+                 * aparecer, y un "Sin registros" no significa lo mismo en una
+                 * jornada abierta que en una cerrada—, pero no necesita una
+                 * columna propia: una fila con hora está cerrada y una sin
+                 * ella no. Un guion ahí se leía como "falta el dato"; "En
+                 * curso" lo dice. El estado completo sigue en el detalle.
                  */
-                key: 'estado',
-                header: 'Estado de la actividad',
-                render: (s) => <Badge tone={TONO_ESTADO[s.estado] ?? 'neutral'}>{ETIQUETA_ESTADO[s.estado] ?? s.estado}</Badge>,
+                key: 'fin',
+                header: 'Hora de finalización',
+                render: (s) =>
+                  s.fin ? (
+                    formatearFechaHora(s.fin)
+                  ) : (
+                    <span className="font-medium text-info-600">En curso</span>
+                  ),
               },
               { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => <CeldaCierre tipo={s.tipo_cierre} /> },
               {

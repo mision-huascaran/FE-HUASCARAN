@@ -863,6 +863,27 @@ toque en el tooltip y entero en "Ver detalle". Vale para CU017 y CU021, con
 el mismo componente, y entiende tanto los códigos futuros como el texto
 completo que manda hoy el servidor.
 
+**i) Sesiones ya no tiene columna "Estado de la actividad".** La decidió
+Antonio y los analistas la recogen en el CU. El motivo: **la hora de
+finalización ya lo dice**. Una fila con hora está terminada y una sin ella
+sigue abierta, así que el badge solo confirmaba el dato de la celda de al
+lado y gastaba el ancho que necesitaban las demás columnas.
+
+Lo que sí cambia es la celda vacía: antes un guion, que se lee como "falta
+el dato", y ahora **"En curso"**, que es lo que de verdad pasa. El guion se
+queda solo en "Tipo de cierre", donde sí corresponde: una actividad abierta
+no se ha cerrado de ninguna manera.
+
+Dos cosas que NO se tocaron: el filtro "Estado" de la barra superior
+—filtrar por algo no obliga a darle una columna— y el estado completo en
+"Ver detalle".
+
+**Y se aplicó también a CU021**, el detalle del Supervisor, aunque Antonio
+habló solo de Sesiones: ahí la columna la había añadido yo el 04/11 y tiene
+exactamente la misma redundancia. Dejarla habría hecho que las dos tablas de
+la misma información se leyeran distinto. Si el analista prefiere
+conservarla en CU021, se repone en una línea.
+
 **Lo que se comprobó y NO se tocó, a propósito:** "autorización" y
 "habilitación" no son sinónimos en el CU —una es de consulta y otra de
 escritura— y el literal *"No tienes autorización vigente para registrar o
