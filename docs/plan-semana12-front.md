@@ -1712,3 +1712,24 @@ todos los listados, sin `limit` ni `offset`.
    regla da dos verdades distintas y nadie sabe cuál creer.
 6. **Las operaciones rechazadas no se borran.** Es la diferencia entre "el docente ve que su dato no
    subió" y "el dato desapareció sin que nadie se entere".
+
+---
+
+## 7. Ronda 7 · Tanda F1 (Paris)
+
+Defectos de la ronda 7 de QA (front `qa` = `53e8588`, backend `qa` = `8bc66d7`). Un commit por defecto, sobre
+`5f7e98d`.
+
+| Defecto | Commit | Qué se cambió y por qué |
+|---|---|---|
+| **D109** | `b6f92f5` | `ProtectedRoute` guarda la ruta de vuelta junto con la cuenta cuya sesión se cortó (`sessionStore.salida`, en memoria), y `destinoTrasLoginDe` (`src/rutas.jsx`) solo la respeta para esa misma cuenta. Tras "Cerrar sesión" no se guarda ruta. Un enlace abierto sin sesión previa en la pestaña sigue llevando a quien entre (RNF-004). Antes la siguiente cuenta caía en la última pantalla de la anterior, con sus filtros. |
+| **D115** | `e4c29d6` | La copia del perfil para recargar sin conexión (D82) pasa de `localStorage` (`sicedu.perfil`) a IndexedDB (misma clave, con el `id_usuario` de su dueño). Se borra con la sesión y al entrar otra cuenta, y la clave vieja se elimina al arrancar. Solo se usa si `/me` no contesta y el token es de la misma cuenta; un 401 o 403 siguen cerrando. |
+| **D95** | `f43e3e5` | Asistencias decide si se puede marcar con `useHabilitacion`. Sin conexión, el hook lee el paquete de habilitaciones directamente de IndexedDB (no de la caché de consultas, que lo restauraba de su propia copia) y, si no está, bloquea con el literal de CU009 y CU022. |
+| **D110** | `135b166` | El detalle del colegio tiene una sola clave, `['colegio', id]`, y una sola política (`src/hooks/consultaColegio.js`): con conexión se vuelve a pedir al abrir la pantalla si tiene más de 30 s; sin conexión se usa la copia. Mantenimiento de colegios invalida la raíz `colegio` al crear o editar. Antes Asistencias, "Nuevo alumno" y los filtros de Lectura, Rúbrica y Registro de Vuelo lo guardaban para siempre. |
+| **D116** | `6a8f09c` | El formulario del calendario (general y por colegio) ya pintaba cada error de campo del 422 en su celda; ahora además comprueba antes de enviar la regla de los 12 meses, con el texto del backend y en `periodos.7.fecha_fin`. |
+| **D117** | `e72cb48` | Cancelar la edición y cambiar de año, alcance o colegio reinician el aviso "El cambio afecta a registros existentes" y los demás estados de la edición. |
+| **D114** | `2eca40e` | Una sola fuente para "hay actividad en curso" (`useActividadEnCurso`, en `actividadStore`) para la cabecera y los cuatro módulos. Mientras la actividad iniciada sin conexión no llegó al servidor, el `escritura` que él calculó sin ella no la bloquea: `useEscrituraConActividad` decide la habilitación con el paquete de `/me/habilitaciones` para ese grupo y periodo. Al sincronizarse el inicio, la actividad queda confirmada (`delServidor`) y los módulos se vuelven a pedir. |
+
+**Pendiente de decidir (no cambiado):** Lectura, Rúbrica y Registro de Vuelo tienen el mismo hueco que D95
+(sin conexión deciden con el `escritura` de su consulta en caché, sin comprobar el paquete de habilitaciones), y
+`sicedu.rechazos` guarda en `localStorage` nombres de alumnos y observaciones.

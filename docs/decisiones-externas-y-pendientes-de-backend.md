@@ -2,11 +2,17 @@
 
 **Para:** **analistas** (lo que necesita decisión de caso de uso) y **backend**
 (lo que falta publicar o corregir del lado del servidor).
-**Actualizado:** 29/10/2026, con la respuesta del backend (Paris, tandas I,
-L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
-(CU033 a CU035), que ya está implementado.
+**Actualizado:** 05/11/2026, con la **ronda 7** del tester (Tanda F1 del
+front, al final) y las **tandas O y P** del backend (`b769e05` y `8bc66d7`).
+Antes: 29/10/2026, con las tandas I, L y **M**, las dos partes de la
+**ronda 6** y el **Dashboard** (CU033 a CU035).
 
-> ## Del backend no queda nada
+> ## Del backend no queda nada bloqueante
+>
+> Lo único que sigue pedido es una mejora sin defecto detrás: que
+> `totales.ciclos` de `GET /inicio/docente` venga completo (**S29**; el front
+> ya une los dos orígenes). D110 (compartido) y D116 de la ronda 7 los cerró
+> la **Tanda P** del backend junto con la Tanda F1 del front.
 >
 > Los **once** pedidos originales de "Lo que falta del BACKEND" están
 > resueltos: seis ya existían con otro nombre de campo, y el resto llegó con
@@ -55,8 +61,8 @@ L y **M**), las dos partes de la **ronda 6** del tester y el **Dashboard**
 
 **Lo que queda.** Los siete son de Carlos (analista): los cinco primeros
 venían del sprint y los dos siguientes los abrió la **ronda 6** del tester.
-Del backend no queda nada (S23 se resolvió en el front y la Tanda M cerró
-D100 y D101):
+Del backend no queda nada bloqueante (S23 se resolvió en el front, la
+Tanda M cerró D100 y D101, y solo sigue pedida la mejora de S29):
 
 1. **CU028** — si el modal de permisos pide varios grados y módulos a la vez,
    hay que cambiar sus dropdowns de "selección única". El endpoint de lote ya
@@ -75,7 +81,7 @@ D100 y D101):
 **S1 (Dashboard) — ✅ RESUELTO: ya está implementado.** CU033, CU034 y
 CU035 llegaron completos en los casos de uso actualizados y el backend publicó
 los once endpoints de `/dashboard/*` (serie D1–D7). Está en `development`, en
-el commit `59eb6a9`, y la Fase 8 de `docs/plan-semana12-front.md` cuenta qué
+el commit del **front** `59eb6a9`, y la Fase 8 de `docs/plan-semana12-front.md` cuenta qué
 hace cada bloque.
 
 ---
@@ -1016,5 +1022,42 @@ lado de los datos si no se esperaban:
   ajuste de las pantallas al teléfono") o posterior. Incluye la ronda 6
   completa, los hallazgos del 03/11 y la versión móvil (Fases 9 y 9b de
   `docs/plan-semana12-front.md`).
-- **Backend:** `development` en `34c6191` ("Tanda M: decisiones provisionales
-  documentadas, API.md y Sonar") o posterior.
+- **Backend:** `development` en `b769e05` (Tanda O) o posterior. Ahora
+  `qa` = `8bc66d7` (Tanda P: D69, D116 y la regla de 12 meses también en el
+  calendario particular).
+
+## Ronda 7 · Tanda F1 (Paris)
+
+Defectos de la ronda 7 de QA corregidos en el front (un commit por defecto,
+sobre `5f7e98d`; el detalle técnico está en la sección 7 de
+`docs/plan-semana12-front.md`):
+
+- **D109** (`b6f92f5`): cada cuenta entra a su Inicio; solo la misma cuenta
+  cuya sesión se cortó vuelve a su pantalla.
+- **D115** (`e4c29d6`): el perfil para recargar sin conexión sale de
+  `localStorage` y pasa a IndexedDB, atado a su `id_usuario`.
+- **D95** (`f43e3e5`): Asistencias bloquea sin conexión si el paquete de
+  habilitaciones no está en IndexedDB.
+- **D110** (`135b166`, compartido con el backend): el detalle del colegio se
+  vuelve a pedir al abrir la pantalla y trae las secciones nuevas. Que
+  "Única" siga junto a "A" y "B" lo decide el **analista**; el front no la
+  esconde.
+- **D116** (`6a8f09c`): el error de más de 12 meses se ve junto al fin del
+  PR4, y el front lo detecta antes de enviar con el texto del backend.
+- **D117** (`e72cb48`): el aviso de registros afectados no pasa a otro
+  colegio.
+- **D114** (`2eca40e`): una sola fuente para la actividad en curso; Rúbrica
+  reconoce la actividad iniciada sin conexión.
+
+**Para decidir (no cambiado en esta tanda):**
+
+- Lectura, Rúbrica y Registro de Vuelo tienen el mismo hueco que D95: sin
+  conexión deciden con el `escritura` de su consulta en caché y no comprueban
+  el paquete de habilitaciones.
+- `sicedu.rechazos` (D69) guarda en `localStorage` nombres de alumnos
+  ("Asistencia de …") y observaciones. Con la Ley N.º 29733 conviene moverlo
+  a IndexedDB como el perfil.
+- **Backend (sugerencia):** el bloque `escritura` solo trae el porqué como
+  texto. Un código (por ejemplo `sin_actividad`) dejaría al front distinguir
+  "falta la actividad" de "falta la habilitación" sin leer textos (D114).
+
