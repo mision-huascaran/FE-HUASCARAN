@@ -15,6 +15,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { History, WifiOff } from 'lucide-react'
 import CeldaCierre from '../../components/actividades/CeldaCierre'
+import CeldaFin from '../../components/actividades/CeldaFin'
 import Badge from '../../components/ui/Badge'
 import BarraDeFiltros, { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
 import Button from '../../components/ui/Button'
@@ -30,32 +31,8 @@ import {
   listarActividades,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { enOtroDia, formatearFecha, formatearFechaHora, formatearHora } from '../../lib/format'
+import { formatearFecha, formatearHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
-
-/**
- * La hora de fin, que además DICE SI LA ACTIVIDAD SIGUE ABIERTA.
- *
- * Antes había una columna "Estado de la actividad" al lado repitiendo lo
- * mismo: una fila con hora de fin está terminada y una sin ella no, así que
- * el badge solo confirmaba lo que la hora ya decía. Se quitó la columna y
- * esta celda se queda con el dato: un guion no explica nada —se lee como
- * "falta el dato"—, y "En curso" sí.
- *
- * La fecha completa solo si la actividad terminó otro día, para que
- * "08:00 – 07:30" no parezca un error.
- */
-const horaDeFin = (s) => {
-  if (!s.fin) return null
-  return enOtroDia(s.inicio, s.fin) ? formatearFechaHora(s.fin) : formatearHora(s.fin)
-}
-
-/** La celda: la hora, o que todavía se está trabajando en ella. */
-function CeldaFin({ sesion }) {
-  const hora = horaDeFin(sesion)
-  if (hora) return hora
-  return <span className="font-medium text-info-600">En curso</span>
-}
 
 const ESTADOS = [
   { value: 'en_curso', label: 'En curso' },

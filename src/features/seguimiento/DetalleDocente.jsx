@@ -17,6 +17,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Eye, History } from 'lucide-react'
 import CeldaCierre from '../../components/actividades/CeldaCierre'
+import CeldaFin from '../../components/actividades/CeldaFin'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -30,7 +31,7 @@ import {
   TONO_SINCRONIZACION,
 } from '../../api/resources/actividades'
 import { mensajeDeError } from '../../api/client'
-import { formatearFecha, formatearFechaHora } from '../../lib/format'
+import { formatearFecha, formatearHora } from '../../lib/format'
 import { useMigaExtra } from '../../store/migaStore'
 
 /**
@@ -127,26 +128,26 @@ export default function DetalleDocente({ docente, onVolver }) {
             }
             columns={[
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
-              { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearFechaHora(s.inicio) },
               {
                 /*
-                 * LA HORA DE FIN DICE TAMBIÉN SI LA JORNADA SIGUE ABIERTA.
-                 *
-                 * Para quien audita eso importa —lo que falte todavía puede
-                 * aparecer, y un "Sin registros" no significa lo mismo en una
-                 * jornada abierta que en una cerrada—, pero no necesita una
-                 * columna propia: una fila con hora está cerrada y una sin
-                 * ella no. Un guion ahí se leía como "falta el dato"; "En
-                 * curso" lo dice. El estado completo sigue en el detalle.
+                 * SOLO LA HORA: la fecha ya está en su columna (U15, CU021).
+                 * Repetirla en cada fila ensanchaba las dos columnas de horas
+                 * por un dato que ya se lee a la izquierda.
+                 */
+                key: 'inicio',
+                header: 'Hora de inicio',
+                render: (s) => formatearHora(s.inicio),
+              },
+              {
+                /*
+                 * La hora de fin dice también si la jornada sigue abierta, y
+                 * si terminó otro día lo apila debajo en vez de ensanchar la
+                 * columna entera. Mismo componente que Sesiones: son la misma
+                 * tabla vista por dos roles.
                  */
                 key: 'fin',
                 header: 'Hora de finalización',
-                render: (s) =>
-                  s.fin ? (
-                    formatearFechaHora(s.fin)
-                  ) : (
-                    <span className="font-medium text-info-600">En curso</span>
-                  ),
+                render: (s) => <CeldaFin sesion={s} />,
               },
               { key: 'tipo_cierre', header: 'Tipo de cierre', render: (s) => <CeldaCierre tipo={s.tipo_cierre} /> },
               {
