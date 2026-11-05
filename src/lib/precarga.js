@@ -58,7 +58,7 @@ export async function precargarParaOffline(fuentes = {}, { propietario = null } 
   const mismaPersona = anterior && (anterior.propietario ?? null) === propietario
   const base = mismaPersona ? anterior : null
 
-  const datos = completa ? nuevos : { ...(base?.datos ?? {}), ...nuevos }
+  const datos = completa ? nuevos : { ...base?.datos, ...nuevos }
   // La hora del servidor, como el `inicio` de la actividad (D99): mezclar los
   // dos relojes hacía que una precarga recién guardada pareciera anterior a
   // la actividad que la pidió cuando el equipo iba unos segundos atrasado.
