@@ -15,7 +15,23 @@ const DERECHA = 12
 const ARRIBA = 16
 const ABAJO = 44
 
-export default function GraficaBarras({ datos = [], campo = 'cantidad', color = MARCA, sufijo = '' }) {
+/**
+ * EN MÓVIL LAS LETRAS SE AGRANDAN, NO SE ENCOGE EL TEXTO.
+ *
+ * El SVG tiene ancho fijo y `viewBox`, así que al entrar en una pantalla de
+ * 360 px se reduce a la mitad… y con él sus textos: un `fontSize="10"` acaba
+ * leyéndose a 5 px. Antes eso se resolvía dejándole su ancho y desplazando la
+ * gráfica de lado, que en un dashboard de cuatro tarjetas significa cuatro
+ * desplazamientos laterales.
+ *
+ * Ahora, en compacto, las letras se dibujan al doble para que tras la
+ * reducción se lean al tamaño de siempre. Va en el ATRIBUTO `fontSize` y no
+ * en una clase de CSS a propósito: la descarga a PNG serializa el SVG suelto,
+ * sin hoja de estilos, y lo que esté en clases se pierde.
+ */
+const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
+
+export default function GraficaBarras({ datos = [], campo = 'cantidad', color = MARCA, sufijo = '', compacto = false }) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
   const maximo = Math.max(1, ...valores)
   const util = ANCHO - IZQUIERDA - DERECHA
@@ -38,7 +54,7 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
       {[0, 0.25, 0.5, 0.75, 1].map((f) => (
         <g key={f}>
           <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={y(maximo * f)} y2={y(maximo * f)} stroke={LINEA} />
-          <text x={IZQUIERDA - 8} y={y(maximo * f) + 4} textAnchor="end" fill={TINTA.suave} fontSize="10">
+          <text x={IZQUIERDA - 8} y={y(maximo * f) + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(compacto, 10)}>
             {Math.round(maximo * f)}
           </text>
         </g>
@@ -66,7 +82,7 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
                   y={y(dato[campo]) - 5}
                   textAnchor="middle"
                   fill={TINTA.fuerte}
-                  fontSize="10"
+                  fontSize={letra(compacto, 10)}
                   fontWeight="600"
                 >
                   {dato[campo]}
@@ -76,16 +92,16 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
             )}
 
             {vacio && (
-              <text x={centro} y={ALTO - ABAJO - 6} textAnchor="middle" fill={TINTA.suave} fontSize="9">
+              <text x={centro} y={ALTO - ABAJO - 6} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
                 {esFuturo(dato) ? 'Futuro' : 'Sin inf.'}
               </text>
             )}
 
-            <text x={centro} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize="10">
+            <text x={centro} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(compacto, 10)}>
               {String(dato.nombre ?? '').split(' ')[0]}
             </text>
             {dato.anio && (
-              <text x={centro} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize="9">
+              <text x={centro} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
                 {dato.anio}
               </text>
             )}

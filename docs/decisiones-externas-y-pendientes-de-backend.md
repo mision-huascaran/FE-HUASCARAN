@@ -1131,21 +1131,36 @@ Son enlaces finos a endpoints vivos del backend y los cubren las pruebas de
 contrato (`parametros.test.js`, `rutasReales.test.js`); borrarlos sería perder
 esa comprobación sin ganar nada.
 
-**Bug corregido: las gráficas contaban alumnos inactivos.** Cada lectura de
-`db.ALUMNOS` en el simulador filtraba por colegio —y a veces por grado o
-subprograma— pero **nunca por `activo`**, así que los dados de baja entraban en
-los totales y en el denominador de todos los porcentajes. Se corrigió en la
-fuente, con una constante `ALUMNOS_ACTIVOS` que usan los ocho sitios que leen
-alumnos, y no en cada gráfica: filtrar en el componente deja expuesto al
-siguiente bloque que alguien escriba. Un inactivo deja de existir para el
-dashboard entero: no suma, no aparece y no se puede abrir su desglose.
-`soloAlumnosActivos.test.js` lo comprueba contra el padrón, no contra un número
-escrito a mano.
+**Bug corregido: las gráficas contaban alumnos dados de baja.** Ninguna lectura
+de `db.ALUMNOS` en el simulador miraba la baja, así que los dados de baja
+inflaban el denominador de todos los porcentajes.
 
-> **Pendiente de confirmar con el backend:** si los endpoints reales de
-> `/dashboard/*` ya excluyen a los alumnos inactivos. El front no manda ningún
-> parámetro al respecto —no existe— y la corrección de arriba es del simulador.
-> Si el servidor los incluyera, el bug seguiría vivo contra la API real.
+**El primer arreglo filtró por `activo`, y estaba mal.** Lo cazó el backend al
+responder la consulta: filtrar por `activo` saca al alumno también de los
+periodos **anteriores** a su baja, y CU014 dice lo contrario — la baja no borra
+sus asistencias, lecturas ni evaluaciones de cuando sí estuvo en el grupo.
+
+**Respuesta del backend (resuelto, no hay nada que pedirle):** el servidor no
+cuenta por estado actual sino por **pertenencia en la fecha**. Al dar de baja se
+cierra la pertenencia desde esa fecha (`pertenencia.cerrar`). Y cada indicador
+usa la suya:
+
+| Campo | Con qué fecha cuenta |
+|---|---|
+| `total_a_evaluar` (resultados-aprendizaje) y `alumnos`/`total` (distribución) | Pertenencia en el corte: `min(fin del PA, hoy)` (`corte._pertenencias_al_corte`) |
+| Denominador de `/dashboard/asistencia` | La lista histórica de cada clase (`clase_alumno`) |
+| `alumnos_incluidos` (libros) | Las filas de cada tabla; sin tabla, la pertenencia en la fecha de su clase (`_alumnos_sin_tabla`) |
+
+**No hace falta mandar ningún filtro al servidor.** Lo que había que corregir
+era el simulador, y se corrigió: se añadió `baja_desde` a `db.ALUMNOS` (no tenía
+fechas, solo un `activo` booleano) y los cálculos pasaron a usar
+`perteneceEn(alumno, fecha)` con `fechaDeCorte(periodo)`.
+`pertenenciaEnLaFecha.test.js` comprueba las dos mitades: que un dado de baja no
+cuente en el periodo en curso, y que **sí** cuente en un PA anterior a su baja.
+
+> El backend lo deja escrito en `API.md` y en su `docs/decisiones-dashboard.md`.
+> Aviso suyo para Carlos: CU033, CU035 y CU012 siguen describiendo el Dashboard
+> anterior y el Inicio del Directivo, y hay que actualizarlos a lo acordado.
 
 **El Directivo ya no tiene Inicio.** Su Inicio (CU012) eran tres indicadores
 institucionales que el Dashboard ya da, y con filtros de año, periodo y

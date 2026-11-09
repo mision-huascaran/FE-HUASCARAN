@@ -29,23 +29,31 @@ import dayjs from 'dayjs'
 import * as db from './db'
 
 /**
- * EL DASHBOARD CUENTA SOLO ALUMNOS ACTIVOS.
+ * EL DASHBOARD CUENTA POR PERTENENCIA EN LA FECHA, NO POR `activo`.
  *
- * Las gráficas estaban contando también a los dados de baja: cada lectura de
- * `db.ALUMNOS` filtraba por colegio (y a veces por grado o subprograma) pero
- * nunca por `activo`, así que un colegio con bajas salía con más alumnos
- * evaluables de los que tiene y todos los porcentajes quedaban repartidos
- * sobre un denominador inflado.
+ * El bug original era que ninguna lectura de `db.ALUMNOS` miraba la baja, así
+ * que un colegio salía con más alumnos evaluables de los que tiene y todos los
+ * porcentajes se repartían sobre un denominador inflado.
  *
- * Se corrige AQUÍ, en una sola constante que usan todos los cálculos, y no en
- * cada gráfica: filtrar en el componente deja el siguiente bloque que alguien
- * escriba expuesto al mismo error, y el dato equivocado ya habría viajado por
- * el `contexto` y los totales.
+ * El primer arreglo filtró por `activo`, y estaba mal: eso saca al alumno
+ * también de los periodos ANTERIORES a su baja. CU014 dice lo contrario —la
+ * baja no borra lo histórico— y el backend hace lo correcto: cierra la
+ * pertenencia desde la fecha de baja y cuenta a quien pertenecía al grupo en
+ * la fecha que toca a cada consulta (confirmado por el backend, ver
+ * `docs/decisiones-externas-y-pendientes-de-backend.md`).
  *
- * Un alumno inactivo deja de existir para el dashboard entero: no suma, no
- * aparece en ningún listado y tampoco se puede abrir su desglose.
+ * Entonces aquí se filtra igual: por pertenencia en una FECHA.
+ *
+ *   · un alumno sin baja pertenece siempre;
+ *   · uno dado de baja pertenece hasta el día de su baja, no después.
+ *
+ * La fecha depende del indicador: el corte del periodo —`min(fin del PA, hoy)`—
+ * en distribución y resultados, y la de cada clase en asistencia y libros.
  */
-const ALUMNOS_ACTIVOS = db.ALUMNOS.filter((a) => a.activo !== false)
+const perteneceEn = (alumno, fecha) => !alumno.baja_desde || (fecha != null && fecha < alumno.baja_desde)
+
+/** La fecha en la que se mira la pertenencia de un PA: su fin, u hoy si sigue en curso. */
+const fechaDeCorte = (periodo) => (periodo?.fin == null || HOY() <= periodo.fin ? HOY() : periodo.fin)
 
 const ANIO = db.ANIO_LECTIVO
 
@@ -184,9 +192,16 @@ const fechasDeCorte = (activos, periodo) => {
   return activos.map((c) => ({ colegio: itemColegio(c), fecha }))
 }
 
-const alumnosDe = (colegios) => {
+/**
+ * Los alumnos de unos colegios que PERTENECÍAN AL GRUPO en `fecha`.
+ *
+ * Sin `fecha` no se filtra por pertenencia: es lo que quieren los indicadores
+ * ANUALES (libros), donde cuenta quien tuvo filas en alguna tabla del año,
+ * aunque se haya dado de baja en septiembre.
+ */
+const alumnosDe = (colegios, fecha = null) => {
   const ids = new Set(colegios.map((c) => c.id_colegio))
-  return ALUMNOS_ACTIVOS.filter((a) => ids.has(a.id_colegio))
+  return db.ALUMNOS.filter((a) => ids.has(a.id_colegio) && (fecha == null || perteneceEn(a, fecha)))
 }
 
 /** Reparte los evaluados entre los niveles, estable por semilla. Todos los niveles, también los de 0. */
@@ -282,7 +297,7 @@ export function distribucionSubprograma(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
   const base = {
     contexto: contextoDe(params, colegios, periodo),
     fechas_corte: fechasDeCorte(activos, periodo),
@@ -311,7 +326,7 @@ export function resultadosAprendizaje(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
 
   const resultados = [
     { resultado: 'global', fuente: 'registro_vuelo' },
@@ -383,8 +398,9 @@ export function comparacionResultados(params) {
 
   /** Un grupo: un colegio entero, o una combinación de colegio y grado. */
   const medir = (colegio, grado) => {
-    const suyos = ALUMNOS_ACTIVOS.filter(
+    const suyos = db.ALUMNOS.filter(
       (a) =>
+        perteneceEn(a, fechaDeCorte(periodo)) &&
         a.id_colegio === colegio.id_colegio &&
         a.id_programa === idPrograma &&
         grados.some((g) => g.id_grado === a.id_grado) &&
@@ -469,10 +485,10 @@ export function asistencia(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
 
   const porColegio = activos.map((c) => {
-    const suyos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === c.id_colegio)
+    const suyos = alumnosDe([c], fechaDeCorte(periodo))
     return {
       ...conteoDe(suyos.length, db.SEMILLA + c.id_colegio, {
         clases: 8 + (c.id_colegio % 3),
@@ -541,7 +557,12 @@ export function asistenciaClases(params) {
   const grados = params.id_grado ? db.GRADOS.filter((g) => g.id_grado === Number(params.id_grado)) : db.GRADOS
 
   const grupos = grados.map((grado) => {
-    const lista = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio && a.id_grado === grado.id_grado).length
+    const lista = db.ALUMNOS.filter(
+      (a) =>
+        a.id_colegio === colegio.id_colegio &&
+        a.id_grado === grado.id_grado &&
+        perteneceEn(a, fechaDeCorte(periodo)),
+    ).length
     const fechaDe = (i) => dayjs(periodo.inicio).add(i * 9 + grado.id_grado, 'day').format('YYYY-MM-DD')
     const clases = [0, 1].map((i) => {
       // La segunda clase queda con alumnos sin marcar: "registro_incompleto".
@@ -628,7 +649,7 @@ function totalDe(meses) {
 
 /** Un colegio con sus alumnos y meses (Tinco, sin ningún registro). */
 function librosDelColegio(colegio, meses) {
-  const alumnos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio)
+  const alumnos = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio)
   const porAlumno = alumnos.map((a) =>
     colegio.id_colegio === COLEGIO_SIN_LECTURA
       ? meses.map((m) => ({ ...m, estado: tiempoDeMes(m) === 'futuro' ? 'futuro' : 'sin_informacion', total: null, en_curso: false }))
@@ -742,7 +763,7 @@ export function librosDesglose(params = {}) {
   const colegios = colegiosDe(params)
   periodoDe(params, { obligatorio: false })
   const idAlumno = Number(params.id_alumno)
-  const alumno = ALUMNOS_ACTIVOS.find((a) => a.id_alumno === idAlumno)
+  const alumno = db.ALUMNOS.find((a) => a.id_alumno === idAlumno)
   if (!alumno || !colegios.some((c) => c.id_colegio === alumno.id_colegio)) {
     throw errorMock(422, 'El alumno no perteneció a ningún colegio seleccionado.', 'validacion', {
       errores: [{ campo: 'id_alumno', mensaje: 'El alumno no perteneció a ningún colegio seleccionado.' }],
@@ -821,7 +842,7 @@ function validarAnioYMesJuntos(params) {
 /** 422 si el grado pedido no tiene ningún alumno en el colegio pedido. */
 function validarGradoDelColegio(params, idGrado) {
   if (!idGrado || !params.id_colegio) return
-  const perteneceAlColegio = ALUMNOS_ACTIVOS.some(
+  const perteneceAlColegio = db.ALUMNOS.some(
     (a) => a.id_colegio === Number(params.id_colegio) && a.id_grado === idGrado,
   )
   if (!perteneceAlColegio) {
@@ -883,7 +904,7 @@ function itemIncompletoDeGrupo({ colegio, idGradoDeGrupo, suyos, mes }) {
 
 /** Los alumnos de un colegio con los filtros `id_grado`/`id_alumno` ya aplicados. */
 function alumnosDelColegioFiltrados(colegio, idGrado, idAlumno) {
-  let alumnos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio)
+  let alumnos = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio)
   if (idGrado) alumnos = alumnos.filter((a) => a.id_grado === idGrado)
   if (idAlumno) alumnos = alumnos.filter((a) => a.id_alumno === idAlumno)
   return alumnos

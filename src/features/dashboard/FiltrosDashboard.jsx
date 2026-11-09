@@ -20,6 +20,15 @@ import { Filter } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Select from '../../components/ui/Select'
 import { CeldaFiltro } from '../../components/ui/BarraDeFiltros'
+
+/**
+ * En el teléfono cada filtro ocupa su línea.
+ *
+ * A 150 px caben dos por fila, pero "Periodo académico" no se lee entero y el
+ * desplegable queda demasiado estrecho para el pulgar. Desde `sm` vuelven a
+ * compartir fila, que es donde el ancho sobra.
+ */
+const ANCHO_EN_MOVIL = 'basis-full sm:basis-[150px]'
 import SelectorColegios from './SelectorColegios'
 import { CAMBIOS_SIN_APLICAR } from './estados'
 
@@ -44,7 +53,7 @@ export default function FiltrosDashboard({
         onAplicar()
       }}
     >
-      <CeldaFiltro>
+      <CeldaFiltro className={ANCHO_EN_MOVIL}>
         <Select
           label="Año escolar"
           placeholder="Selecciona"
@@ -56,7 +65,7 @@ export default function FiltrosDashboard({
       </CeldaFiltro>
 
       {conPeriodo && (
-        <CeldaFiltro>
+        <CeldaFiltro className={ANCHO_EN_MOVIL}>
           <Select
             label="Periodo académico"
             placeholder="Selecciona"
@@ -70,7 +79,7 @@ export default function FiltrosDashboard({
         </CeldaFiltro>
       )}
 
-      <CeldaFiltro className="min-w-[220px] basis-[220px]">
+      <CeldaFiltro className="basis-full sm:min-w-[220px] sm:basis-[220px]">
         <SelectorColegios
           colegios={colegios}
           todos={borrador.todosLosColegios}

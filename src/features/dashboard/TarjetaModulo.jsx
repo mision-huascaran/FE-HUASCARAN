@@ -65,10 +65,15 @@ export default function TarjetaModulo({
       acciones={
         <>
           {aviso && <Badge tone="warning">{aviso}</Badge>}
+          {/*
+            En el teléfono ocupa el ancho entero y crece a 44 px de alto: es la
+            acción de la tarjeta y se pulsa con el pulgar, no con un cursor.
+            Desde `sm` vuelve a ser un botón discreto al lado del título.
+          */}
           {enlace && (
             <Link
               to={enlace.a}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line-strong bg-surface-0 px-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-surface-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line-strong bg-surface-0 px-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-surface-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:h-9 sm:w-auto sm:justify-start"
             >
               {enlace.texto}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />

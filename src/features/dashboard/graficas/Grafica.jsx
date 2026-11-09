@@ -11,11 +11,12 @@
 //     disponga de datos para representarse", y "Si pierde la conexión, el
 //     sistema solicita recuperarla antes de descargar".
 //   · El literal del error de descarga, con reintento (volver a pulsar).
-import { useRef, useState } from 'react'
+import { cloneElement, isValidElement, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import { useToast } from '../../../components/ui/Toast'
 import useConexion from '../../../hooks/useConexion'
+import useMediaQuery from '../../../hooks/useMediaQuery'
 import descargarGrafica from '../../../lib/descargarGrafica'
 import { ERROR_DESCARGA } from '../estados'
 
@@ -33,6 +34,8 @@ export default function Grafica({
   children,
 }) {
   const caja = useRef(null)
+  /** Por debajo de `sm` (640 px de Tailwind) la gráfica se dibuja compacta. */
+  const compacto = useMediaQuery('(max-width: 639px)')
   const [descargando, setDescargando] = useState(false)
   const enLinea = useConexion()
   const toast = useToast()
@@ -82,18 +85,23 @@ export default function Grafica({
       </div>
 
       {/*
-        EN MÓVIL LA GRÁFICA NO SE ENCOGE: SE DESPLAZA.
-        
-        Un gráfico de 680 de ancho metido en 360 reduce sus etiquetas a la
-        mitad: los meses y los valores dejan de leerse, y una gráfica que no se
-        lee no es una gráfica. Se le deja su ancho mínimo y se desliza en
-        horizontal, que es lo que ya hacen las tablas anchas de la aplicación.
-        
-        A partir de `sm` entra entera y el `min-w` no estorba.
+        EN MÓVIL LA GRÁFICA ENTRA ENTERA, CON LAS LETRAS MÁS GRANDES.
+
+        Antes se le dejaba su ancho de 680 y se deslizaba en horizontal, porque
+        metido en 360 px sus etiquetas se reducían a la mitad y dejaban de
+        leerse. Con una sola gráfica pasaba; con un dashboard de cuatro
+        tarjetas son cuatro desplazamientos laterales, y en un teléfono eso es
+        justo lo que nadie hace: se mira, no se explora.
+
+        Ahora en móvil la gráfica entra completa y es el TEXTO el que se dibuja
+        al doble, de modo que tras la reducción se lee al tamaño de siempre.
+        El `min-w` se queda solo para las gráficas que no admiten compacto.
       */}
       <div className="sicedu-scrollbar -mx-1 overflow-x-auto px-1">
-        <div ref={caja} className="min-w-[560px] sm:min-w-0">
-          {children}
+        <div ref={caja} className={compacto ? '' : 'min-w-[560px] sm:min-w-0'}>
+          {/* El modo lo decide el marco, no cada tarjeta: así ninguna se
+              olvida y la descarga a PNG sigue saliendo del mismo nodo. */}
+          {isValidElement(children) && compacto ? cloneElement(children, { compacto: true }) : children}
         </div>
       </div>
 

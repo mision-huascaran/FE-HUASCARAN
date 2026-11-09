@@ -57,7 +57,17 @@ export function topeRedondo(maximo) {
   return paso * 4
 }
 
-export default function GraficaLineas({ datos = [], campo = 'porcentaje', sufijo = ' %', color = MARCA, maximo }) {
+/** Las letras al doble en compacto; ver el porqué en `GraficaBarras`. */
+const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
+
+export default function GraficaLineas({
+  datos = [],
+  campo = 'porcentaje',
+  sufijo = ' %',
+  color = MARCA,
+  maximo,
+  compacto = false,
+}) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
   const tope = maximo ?? topeRedondo(Math.max(1, ...valores))
   const util = ANCHO - IZQUIERDA - DERECHA
@@ -85,7 +95,7 @@ export default function GraficaLineas({ datos = [], campo = 'porcentaje', sufijo
         return (
           <g key={f}>
             <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={y} y2={y} stroke={LINEA} />
-            <text x={IZQUIERDA - 8} y={y + 4} textAnchor="end" fill={TINTA.suave} fontSize="10">
+            <text x={IZQUIERDA - 8} y={y + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(compacto, 10)}>
               {Math.round(tope * f)}
             </text>
           </g>
@@ -116,22 +126,22 @@ export default function GraficaLineas({ datos = [], campo = 'porcentaje', sufijo
                 fillOpacity={p.estado === 'en_curso' || p.parcial ? 0.4 : 1}
                 stroke={color}
               />
-              <text x={p.x} y={p.y - 10} textAnchor="middle" fill={TINTA.fuerte} fontSize="10" fontWeight="600">
+              <text x={p.x} y={p.y - 10} textAnchor="middle" fill={TINTA.fuerte} fontSize={letra(compacto, 10)} fontWeight="600">
                 {p[campo]}
                 {sufijo}
               </text>
             </>
           )}
           {p.vacio && (
-            <text x={p.x} y={ALTO - ABAJO - 8} textAnchor="middle" fill={TINTA.suave} fontSize="9">
+            <text x={p.x} y={ALTO - ABAJO - 8} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
               {esFuturo(p) ? 'Futuro' : 'Sin inf.'}
             </text>
           )}
-          <text x={p.x} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize="10">
+          <text x={p.x} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(compacto, 10)}>
             {String(p.nombre ?? '').split(' ')[0]}
           </text>
           {(p.estado === 'en_curso' || p.parcial) && (
-            <text x={p.x} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize="9">
+            <text x={p.x} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
               {p.parcial ? 'Parcial' : 'En curso'}
             </text>
           )}
