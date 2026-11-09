@@ -33,7 +33,8 @@ describe('NAV_BY_ROLE', () => {
      * rutas y busca en el documento el nombre y el código de cada alumno del
      * simulador.
      */
-    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/inicio', '/dashboard'])
+    // Una sola entrada: su Inicio desapareció y el Dashboard lo sustituye.
+    expect(navegacionDe(ROLES.DIRECTIVO).map((i) => i.to)).toEqual(['/dashboard'])
   })
 
   it('el Supervisor también tiene los cuatro módulos académicos (CP-ROL-03, D49)', () => {

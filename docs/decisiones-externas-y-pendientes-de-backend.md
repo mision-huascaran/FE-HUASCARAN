@@ -1071,6 +1071,97 @@ Las cinco defectos del reporte del tester (D92, D82, D61, D75, D52) quedan
 revisados: D92, D61, D75 y D52 tenían algo real por corregir y D82 estaba al
 día en `development`, solo desactualizado en el reporte.
 
+**S36 (nuevo). El Dashboard se rearma por MÓDULO, y el Directivo pierde su
+Inicio.**
+
+Lo pidió Antonio: el Dashboard era difícil de entender y no llevaba a ninguna
+parte. Tenía nueve bloques organizados por indicador —"Distribución por
+subprograma", "Comparación de resultados", "Evolución anual"—, cada uno con su
+párrafo de fórmula, hasta ocho tarjetas de cifras y su tabla completa. Se podía
+leer entero y seguir sin saber qué hacer: ningún bloque llevaba al módulo donde
+se corrige lo que mostraba.
+
+**Ahora son cuatro tarjetas, una por módulo** (Asistencias, Seguimiento de
+Lectura, Rúbrica, Registro de Vuelo), cada una con: el título del módulo tal
+como aparece en el menú, UNA cifra, UNA gráfica y UN enlace al módulo con los
+filtros puestos. Lo que antes era párrafo vive en el `title` de la cifra.
+
+Decisiones que conviene no deshacer sin leer esto:
+
+- **El título y la ruta salen de `MATRIZ` (la matriz de permisos), no de
+  constantes del dashboard.** Así la tarjeta se llama igual que la entrada del
+  menú que el usuario acaba de pulsar, y un cambio de nombre o de ruta se hace
+  en un sitio. Lo hace `enlacesDeModulo.js`.
+- **El enlace lo decide `puedeEntrar`, no un `if` por rol.** Los cuatro módulos
+  son `[DIRECTIVO]: null`, así que sus tarjetas informan pero no ofrecen
+  entrar: mandarlo a una ruta que su propia guarda le va a negar sería
+  ofrecerle una puerta tapiada. El Supervisor sí entra, y el colegio viaja en
+  la URL **solo si es uno**: con "Todos" o con varios, cualquier colegio que
+  pusiéramos sería uno que la persona no eligió.
+- **El enlace va en la CABECERA de la tarjeta**, fuera del área que depende de
+  la consulta. Si los datos fallan o están cargando, entrar al módulo sigue
+  siendo lo más útil que se puede hacer; dentro del cuerpo quedaba escondido
+  tras el "Reintentar".
+- **El reparto de `resultados-aprendizaje` se hace por `resultado`, no por
+  `fuente`.** El endpoint devuelve `global` (Registro de Vuelo), `fluidez` y
+  `comprension` (Rúbrica). `resultado` es parte del contrato y tiene literales
+  fijos; `fuente` lo manda el simulador y puede no venir del servidor real. Un
+  `resultado` nuevo no se reparte solo a ninguna tarjeta.
+- **`BloqueDashboard` se queda.** Resuelve por bloque la carga, el error con
+  "Reintentar", el 422 `calendario_no_configurado`, "Información no
+  actualizada" y "Cambios sin aplicar", y que un bloque roto no se lleve a los
+  otros tres. Reescribirlo no habría mejorado nada.
+- **Los colegios excluidos siguen nombrándose** ("Sin información y fuera del
+  total: … Todavía no empezaron el periodo seleccionado"). Al pasar a cuatro
+  tarjetas se perdió por el camino y la prueba lo cazó: un colegio cuyo periodo
+  no empezó no suma, pero callarlo lo convertiría en un colegio con 0 alumnos.
+
+**Se borraron** `BloqueDistribucion`, `BloqueResultados`, `BloqueComparacion`,
+`BloqueComparacionColegios`, `BloqueAsistencia`, `BloqueEvolucion`,
+`ResumenAnual` y `DetalleClases`. Lo que daban esos dos últimos —el detalle
+nominal por clase— ya no se duplica dentro del dashboard: se llega al módulo de
+Asistencias, que es donde se actúa. El consolidado de libros (CU034) **se
+queda** y cuelga de la tarjeta de Lectura como "Consolidado por meses".
+
+**Quedan en el código, a propósito:** las funciones de recurso de los endpoints
+que ya no pinta nadie (`obtenerDistribucionSubprograma`,
+`obtenerComparacionResultados`, `obtenerComparacionColegios`,
+`obtenerEvolucionAnual`, `obtenerClasesDeAsistencia`, `obtenerInicioDirectivo`).
+Son enlaces finos a endpoints vivos del backend y los cubren las pruebas de
+contrato (`parametros.test.js`, `rutasReales.test.js`); borrarlos sería perder
+esa comprobación sin ganar nada.
+
+**Bug corregido: las gráficas contaban alumnos inactivos.** Cada lectura de
+`db.ALUMNOS` en el simulador filtraba por colegio —y a veces por grado o
+subprograma— pero **nunca por `activo`**, así que los dados de baja entraban en
+los totales y en el denominador de todos los porcentajes. Se corrigió en la
+fuente, con una constante `ALUMNOS_ACTIVOS` que usan los ocho sitios que leen
+alumnos, y no en cada gráfica: filtrar en el componente deja expuesto al
+siguiente bloque que alguien escriba. Un inactivo deja de existir para el
+dashboard entero: no suma, no aparece y no se puede abrir su desglose.
+`soloAlumnosActivos.test.js` lo comprueba contra el padrón, no contra un número
+escrito a mano.
+
+> **Pendiente de confirmar con el backend:** si los endpoints reales de
+> `/dashboard/*` ya excluyen a los alumnos inactivos. El front no manda ningún
+> parámetro al respecto —no existe— y la corrección de arriba es del simulador.
+> Si el servidor los incluyera, el bug seguiría vivo contra la API real.
+
+**El Directivo ya no tiene Inicio.** Su Inicio (CU012) eran tres indicadores
+institucionales que el Dashboard ya da, y con filtros de año, periodo y
+colegios que el Inicio no tenía; mantener los dos obligaba a sostener el mismo
+número en dos pantallas y a explicar por qué no siempre coincidían. La sección
+pasa a `[DIRECTIVO]: null` en la matriz, su ruta de aterrizaje es `/dashboard`,
+la guarda de `/inicio` ya no le deja entrar a mano y se borró
+`InicioDirectivo.jsx`. Al Docente y al Supervisor no les cambia nada: su Inicio
+no es un resumen, es su puesto de trabajo.
+
+Con él se fueron tres pruebas (`inicioHallazgos.test.jsx`: D01, D52 y el
+redondeo de Salud del Sistema). Ninguna de las dos reglas que sujetaban queda
+sin cubrir: la copia local marcada como desactualizada la siguen probando el
+Inicio del Docente y el del Supervisor, que usan el mismo `useResumenLocal`, y
+"Sin datos disponibles" ante un `null` es de `StatCard`.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse

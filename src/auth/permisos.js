@@ -37,13 +37,25 @@ const TODO = [NUEVO, EDITAR, VER, INACTIVAR, AUDITORIA]
  *   'propio'   — solo sus propios registros
  */
 export const MATRIZ = {
+  /**
+   * EL DIRECTIVO YA NO TIENE INICIO: su única pantalla es el Dashboard.
+   *
+   * Su Inicio (CU012) eran tres indicadores institucionales —beneficiarios,
+   * colegios operando y salud del sistema— que el Dashboard ya da, con
+   * filtros de año, periodo y colegios que el Inicio no tenía. Mantener los
+   * dos obligaba a sostener el mismo número en dos sitios y a explicar por
+   * qué no siempre coincidían.
+   *
+   * Al Docente y al Supervisor no les cambia nada: su Inicio no es un
+   * resumen, es su puesto de trabajo (actividad, asignaciones, alertas).
+   */
   inicio: {
     ruta: '/inicio',
     etiqueta: 'Inicio',
     conectividad: CONECTIVIDAD.LECTURA_CACHE,
     [DOCENTE]: { acciones: [VER], alcance: 'asignado' },
     [SUPERVISOR]: { acciones: [VER], alcance: 'todos' },
-    [DIRECTIVO]: { acciones: [VER], alcance: 'todos' },
+    [DIRECTIVO]: null,
   },
   /**
    * DASHBOARD (CU033, CU034 y CU035) — Supervisor y Directivo, solo lectura.

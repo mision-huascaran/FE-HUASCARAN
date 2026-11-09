@@ -1,15 +1,22 @@
 // Regresiones de la ejecución del 09/10/2026 en el Módulo de Inicio:
 //
-//   D01 — Directivo: Salud del Sistema en `null` → "Sin datos disponibles".
 //   D12 — Docente: "Mis asignaciones" muestra el ciclo EBR.
 //   D15 — Supervisor: "Con actividad en curso" lee `docentes_con_actividad_activa`.
 //   D16 — Supervisor: la alerta no repite "Atención: Atención:".
+//
+// SE FUERON TRES PRUEBAS CON EL INICIO DEL DIRECTIVO (D01, D52 y el redondeo
+// de Salud del Sistema de CU012): esa pantalla ya no existe, su rol entra
+// directo al Dashboard. No quedan sin cubrir las dos reglas que sujetaban:
+//   · la copia local marcada como desactualizada cuando el servidor no
+//     contesta (D52) la siguen probando `inicioDocente.test.jsx` para el
+//     Docente y el Inicio del Supervisor, que usan el mismo `useResumenLocal`;
+//   · "Sin datos disponibles" ante un `null` es de `StatCard`, y lo cubren las
+//     pruebas del Inicio del Supervisor.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
-import InicioDirectivo from '../InicioDirectivo'
 import InicioSupervisor from '../InicioSupervisor'
 import ResumenesAccion from '../ResumenesAccion'
 import useSessionStore from '../../../store/sessionStore'
@@ -17,12 +24,11 @@ import { ROLES } from '../../../auth/roles'
 
 const docente = vi.fn()
 const supervisor = vi.fn()
-const directivo = vi.fn()
 vi.mock('../../../api/resources/inicio', () => ({
   obtenerInicioDocente: () => docente(),
   obtenerInicioSupervisor: () => supervisor(),
   obtenerResumenSupervisor: () => supervisor(),
-  obtenerInicioDirectivo: () => directivo(),
+  obtenerInicioDirectivo: vi.fn(),
   obtenerResumenDocente: vi.fn(),
 }))
 
@@ -44,43 +50,6 @@ function montar(componente, idRol) {
 beforeEach(() => localStorage.clear())
 
 describe('Inicio — hallazgos del 09/10/2026', () => {
-  /**
-   * D52 — CP-INI-12. Con internet pero el servidor caído, CU011 y CU012 piden
-   * la copia guardada marcada como potencialmente desactualizada; solo se
-   * marcaba sin conexión.
-   */
-  it('D52: con el servidor caído muestra la copia y avisa de que puede estar desactualizada', async () => {
-    localStorage.setItem(
-      'sicedu.resumen.directivo.1',
-      JSON.stringify({ datos: { beneficiarios: 120, colegios: 9, salud: 95 }, fecha: '2026-10-28T12:00:00Z' }),
-    )
-    directivo.mockRejectedValue(Object.assign(new Error('Service Unavailable'), { response: { status: 503 } }))
-    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
-
-    const aviso = await screen.findByRole('status', {}, { timeout: 15000 })
-    expect(aviso).toHaveTextContent(/No se pudo recuperar la información del servidor/)
-    expect(aviso).toHaveTextContent(/puede estar desactualizado/)
-    expect(screen.getByText('120')).toBeInTheDocument()
-  }, 20000)
-
-  it('D01: Salud del Sistema sin datos dice "Sin datos disponibles"', async () => {
-    directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: null })
-    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
-
-    expect(await screen.findByText('Sin datos disponibles', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.queryByText('No disponible')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Sin información de sincronización/)).not.toBeInTheDocument()
-  })
-
-  it('CU012: el porcentaje de Salud del Sistema va redondeado al entero', async () => {
-    // El caso de uso lo ejemplifica tal cual: "98 %, no 97.6 %".
-    directivo.mockResolvedValue({ beneficiarios_activos: 3, colegios_operando: 2, salud_sistema: 97.6 })
-    montar(<InicioDirectivo />, ROLES.DIRECTIVO)
-
-    expect(await screen.findByText('98%', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.queryByText('97.6%')).not.toBeInTheDocument()
-  })
-
   it('D15: cuenta los docentes con actividad y pinta la alerta tal como llega', async () => {
     // El contrato manda `{tipo, mensaje, critica}` con el mensaje YA redactado
     // ("Inactividad Operativa - …"). La pantalla no le añade un encabezado

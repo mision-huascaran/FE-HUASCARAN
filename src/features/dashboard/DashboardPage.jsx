@@ -1,34 +1,42 @@
-// Dashboard (CU033 para el Supervisor, CU035 para el Directivo).
+// Dashboard del Supervisor y del Directivo.
 //
-// UNA RUTA, DOS PANTALLAS. Comparten los filtros y cuatro bloques, pero no son
-// la misma: al Supervisor le corresponden la distribución por subprograma, la
-// comparación de resultados y el detalle nominal de clases y de libros; al
-// Directivo, un resumen anual y la comparación entre colegios, y NINGÚN listado
-// de alumnos. No es una decisión de diseño: esos cinco endpoints le responden
-// 403, y RN-033 y RN-034 le prohíben ver datos de estudiantes.
+// CUATRO TARJETAS, UNA POR MÓDULO, en el orden en que se trabaja: Asistencias,
+// Seguimiento de Lectura, Rúbrica y Registro de Vuelo. Cada una lleva su
+// nombre del menú, una cifra, una gráfica y la salida a su módulo.
 //
-// ES SOLO EN LÍNEA por restricción expresa de los tres casos de uso, y de solo
-// lectura: no requiere actividad de trabajo y no modifica ningún registro.
+// POR QUÉ SE REARMÓ. Antes eran nueve bloques organizados por indicador
+// —"Distribución por subprograma", "Comparación de resultados", "Evolución
+// anual"—, cada uno con su párrafo de fórmula, sus ocho tarjetas de cifras y
+// su tabla completa. Se podía leer entero y seguir sin saber qué hacer con lo
+// leído: ningún bloque llevaba al módulo donde se corrige lo que mostraba.
+// Ahora la pregunta que responde la pantalla es "¿qué módulo necesita que
+// entre?", y la respuesta se pulsa.
+//
+// LA DIFERENCIA ENTRE LOS DOS ROLES NO ES QUÉ TARJETAS VEN, son las mismas
+// cuatro con los mismos títulos: es a dónde pueden entrar desde ellas. Los
+// cuatro módulos son `[DIRECTIVO]: null` en la matriz de permisos, así que sus
+// tarjetas informan y no ofrecen enlace — mandarlo a una ruta que su propia
+// guarda le va a negar sería ofrecerle una puerta tapiada. Lo decide
+// `enlaceDeModulo` leyendo la matriz, no un `if` por rol aquí.
+//
+// ES SOLO EN LÍNEA y de solo lectura: no requiere actividad de trabajo y no
+// modifica ningún registro.
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { BookOpen, ShieldOff } from 'lucide-react'
+import { Info, ShieldOff } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
+import Tooltip from '../../components/ui/Tooltip'
 import RequiereConexion from '../../components/layout/RequiereConexion'
 import { useAuth } from '../../auth/AuthProvider'
 import { ROLES } from '../../auth/roles'
 import useConexion from '../../hooks/useConexion'
-import { useGradosReales, useProgramasReales } from '../../hooks/useCatalogos'
 import FiltrosDashboard from './FiltrosDashboard'
 import useFiltrosDashboard from './useFiltrosDashboard'
-import BloqueDistribucion from './BloqueDistribucion'
-import BloqueResultados from './BloqueResultados'
-import BloqueComparacion from './BloqueComparacion'
-import BloqueAsistencia from './BloqueAsistencia'
-import BloqueEvolucion from './BloqueEvolucion'
-import BloqueComparacionColegios from './BloqueComparacionColegios'
-import ResumenAnual from './ResumenAnual'
+import TarjetaAsistencia from './TarjetaAsistencia'
+import TarjetaLectura from './TarjetaLectura'
+import TarjetaRubrica from './TarjetaRubrica'
+import TarjetaVuelo from './TarjetaVuelo'
 import {
   FALTAN_FILTROS,
   FALTAN_FILTROS_DIRECTIVO,
@@ -37,24 +45,16 @@ import {
   alcanceEnTexto,
 } from './estados'
 
-/** Los filtros aplicados, en la URL, para que CU034 los herede (CU033 paso 10). */
-function enlaceDeLibros(filtros) {
-  const parametros = new URLSearchParams({ anio: String(filtros.idAnioEscolar) })
-  if (filtros.todosLosColegios) parametros.set('todos', '1')
-  else parametros.set('colegios', filtros.idColegios.join(','))
-  return `/dashboard/libros?${parametros.toString()}`
-}
+/** Lo que antes era un párrafo bajo el título: queda a un clic, no en medio. */
+const QUE_SE_ESTA_VIENDO =
+  'Consulta de solo lectura con información confirmada por el servidor y solo de alumnos activos. Los registros pendientes de sincronizar no se incluyen hasta que el servidor los acepta.'
 
 export default function DashboardPage() {
   const { usuario } = useAuth()
   const enLinea = useConexion()
-  const esDirectivo = Number(usuario?.id_rol) === ROLES.DIRECTIVO
-  const esSupervisor = Number(usuario?.id_rol) === ROLES.JEFA
-  // El bloque de comparación necesita los catálogos de grados y subprogramas
-  // para sus filtros propios. El Directivo no tiene ese bloque, así que no se
-  // los pide: `GET /grados` y `GET /programas` son de administración.
-  const { data: grados = [] } = useGradosReales({ enabled: !esDirectivo })
-  const { data: programas = [] } = useProgramasReales({ enabled: !esDirectivo })
+  const idRol = Number(usuario?.id_rol)
+  const esDirectivo = idRol === ROLES.DIRECTIVO
+  const esSupervisor = idRol === ROLES.JEFA
 
   const {
     catalogo,
@@ -73,7 +73,7 @@ export default function DashboardPage() {
   } = useFiltrosDashboard({ clave: 'dashboard' })
 
   /**
-   * El contexto que acompaña a CADA bloque: año, periodo y colegios de la
+   * El contexto que acompaña a CADA tarjeta: año, periodo y colegios de la
    * consulta MOSTRADA, no del borrador. Es lo que impide que unos resultados
    * se lean bajo el título de una selección que todavía no se consultó.
    */
@@ -86,6 +86,7 @@ export default function DashboardPage() {
     ].filter(Boolean)
   }, [aplicados, anioAplicado, periodoAplicado, colegios])
 
+  /** Lectura es del AÑO entero: su endpoint prohíbe el periodo académico. */
   const contextoAnual = useMemo(
     () =>
       aplicados
@@ -99,21 +100,30 @@ export default function DashboardPage() {
 
   const titulo = esDirectivo ? 'Dashboard del Directivo' : 'Dashboard'
 
+  const cabecera = (
+    <header className="flex flex-wrap items-center gap-2">
+      <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+      <Tooltip content={QUE_SE_ESTA_VIENDO}>
+        <button
+          type="button"
+          aria-label="Qué información se está viendo"
+          className="inline-flex rounded-full text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <Info className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    </header>
+  )
+
   /**
-   * EL ROL CAMBIÓ CON LA PANTALLA ABIERTA (CU033 y CU035).
-   *
-   * La ruta ya impide ENTRAR sin el rol; esto cubre lo otro: estar dentro y
-   * dejar de tenerlo —el Supervisor al que le cambian la cuenta mientras
-   * mira—. Va ANTES que el aviso de conexión a propósito: sin autorización no
-   * importa si hay red, y lo primero es retirar de la vista unos indicadores
-   * que ya no le corresponden.
+   * EL ROL CAMBIÓ CON LA PANTALLA ABIERTA. La ruta ya impide ENTRAR sin el
+   * rol; esto cubre lo otro: estar dentro y dejar de tenerlo. Va ANTES que el
+   * aviso de conexión a propósito: sin autorización no importa si hay red.
    */
   if (!esDirectivo && !esSupervisor) {
     return (
       <div className="flex flex-col gap-5">
-        <header>
-          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        </header>
+        {cabecera}
         <Card>
           <EmptyState icon={ShieldOff} title={ROL_SIN_DASHBOARD} />
         </Card>
@@ -124,9 +134,7 @@ export default function DashboardPage() {
   if (!enLinea) {
     return (
       <div className="flex flex-col gap-5">
-        <header>
-          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        </header>
+        {cabecera}
         <Card>
           <RequiereConexion seccion="El dashboard" />
         </Card>
@@ -134,15 +142,11 @@ export default function DashboardPage() {
     )
   }
 
+  const comun = { filtros: aplicados, hayCambios, idRol, anioEscolar: anioAplicado?.nombre }
+
   return (
     <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Consulta de solo lectura con información confirmada por el servidor. Los registros pendientes de
-          sincronizar no se incluyen hasta que el servidor los acepta.
-        </p>
-      </header>
+      {cabecera}
 
       <Card padded={false}>
         {catalogo.isLoading ? (
@@ -180,79 +184,12 @@ export default function DashboardPage() {
       )}
 
       {aplicados && (
-        <>
-          {esDirectivo && (
-            <ResumenAnual filtros={aplicados} contexto={contextoAnual} anio={anioAplicado?.nombre} />
-          )}
-
-          {!esDirectivo && (
-            <BloqueDistribucion
-              filtros={aplicados}
-              contexto={contexto}
-              hayCambios={hayCambios}
-              anioEscolar={anioAplicado?.nombre}
-            />
-          )}
-
-          <BloqueResultados filtros={aplicados} contexto={contexto} hayCambios={hayCambios} />
-
-          {!esDirectivo && (
-            <BloqueComparacion
-              filtros={aplicados}
-              contexto={contexto}
-              hayCambios={hayCambios}
-              programas={programas}
-              grados={grados}
-            />
-          )}
-
-          <BloqueAsistencia
-            filtros={aplicados}
-            contexto={contexto}
-            hayCambios={hayCambios}
-            anioEscolar={anioAplicado?.nombre}
-            periodo={periodoAplicado}
-            alcance={alcanceEnTexto({ ...aplicados, colegios })}
-            conDetalle={!esDirectivo}
-          />
-
-          <BloqueEvolucion
-            filtros={aplicados}
-            contexto={contextoAnual}
-            hayCambios={hayCambios}
-            anioEscolar={anioAplicado?.nombre}
-            conLibros={esDirectivo}
-          />
-
-          {esDirectivo && (
-            <BloqueComparacionColegios
-              filtros={aplicados}
-              contexto={contexto}
-              hayCambios={hayCambios}
-              periodo={periodoAplicado}
-            />
-          )}
-
-          {/* El acceso a CU034 lleva los filtros de la consulta MOSTRADA, no
-              los cambios pendientes, y sin el periodo académico: el
-              consolidado se organiza por meses del año escolar. */}
-          {!esDirectivo && (
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-ink-700">
-                  El consolidado de libros leídos usa el año escolar y los colegios de esta consulta, por meses.
-                </p>
-                <Link
-                  to={enlaceDeLibros(aplicados)}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-                >
-                  <BookOpen className="h-4 w-4" aria-hidden />
-                  Ver consolidado de libros leídos
-                </Link>
-              </div>
-            </Card>
-          )}
-        </>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TarjetaAsistencia {...comun} contexto={contexto} />
+          <TarjetaLectura {...comun} contexto={contextoAnual} conConsolidado={!esDirectivo} />
+          <TarjetaRubrica {...comun} contexto={contexto} />
+          <TarjetaVuelo {...comun} contexto={contexto} />
+        </div>
       )}
     </div>
   )

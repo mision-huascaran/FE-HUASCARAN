@@ -48,8 +48,11 @@ En desarrollo, la pantalla de inicio de sesión lista las cuentas del modo activ
 | Rol | Entra a | Puede |
 |---|---|---|
 | Docente | `/inicio` | Capturar el reporte semanal, la rúbrica y las evaluaciones de sus colegios; consultar los demás en solo lectura |
-| Supervisor | `/dashboard` | Ver los nueve colegios, consolidados, alertas y administración |
-| Directivo | `/panel-ejecutivo` | Solo lectura: indicadores, colegios, estudiantes y descargas |
+| Supervisor | `/inicio` | Ver los nueve colegios, consolidados, alertas y administración |
+| Directivo | `/dashboard` | Solo lectura y agregada: indicadores por módulo, sin ningún listado de alumnos |
+
+El Directivo **no tiene Inicio**: su única pantalla es el Dashboard (ver
+[`src/features/dashboard/README.md`](src/features/dashboard/README.md)).
 
 Un rol que entra por URL a una pantalla ajena termina en `/403`.
 

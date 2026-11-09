@@ -28,6 +28,25 @@
 import dayjs from 'dayjs'
 import * as db from './db'
 
+/**
+ * EL DASHBOARD CUENTA SOLO ALUMNOS ACTIVOS.
+ *
+ * Las gráficas estaban contando también a los dados de baja: cada lectura de
+ * `db.ALUMNOS` filtraba por colegio (y a veces por grado o subprograma) pero
+ * nunca por `activo`, así que un colegio con bajas salía con más alumnos
+ * evaluables de los que tiene y todos los porcentajes quedaban repartidos
+ * sobre un denominador inflado.
+ *
+ * Se corrige AQUÍ, en una sola constante que usan todos los cálculos, y no en
+ * cada gráfica: filtrar en el componente deja el siguiente bloque que alguien
+ * escriba expuesto al mismo error, y el dato equivocado ya habría viajado por
+ * el `contexto` y los totales.
+ *
+ * Un alumno inactivo deja de existir para el dashboard entero: no suma, no
+ * aparece en ningún listado y tampoco se puede abrir su desglose.
+ */
+const ALUMNOS_ACTIVOS = db.ALUMNOS.filter((a) => a.activo !== false)
+
 const ANIO = db.ANIO_LECTIVO
 
 /** Los PA del calendario del simulador (los mismos ids que `handlers.js`). */
@@ -167,7 +186,7 @@ const fechasDeCorte = (activos, periodo) => {
 
 const alumnosDe = (colegios) => {
   const ids = new Set(colegios.map((c) => c.id_colegio))
-  return db.ALUMNOS.filter((a) => ids.has(a.id_colegio))
+  return ALUMNOS_ACTIVOS.filter((a) => ids.has(a.id_colegio))
 }
 
 /** Reparte los evaluados entre los niveles, estable por semilla. Todos los niveles, también los de 0. */
@@ -364,7 +383,7 @@ export function comparacionResultados(params) {
 
   /** Un grupo: un colegio entero, o una combinación de colegio y grado. */
   const medir = (colegio, grado) => {
-    const suyos = db.ALUMNOS.filter(
+    const suyos = ALUMNOS_ACTIVOS.filter(
       (a) =>
         a.id_colegio === colegio.id_colegio &&
         a.id_programa === idPrograma &&
@@ -453,7 +472,7 @@ export function asistencia(params) {
   const alumnos = alumnosDe(activos)
 
   const porColegio = activos.map((c) => {
-    const suyos = db.ALUMNOS.filter((a) => a.id_colegio === c.id_colegio)
+    const suyos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === c.id_colegio)
     return {
       ...conteoDe(suyos.length, db.SEMILLA + c.id_colegio, {
         clases: 8 + (c.id_colegio % 3),
@@ -522,7 +541,7 @@ export function asistenciaClases(params) {
   const grados = params.id_grado ? db.GRADOS.filter((g) => g.id_grado === Number(params.id_grado)) : db.GRADOS
 
   const grupos = grados.map((grado) => {
-    const lista = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio && a.id_grado === grado.id_grado).length
+    const lista = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio && a.id_grado === grado.id_grado).length
     const fechaDe = (i) => dayjs(periodo.inicio).add(i * 9 + grado.id_grado, 'day').format('YYYY-MM-DD')
     const clases = [0, 1].map((i) => {
       // La segunda clase queda con alumnos sin marcar: "registro_incompleto".
@@ -609,7 +628,7 @@ function totalDe(meses) {
 
 /** Un colegio con sus alumnos y meses (Tinco, sin ningún registro). */
 function librosDelColegio(colegio, meses) {
-  const alumnos = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio)
+  const alumnos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio)
   const porAlumno = alumnos.map((a) =>
     colegio.id_colegio === COLEGIO_SIN_LECTURA
       ? meses.map((m) => ({ ...m, estado: tiempoDeMes(m) === 'futuro' ? 'futuro' : 'sin_informacion', total: null, en_curso: false }))
@@ -723,7 +742,7 @@ export function librosDesglose(params = {}) {
   const colegios = colegiosDe(params)
   periodoDe(params, { obligatorio: false })
   const idAlumno = Number(params.id_alumno)
-  const alumno = db.ALUMNOS.find((a) => a.id_alumno === idAlumno)
+  const alumno = ALUMNOS_ACTIVOS.find((a) => a.id_alumno === idAlumno)
   if (!alumno || !colegios.some((c) => c.id_colegio === alumno.id_colegio)) {
     throw errorMock(422, 'El alumno no perteneció a ningún colegio seleccionado.', 'validacion', {
       errores: [{ campo: 'id_alumno', mensaje: 'El alumno no perteneció a ningún colegio seleccionado.' }],
@@ -802,7 +821,7 @@ function validarAnioYMesJuntos(params) {
 /** 422 si el grado pedido no tiene ningún alumno en el colegio pedido. */
 function validarGradoDelColegio(params, idGrado) {
   if (!idGrado || !params.id_colegio) return
-  const perteneceAlColegio = db.ALUMNOS.some(
+  const perteneceAlColegio = ALUMNOS_ACTIVOS.some(
     (a) => a.id_colegio === Number(params.id_colegio) && a.id_grado === idGrado,
   )
   if (!perteneceAlColegio) {
@@ -864,7 +883,7 @@ function itemIncompletoDeGrupo({ colegio, idGradoDeGrupo, suyos, mes }) {
 
 /** Los alumnos de un colegio con los filtros `id_grado`/`id_alumno` ya aplicados. */
 function alumnosDelColegioFiltrados(colegio, idGrado, idAlumno) {
-  let alumnos = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio)
+  let alumnos = ALUMNOS_ACTIVOS.filter((a) => a.id_colegio === colegio.id_colegio)
   if (idGrado) alumnos = alumnos.filter((a) => a.id_grado === idGrado)
   if (idAlumno) alumnos = alumnos.filter((a) => a.id_alumno === idAlumno)
   return alumnos
