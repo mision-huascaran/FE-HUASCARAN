@@ -113,24 +113,24 @@ export default function InicioDocente() {
       <>
         {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard icon={GraduationCap} tono="celeste" label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
+        <StatCard sobria icon={GraduationCap} label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
         <StatCard
+          sobria
           icon={ClipboardList}
-          tono="verde"
           label="Reporte de esta semana"
           value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
           hint="Estudiantes con registro semanal"
         />
         <StatCard
+          sobria
           icon={ClipboardCheck}
-          tono="indigo"
           label="Pendientes de rúbrica"
           value={resumen?.pendientes_rubrica ?? 0}
           hint="Sin Fluidez y Comprensión de la semana"
         />
         <StatCard
+          sobria
           icon={CalendarCheck}
-          tono="naranja"
           label="Ajustes por revisar"
           value={resumen?.ajustes_por_revisar ?? 0}
           hint="Sugerencias sin confirmar del periodo"

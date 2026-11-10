@@ -101,19 +101,27 @@ export default function InicioSupervisor() {
       {/* Cinco tarjetas: 3 + 2 en pantallas medianas y todas en una fila en las
           anchas. Con cuatro columnas la quinta quedaba sola abajo (U12). */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard icon={School} tono="azul" label="Colegios registrados" value={resumen.colegios} />
-        <StatCard icon={Users} tono="violeta" label="Docentes activos" value={resumen.docentesActivos} />
-        <StatCard icon={Play} tono="verde" label="Con actividad en curso" value={resumen.docentesConActividad} />
+        <StatCard sobria icon={School} label="Colegios registrados" value={resumen.colegios} />
+        <StatCard sobria icon={Users} label="Docentes activos" value={resumen.docentesActivos} />
+        <StatCard sobria icon={Play} label="Con actividad en curso" value={resumen.docentesConActividad} />
         {/* CU011 los llama VENCIDOS, no "pendientes": un registro vencido es
             uno obligatorio cuya fecha límite pasó sin registrarse, y es muy
             distinto de uno "pendiente de sincronizar" (generado sin conexión,
-            que todavía no se ha perdido). */}
-        <StatCard icon={CalendarClock} tono="naranja" label="Registros vencidos" value={resumen.registrosVencidos ?? SIN_DATOS} />
+            que todavía no se ha perdido).
+            Solo el número de estos dos cambia de color, y solo si hay algo. */}
         <StatCard
+          sobria
+          icon={CalendarClock}
+          label="Registros vencidos"
+          value={resumen.registrosVencidos ?? SIN_DATOS}
+          tonoValor={resumen.registrosVencidos > 0 ? 'peligro' : undefined}
+        />
+        <StatCard
+          sobria
           icon={AlertTriangle}
-          tono="ambar"
           label="Registros incompletos"
           value={resumen.registrosIncompletos ?? SIN_DATOS}
+          tonoValor={resumen.registrosIncompletos > 0 ? 'aviso' : undefined}
           className="col-span-2 lg:col-span-1"
         />
       </div>
