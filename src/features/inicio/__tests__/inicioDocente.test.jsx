@@ -164,11 +164,11 @@ describe('Tarjetas del panel', () => {
     expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
   })
 
-  it('sin datos del servidor no pinta las tarjetas (D13)', async () => {
+  it('con conexión pero sin datos del servidor, las tarjetas igual se pintan, en cero', async () => {
     estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
     montar()
-    await screen.findByRole('heading', { level: 1 })
-    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
+    expect(await screen.findByText('Mis alumnos')).toBeInTheDocument()
+    expect(screen.getByText('0 / 0')).toBeInTheDocument()
   })
 
   /**

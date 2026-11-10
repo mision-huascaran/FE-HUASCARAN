@@ -1,5 +1,5 @@
 // Cubre: RF-004, RF-002, RN-001, RN-003, RN-006, RNF-006
-import { BookOpen, CalendarCheck, ClipboardList, Sparkles, Users } from 'lucide-react'
+import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
@@ -11,7 +11,6 @@ import { caducaEn } from '../../auth/jwt'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
-import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import useConexion from '../../hooks/useConexion'
@@ -156,34 +155,14 @@ export default function InicioDocente() {
         </Card>
       )}
 
-      {/* Sin datos del servidor no se pintan: mostrar las cifras del
-          simulador junto a las asignaciones reales confundía (D13). */}
       {isLoading ? (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} variant="card" />
           ))}
         </div>
-      ) : !resumen ? (
-        enLinea ? (
-          /**
-           * Con conexión, `obtenerResumenDocente` contra la API real SIEMPRE
-           * devuelve `null` (ver `api/resources/docentes.js`): CU010 dejó los
-           * indicadores de avance académico "para futuras entregas", así que
-           * esto no es un fallo del servidor y decir "No hay conexión con el
-           * servidor" sería falso — hay conexión, el dato simplemente todavía
-           * no existe. `AvisoDatosLocales` (con su "No se pudieron cargar")
-           * es para cuando sí hay un endpoint que puede fallar, como en
-           * Supervisor y Directivo; aquí no aplica.
-           */
-          <EmptyState
-            icon={Sparkles}
-            title="Tus indicadores de avance llegan pronto"
-            description="Esta parte del Inicio todavía no está disponible. El resto de la pantalla —tus asignaciones, accesos y actividad— funciona con normalidad."
-          />
-        ) : (
-          <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
-        )
+      ) : !resumen && !enLinea ? (
+        <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
       ) : (
         <>
           {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
