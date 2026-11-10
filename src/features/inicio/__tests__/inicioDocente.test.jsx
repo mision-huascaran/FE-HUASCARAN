@@ -10,7 +10,7 @@ import { SIN_HABILITACIONES } from '../useActividad'
 import { cuentaDe, jwtDePrueba } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 
-const estado = vi.hoisted(() => ({ resumen: {}, actividad: {} }))
+const estado = vi.hoisted(() => ({ resumen: {}, actividad: {}, inicioDocente: null }))
 vi.mock('../useResumenDocente', () => ({ default: () => estado.resumen }))
 // Mock PARCIAL: el hook se sustituye, pero el literal de respaldo de CU010 es
 // una constante del módulo y la pantalla lo importa de ahí.
@@ -20,6 +20,17 @@ vi.mock('../useActividad', async (importOriginal) => ({
 }))
 // Los Resúmenes de Acción tienen su propia prueba (resumenesAccion.test.jsx).
 vi.mock('../ResumenesAccion', () => ({ default: () => null }))
+/**
+ * "Mis alumnos" también pide `GET /inicio/docente` (el mismo endpoint real
+ * que usaba `ResumenesAccion`, arriba) para no depender del endpoint
+ * `useResumenDocente`, que contra el backend real siempre vuelve `null`. Se
+ * controla aparte para que las pruebas del `resumen` de siempre no dependan
+ * de una segunda consulta asíncrona sin relación.
+ */
+vi.mock('../../../api/resources/inicio', async (importOriginal) => ({
+  ...(await importOriginal()),
+  obtenerInicioDocente: async () => estado.inicioDocente,
+}))
 
 const RESUMEN = {
   mis_estudiantes: 48,
@@ -39,6 +50,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   estado.resumen = { data: RESUMEN, isLoading: false, semanaActual: null }
   estado.actividad = { sesion: null, sinAsignaciones: false }
+  estado.inicioDocente = null
   // D52 — `useResumenLocal` guarda una copia real en localStorage; sin
   // limpiarla, una prueba hereda la copia que dejó la anterior y "sin datos
   // del servidor" deja de ser cierto.
@@ -169,6 +181,20 @@ describe('Tarjetas del panel', () => {
     montar()
     expect(await screen.findByText('Mis alumnos')).toBeInTheDocument()
     expect(screen.getByText('0 / 0')).toBeInTheDocument()
+  })
+
+  /**
+   * `useResumenDocente` no trae "Mis alumnos" contra el backend real (siempre
+   * `null`), pero `GET /inicio/docente` sí lo sabe —es el mismo total que
+   * "Mis asignaciones" ya mostraba correctamente—, así que esta tarjeta no
+   * tiene por qué decir 0 cuando ese dato sí está disponible.
+   */
+  it('"Mis alumnos" usa el total de GET /inicio/docente aunque el resumen no traiga nada', async () => {
+    estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
+    estado.inicioDocente = { totales: { cantidad_alumnos: 7 }, asignaciones: [], permisos_vigentes: [] }
+    montar()
+    const etiqueta = await screen.findByText('Mis alumnos')
+    expect(await screen.findByText('7')).toBe(etiqueta.nextElementSibling)
   })
 
   /**

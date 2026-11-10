@@ -1,4 +1,5 @@
 // Cubre: RF-004, RF-002, RN-001, RN-003, RN-006, RNF-006
+import { useQuery } from '@tanstack/react-query'
 import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -8,6 +9,7 @@ import useResumenDocente from './useResumenDocente'
 import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
+import { obtenerInicioDocente } from '../../api/resources/inicio'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
@@ -57,6 +59,22 @@ export default function InicioDocente() {
   const { resumen, desactualizado } = useResumenLocal('docente', datosServidor, enLinea, {
     falloServidor: isError,
   })
+
+  /**
+   * "Mis alumnos" NO sale de `useResumenDocente` (ese endpoint no existe
+   * todavía: ver `api/resources/docentes.js`, siempre `null` contra el
+   * backend real). El total de alumnos SÍ lo trae `GET /inicio/docente`, el
+   * mismo que ya pinta "Mis asignaciones" más abajo — de ahí que esa tarjeta
+   * mostrara 7 mientras esta decía 0 con los mismos datos cargados. Mismo
+   * `queryKey` que usa `ResumenesAccion`: TanStack Query comparte la caché,
+   * así que esto no duplica la petición.
+   */
+  const { data: inicioDocente } = useQuery({
+    queryKey: ['inicio', 'docente', usuario?.id_docente],
+    queryFn: obtenerInicioDocente,
+    enabled: Boolean(usuario?.id_docente),
+  })
+  const totalAlumnos = inicioDocente?.totales?.cantidad_alumnos
 
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
@@ -167,7 +185,7 @@ export default function InicioDocente() {
         <>
           {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={Users} label="Mis alumnos" value={resumen?.mis_estudiantes ?? 0} />
+          <StatCard icon={Users} label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
           <StatCard
             icon={ClipboardList}
             label="Reporte de esta semana"
