@@ -159,6 +159,34 @@ describe('CU027 · Calendario académico', () => {
     expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
+  /**
+   * Bug reportado: "el motivo no funciona, no deja escribir". La fila de
+   * `DiasNoLectivos` llevaba `key={`${d.motivo}-${d.fecha_inicio}-${i}`}` —
+   * una clave que CAMBIA en cada letra escrita, así que React desmontaba la
+   * fila entera (el `<input>` incluido) y montaba una nueva en su lugar: el
+   * foco se perdía a cada tecla. Se comprueba que el MISMO nodo del DOM siga
+   * ahí —no uno nuevo— después de escribir, y que el valor completo llegue.
+   */
+  it('escribir en "Motivo" no remonta la fila ni le quita el foco (bug del 10/11)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+
+    fireEvent.click(boton('Añadir día'))
+    const campo = screen.getByLabelText('Motivo del día no lectivo 2')
+    campo.focus()
+    expect(document.activeElement).toBe(campo)
+
+    for (const letra of 'Aniversario') {
+      fireEvent.change(campo, { target: { value: campo.value + letra } })
+    }
+
+    expect(campo.value).toBe('Aniversario')
+    // Sigue siendo EL MISMO nodo y conserva el foco: no se desmontó la fila.
+    expect(screen.getByLabelText('Motivo del día no lectivo 2')).toBe(campo)
+    expect(document.activeElement).toBe(campo)
+  })
+
   it('ofrece el AÑO SIGUIENTE, que todavía no existe (D81)', async () => {
     /**
      * Era una lista de los años escolares ya creados, así que para configurar

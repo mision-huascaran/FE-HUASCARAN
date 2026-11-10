@@ -946,7 +946,14 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
             </thead>
             <tbody>
               {dias.map((d, i) => (
-                <tr key={`${d.motivo}-${d.fecha_inicio}-${i}`} className="border-t border-line">
+                // La clave NO puede llevar `d.motivo` ni una fecha: al escribir
+                // en "Motivo" eso cambia en cada tecla, React ve una clave
+                // nueva y DESMONTA la fila completa (el <input> incluido) para
+                // montar una de cero — el foco se pierde a cada letra y
+                // parece que el campo no deja escribir. Sin reordenamiento en
+                // esta lista (solo "Añadir" al final y "Quitar"), la posición
+                // es clave estable de sobra.
+                <tr key={i} className="border-t border-line">
                   <td className="px-4 py-2">
                     {editando ? (
                       <Input
