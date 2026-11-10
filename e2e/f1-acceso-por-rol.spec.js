@@ -1,13 +1,16 @@
 // F1 — Acceso por rol (CU001, CU002, CU003, CU010, CU011, CU012).
 //
-// Cada rol entra y llega a SU Inicio. La cuenta desactivada se rechaza sin
+// Cada rol entra y llega a SU pantalla de entrada: Docente y Supervisora a su
+// Inicio, el Directivo a su Dashboard (S36, ver su prueba). La cuenta
+// desactivada se rechaza sin
 // emitir token. Sin reintentos: cada intento fallido suma al bloqueo de 5
 // intentos en 15 minutos (CU002), que solo se limpia en el próximo despliegue.
 import { expect, test } from '@playwright/test'
 import { SEED } from './support/cuentas.js'
 import { evidencia } from './support/evidencia.js'
-import { CLAVE_TOKEN, enviarLogin, iniciarSesion, leerToken } from './support/sesion.js'
-import { tarjetas, valorDeTarjeta } from './support/tarjetas.js'
+import { esperarDashboardDelDirectivo } from './support/dashboard.js'
+import { CLAVE_TOKEN, enviarLogin, iniciarSesion, leerToken, menu } from './support/sesion.js'
+import { valorDeTarjeta } from './support/tarjetas.js'
 
 test.describe.configure({ retries: 0 })
 
@@ -63,20 +66,20 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     await evidencia(page, 'inicio-supervisora')
   })
 
-  test('Directivo: llega a Inicio con sus 3 tarjetas institucionales (CU012)', async ({ page }) => {
+  /**
+   * S36 (docs/decisiones-externas-y-pendientes-de-backend.md): el Directivo ya
+   * no tiene Inicio. Sus tres indicadores institucionales los da el Dashboard,
+   * con filtros, así que aterriza en /dashboard (lo exige `iniciarSesion` con
+   * `aterrizajeDe`) y su menú no ofrece Inicio. Antes esta prueba buscaba las 3
+   * tarjetas en /inicio.
+   */
+  test('Directivo: llega a su Dashboard, no a Inicio, con su menú (CU012, S36)', async ({ page }) => {
     await iniciarSesion(page, 'directivo')
 
-    /**
-     * TRES tarjetas. La retirada de "Salud del sistema" se revirtió: CU012 la
-     * enumera, trae su fórmula y hasta su caso vacío —"Sin datos disponibles"
-     * cuando el servidor no puede calcularla—. Que hoy llegue siempre en
-     * `null` no es un fallo: es ese flujo alternativo. Desmontarla obligaría a
-     * volver a construirla en cuanto el backend reporte la cola offline.
-     */
-    await expect(tarjetas(page)).toHaveCount(3)
-    for (const etiqueta of ['Total de beneficiarios activos', 'Total de colegios operando']) {
-      await expect(valorDeTarjeta(page, etiqueta), `valor de «${etiqueta}»`).not.toBeEmpty()
-    }
+    await expect(page).toHaveURL((url) => url.pathname === '/dashboard')
+    await esperarDashboardDelDirectivo(page)
+    // Su menú es solo el Dashboard: ni Inicio ni ningún módulo de registro.
+    await expect(menu(page).getByRole('link')).toHaveText(['Dashboard'])
     await expect(page.getByRole('button', { name: 'Iniciar actividad' })).toHaveCount(0)
     await evidencia(page, 'inicio-directivo')
   })
