@@ -658,6 +658,13 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   )
 }
 
+/** Por qué no se puede guardar todavía, o `undefined` si nada lo impide. */
+function motivoParaNoGuardar(enLinea, faltan) {
+  if (!enLinea) return 'Sin conexión. Conéctate a Internet para guardar.'
+  if (faltan.length) return `Completa para guardar: ${faltan.join(', ')}.`
+  return undefined
+}
+
 /**
  * TRES ESTADOS, NO TRES BOTONES A LA VEZ: en consulta, editar, crear o volver
  * al general según lo que haya; en edición, solo cancelar y guardar.
@@ -681,11 +688,7 @@ function AccionesDelCalendario({
     // D75 — Si falta algo Y además falta la red, lo primero es lo primero:
     // conectarse es lo que de verdad bloquea, completar los campos no sirve
     // de nada todavía.
-    const porQue = !enLinea
-      ? 'Sin conexión. Conéctate a Internet para guardar.'
-      : faltan.length
-        ? `Completa para guardar: ${faltan.join(', ')}.`
-        : undefined
+    const porQue = motivoParaNoGuardar(enLinea, faltan)
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center gap-2">
