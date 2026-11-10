@@ -104,9 +104,9 @@
 
   /* Velos sobre el paisaje: lo aclaran donde hay texto directamente encima. */
   --paisaje-velo-a: 255 255 255;
-  --paisaje-velo-alfa-1: 0.82;
-  --paisaje-velo-alfa-2: 0.5;
-  --paisaje-velo-alfa-3: 0.14;
+  --paisaje-velo-alfa-1: 0.88;
+  --paisaje-velo-alfa-2: 0.62;
+  --paisaje-velo-alfa-3: 0.16;
   --paisaje-filtro: saturate(0.82) brightness(1.04);
 }
 

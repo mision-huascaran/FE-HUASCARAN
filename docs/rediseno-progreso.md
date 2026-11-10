@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 3, Inicio del Supervisor y del Docente (libro, iconos por categoría, orden móvil, permisos plegables FE-13).
+- **Próximo paso:** fase 4, módulos: Dashboard, Alumnos, Usuarios, Colegios, Asistencias, Lectura, Rúbrica, Vuelo, Seguimiento, Sesiones, ficha, login.
 
 ## Línea base antes de tocar nada
 
@@ -61,3 +61,12 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 - Decisión D9: controles de 44 px en teléfono y de 40 px desde `sm`; texto de 16 px en los campos móviles para evitar el zoom de iOS.
 - Limitación conocida: `display:block` en la tabla móvil hace que los lectores de pantalla pierdan la semántica de tabla en esa vista. No se añadieron `role` explícitos porque el proyecto los viene retirando por Sonar.
 - Tests: 1115 pasan. Lint: solo el error previo. Capturas en `_capturas/fase2/`.
+
+### Fase 3 — Inicio del Supervisor y del Docente (cerrada)
+
+- Archivos: `InicioSupervisor`, `InicioDocente`, `AccesosRapidos`, `ResumenesAccion`, `LibroInicio` (nuevo), `StatCard`, velos del paisaje en `tokens.css`.
+- Iconos por categoría: Colegios azul, Docentes violeta, Actividad verde, Vencidos naranja, Incompletos ámbar, Alumnos celeste, Lectura violeta, Rúbrica índigo, Vuelo azul.
+- En móvil, 2 columnas de indicadores y orden: indicadores, alertas, desglose, accesos. El libro baja a 44 px de alto.
+- FE-13: permisos de corrección plegables, cerrados si hay más de 4, con los mismos datos.
+- El Directivo sigue sin Inicio ni libro.
+- Tests: 1115 pasan. Lint: solo el error previo. Capturas en `_capturas/fase3/`, sin desborde a 390 y 1366.
