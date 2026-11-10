@@ -63,6 +63,16 @@ describe('normalizarAlumno', () => {
   it('respeta los ids sueltos del mock y el programa actual', () => {
     expect(normalizarAlumno({ id_alumno: 1, nombre: 'Ana', id_colegio: 4, id_grado: 1, id_programa_actual: 2 })).toMatchObject({ id_colegio: 4, id_programa: 2 })
   })
+
+  it('semana 14 — deja pertenencia_pendiente como booleano explícito, con grado, programa y sección en null', () => {
+    expect(normalizarAlumno({ id_alumno: 1, nombres: 'Ana', apellidos: 'Ríos', pertenencia_pendiente: true })).toMatchObject({
+      pertenencia_pendiente: true,
+      id_grado: null,
+      id_programa: null,
+      id_seccion: null,
+    })
+    expect(normalizarAlumno({ id_alumno: 2, nombres: 'Beto', apellidos: 'Luna' })).toMatchObject({ pertenencia_pendiente: false })
+  })
 })
 
 describe('filtrarAlumnos', () => {
@@ -91,6 +101,13 @@ describe('filtrarAlumnos', () => {
   it('busca por nombre o código sin distinguir mayúsculas, y respeta el estado', () => {
     expect(nombres(filtrarAlumnos(FILAS, { q: ' est-3 ' }))).toEqual(['Carla Paz'])
     expect(nombres(filtrarAlumnos(FILAS, { estado: 'inactivo' }))).toEqual(['Carla Paz'])
+  })
+
+  it('semana 14 — "pertenencia" separa los que tienen intervalo de los que no', () => {
+    const conPendiente = [...FILAS, { nombre: 'Dina Pendiente', id_colegio: 1, activo: true, pertenencia_pendiente: true }]
+    expect(nombres(filtrarAlumnos(conPendiente, { pertenencia: 'pendiente' }))).toEqual(['Dina Pendiente'])
+    expect(nombres(filtrarAlumnos(conPendiente, { pertenencia: 'definida' }))).toEqual(['Ana Ríos', 'Beto Luna', 'Carla Paz'])
+    expect(nombres(filtrarAlumnos(conPendiente))).toHaveLength(4)
   })
 })
 

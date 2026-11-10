@@ -1298,14 +1298,60 @@ porque no se pidió.
   por defecto (1 MB) rechazaba con 413 cualquier nómina de más de 1 MB antes
   de que llegara al backend. Lo señalaba el propio reporte del backend.
 
-**Pendiente, fuera de este alcance:** un alumno importado queda con
-"pertenencia pendiente" (sin grado, sección, subprograma ni fecha de
-pertenencia). Hoy no hay forma de completar esos datos desde el formulario de
-"Editar alumno" — eso es la tanda Q1, que trata al alumno pendiente como un
-caso aparte del modal (`PATCH /alumnos/{id}` sin `pertenece_desde` sigue
-guardando solo lo que se informó). Sin implementarla, un alumno recién
-importado se puede VER en la tabla pero no completarse desde la pantalla; el
-backend no se queja porque ningún campo del formulario actual coincide con
-los suyos (`grado`, `programa`, `seccion` llegan en `null` y la tabla ya los
-pinta como "—" con `etiquetaDe`, sin romperse).
+**Tanda Q1, implementada después** (ver la sección siguiente): el hueco de
+arriba —completar la pertenencia de un alumno importado desde "Editar
+alumno"— ya no existe.
+
+## Tanda Q1 · Alumno con pertenencia pendiente y DNI (semana 14, CU014)
+
+Commit del backend `eeb56af`. Contrato en `cambiosFront_semana14_v1.md` y
+`cambiosTest_semana14_v1.md`. Pedida después de la Q2, para cerrar el hueco
+que esa tanda dejaba: un alumno importado ya se puede completar desde
+"Editar alumno".
+
+- **`src/components/mantenimiento/PopupMantenimiento.jsx`**: `requerido`
+  ahora puede ser función de `(valores, contexto)`, resuelta en
+  `visiblesEn` igual que `opciones`, `min`, `max` y `ayuda`. Antes solo
+  aceptaba `true`/`false` fijos; una función ahí se habría tomado siempre
+  por obligatoria (`campo.requerido && vacio` — una función nunca es
+  falsa), sin mirar lo que de verdad devuelve.
+- **`src/features/alumnos/MantenimientoAlumnos.jsx`**:
+  - Campo `dni` (opcional, 8 dígitos exactos cuando se informa).
+  - `id_grado`, `id_programa` e `id_seccion` dejan de ser obligatorios a
+    secas al editar un pendiente: lo son otra vez en cuanto se informa el
+    subprograma o la sección (`grupoDebeCompletarse`), momento en que el
+    grupo tiene que quedar completo o ninguno (CU014: "Completa el grado,
+    el subprograma y la sección, o deja vacíos el subprograma y la
+    sección."). El grado puede venir prellenado de la nómina sin disparar
+    esto — la señal es el subprograma o la sección, no el grado.
+  - "Pertenece al grupo desde" (el mismo campo de D65/tanda L1, que ya
+    distinguía este caso) ahora solo es obligatorio cuando el grupo ya
+    quedó completo (`grupoCompleto`), y su fecha propuesta cae a `hoy()`
+    cuando no hay `fecha_registro` que proponer, tal como pide el CU.
+  - Columna "DNI" (con "—" sin dato) e insignia "Pertenencia pendiente"
+    junto al nombre; filtro "Pertenencia" (Definida/Pendiente).
+  - Activar/inactivar a un pendiente ya no pide "Aplicar cambio desde": el
+    cuerpo va vacío (`{}`), que sigue siendo obligatorio pero sin fecha —
+    un pendiente no tiene grupo en curso del que entrar o salir en una
+    fecha. El modal lo decide en `Mantenimiento.jsx`, leyendo
+    `fila.pertenencia_pendiente` de la fila misma.
+- **`src/api/resources/administracion.js`**:
+  - `GET /alumnos` acepta `pertenencia=definida|pendiente`
+    (`listarAlumnosAdmin`, y su equivalente local en `filtrarAlumnos` para
+    el simulador y la copia offline).
+  - `normalizarAlumno` deja `pertenencia_pendiente` como booleano explícito.
+  - `cuerpoDeAlumno` (el `PATCH`) manda `dni: null` para QUITARLO cuando el
+    campo queda vacío — a diferencia del resto de campos, que simplemente
+    se omiten si están vacíos, aquí vacío es una instrucción ("bórralo"),
+    no "no toques esto".
+  - `conDniLegible` reescribe un 409 `dni_duplicado` con la forma de un
+    422 por campo (`errores: [{campo: 'dni', ...}]`): el backend no lo
+    manda así —es un 409, no una validación—, y sin esto el formulario lo
+    mostraba como el toast genérico "No se pudo guardar" en vez de marcar
+    el campo.
+  - `cambiarEstadoAlumno` acepta `pendiente: true` para mandar el cuerpo
+    vacío en vez de `{aplicar_desde}`.
+- No se tocó la tabla de alumnos CU015 (ficha / detail view): la etiqueta
+  "Pertenencia pendiente" de sus tags no se agregó ahí, solo en la tabla de
+  CU014. Si hace falta, es el mismo patrón.
 

@@ -13,7 +13,7 @@
 //   · El CICLO del alumno lo calcula el backend a partir de subprograma y
 //     grado. No se envía.
 //   · Cada lista va de 10 en 10 con `page` y responde con el esquema `Paginado`.
-import { api, resolver, adminContraApiReal } from '../client'
+import { api, resolver, adminContraApiReal, motivoDe } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
 import { comoGradosConDia } from '../../lib/gradosColegio'
@@ -353,6 +353,11 @@ export function normalizarAlumno(a) {
     ciclo: etiquetaDeCampo(a.ciclo),
     anonimo: !nombre,
     nombre: nombre || `Estudiante n.º ${idAlumno}`,
+    // Semana 14 — el que todavía no tiene ningún intervalo en su historial de
+    // pertenencia (de una importación, o sin completar): `grado`, `programa`,
+    // `seccion` y `ciclo` llegan en `null`, y así se bootean explícitos en
+    // vez de dejarlo en `undefined`, que las comparaciones tratan distinto.
+    pertenencia_pendiente: Boolean(a.pertenencia_pendiente),
   }
 }
 
@@ -370,12 +375,20 @@ export function filtrarAlumnos(filas, filtros = {}) {
     const etiqueta = typeof a.ciclo === 'object' ? a.ciclo?.nombre : a.ciclo
     return a.id_ciclo ?? a.id_ciclo_nominal ?? Object.keys(CICLO_POR_ID).find((k) => CICLO_POR_ID[k] === etiqueta)
   }
+  // `pertenencia`: "definida" o "pendiente" (semana 14). Sin ninguno de los
+  // dos valores, no filtra — un valor que no sea ninguno de ellos tampoco.
+  const porPertenencia = (a) => {
+    if (filtros.pertenencia === 'pendiente') return Boolean(a.pertenencia_pendiente)
+    if (filtros.pertenencia === 'definida') return !a.pertenencia_pendiente
+    return true
+  }
   return porEstado(filas, filtros.estado ?? 'todos').filter(
     (a) =>
       igual(a.id_colegio, filtros.id_colegio ?? filtros.colegio) &&
       igual(a.id_grado, filtros.id_grado ?? filtros.grado) &&
       igual(a.id_programa, filtros.id_programa ?? filtros.subprograma) &&
       igual(cicloDe(a), filtros.id_ciclo ?? filtros.ciclo) &&
+      porPertenencia(a) &&
       (!texto || `${a.nombre ?? ''} ${a.codigo ?? ''}`.toLowerCase().includes(texto)),
   )
 }
@@ -395,6 +408,8 @@ export const listarAlumnosAdmin = async (filtros = {}) => {
               id_programa: filtros.id_programa || filtros.subprograma || filtros.programa || undefined,
               ciclo: cicloComoTexto(filtros.id_ciclo || filtros.ciclo),
               id_grado: filtros.id_grado || filtros.grado || undefined,
+              // Semana 14 — "definida" o "pendiente"; sin filtro, trae todos.
+              pertenencia: filtros.pertenencia || undefined,
               activo,
               q: String(filtros.q ?? '').trim() || undefined,
               page: page || undefined,
@@ -435,9 +450,33 @@ function cicloComoTexto(valor) {
  *   · `id_seccion` — se puede omitir si el grado tiene UNA sola sección, pero
  *     con varias el servidor responde 422. Se manda siempre que se tenga.
  */
+/**
+ * Un 409 `dni_duplicado` se pinta DEBAJO DEL CAMPO, como un 422 más.
+ *
+ * El backend no lo manda con la forma `errores: [{campo, mensaje}]` —es un
+ * 409, no un 422 de validación—, así que sin esto el DNI repetido caía en el
+ * toast genérico "No se pudo guardar" y el Supervisor no sabía cuál de los
+ * campos corregir. Reescribir la respuesta aquí deja que el formulario lo
+ * trate exactamente igual que cualquier otro error por campo.
+ */
+async function conDniLegible(promesa) {
+  try {
+    return await promesa
+  } catch (error) {
+    if (motivoDe(error) === 'dni_duplicado') {
+      error.response.data = {
+        ...error.response.data,
+        errores: [{ campo: 'dni', mensaje: 'Ya existe un alumno registrado con ese DNI.' }],
+      }
+    }
+    throw error
+  }
+}
+
 export const crearAlumno = ({
   nombres,
   apellidos,
+  dni,
   id_colegio: idColegio,
   id_grado: idGrado,
   id_programa: idPrograma,
@@ -449,6 +488,7 @@ export const crearAlumno = ({
       handlers.administracion.crearAlumno({
         nombres,
         apellidos,
+        dni,
         id_colegio: idColegio,
         id_grado: idGrado,
         id_programa: idPrograma,
@@ -456,17 +496,21 @@ export const crearAlumno = ({
         pertenece_desde: perteneceDesde,
       }),
     real: () =>
-      api.post(alumnos.crear, {
-        nombres,
-        apellidos,
-        id_colegio: Number(idColegio),
-        id_grado: Number(idGrado),
-        // `AlumnoCrear` pide `id_programa` (no `id_programa_actual`): con el
-        // nombre viejo el alta respondía 422 por falta de un campo obligatorio.
-        id_programa: Number(idPrograma),
-        ...(idSeccion ? { id_seccion: Number(idSeccion) } : {}),
-        ...(perteneceDesde ? { pertenece_desde: perteneceDesde } : {}),
-      }),
+      conDniLegible(
+        api.post(alumnos.crear, {
+          nombres,
+          apellidos,
+          id_colegio: Number(idColegio),
+          id_grado: Number(idGrado),
+          // `AlumnoCrear` pide `id_programa` (no `id_programa_actual`): con el
+          // nombre viejo el alta respondía 422 por falta de un campo obligatorio.
+          id_programa: Number(idPrograma),
+          ...(idSeccion ? { id_seccion: Number(idSeccion) } : {}),
+          ...(perteneceDesde ? { pertenece_desde: perteneceDesde } : {}),
+          // Opcional: una cadena vacía equivale a no tenerlo, así que ni se manda.
+          ...(dni ? { dni: String(dni).trim() } : {}),
+        }),
+      ),
     forzarReal: adminContraApiReal,
   })
 
@@ -551,7 +595,7 @@ export const obtenerAlumno = async (idAlumno) => {
 export const actualizarAlumno = (idAlumno, cambios) =>
   resolver({
     mock: () => handlers.administracion.actualizarAlumno(idAlumno, cambios),
-    real: () => api.patch(alumnos.actualizar(idAlumno), cuerpoDeAlumno(cambios)),
+    real: () => conDniLegible(api.patch(alumnos.actualizar(idAlumno), cuerpoDeAlumno(cambios))),
     forzarReal: adminContraApiReal,
   })
 
@@ -559,6 +603,14 @@ function cuerpoDeAlumno(cambios) {
   const cuerpo = {}
   if (cambios.nombres !== undefined) cuerpo.nombres = cambios.nombres
   if (cambios.apellidos !== undefined) cuerpo.apellidos = cambios.apellidos
+  /**
+   * DNI opcional (semana 14): vacío no se omite como los demás campos, se
+   * manda `null` para QUITARLO. Sin esto, borrar el DNI de la ficha no
+   * llegaba a ningún lado —`if (cambios.dni)` es falso con `''`— y el campo
+   * se quedaba con el valor viejo en el servidor aunque el formulario lo
+   * mostrara vacío.
+   */
+  if (cambios.dni !== undefined) cuerpo.dni = cambios.dni ? String(cambios.dni).trim() : null
   if (cambios.id_colegio) cuerpo.id_colegio = Number(cambios.id_colegio)
   if (cambios.id_grado) cuerpo.id_grado = Number(cambios.id_grado)
   if (cambios.id_seccion) cuerpo.id_seccion = Number(cambios.id_seccion)
@@ -643,8 +695,16 @@ export const fechaDeCreacion = (registro) => {
  * da otra. Es el caso corriente y evita que la operación falle con un 422,
  * pero no sustituye al selector de fecha efectiva, que es trabajo pendiente.
  */
-export const cambiarEstadoAlumno = (idAlumno, activo, { aplicarDesde } = {}) => {
-  const cuerpo = { aplicar_desde: aplicarDesde || hoy() }
+/**
+ * `pendiente`: el alumno sin pertenencia definida (semana 14). Para él
+ * "Aplicar cambio desde" no se pregunta —no hay grupo en curso del que
+ * entrar o salir en una fecha— y el cuerpo va VACÍO: `{}`, que sigue siendo
+ * obligatorio, pero sin `aplicar_desde`. Mandarla igual (como antes, con
+ * `hoy()` por defecto) la rechaza con 422 porque el alumno no tiene ningún
+ * intervalo de pertenencia que cerrar o abrir en esa fecha.
+ */
+export const cambiarEstadoAlumno = (idAlumno, activo, { aplicarDesde, pendiente = false } = {}) => {
+  const cuerpo = pendiente ? {} : { aplicar_desde: aplicarDesde || hoy() }
   return resolver({
     mock: () => handlers.administracion.actualizarAlumno(idAlumno, { activo, ...cuerpo }),
     real: () => api.patch(activo ? alumnos.activar(idAlumno) : alumnos.desactivar(idAlumno), cuerpo),

@@ -426,13 +426,24 @@ export default function Mantenimiento({
       <ConfirmarEstado
         peticion={confirmando}
         entidad={entidad}
-        fechaEfectiva={fechaEfectiva}
+        /**
+         * Semana 14 — un alumno con la pertenencia pendiente no tiene ningún
+         * grupo en curso del que entrar o salir en una fecha: no hay nada que
+         * "Aplicar cambio desde" pueda significar para él, así que ni se
+         * pregunta. Solo Alumnos pasa `fechaEfectiva`, así que esto no toca a
+         * Colegios ni a Usuarios.
+         */
+        fechaEfectiva={fechaEfectiva && !confirmando?.fila?.pertenencia_pendiente ? fechaEfectiva : null}
         onCancelar={() => setConfirmando(null)}
         onConfirmar={(fecha) => {
-          // La fecha solo viaja si la sección la pidió. Colegios y Usuarios no
-          // la usan y su backend no acepta cuerpo: mandarla sería ruido.
-          if (fechaEfectiva) onCambiarEstado(confirmando.fila, confirmando.activo, fecha)
-          else onCambiarEstado(confirmando.fila, confirmando.activo)
+          // La fecha solo viaja si la sección la pidió Y el alumno la necesita.
+          // Colegios y Usuarios no la usan y su backend no acepta cuerpo;
+          // un pendiente, tampoco: mandarla sería ruido.
+          if (fechaEfectiva && !confirmando?.fila?.pertenencia_pendiente) {
+            onCambiarEstado(confirmando.fila, confirmando.activo, fecha)
+          } else {
+            onCambiarEstado(confirmando.fila, confirmando.activo)
+          }
           setConfirmando(null)
         }}
       />
