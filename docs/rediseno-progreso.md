@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 5, modo oscuro completo: gráficas y revisión de todas las pantallas.
+- **Próximo paso:** fase 6, bugs FE-01, FE-03, FE-06, FE-11 y FE-14.
 
 ## Línea base antes de tocar nada
 
@@ -77,3 +77,10 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 - Ajustes propios: `Card` (acciones en fila propia en móvil, FE-07), `BloqueDashboard` y `TarjetaModulo` (icono y color por módulo), `GraficaBarras` (etiquetas a un decimal y meses abreviados en móvil; el dato completo sigue en `aria-label`), `ListaAsistencia` y `FilaAsistencia` (columnas ajustadas a 390), botones de observación de 40 px en móvil, indicadores con *container query*.
 - Decisión D10: las gráficas conservan colores fijos en sus atributos porque la exportación a PNG viaja sin hoja de estilos.
 - Sin desborde horizontal a 360, 390 y 1366. Tests: 1115 pasan. Lint: solo el error previo.
+
+### Fase 5 — Modo oscuro completo (cerrada)
+
+- Claro y oscuro salen de `tokens.css`; las pantallas no llevan clases `dark:` salvo los campos de formulario.
+- Gráficas: `index.css` recolorea sus atributos solo en pantalla. `descargarGrafica` clona y serializa el SVG sin hoja de estilos, así que el PNG exportado sigue saliendo con la paleta clara sobre blanco.
+- Selector de tema: claro, oscuro y sistema, en `sicedu.tema`. Sin destello al cargar (`public/tema-inicial.js`).
+- Capturas en `_capturas/fase5/`. Sin desborde a 390 y 1366.

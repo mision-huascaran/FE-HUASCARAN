@@ -190,6 +190,27 @@
   }
 }
 
+/* Gráficas en oscuro. Sus colores van en atributos porque la exportación a PNG
+   viaja sin hoja de estilos; esto los cambia solo en pantalla y el PNG sigue
+   saliendo con la paleta clara sobre blanco. */
+.dark svg [fill='#0F1E3D'] { fill: rgb(var(--ink-900)); }
+.dark svg [fill='#5B6577'] { fill: rgb(var(--ink-500)); }
+.dark svg [fill='#8A94A6'] { fill: rgb(var(--ink-400)); }
+.dark svg [stroke='#E2E8F2'] { stroke: rgb(var(--line)); }
+.dark svg [stroke='#8A94A6'] { stroke: rgb(var(--line-strong)); }
+.dark svg [fill='#1D4ED8'] { fill: rgb(var(--brand-500)); }
+.dark svg [stroke='#1D4ED8'] { stroke: rgb(var(--brand-500)); }
+.dark svg [fill='#10428F'] { fill: rgb(var(--lvl-destacado)); }
+.dark svg [stroke='#10428F'] { stroke: rgb(var(--lvl-destacado)); }
+.dark svg [fill='#17795A'] { fill: rgb(var(--lvl-logrado)); }
+.dark svg [stroke='#17795A'] { stroke: rgb(var(--lvl-logrado)); }
+.dark svg [fill='#946200'] { fill: rgb(var(--lvl-proceso)); }
+.dark svg [stroke='#946200'] { stroke: rgb(var(--lvl-proceso)); }
+.dark svg [fill='#B3261E'] { fill: rgb(var(--lvl-inicio)); }
+.dark svg [stroke='#B3261E'] { stroke: rgb(var(--lvl-inicio)); }
+.dark svg [fill='#6D28D9'] { fill: rgb(var(--lvl-preinicio)); }
+.dark svg [stroke='#6D28D9'] { stroke: rgb(var(--lvl-preinicio)); }
+
 /* Indicador apretado (dos columnas en el teléfono): el icono va arriba. */
 .sicedu-stat {
   container-type: inline-size;

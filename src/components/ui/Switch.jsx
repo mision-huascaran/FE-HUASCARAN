@@ -28,7 +28,7 @@ export default function Switch({ checked = false, onChange, disabled, label, id,
       <span
         aria-hidden="true"
         className={cn(
-          'inline-block h-4 w-4 transform rounded-full bg-surface-0 shadow transition-transform',
+          'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
           checked ? 'translate-x-6' : 'translate-x-1',
         )}
       />
