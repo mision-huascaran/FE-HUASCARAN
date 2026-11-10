@@ -122,12 +122,13 @@ export default function SesionesPage() {
             <Input label="Hasta" type="date" value={filtros.hasta} onChange={(e) => cambiar('hasta', e.target.value)} />
           </CeldaFiltro>
           <CeldaFiltro>
-            <Select label="Estado" placeholder="Todos" value={filtros.estado} options={ESTADOS} onChange={(e) => cambiar('estado', e.target.value)} />
+            <Select label="Estado" placeholder="Todos" vacioElegible value={filtros.estado} options={ESTADOS} onChange={(e) => cambiar('estado', e.target.value)} />
           </CeldaFiltro>
           <CeldaFiltro>
             <Select
               label="Sincronización"
               placeholder="Todos"
+              vacioElegible
               value={filtros.sincronizacion}
               options={SINCRONIZACIONES}
               onChange={(e) => cambiar('sincronizacion', e.target.value)}
@@ -137,6 +138,7 @@ export default function SesionesPage() {
             <Select
               label="Tipo de cierre"
               placeholder="Todos"
+              vacioElegible
               value={filtros.tipo_cierre}
               options={CIERRES}
               onChange={(e) => cambiar('tipo_cierre', e.target.value)}

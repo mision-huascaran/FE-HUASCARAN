@@ -172,6 +172,7 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
               <Select
                 label="Grado"
                 placeholder="Todos los grados"
+                vacioElegible
                 value={idGrado}
                 options={opcionesDeGrado.map((g) => ({ value: g.id_grado, label: g.nombre }))}
                 onChange={(e) => setIdGrado(e.target.value)}

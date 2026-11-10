@@ -42,6 +42,7 @@ export default function FiltrosAsistencia({
           label="Docente"
           value={filtros.idDocente ?? ''}
           placeholder="Todos"
+          vacioElegible
           onChange={(e) => cambiar('docente', e.target.value)}
           options={docentes.map((d) => ({ value: String(d.id_docente), label: d.nombre }))}
         />
@@ -75,6 +76,7 @@ export default function FiltrosAsistencia({
       <Select
         label="Subprograma"
         placeholder="Todos"
+        vacioElegible
         pendienteDe={!filtros.idColegio && 'colegio'}
         value={filtros.idPrograma}
         onChange={(e) => cambiar('subprograma', e.target.value)}

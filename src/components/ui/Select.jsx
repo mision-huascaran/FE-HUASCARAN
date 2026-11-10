@@ -8,7 +8,17 @@ export const primeroSelecciona = (anterior) => `Primero selecciona un ${anterior
 
 /**
  * `options` acepta [{ value, label }] o una lista de strings.
- * `placeholder` añade una opción vacía inicial.
+ *
+ * EL VACÍO TIENE DOS SIGNIFICADOS, y por eso dos formas de pedirlo:
+ *
+ *   · `placeholder` es una INDICACIÓN («Selecciona»): el texto que se ve
+ *     mientras no hay nada elegido. No es una opción: no aparece en la lista
+ *     ni se puede volver a elegir una vez que hay un valor. Antes salía como
+ *     primera opción con un grado ya elegido, y elegirla dejaba el filtro en
+ *     un estado que ninguna pantalla sabe tratar.
+ *   · `vacioElegible` convierte el placeholder en una opción DE VERDAD, para
+ *     cuando el vacío significa algo que se elige: «Todos» en un filtro, «Sin
+ *     evaluar» en una celda que se puede devolver a su estado inicial.
  *
  * `pendienteDe` es para los FILTROS ENCADENADOS: con el nombre del filtro
  * anterior («colegio», «grado»), el control queda deshabilitado y dice qué
@@ -16,12 +26,30 @@ export const primeroSelecciona = (anterior) => `Primero selecciona un ${anterior
  * blanco. Con un valor falso se comporta como siempre.
  */
 const Select = forwardRef(function Select(
-  { label, hint, error, required, id, className, options = [], placeholder, pendienteDe, children, ...props },
+  {
+    label,
+    hint,
+    error,
+    required,
+    id,
+    className,
+    options = [],
+    placeholder,
+    vacioElegible = false,
+    pendienteDe,
+    disabled,
+    children,
+    ...props
+  },
   ref,
 ) {
   const generatedId = useId()
   const selectId = id ?? generatedId
   const items = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }))
+
+  // Sin `value` ni `defaultValue` el navegador elegiría la primera opción
+  // habilitada, saltándose la indicación: se arranca en el vacío.
+  const sinValorInicial = !('value' in props) && !('defaultValue' in props)
 
   if (pendienteDe) {
     return (
@@ -53,9 +81,18 @@ const Select = forwardRef(function Select(
           id={selectId}
           aria-invalid={Boolean(error) || undefined}
           className={cn(controlClases(error, 'h-11 appearance-none pr-9 sm:h-10'))}
+          disabled={disabled}
+          {...(placeholder && !vacioElegible && sinValorInicial ? { defaultValue: '' } : {})}
           {...props}
         >
-          {placeholder && <option value="">{placeholder}</option>}
+          {placeholder &&
+            (vacioElegible ? (
+              <option value="">{placeholder}</option>
+            ) : (
+              <option value="" disabled hidden>
+                {placeholder}
+              </option>
+            ))}
           {items.map((o) => (
             <option key={String(o.value)} value={o.value} disabled={o.disabled}>
               {o.label}

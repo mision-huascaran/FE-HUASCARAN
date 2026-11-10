@@ -177,6 +177,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           aria-label={`Nivel colocado de ${alumno.nombre}`}
           value={periodo.nivel_colocado?.id ?? ''}
           placeholder="Sin decidir"
+          vacioElegible
           disabled={bloqueada}
           onChange={cambiar('id_nivel_colocado', periodo.nivel_colocado?.id)}
           options={opciones}
@@ -193,6 +194,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           aria-label={`Proyección de ${alumno.nombre}`}
           value={periodo.proyeccion?.id ?? ''}
           placeholder="Sin proyectar"
+          vacioElegible
           disabled={bloqueada}
           onChange={cambiar('id_nivel_proyeccion', periodo.proyeccion?.id)}
           options={opciones}
