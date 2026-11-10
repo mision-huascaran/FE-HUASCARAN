@@ -64,6 +64,8 @@ const Select = forwardRef(function Select(
             value=""
             onChange={props.onChange ?? (() => {})}
             disabled
+            // Si la celda es angosta, el texto completo sigue a mano.
+            title={primeroSelecciona(pendienteDe)}
           >
             <option value="">{primeroSelecciona(pendienteDe)}</option>
           </select>

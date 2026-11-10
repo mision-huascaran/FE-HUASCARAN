@@ -2,6 +2,7 @@
 import { adminContraApiReal, api, resolver } from '../client'
 import ENDPOINTS from '../endpoints'
 import handlers from '../mock/handlers'
+import { NOMBRE_LARGO_PERIODO } from './calendarios'
 
 const { catalogos } = ENDPOINTS
 
@@ -74,3 +75,27 @@ export const obtenerSemanas = ({ idAnioEscolar, mes, idColegio, idGrado, idSecci
     // salieran del simulador, sus ids no serían los del servidor.
     forzarReal: adminContraApiReal,
   })
+
+/**
+ * `GET /periodos-academicos` — PA1 a PA4 de un año escolar.
+ *
+ * Un periodo académico es "el PA n del año X" para TODOS los colegios: su id
+ * no cambia de un colegio a otro, solo sus fechas. Sin `idColegio` vienen con
+ * las del calendario general; con él, con las del calendario que aplica a ese
+ * colegio (su particular, si lo tiene). Fechas null si no hay calendario.
+ */
+export const listarPeriodosAcademicos = async ({ idAnioEscolar, idColegio } = {}) => {
+  const params = {
+    ...(idAnioEscolar ? { id_anio_escolar: Number(idAnioEscolar) } : {}),
+    ...(idColegio ? { id_colegio: Number(idColegio) } : {}),
+  }
+  const periodos = await resolver({
+    mock: () => handlers.catalogos.periodosAcademicos(params),
+    real: () => api.get(catalogos.periodos, { params }),
+    forzarReal: adminContraApiReal,
+  })
+  return (periodos ?? []).map((p) => ({
+    ...p,
+    nombre: NOMBRE_LARGO_PERIODO[`PA${p.numero}`] ?? `PA${p.numero}`,
+  }))
+}
