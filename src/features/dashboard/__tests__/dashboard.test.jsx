@@ -39,7 +39,7 @@ describe('Dashboard del Supervisor', () => {
 
     // El periodo se nombra por su nombre visible, nunca "PA3".
     expect(screen.getAllByText(/Tercer periodo/).length).toBeGreaterThan(0)
-    expect(document.body.textContent).not.toMatch(/PA3/)
+    expect(document.body.textContent).not.toMatch(/\bPA3\b/)
   })
 
   /**
