@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 6, bugs FE-01, FE-03, FE-06, FE-11 y FE-14.
+- **Próximo paso:** fase 7, revisión final en todas las resoluciones, CSP, sin conexión e informe de 13 puntos.
 
 ## Línea base antes de tocar nada
 
@@ -84,3 +84,19 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 - Gráficas: `index.css` recolorea sus atributos solo en pantalla. `descargarGrafica` clona y serializa el SVG sin hoja de estilos, así que el PNG exportado sigue saliendo con la paleta clara sobre blanco.
 - Selector de tema: claro, oscuro y sistema, en `sicedu.tema`. Sin destello al cargar (`public/tema-inicial.js`).
 - Capturas en `_capturas/fase5/`. Sin desborde a 390 y 1366.
+
+### Fase 6 — Bugs de QA del §C (cerrada)
+
+| Código | Estado | Qué se hizo |
+|---|---|---|
+| FE-01 | Resuelto | `Field` lleva `w-full` y `cn` no fusiona clases, así que los anchos de nota y selector nunca se aplicaban. Ahora `!w-…`. Medido sin solaparse a 390 y 1366. |
+| FE-03 | Resuelto en escritorio y tableta | La fila queda arriba y los botones reservan el alto de la etiqueta. Medido: nada se mueve a 1366. En móvil los campos no se mueven; solo baja lo que está debajo del mensaje (decisión D11). |
+| FE-06 | Resuelto | La etiqueta del primer y del último punto crece hacia dentro de la gráfica. |
+| FE-07 | Resuelto en fase 4 | Sin desborde a 360, 390 y 430; etiquetas y meses legibles. |
+| FE-08 | **Sin cambios, decisión D12** | El anexo pide un `<Link>`, pero el merge de hoy añadió `migas.test.jsx`, que exige un botón en esa miga: un `<Link>` a la misma URL no navegaría, porque el detalle se abre sin cambiar de ruta. La miga ya es clicable y vuelve al listado. Cambiarla obligaría a debilitar ese test. |
+| FE-11 | Aplicado, **sin verificar en un teléfono real** | Bajo 640 px, tocar en cualquier punto del campo abre el calendario nativo. Comprobado solo en emulación de Chromium: el selector nativo no se puede capturar. |
+| FE-13 | Resuelto en fase 3 | Permisos plegables. |
+| FE-14 | Resuelto | Celdas de Lectura alineadas con el centro de los campos. |
+
+- FE-02, FE-04, FE-05, FE-09, FE-10 y FE-12 no se tocaron.
+- Hallazgo previo, no corregido: el simulador devuelve siempre `actividad_activa: null` (`src/api/mock/handlers.js`), así que con `VITE_USE_MOCK=true` "Iniciar actividad" se suelta sola en cerca de un segundo por la regla D89. Para revisar las tablas, el script de capturas abrió una actividad local; no hay cambio en el código.

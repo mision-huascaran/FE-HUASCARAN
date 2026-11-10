@@ -52,7 +52,7 @@ export function controlClases(error, extra) {
     // 16px en el teléfono: con menos, iOS hace zoom al enfocar el campo.
     'w-full rounded-lg border bg-surface-0 px-3 text-base text-ink-900 placeholder:text-ink-400 sm:text-sm dark:bg-navy-800/60',
     'transition-[border-color,box-shadow] duration-150 focus-visible:border-brand-500 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/20 focus-visible:ring-offset-0',
-    'disabled:cursor-not-allowed disabled:bg-surface-100 disabled:text-ink-500 dark:disabled:bg-surface-100',
+    'disabled:cursor-not-allowed disabled:bg-surface-50 disabled:text-ink-500 dark:disabled:bg-surface-100/60',
     error ? 'border-danger-500' : 'border-line-strong hover:border-ink-400',
     extra,
   )

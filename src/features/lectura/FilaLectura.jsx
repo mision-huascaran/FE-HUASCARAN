@@ -105,7 +105,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
 
   return (
     <tr className="border-t border-line align-top">
-      <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
+      <td className={`px-3 pb-2 pt-5 sm:pt-[18px] ${CELDA_ALUMNO}`}>
         <span className="font-medium text-ink-900">{fila.nombre}</span>
         {fila.inactivo && (
           <span
@@ -129,7 +129,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
       </td>
 
       {/* La asistencia se MUESTRA, no se edita: su sitio es Asistencias. */}
-      <td className="px-3 py-2 text-center text-sm text-ink-700">
+      <td className="px-3 pb-2 pt-5 text-center text-sm text-ink-700 sm:pt-[18px]">
         {ASISTENCIA[fila.asistencia] ?? 'Sin marcar'}
         {/* D92 — Marcada hace un instante (o sin conexión) y todavía sin
             confirmar: se dice, para que no parezca un dato ya firme. */}
@@ -171,7 +171,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
           <Input
             type="number"
             aria-label={`Nota del LSN de ${fila.nombre}`}
-            className="sicedu-sin-spinner w-16 shrink-0"
+            className="sicedu-sin-spinner !w-[4.25rem] shrink-0"
             min={0}
             max={borrador.lsn_maximo ?? 10}
             value={borrador.lsn_nota ?? ''}
@@ -183,7 +183,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
           {/* Solo 5 o 10: no hay otros máximos (CU024). */}
           <Select
             aria-label={`Puntaje máximo del LSN de ${fila.nombre}`}
-            className="w-20 shrink-0"
+            className="!w-20 shrink-0"
             value={borrador.lsn_maximo ?? ''}
             placeholder="—"
             disabled={sinLibros}
@@ -200,7 +200,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
         <Input
           type="number"
           aria-label={`Libros de sala de lectura de ${fila.nombre}`}
-          className="sicedu-sin-spinner w-20"
+          className="sicedu-sin-spinner !w-20"
           min={0}
           step={1}
           // Vacío, no cero: "no registrado" y "leyó cero" son cosas distintas.
@@ -212,9 +212,9 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
       </td>
 
       {/* Calculado por el servidor: (1 si hay LSN) + los LSL. No editable. */}
-      <td className="px-3 py-2 text-center font-semibold text-ink-900">{fila.total_libros ?? 0}</td>
+      <td className="px-3 pb-2 pt-5 text-center font-semibold text-ink-900 sm:pt-[18px]">{fila.total_libros ?? 0}</td>
 
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center sm:pt-3">
         <button
           type="button"
           // Una nota existente se puede LEER aunque no se pueda escribir.
@@ -222,13 +222,13 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
           onClick={() => onObservar(fila)}
           aria-label={`${conNota ? 'Ver' : 'Añadir'} observación de ${fila.nombre}`}
           title={conNota ? fila.observacion : 'Sin observación'}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink-400 transition-colors hover:border-brand-500/60 hover:text-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-line text-ink-400 sm:h-8 sm:w-8 transition-colors hover:border-brand-500/60 hover:text-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Globo className="h-4 w-4" aria-hidden="true" />
         </button>
       </td>
 
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 pb-2 pt-[18px] text-center sm:pt-4">
         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${TONO[estado.tono]}`}>
           {estado.texto}
         </span>
