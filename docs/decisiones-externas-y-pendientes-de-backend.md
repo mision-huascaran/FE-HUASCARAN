@@ -988,6 +988,195 @@ Con esto, `FiltrosDashboard` vuelve a ser una fila sola en vez de dos: el
 cambio del 04/11 que separaba "Colegios" a su propia fila (S31) queda
 superado por este, que ataca la causa en vez de acomodar el síntoma.
 
+**S35 (nuevo). Ronda 7 — D92, D82 y D61, del reporte del tester con
+frontend `53e8588`.**
+
+El tester avisó que D92 (Crítico), D82, D61, D75 y D52 seguían ocurriendo
+pese a estar marcados como corregidos en commits anteriores. Investigados
+en orden de prioridad:
+
+- **D92 (Crítico) — Corregido de verdad, con una parte que faltaba.** La
+  mitad "la cola sobrevive al cierre de sesión" ya estaba bien (verificado
+  leyendo `colaOffline.js` y `AuthProvider.jsx`: por ownership de usuario,
+  no por texto). La mitad que SÍ fallaba: una asistencia marcada sin
+  conexión —todavía solo en la cola, sin confirmar por el servidor— no
+  habilitaba la fila de Lectura, porque `useTablaLectura` solo miraba
+  `fila.asistencia` del servidor. Se agregó `pendientesDeTipo` a
+  `colaOffline.js` y un cruce por `claveDeMarca` en `useTablaLectura.js`
+  que completa la fila con la marca pendiente y la etiqueta "(pendiente)"
+  en `FilaLectura.jsx`. Con prueba nueva en `cu023Lectura.test.jsx`.
+- **D82 — No es un defecto actual; el reporte está desactualizado.**
+  Confirmado por ascendencia de git: el commit `e4c29d6` (D115, que mueve
+  la copia del perfil de `localStorage` a IndexedDB) es posterior al
+  frontend que probó el tester (`53e8588`) y ya está en `development`. Los
+  8 casos de `perfilSinConexion.test.jsx` pasan contra el código actual.
+  No se tocó nada.
+- **D61 — Corregido: Colegios no tenía la copia local que Alumnos ya
+  tenía.** Alumnos cae a `precarga.alumnos` sin conexión (`D8`); Colegios
+  no tenía ese camino y, al reabrir sin red (sin nada en memoria de
+  TanStack Query), se quedaba en "Sin registros" aunque el Supervisor
+  tuviera los colegios precargados. Se agregó `filtrarColegios` en
+  `api/resources/administracion.js` y el mismo patrón de `MantenimientoAlumnos`
+  en `MantenimientoColegios.jsx`.
+
+  **Hallazgo aparte, más de fondo:** el patrón `queryKey` con `enLinea` de
+  por medio (el que ya usaba Alumnos) tiene un defecto propio con el
+  `networkMode` por defecto de TanStack Query ('online'). Al perder la
+  conexión de verdad —evento `offline` del navegador, no solo la
+  propiedad— la consulta NUEVA que ese cambio de clave dispara queda EN
+  PAUSA por la librería, sin llegar a llamar a `queryFn`: la pantalla se
+  queda cargando hasta reconectar, porque el "sin conexión" ya lo decide
+  `enLinea` a mano y no hace falta que TanStack Query lo decida también.
+  Se corrigió con `networkMode: 'always'` en las dos pantallas (Colegios y
+  Alumnos). Sin esto, el "Ver detalle" → Programación de clases también se
+  habría visto afectado si el Supervisor abría un colegio nunca visto
+  antes mientras ya estaba sin conexión.
+
+- **D75 — Corregido: faltaba la mitad de "sin conexión durante la
+  edición" de CU027.** Lo de 502/503/504 ("sin respuesta") ya estaba
+  (`0c58e3f`); lo que nunca se escribió es la otra mitad del mismo punto
+  2.4d del plan: perder la conexión A MITAD de editar (no al entrar, eso
+  ya bloqueaba "Editar calendario") no tocaba "Guardar" para nada —
+  `completo` nunca miraba `enLinea`— y el aviso que se mostraba era el de
+  "estás consultando", que no es lo mismo que "lo que escribiste no se ha
+  guardado todavía". En `CalendarioAcademico.jsx`: `completo` ahora exige
+  también `enLinea`; el aviso offline distingue edición ("Sin conexión.
+  Tus cambios aún no se han guardado. Mantén esta vista abierta para
+  conservarlos.") de consulta, y el de consulta dice desde cuándo es la
+  copia con `consulta.dataUpdatedAt` (lo trae gratis TanStack Query, y
+  sobrevive a un reinicio porque `cacheConsultas.js` restaura también la
+  fecha original, no la de la rehidratación). Con dos pruebas nuevas en
+  `calendarioAcademicoPantalla.test.jsx`.
+
+- **D52 — Corregido: el Docente nunca tuvo la mitad de CU011/CU012 que
+  Supervisor y Directivo ya tenían.** El commit que marcaba D52 como
+  corregido (`09efe45`) construyó `useResumenLocal` y `AvisoDatosLocales`,
+  pero `rol` solo admitía `'supervisor'` y `'directivo'`; `useResumenDocente`
+  es un `useQuery` sin ninguna rama de copia local ni de `enLinea`, e
+  `InicioDocente.jsx` no importaba ninguno de los dos. Con el backend caído
+  (o sin conexión), las tarjetas mostraban lo último que hubiera en memoria
+  SIN aviso, o desaparecían sin decir por qué. Se agregó el literal
+  `docente` a `AvisoDatosLocales.jsx` (pendiente que el analista confirme el
+  texto exacto de CU010), se le pasó `enLinea` a `useResumenDocente` para
+  que no intente la red sin ella, y se conectó `useResumenLocal('docente',
+  ...)` en `InicioDocente.jsx`, igual que ya hacían Supervisor y Directivo.
+  Con dos pruebas nuevas en `inicioDocente.test.jsx`.
+
+  La otra mitad del reporte del tester ("al recargar vuelve al login") es
+  el mismo mecanismo que D82: con un 401/403 sí cierra, pero sin respuesta
+  del servidor el token se conserva y se usa la copia del perfil — ya
+  verificado ahí, no hacía falta nada aparte para el Docente.
+
+Las cinco defectos del reporte del tester (D92, D82, D61, D75, D52) quedan
+revisados: D92, D61, D75 y D52 tenían algo real por corregir y D82 estaba al
+día en `development`, solo desactualizado en el reporte.
+
+**S36 (nuevo). El Dashboard se rearma por MÓDULO, y el Directivo pierde su
+Inicio.**
+
+Lo pidió Antonio: el Dashboard era difícil de entender y no llevaba a ninguna
+parte. Tenía nueve bloques organizados por indicador —"Distribución por
+subprograma", "Comparación de resultados", "Evolución anual"—, cada uno con su
+párrafo de fórmula, hasta ocho tarjetas de cifras y su tabla completa. Se podía
+leer entero y seguir sin saber qué hacer: ningún bloque llevaba al módulo donde
+se corrige lo que mostraba.
+
+**Ahora son cuatro tarjetas, una por módulo** (Asistencias, Seguimiento de
+Lectura, Rúbrica, Registro de Vuelo), cada una con: el título del módulo tal
+como aparece en el menú, UNA cifra, UNA gráfica y UN enlace al módulo con los
+filtros puestos. Lo que antes era párrafo vive en el `title` de la cifra.
+
+Decisiones que conviene no deshacer sin leer esto:
+
+- **El título y la ruta salen de `MATRIZ` (la matriz de permisos), no de
+  constantes del dashboard.** Así la tarjeta se llama igual que la entrada del
+  menú que el usuario acaba de pulsar, y un cambio de nombre o de ruta se hace
+  en un sitio. Lo hace `enlacesDeModulo.js`.
+- **El enlace lo decide `puedeEntrar`, no un `if` por rol.** Los cuatro módulos
+  son `[DIRECTIVO]: null`, así que sus tarjetas informan pero no ofrecen
+  entrar: mandarlo a una ruta que su propia guarda le va a negar sería
+  ofrecerle una puerta tapiada. El Supervisor sí entra, y el colegio viaja en
+  la URL **solo si es uno**: con "Todos" o con varios, cualquier colegio que
+  pusiéramos sería uno que la persona no eligió.
+- **El enlace va en la CABECERA de la tarjeta**, fuera del área que depende de
+  la consulta. Si los datos fallan o están cargando, entrar al módulo sigue
+  siendo lo más útil que se puede hacer; dentro del cuerpo quedaba escondido
+  tras el "Reintentar".
+- **El reparto de `resultados-aprendizaje` se hace por `resultado`, no por
+  `fuente`.** El endpoint devuelve `global` (Registro de Vuelo), `fluidez` y
+  `comprension` (Rúbrica). `resultado` es parte del contrato y tiene literales
+  fijos; `fuente` lo manda el simulador y puede no venir del servidor real. Un
+  `resultado` nuevo no se reparte solo a ninguna tarjeta.
+- **`BloqueDashboard` se queda.** Resuelve por bloque la carga, el error con
+  "Reintentar", el 422 `calendario_no_configurado`, "Información no
+  actualizada" y "Cambios sin aplicar", y que un bloque roto no se lleve a los
+  otros tres. Reescribirlo no habría mejorado nada.
+- **Los colegios excluidos siguen nombrándose** ("Sin información y fuera del
+  total: … Todavía no empezaron el periodo seleccionado"). Al pasar a cuatro
+  tarjetas se perdió por el camino y la prueba lo cazó: un colegio cuyo periodo
+  no empezó no suma, pero callarlo lo convertiría en un colegio con 0 alumnos.
+
+**Se borraron** `BloqueDistribucion`, `BloqueResultados`, `BloqueComparacion`,
+`BloqueComparacionColegios`, `BloqueAsistencia`, `BloqueEvolucion`,
+`ResumenAnual` y `DetalleClases`. Lo que daban esos dos últimos —el detalle
+nominal por clase— ya no se duplica dentro del dashboard: se llega al módulo de
+Asistencias, que es donde se actúa. El consolidado de libros (CU034) **se
+queda** y cuelga de la tarjeta de Lectura como "Consolidado por meses".
+
+**Quedan en el código, a propósito:** las funciones de recurso de los endpoints
+que ya no pinta nadie (`obtenerDistribucionSubprograma`,
+`obtenerComparacionResultados`, `obtenerComparacionColegios`,
+`obtenerEvolucionAnual`, `obtenerClasesDeAsistencia`, `obtenerInicioDirectivo`).
+Son enlaces finos a endpoints vivos del backend y los cubren las pruebas de
+contrato (`parametros.test.js`, `rutasReales.test.js`); borrarlos sería perder
+esa comprobación sin ganar nada.
+
+**Bug corregido: las gráficas contaban alumnos dados de baja.** Ninguna lectura
+de `db.ALUMNOS` en el simulador miraba la baja, así que los dados de baja
+inflaban el denominador de todos los porcentajes.
+
+**El primer arreglo filtró por `activo`, y estaba mal.** Lo cazó el backend al
+responder la consulta: filtrar por `activo` saca al alumno también de los
+periodos **anteriores** a su baja, y CU014 dice lo contrario — la baja no borra
+sus asistencias, lecturas ni evaluaciones de cuando sí estuvo en el grupo.
+
+**Respuesta del backend (resuelto, no hay nada que pedirle):** el servidor no
+cuenta por estado actual sino por **pertenencia en la fecha**. Al dar de baja se
+cierra la pertenencia desde esa fecha (`pertenencia.cerrar`). Y cada indicador
+usa la suya:
+
+| Campo | Con qué fecha cuenta |
+|---|---|
+| `total_a_evaluar` (resultados-aprendizaje) y `alumnos`/`total` (distribución) | Pertenencia en el corte: `min(fin del PA, hoy)` (`corte._pertenencias_al_corte`) |
+| Denominador de `/dashboard/asistencia` | La lista histórica de cada clase (`clase_alumno`) |
+| `alumnos_incluidos` (libros) | Las filas de cada tabla; sin tabla, la pertenencia en la fecha de su clase (`_alumnos_sin_tabla`) |
+
+**No hace falta mandar ningún filtro al servidor.** Lo que había que corregir
+era el simulador, y se corrigió: se añadió `baja_desde` a `db.ALUMNOS` (no tenía
+fechas, solo un `activo` booleano) y los cálculos pasaron a usar
+`perteneceEn(alumno, fecha)` con `fechaDeCorte(periodo)`.
+`pertenenciaEnLaFecha.test.js` comprueba las dos mitades: que un dado de baja no
+cuente en el periodo en curso, y que **sí** cuente en un PA anterior a su baja.
+
+> El backend lo deja escrito en `API.md` y en su `docs/decisiones-dashboard.md`.
+> Aviso suyo para Carlos: CU033, CU035 y CU012 siguen describiendo el Dashboard
+> anterior y el Inicio del Directivo, y hay que actualizarlos a lo acordado.
+
+**El Directivo ya no tiene Inicio.** Su Inicio (CU012) eran tres indicadores
+institucionales que el Dashboard ya da, y con filtros de año, periodo y
+colegios que el Inicio no tenía; mantener los dos obligaba a sostener el mismo
+número en dos pantallas y a explicar por qué no siempre coincidían. La sección
+pasa a `[DIRECTIVO]: null` en la matriz, su ruta de aterrizaje es `/dashboard`,
+la guarda de `/inicio` ya no le deja entrar a mano y se borró
+`InicioDirectivo.jsx`. Al Docente y al Supervisor no les cambia nada: su Inicio
+no es un resumen, es su puesto de trabajo.
+
+Con él se fueron tres pruebas (`inicioHallazgos.test.jsx`: D01, D52 y el
+redondeo de Salud del Sistema). Ninguna de las dos reglas que sujetaban queda
+sin cubrir: la copia local marcada como desactualizada la siguen probando el
+Inicio del Docente y el del Supervisor, que usan el mismo `useResumenLocal`, y
+"Sin datos disponibles" ante un `null` es de `StatCard`.
+
 ## Fuera de alcance
 
 - **Modo offline de Supervisor y Directivo.** Se comentó quitarlo por no usarse
@@ -1060,4 +1249,108 @@ sobre `5f7e98d`; el detalle técnico está en la sección 7 de
 - **Backend (sugerencia):** el bloque `escritura` solo trae el porqué como
   texto. Un código (por ejemplo `sin_actividad`) dejaría al front distinguir
   "falta la actividad" de "falta la habilitación" sin leer textos (D114).
+
+## Ronda de QA del 09/11/2026 (16 bugs reportados por Antonio)
+
+De los 16, 14 se corrigieron en el front (commits de esta tanda) y uno ya no
+aplicaba (el Dashboard viejo que los mostraba se reemplazó por completo en la
+tanda anterior). Queda uno **que no es del front**:
+
+- **Calendario académico — PA4 y PR4 editados a la vez (CU027). RESUELTO.**
+  Paris (backend) reprodujo BE-04: un solo `PUT` que mueve PA4 a X-1 y PR4 a X
+  responde `200` — el backend SÍ valida el orden contra las fechas del propio
+  envío, no contra las guardadas, así que el batching del front
+  (`periodosParaGuardar`) ya era correcto. Lo que de verdad pasaba: en
+  `CalendarioAcademico.jsx`, `erroresCampo` solo se limpiaba al volver a
+  pulsar "Guardar", nunca al tocar una fecha. El mensaje de un 422 de un
+  intento anterior —p. ej. "PR4 debe empezar después del fin de PA4
+  (15/11/2026)"— se quedaba debajo del campo aunque la fecha ya hubiera
+  cambiado, y parecía que el servidor "seguía pensando" en la vieja. Corregido:
+  `ponerFecha` y `onDias` ahora limpian `erroresCampo` e `incompatibilidades`
+  en cuanto se edita cualquier fecha, no solo al reintentar guardar. Cubierto
+  por un test nuevo en `calendarioAcademicoPantalla.test.jsx`.
+
+- **Seguimiento — el calendario del filtro de fecha. NO ES UN BUG.** El
+  tester (Joaquín) confirmó que fue un error de prueba: el selector sí abre.
+  No se tocó nada.
+
+## Tanda Q2 · Importar nómina de alumnos desde Excel (semana 14, CU014)
+
+Commit del backend `b08d548`. Contrato en `cambiosFront_semana14_v1.md` y
+`cambiosTest_semana14_v1.md` (carpeta de reportes, no en este repo).
+Implementado **solo esto** de la actualización de CU014: no se tocó el resto
+de la tanda Q1 (alumno con pertenencia pendiente, DNI, filtro "Pertenencia")
+porque no se pidió.
+
+- `src/api/resources/administracion.js`: `vistaPreviaImportacion`,
+  `confirmarImportacion` y `consultarImportacion`. El archivo viaja como
+  cuerpo crudo (`Content-Type` del propio `File`, no JSON ni
+  `multipart/form-data`), tal como lo probó el backend.
+- `src/features/alumnos/ImportarNominaModal.jsx`: el modal de dos pasos
+  (elegir archivo → vista previa → confirmar), con los tres casos de error
+  que cambian el paso (`importacion_desactualizada`, `importacion_existente`,
+  sin respuesta del servidor) y la reconciliación al recuperar la conexión
+  (`GET /alumnos/importaciones/{id}`).
+- Botón "Importar nómina" en `MantenimientoAlumnos.jsx`, junto a "Agregar",
+  solo para el Supervisor (`accionesExtra` de `Mantenimiento`).
+- `nginx.conf`: `client_max_body_size 6m;` en `location /api/` — el límite
+  por defecto (1 MB) rechazaba con 413 cualquier nómina de más de 1 MB antes
+  de que llegara al backend. Lo señalaba el propio reporte del backend.
+
+**Tanda Q1, implementada después** (ver la sección siguiente): el hueco de
+arriba —completar la pertenencia de un alumno importado desde "Editar
+alumno"— ya no existe.
+
+## Tanda Q1 · Alumno con pertenencia pendiente y DNI (semana 14, CU014)
+
+Commit del backend `eeb56af`. Contrato en `cambiosFront_semana14_v1.md` y
+`cambiosTest_semana14_v1.md`. Pedida después de la Q2, para cerrar el hueco
+que esa tanda dejaba: un alumno importado ya se puede completar desde
+"Editar alumno".
+
+- **`src/components/mantenimiento/PopupMantenimiento.jsx`**: `requerido`
+  ahora puede ser función de `(valores, contexto)`, resuelta en
+  `visiblesEn` igual que `opciones`, `min`, `max` y `ayuda`. Antes solo
+  aceptaba `true`/`false` fijos; una función ahí se habría tomado siempre
+  por obligatoria (`campo.requerido && vacio` — una función nunca es
+  falsa), sin mirar lo que de verdad devuelve.
+- **`src/features/alumnos/MantenimientoAlumnos.jsx`**:
+  - Campo `dni` (opcional, 8 dígitos exactos cuando se informa).
+  - `id_grado`, `id_programa` e `id_seccion` dejan de ser obligatorios a
+    secas al editar un pendiente: lo son otra vez en cuanto se informa el
+    subprograma o la sección (`grupoDebeCompletarse`), momento en que el
+    grupo tiene que quedar completo o ninguno (CU014: "Completa el grado,
+    el subprograma y la sección, o deja vacíos el subprograma y la
+    sección."). El grado puede venir prellenado de la nómina sin disparar
+    esto — la señal es el subprograma o la sección, no el grado.
+  - "Pertenece al grupo desde" (el mismo campo de D65/tanda L1, que ya
+    distinguía este caso) ahora solo es obligatorio cuando el grupo ya
+    quedó completo (`grupoCompleto`), y su fecha propuesta cae a `hoy()`
+    cuando no hay `fecha_registro` que proponer, tal como pide el CU.
+  - Columna "DNI" (con "—" sin dato) e insignia "Pertenencia pendiente"
+    junto al nombre; filtro "Pertenencia" (Definida/Pendiente).
+  - Activar/inactivar a un pendiente ya no pide "Aplicar cambio desde": el
+    cuerpo va vacío (`{}`), que sigue siendo obligatorio pero sin fecha —
+    un pendiente no tiene grupo en curso del que entrar o salir en una
+    fecha. El modal lo decide en `Mantenimiento.jsx`, leyendo
+    `fila.pertenencia_pendiente` de la fila misma.
+- **`src/api/resources/administracion.js`**:
+  - `GET /alumnos` acepta `pertenencia=definida|pendiente`
+    (`listarAlumnosAdmin`, y su equivalente local en `filtrarAlumnos` para
+    el simulador y la copia offline).
+  - `normalizarAlumno` deja `pertenencia_pendiente` como booleano explícito.
+  - `cuerpoDeAlumno` (el `PATCH`) manda `dni: null` para QUITARLO cuando el
+    campo queda vacío — a diferencia del resto de campos, que simplemente
+    se omiten si están vacíos, aquí vacío es una instrucción ("bórralo"),
+    no "no toques esto".
+  - `conDniLegible` reescribe un 409 `dni_duplicado` con la forma de un
+    422 por campo (`errores: [{campo: 'dni', ...}]`): el backend no lo
+    manda así —es un 409, no una validación—, y sin esto el formulario lo
+    mostraba como el toast genérico "No se pudo guardar" en vez de marcar
+    el campo.
+  - `cambiarEstadoAlumno` acepta `pendiente: true` para mandar el cuerpo
+    vacío en vez de `{aplicar_desde}`.
+- No se tocó la tabla de alumnos CU015 (ficha / detail view): la etiqueta
+  "Pertenencia pendiente" de sus tags no se agregó ahí, solo en la tabla de
+  CU014. Si hace falta, es el mismo patrón.
 

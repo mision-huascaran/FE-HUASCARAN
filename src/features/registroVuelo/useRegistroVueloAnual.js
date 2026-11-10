@@ -27,13 +27,20 @@ const esDefinitivo = (error) => {
   return estado != null && estado >= 400 && estado < 500
 }
 
-export default function useRegistroVueloAnual({ filtros, pagina }) {
+export default function useRegistroVueloAnual({ filtros, pagina, grupoValido = true }) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar } = filtros
-  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar)
+  /**
+   * `grupoValido` viene de `useFiltrosDeGrupo`: con los cinco campos llenos
+   * pero el grado y la sección sin ir juntos todavía (un instante tras
+   * cambiar el grado), esto evita mandar una consulta que el servidor va a
+   * rechazar con 422 por una combinación que ni siquiera se eligió a
+   * propósito.
+   */
+  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar) && grupoValido
   const clave = ['registro-vuelo', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, pagina }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])

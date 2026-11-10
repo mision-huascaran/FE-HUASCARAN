@@ -23,7 +23,7 @@ export default function Drawer({ open, onClose, title, subtitle, footer, side = 
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-navy-900/50 animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-navy-900/45 backdrop-blur-sm animate-fade-in">
       <button
         type="button"
         aria-label="Cerrar"
@@ -43,12 +43,12 @@ export default function Drawer({ open, onClose, title, subtitle, footer, side = 
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'absolute inset-y-0 m-0 flex h-auto w-full flex-col bg-surface-0 text-inherit shadow-drawer animate-slide-in-right',
+          'absolute inset-y-0 m-0 flex h-auto w-full flex-col border-l border-line/70 bg-surface-0 text-inherit shadow-drawer animate-slide-in-right sm:rounded-l-2xl',
           side === 'right' ? 'left-auto right-0' : 'left-0 right-auto',
           width,
         )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-line/70 px-4 py-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] sm:px-5 sm:py-4">
           <div className="min-w-0">
             {title && <h2 className="truncate text-base font-semibold text-ink-900">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
@@ -57,14 +57,14 @@ export default function Drawer({ open, onClose, title, subtitle, footer, side = 
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-ink-400 sm:h-8 sm:w-8 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
         {footer && (
-          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface-50 px-5 py-4">
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line/70 bg-surface-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:rounded-bl-2xl sm:px-5 sm:py-4">
             {footer}
           </footer>
         )}

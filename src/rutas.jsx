@@ -34,7 +34,8 @@ const { PROFESOR, JEFA, DIRECTIVOS } = ROLES
  */
 export const RUTAS_PROTEGIDAS = [
   // ── Las 9 secciones de la matriz de permisos del sprint de cierre ──────────
-  { path: '/inicio', allow: [PROFESOR, JEFA, DIRECTIVOS], titulo: 'Inicio', elemento: <InicioPage /> },
+  // El Directivo NO entra: su pantalla es `/dashboard` (ver `MATRIZ.inicio`).
+  { path: '/inicio', allow: [PROFESOR, JEFA], titulo: 'Inicio', elemento: <InicioPage /> },
   /**
    * CU033 y CU035 — Dashboard del Supervisor y del Directivo.
    *

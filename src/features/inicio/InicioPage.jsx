@@ -1,13 +1,15 @@
 // Cubre: RF-004, RF-002, RN-001 · Sección "Inicio" de la matriz.
 //
-// Los tres roles entran aquí tras el login y ven cosas distintas, cada una con
-// su caso de uso: el Docente sus asignaciones y los botones de actividad
-// (CU010), el Supervisor el resumen operativo con alertas (CU011) y el
-// Directivo tres indicadores institucionales y nada más (CU012).
+// DOS ROLES, no tres: el Docente ve sus asignaciones y los botones de actividad
+// (CU010) y el Supervisor el resumen operativo con alertas (CU011).
+//
+// EL DIRECTIVO YA NO PASA POR AQUÍ. Su Inicio eran tres indicadores
+// institucionales que el Dashboard ya da con filtros, así que la sección es
+// `[DIRECTIVO]: null` en la matriz y su ruta de aterrizaje es `/dashboard`.
+// La guarda de `/inicio` tampoco le deja entrar escribiendo la URL.
 import InicioDocente from './InicioDocente'
 import useSincronizacionLocal from './useSincronizacionLocal'
 import InicioSupervisor from './InicioSupervisor'
-import InicioDirectivo from './InicioDirectivo'
 import useSessionStore from '../../store/sessionStore'
 import { ROLES } from '../../auth/roles'
 
@@ -19,6 +21,5 @@ export default function InicioPage() {
   useSincronizacionLocal()
 
   if (idRol === ROLES.SUPERVISOR) return <InicioSupervisor />
-  if (idRol === ROLES.DIRECTIVO) return <InicioDirectivo />
   return <InicioDocente />
 }

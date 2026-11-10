@@ -237,6 +237,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             <Select
               label="Año escolar"
               placeholder="Todos"
+              vacioElegible
               value={borrador.id_anio_escolar}
               options={anios.map((a) => ({ value: String(a.id), label: a.nombre }))}
               onChange={(e) => cambiar('id_anio_escolar', e.target.value)}
@@ -246,6 +247,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             <Select
               label="Colegio"
               placeholder="Todos"
+              vacioElegible
               value={borrador.id_colegio}
               options={colegios.map((c) => ({ value: String(c.id_colegio), label: c.nombre }))}
               onChange={(e) => cambiar('id_colegio', e.target.value)}
@@ -259,9 +261,10 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
           <CeldaFiltro>
             <Select
               label="Periodo académico"
-              placeholder={borrador.id_colegio ? 'Todos' : 'Elige un colegio'}
+              placeholder="Todos"
+              vacioElegible
+              pendienteDe={!borrador.id_colegio && 'colegio'}
               value={borrador.id_periodo_academico}
-              disabled={!borrador.id_colegio}
               options={periodos.map((pa) => ({ value: String(pa.id), label: pa.nombre }))}
               onChange={(e) => cambiar('id_periodo_academico', e.target.value)}
             />
@@ -270,6 +273,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             <Select
               label="Módulo"
               placeholder="Todos"
+              vacioElegible
               value={borrador.modulo}
               options={MODULOS_PERMISO}
               onChange={(e) => cambiar('modulo', e.target.value)}
@@ -279,6 +283,7 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             <Select
               label="Estado del permiso"
               placeholder="Todos"
+              vacioElegible
               value={borrador.estado}
               options={ESTADOS_PERMISO}
               onChange={(e) => cambiar('estado', e.target.value)}

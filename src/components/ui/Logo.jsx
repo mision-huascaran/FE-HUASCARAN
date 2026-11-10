@@ -59,7 +59,7 @@ export default function Logo({ tone = 'light', size = 'md', showLabel = true, cl
             aria-hidden="true"
             className={cn('h-6 w-px shrink-0', tone === 'light' ? 'bg-white/25' : 'bg-line-strong')}
           />
-          <span className="text-xs font-bold tracking-[0.18em]">SICEDU</span>
+          <span className="text-[13px] font-semibold tracking-[0.12em]">SICEDU</span>
         </>
       )}
     </span>

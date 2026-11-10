@@ -158,6 +158,7 @@ export default function ProgramacionDeClases({ colegio }) {
           label="Grado"
           value={filtros.idGrado}
           placeholder="Todos"
+          vacioElegible
           onChange={cambiarFiltro('idGrado')}
           options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
         />
@@ -165,15 +166,17 @@ export default function ProgramacionDeClases({ colegio }) {
           label="Sección"
           value={filtros.idSeccion}
           placeholder="Todas"
+          vacioElegible
           onChange={cambiarFiltro('idSeccion')}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
-          disabled={!filtros.idGrado}
-          hint={filtros.idGrado ? undefined : 'Elige un grado: cada uno tiene sus propias secciones'}
+          // Cada grado tiene sus propias secciones.
+          pendienteDe={!filtros.idGrado && 'grado'}
         />
         <Select
           label="Subprograma"
           value={filtros.idPrograma}
           placeholder="Todos"
+          vacioElegible
           onChange={cambiarFiltro('idPrograma')}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />

@@ -20,7 +20,7 @@ export default function Skeleton({ variant = 'block', rows = 5, className }) {
 
   if (variant === 'card') {
     return (
-      <div className={cn('rounded-xl border border-line bg-surface-0 p-5 shadow-card', className)} aria-hidden="true">
+      <div className={cn('sicedu-tarjeta rounded-xl border border-line/80 bg-surface-0 p-5 shadow-card', className)} aria-hidden="true">
         <Bloque className="h-3 w-24" />
         <Bloque className="mt-3 h-8 w-20" />
         <Bloque className="mt-3 h-3 w-32" />

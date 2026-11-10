@@ -22,9 +22,11 @@ export default function ListaAsistencia({ alumnos, marcaDe, soloLectura, onMarca
             cualquier otra tabla tiene que leerse igual. */}
         <thead className="sticky top-0 z-10 bg-surface-100 text-xs font-semibold uppercase tracking-wide text-ink-500">
           <tr>
-            <th className="px-4 py-3 text-left">Alumno</th>
-            <th className="px-4 py-3 text-center">Asistencia</th>
-            <th className="px-4 py-3 text-center">Observación</th>
+            <th className="py-3 pl-4 pr-2 text-left sm:px-4">Alumno</th>
+            <th className="px-1 py-3 text-center sm:px-4">Asistencia</th>
+            <th className="py-3 pl-1 pr-3 text-center sm:px-4">
+              <span className="max-sm:text-[10px] max-sm:tracking-normal">Observación</span>
+            </th>
           </tr>
         </thead>
         {/* Espaciadores: solo reservan alto. Cada uno va en su propio `tbody`

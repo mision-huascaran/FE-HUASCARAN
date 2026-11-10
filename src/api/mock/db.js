@@ -280,6 +280,7 @@ export const ALUMNOS = (() => {
       const cantidad = porGrado[i]
       const dosAulas = cantidad > 9
       for (let n = 0; n < cantidad; n += 1) {
+        const activo = random() > 0.02
         const esAlfabetizacion = random() < PROB_ALFABETIZACION[grado.numero]
         // RN-004: el ciclo evaluado puede ir por debajo del ciclo nominal.
         const cicloNominal = grado.id_ciclo
@@ -297,7 +298,22 @@ export const ALUMNOS = (() => {
           id_ciclo_nominal: cicloNominal,
           id_ciclo_evaluado: idCicloEvaluado,
           id_programa: esAlfabetizacion ? 1 : 2,
-          activo: random() > 0.02,
+          activo,
+          /**
+           * DESDE CUÁNDO DEJÓ DE PERTENECER AL GRUPO (CU014).
+           *
+           * Una baja no borra el pasado: el alumno deja de contar DESDE esa
+           * fecha, pero sigue contando en los periodos en los que sí estuvo
+           * en el grupo, con sus asistencias, lecturas y evaluaciones. Por eso
+           * el Dashboard no puede filtrar por `activo` —eso lo sacaría también
+           * de los periodos anteriores—, sino por la pertenencia en la fecha
+           * que corresponda a cada consulta.
+           *
+           * Las bajas se reparten a lo largo del año para que haya casos a los
+           * dos lados de cualquier fecha de corte: el que ya estaba de baja y
+           * el que todavía no.
+           */
+          baja_desde: activo ? null : `${ANIO_LECTIVO}-${String(3 + Math.floor(random() * 9)).padStart(2, '0')}-15`,
         })
       }
     })

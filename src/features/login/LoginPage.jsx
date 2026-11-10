@@ -204,7 +204,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={!enLinea}
                 onClick={() => setResetAbierto(true)}
-                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-ink-400 disabled:hover:text-ink-400"
+                className="text-xs font-semibold text-brand-700 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:text-ink-400 disabled:hover:text-ink-400"
               >
                 ¿Olvidaste tu contraseña?
               </button>

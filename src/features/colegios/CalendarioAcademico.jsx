@@ -47,7 +47,7 @@ import {
 import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import { listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
-import { formatearFecha } from '../../lib/format'
+import { formatearFecha, formatearFechaHora } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
 import { useMigaExtra } from '../../store/migaStore'
 
@@ -122,7 +122,11 @@ function borradorPara(modo, calendario) {
 const SIN_SERVIDOR = new Set([502, 503, 504])
 
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
-  useMigaExtra('Calendario académico')
+  // `salir` se declara más abajo; la función de aquí solo se LLAMA al
+  // pulsar la miga, momento en que ya existe por el cierre del propio
+  // componente (misma razón por la que el botón "Cancelar" de abajo puede
+  // usarla sin que JS se queje).
+  useMigaExtra('Calendario académico', () => salir(onVolver))
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()
@@ -426,8 +430,27 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   const editando = modo !== 'consulta'
 
-  const ponerFecha = (i, campo, valor) =>
+  /**
+   * Hallazgo de Paris (backend) sobre BE-04 — `erroresCampo` solo se
+   * limpiaba al volver a pulsar "Guardar", nunca al tocar una fecha. Un
+   * mensaje de validación de un intento anterior ("PR4 debe empezar después
+   * del fin de PA4 (15/11/2026)") se quedaba debajo del campo aunque la fecha
+   * ya hubiera cambiado, y parecía que el servidor seguía pensando en la
+   * vieja. Los ocho periodos se validan entre sí —PA4 y PR4 son dos campos
+   * distintos—, así que se limpian TODOS al tocar cualquiera, no solo el que
+   * se edita: un error de PR4 puede dejar de aplicar al corregir PA4.
+   */
+  const ponerFecha = (i, campo, valor) => {
     setPeriodos((previos) => previos.map((p, n) => (n === i ? { ...p, [campo]: valor } : p)))
+    setErroresCampo({})
+    setIncompatibilidades([])
+  }
+
+  const cambiarDias = (siguientes) => {
+    setDias(siguientes)
+    setErroresCampo({})
+    setIncompatibilidades([])
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -454,9 +477,15 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           enLinea={enLinea}
           restableciendo={restablecer.isPending}
           guardando={crear.isPending || editar.isPending}
-          // Con un conflicto o un envío sin confirmar, "Guardar" se bloquea:
-          // volver a mandarlo pisaría lo ajeno o escribiría dos veces (D75).
-          completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar}
+          /**
+           * D75 — Con un conflicto, un envío sin confirmar o SIN CONEXIÓN,
+           * "Guardar" se bloquea: volver a mandarlo pisaría lo ajeno,
+           * escribiría dos veces, o se perdería en un envío que nunca
+           * sale. El calendario no se encola ni se guarda en
+           * `localStorage` (CU027): lo único que lo protege mientras no
+           * hay red es dejar la vista abierta con "Guardar" deshabilitado.
+           */
+          completo={estaCompleto(periodos, dias) && !conflicto && !sinConfirmar && enLinea}
           faltan={camposPorCompletar(periodos, dias)}
           onEmpezar={empezar}
           onRestablecer={() => setConfirmando({ tipo: 'usarGeneral' })}
@@ -465,10 +494,24 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         />
       </header>
 
-      {!enLinea && (
+      {/*
+        D75 — El aviso de EDITAR es distinto del de CONSULTAR. Editando, lo
+        que importa es que lo escrito no se pierde si la vista se queda
+        abierta (CU027: nunca se encola ni se guarda en `localStorage`), así
+        que se dice eso y no "estás consultando". Consultando, importa desde
+        CUÁNDO es la copia: sin esa fecha "puede estar desactualizada" no
+        dice nada que el Supervisor pueda usar para decidir si confiar en ella.
+      */}
+      {!enLinea && editando && (
         <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
-          Sin conexión. Estás consultando la última versión guardada del calendario. Conéctate a Internet para
-          gestionar el calendario.
+          Sin conexión. Tus cambios aún no se han guardado. Mantén esta vista abierta para conservarlos.
+        </p>
+      )}
+
+      {!enLinea && !editando && (
+        <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          Sin conexión. Estás consultando la versión guardada el {formatearFechaHora(consulta.dataUpdatedAt)}.
+          Conéctate a Internet para gestionar el calendario.
         </p>
       )}
 
@@ -565,7 +608,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           filas={editando ? periodos : ochoPeriodos(calendario?.periodos)}
           dias={editando ? dias : (calendario?.dias_no_lectivos ?? [])}
           onFecha={ponerFecha}
-          onDias={setDias}
+          onDias={cambiarDias}
           erroresCampo={erroresCampo}
           periodoActual={calendario?.periodo_actual}
           onIrAlGeneral={() => setAlcance('general')}
@@ -635,7 +678,14 @@ function AccionesDelCalendario({
   onGuardar,
 }) {
   if (modo !== 'consulta') {
-    const porQue = faltan.length ? `Completa para guardar: ${faltan.join(', ')}.` : undefined
+    // D75 — Si falta algo Y además falta la red, lo primero es lo primero:
+    // conectarse es lo que de verdad bloquea, completar los campos no sirve
+    // de nada todavía.
+    const porQue = !enLinea
+      ? 'Sin conexión. Conéctate a Internet para guardar.'
+      : faltan.length
+        ? `Completa para guardar: ${faltan.join(', ')}.`
+        : undefined
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -816,7 +866,7 @@ function TablaPeriodos({ filas, editando, onCambio, erroresCampo = {}, periodoAc
                     <span className="ml-2 text-xs font-normal text-ink-500">receso posterior a PA{p.numero}</span>
                   )}
                   {esDeHoy && (
-                    <span className="ml-2 whitespace-nowrap rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">
+                    <span className="ml-2 whitespace-nowrap rounded-full bg-brand-solid px-2 py-0.5 text-xs font-semibold text-white">
                       Periodo actual
                     </span>
                   )}
@@ -896,7 +946,14 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
             </thead>
             <tbody>
               {dias.map((d, i) => (
-                <tr key={`${d.motivo}-${d.fecha_inicio}-${i}`} className="border-t border-line">
+                // La clave NO puede llevar `d.motivo` ni una fecha: al escribir
+                // en "Motivo" eso cambia en cada tecla, React ve una clave
+                // nueva y DESMONTA la fila completa (el <input> incluido) para
+                // montar una de cero — el foco se pierde a cada letra y
+                // parece que el campo no deja escribir. Sin reordenamiento en
+                // esta lista (solo "Añadir" al final y "Quitar"), la posición
+                // es clave estable de sobra.
+                <tr key={i} className="border-t border-line">
                   <td className="px-4 py-2">
                     {editando ? (
                       <Input

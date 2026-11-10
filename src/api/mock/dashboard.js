@@ -28,6 +28,33 @@
 import dayjs from 'dayjs'
 import * as db from './db'
 
+/**
+ * EL DASHBOARD CUENTA POR PERTENENCIA EN LA FECHA, NO POR `activo`.
+ *
+ * El bug original era que ninguna lectura de `db.ALUMNOS` miraba la baja, así
+ * que un colegio salía con más alumnos evaluables de los que tiene y todos los
+ * porcentajes se repartían sobre un denominador inflado.
+ *
+ * El primer arreglo filtró por `activo`, y estaba mal: eso saca al alumno
+ * también de los periodos ANTERIORES a su baja. CU014 dice lo contrario —la
+ * baja no borra lo histórico— y el backend hace lo correcto: cierra la
+ * pertenencia desde la fecha de baja y cuenta a quien pertenecía al grupo en
+ * la fecha que toca a cada consulta (confirmado por el backend, ver
+ * `docs/decisiones-externas-y-pendientes-de-backend.md`).
+ *
+ * Entonces aquí se filtra igual: por pertenencia en una FECHA.
+ *
+ *   · un alumno sin baja pertenece siempre;
+ *   · uno dado de baja pertenece hasta el día de su baja, no después.
+ *
+ * La fecha depende del indicador: el corte del periodo —`min(fin del PA, hoy)`—
+ * en distribución y resultados, y la de cada clase en asistencia y libros.
+ */
+const perteneceEn = (alumno, fecha) => !alumno.baja_desde || (fecha != null && fecha < alumno.baja_desde)
+
+/** La fecha en la que se mira la pertenencia de un PA: su fin, u hoy si sigue en curso. */
+const fechaDeCorte = (periodo) => (periodo?.fin == null || HOY() <= periodo.fin ? HOY() : periodo.fin)
+
 const ANIO = db.ANIO_LECTIVO
 
 /** Los PA del calendario del simulador (los mismos ids que `handlers.js`). */
@@ -165,9 +192,16 @@ const fechasDeCorte = (activos, periodo) => {
   return activos.map((c) => ({ colegio: itemColegio(c), fecha }))
 }
 
-const alumnosDe = (colegios) => {
+/**
+ * Los alumnos de unos colegios que PERTENECÍAN AL GRUPO en `fecha`.
+ *
+ * Sin `fecha` no se filtra por pertenencia: es lo que quieren los indicadores
+ * ANUALES (libros), donde cuenta quien tuvo filas en alguna tabla del año,
+ * aunque se haya dado de baja en septiembre.
+ */
+const alumnosDe = (colegios, fecha = null) => {
   const ids = new Set(colegios.map((c) => c.id_colegio))
-  return db.ALUMNOS.filter((a) => ids.has(a.id_colegio))
+  return db.ALUMNOS.filter((a) => ids.has(a.id_colegio) && (fecha == null || perteneceEn(a, fecha)))
 }
 
 /** Reparte los evaluados entre los niveles, estable por semilla. Todos los niveles, también los de 0. */
@@ -263,7 +297,7 @@ export function distribucionSubprograma(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
   const base = {
     contexto: contextoDe(params, colegios, periodo),
     fechas_corte: fechasDeCorte(activos, periodo),
@@ -292,7 +326,7 @@ export function resultadosAprendizaje(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
 
   const resultados = [
     { resultado: 'global', fuente: 'registro_vuelo' },
@@ -366,6 +400,7 @@ export function comparacionResultados(params) {
   const medir = (colegio, grado) => {
     const suyos = db.ALUMNOS.filter(
       (a) =>
+        perteneceEn(a, fechaDeCorte(periodo)) &&
         a.id_colegio === colegio.id_colegio &&
         a.id_programa === idPrograma &&
         grados.some((g) => g.id_grado === a.id_grado) &&
@@ -450,10 +485,10 @@ export function asistencia(params) {
   const colegios = colegiosDe(params)
   const periodo = periodoDe(params)
   const { activos, sinInformacion } = reparto(colegios)
-  const alumnos = alumnosDe(activos)
+  const alumnos = alumnosDe(activos, fechaDeCorte(periodo))
 
   const porColegio = activos.map((c) => {
-    const suyos = db.ALUMNOS.filter((a) => a.id_colegio === c.id_colegio)
+    const suyos = alumnosDe([c], fechaDeCorte(periodo))
     return {
       ...conteoDe(suyos.length, db.SEMILLA + c.id_colegio, {
         clases: 8 + (c.id_colegio % 3),
@@ -522,7 +557,12 @@ export function asistenciaClases(params) {
   const grados = params.id_grado ? db.GRADOS.filter((g) => g.id_grado === Number(params.id_grado)) : db.GRADOS
 
   const grupos = grados.map((grado) => {
-    const lista = db.ALUMNOS.filter((a) => a.id_colegio === colegio.id_colegio && a.id_grado === grado.id_grado).length
+    const lista = db.ALUMNOS.filter(
+      (a) =>
+        a.id_colegio === colegio.id_colegio &&
+        a.id_grado === grado.id_grado &&
+        perteneceEn(a, fechaDeCorte(periodo)),
+    ).length
     const fechaDe = (i) => dayjs(periodo.inicio).add(i * 9 + grado.id_grado, 'day').format('YYYY-MM-DD')
     const clases = [0, 1].map((i) => {
       // La segunda clase queda con alumnos sin marcar: "registro_incompleto".

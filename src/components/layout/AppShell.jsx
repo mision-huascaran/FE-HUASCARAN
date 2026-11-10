@@ -6,11 +6,12 @@ import BarraInferior from './BarraInferior'
 import useOfflineQueue from '../../hooks/useOfflineQueue'
 import useRegistrosOffline from '../../hooks/useRegistrosOffline'
 import Topbar from './Topbar'
+import cn from '../../lib/cn'
 
 /**
  * Layout común de todas las pantallas autenticadas (P2).
  *
- * RNF-002: de 360px a 1920px. La barra lateral se reserva con `lg:pl-[248px]`;
+ * RNF-002: de 360px a 1920px. La barra lateral se reserva con `lg:pl-[260px]`;
  * el contenido nunca empuja el ancho del documento —las tablas anchas manejan su
  * propio `overflow-x-auto` dentro de la tarjeta.
  *
@@ -26,18 +27,22 @@ export default function AppShell() {
   // Lectura, Rúbrica y Vuelo: lo que vuelve de la cola se escribe en pantalla.
   useRegistrosOffline()
   const { pathname } = useLocation()
+  // El paisaje es exclusivo de Inicio; el resto va sobre el azul grisáceo liso.
+  const conPaisaje = pathname === '/inicio'
 
   return (
-    <div className="min-h-screen bg-surface-50">
+    <div className={cn('sicedu-fondo relative min-h-screen', conPaisaje && 'sicedu-con-paisaje')}>
+      {conPaisaje && <div className="sicedu-paisaje" aria-hidden="true" />}
       <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
 
-      <div className="lg:pl-[248px] print:pl-0">
+      <div className="relative lg:pl-[260px] print:pl-0">
+        <div className="sicedu-panel lg:my-3 lg:mr-3 lg:min-h-[calc(100vh-1.5rem)] lg:rounded-panel lg:border lg:border-line/60 lg:shadow-card print:m-0 print:border-0 print:shadow-none">
         <Topbar onAbrirMenu={() => setMenuAbierto(true)} />
         {/* `key` fuerza el reinicio del scroll y del estado al cambiar de pantalla. */}
         {/* `pb-24` en móvil: sin ese hueco, la barra inferior tapa la última
             fila de la tabla o el botón de guardar, que es justo lo que se
             estaba intentando pulsar. */}
-        <main key={pathname} className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-6 sm:px-6 lg:pb-6">
+        <main key={pathname} className="mx-auto w-full max-w-[1400px] px-4 pb-28 pt-5 sm:px-6 sm:pt-6 lg:px-7 lg:pb-8">
           {/* El límite va DENTRO del armazón: si una pantalla revienta, la
               barra lateral y el menú siguen en pie y el usuario puede irse a
               otra sección en vez de quedarse ante una página en blanco. */}
@@ -45,6 +50,7 @@ export default function AppShell() {
             <Outlet />
           </LimiteDeError>
         </main>
+        </div>
       </div>
 
       <BarraInferior onMas={() => setMenuAbierto(true)} />

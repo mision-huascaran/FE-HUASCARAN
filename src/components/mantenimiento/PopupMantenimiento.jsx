@@ -80,6 +80,15 @@ const visiblesEn = (campos, valores, modo, registro, detalleListo = true) => {
         // La ayuda también: "este colegio está en receso (PR3) hasta el 08/11"
         // depende del colegio que se acabe de elegir.
         ayuda: resolver(c.ayuda, valores, contexto),
+        /**
+         * `requerido` también puede ser función (CU014, alumno con pertenencia
+         * pendiente): el grado, el subprograma y la sección solo se vuelven
+         * obligatorios si se informa alguno de los dos últimos, y "Pertenece
+         * al grupo desde" solo si el grupo ya quedó completo. Sin resolverlo
+         * aquí, `campo.requerido && vacio` de `validar()` lo tomaría siempre
+         * por verdadero —una función nunca es falsa— sin mirar su resultado.
+         */
+        requerido: resolver(c.requerido, valores, contexto),
       }))
   )
 }

@@ -105,9 +105,17 @@ describe('guardas de rol (RNF-004)', () => {
   })
 
   it('una URL desconocida lleva al inicio del rol', async () => {
-    // Los tres roles aterrizan en /inicio desde el sprint de cierre; lo que
-    // cambia es el contenido, no la ruta.
-    renderRuta('/ruta-que-no-existe', USUARIOS_DE_PRUEBA[ROLES.DIRECTIVOS])
+    // Cada rol a su pantalla: el Docente y el Supervisor a Inicio, el
+    // Directivo a su Dashboard, que es la única sección que tiene.
+    //
+    // Se usa el SUPERVISOR y no el Docente porque el `h1` del Docente es su
+    // saludo ("Buenos días, …"), no la palabra "Inicio".
+    renderRuta('/ruta-que-no-existe', USUARIOS_DE_PRUEBA[ROLES.JEFA])
     expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
+  })
+
+  it('una URL desconocida lleva al Directivo a su Dashboard', async () => {
+    renderRuta('/ruta-que-no-existe', USUARIOS_DE_PRUEBA[ROLES.DIRECTIVOS])
+    expect(await screen.findByRole('heading', { name: /Dashboard/ })).toBeInTheDocument()
   })
 })

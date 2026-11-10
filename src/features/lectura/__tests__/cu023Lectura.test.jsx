@@ -11,7 +11,7 @@
 //     el docente no quiso borrar.
 //   · "No realizada" bloquea también las observaciones.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
@@ -20,7 +20,8 @@ import LecturaPage from '../LecturaPage'
 import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import { ROLES } from '../../../auth/roles'
-import { _reiniciarCola, reintentarAhora } from '../../../lib/colaOffline'
+import { _reiniciarCola, encolar, reintentarAhora } from '../../../lib/colaOffline'
+import { TIPOS_ENVIO, claveDeMarca } from '../../../hooks/useOfflineQueue'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
 import { elegirPrimerColegio } from '../../../test/elegirColegio'
@@ -366,6 +367,40 @@ describe('Las filas de la tabla (CU024)', () => {
     expect(screen.getByLabelText(/libros de sala de lectura/i)).toBeDisabled()
     // Justificar la falta es justo lo que hace falta aquí.
     expect(screen.getByRole('button', { name: /añadir observación de/i })).toBeEnabled()
+  })
+
+  /**
+   * D92 — Una asistencia marcada SIN CONEXIÓN (todavía solo en la cola, sin
+   * confirmar por el servidor) habilita la fila igual que una ya confirmada.
+   * Antes solo se miraba `fila.asistencia`, que viene de `GET /lectura/tablas`
+   * y no se enteraba de lo que la cola de Asistencias tenía pendiente para el
+   * mismo alumno, fecha y sección.
+   */
+  it('una asistencia pendiente en la cola habilita la fila y se marca "(pendiente)"', async () => {
+    obtenerTabla.mockResolvedValue(tabla({ filas: [fila({ asistencia: null, estado_fila: 'no_aplica' })] }))
+
+    montar()
+    expect(await screen.findByLabelText(/título del LSN/i, {}, ESPERA)).toBeDisabled()
+    expect(screen.getByText('Sin marcar')).toBeInTheDocument()
+
+    // Sin conexión: como la marcó el docente en el aula, sin señal. No se
+    // espera la promesa de `encolar`: sin red se queda en la cola, pendiente
+    // de verdad, y esa promesa solo se resuelve cuando el envío sale.
+    conexion(false)
+    act(() => {
+      encolar({
+        clave: claveDeMarca(5, '2026-06-15', 2),
+        tipo: TIPOS_ENVIO.ASISTENCIA,
+        registro: { id_colegio: 1, id_grado: 2, id_seccion: 2, fecha: '2026-06-15', id_alumno: 5 },
+        payload: { registros: [{ id_alumno: 5, estado: 'presente' }] },
+        descripcion: 'Asistencia de Torres, Ana',
+        exigePersistencia: true,
+      })
+    })
+
+    expect(await screen.findByText('Presente', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('(pendiente)')).toBeInTheDocument()
+    expect(screen.getByLabelText(/título del LSN/i)).toBeEnabled()
   })
 
   it('avisa cuando hay lectura registrada y hoy consta ausente', async () => {

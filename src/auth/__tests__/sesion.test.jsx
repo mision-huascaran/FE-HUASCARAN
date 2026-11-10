@@ -12,7 +12,7 @@ import { MENSAJE } from '../../features/login/LoginPage'
 import useSessionStore from '../../store/sessionStore'
 import { useAuth } from '../AuthProvider'
 import { destinoTrasLogin } from '../../rutas'
-import { ROLES } from '../roles'
+import { ROLES, rutaInicioDe } from '../roles'
 import {
   ROLES_DE_PRUEBA,
   cuentaDe,
@@ -57,11 +57,13 @@ afterEach(() => {
 })
 
 describe.each(ROLES_DE_PRUEBA)('Inicio de sesión como $nombre (CU001)', ({ idRol }) => {
-  it('entra con sus credenciales, aterriza en /inicio y el token queda solo en sessionStorage', async () => {
+  it('entra con sus credenciales, aterriza en la pantalla de su rol y el token queda solo en sessionStorage', async () => {
     renderConProveedores(null, { ruta: '/login' })
     await ingresar(cuentaDe(idRol).correo, CLAVE_DEMO)
 
-    await waitFor(() => expect(rutaActual()).toHaveTextContent('/inicio'))
+    // El Docente y el Supervisor a /inicio; el Directivo a /dashboard, que
+    // desde que su Inicio desapareció es su única pantalla.
+    await waitFor(() => expect(rutaActual()).toHaveTextContent(rutaInicioDe(idRol)))
     expect(useSessionStore.getState().usuario.id_rol).toBe(idRol)
     // RNF-003: el token sobrevive a la recarga pero no al cierre del navegador.
     expect(sessionStorage.getItem('sicedu.token')).toBe(useSessionStore.getState().token)
@@ -197,7 +199,7 @@ describe('Vuelta a la ruta pedida (RNF-004)', () => {
   it('nunca redirige fuera de la aplicación aunque la ruta guardada sea una URL externa', () => {
     expect(destinoTrasLogin('https://malicioso.example/inicio', ROLES.DOCENTE)).toBe('/inicio')
     expect(destinoTrasLogin('//malicioso.example', ROLES.SUPERVISOR)).toBe('/inicio')
-    expect(destinoTrasLogin('javascript:alert(1)', ROLES.DIRECTIVO)).toBe('/inicio')
+    expect(destinoTrasLogin('javascript:alert(1)', ROLES.DIRECTIVO)).toBe('/dashboard')
   })
 
   it('un usuario autenticado que abre /login vuelve a su inicio', async () => {
@@ -284,10 +286,10 @@ describe('Vencimiento a las 8 horas (CU007)', () => {
       cargando: false,
       motivoCierre: null,
     })
-    // En /inicio, que es la única sección del Directivo desde CU012: el
-    // Dashboard dejó de ser suyo y entrar por URL ahora lo manda a /403, que
-    // no es lo que este caso quiere medir.
-    renderConProveedores(null, { ruta: '/inicio' })
+    // En /dashboard, que es la única sección del Directivo: su Inicio
+    // desapareció y entrar ahí por URL lo manda a /403, que no es lo que
+    // este caso quiere medir.
+    renderConProveedores(null, { ruta: '/dashboard' })
 
     await act(() => vi.advanceTimersByTimeAsync(OCHO_HORAS_MS - 60_000))
     expect(useSessionStore.getState().token).not.toBeNull()

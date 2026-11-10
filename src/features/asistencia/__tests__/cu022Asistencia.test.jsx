@@ -328,6 +328,20 @@ describe('Asistencia (CU022)', () => {
     expect(ladoPresente(controles()[0])).toBeDisabled()
   })
 
+  it('sin colegio, el Supervisor ve Grado y Sección deshabilitados diciendo qué falta', async () => {
+    montar(ROLES.SUPERVISOR)
+    await abrirFiltros()
+
+    const grado = await screen.findByLabelText('Grado', {}, ESPERA)
+    expect(grado).toBeDisabled()
+    expect(grado).toHaveDisplayValue('Primero selecciona un colegio')
+    expect(screen.getByLabelText('Sección')).toHaveDisplayValue('Primero selecciona un grado')
+
+    // Al elegir el colegio, el Grado se habilita.
+    await elegirPrimerColegio(ESPERA)
+    await waitFor(() => expect(screen.getByLabelText('Grado')).toBeEnabled(), ESPERA)
+  })
+
   it('el Supervisor entra en solo lectura y no ve la acción en lote', async () => {
     montar(ROLES.SUPERVISOR)
     await abrirFiltros()

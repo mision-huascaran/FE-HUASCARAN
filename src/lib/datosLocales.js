@@ -8,7 +8,8 @@
 //     si se queda, la siguiente persona que use el navegador —por ejemplo un
 //     Directivo— tiene en su IndexedDB los nombres de los alumnos del Docente
 //     anterior.
-//   · VACÍA localStorage ENTERO. CU007 lo pide así de literal: "limpiar
+//   · VACÍA localStorage ENTERO, salvo una lista explícita de claves que no
+//     son del usuario (el desfase del reloj y el tema). CU007 lo pide así de literal: "limpiar
 //     íntegramente el LocalStorage del navegador, eliminando resúmenes
 //     operativos en caché, filtros de grillas de todos los módulos y cualquier
 //     otro estado local temporal guardado por el usuario saliente". Antes solo
@@ -23,9 +24,11 @@ import { borrarPrecarga } from './precarga'
 import { borrarCacheConsultas } from './cacheConsultas'
 import { borrarHabilitaciones } from '../api/resources/habilitaciones'
 import useRechazosStore from '../store/rechazosStore'
+import { CLAVE_TEMA } from '../hooks/useTema'
 
 /**
- * Lo único que SOBREVIVE al cierre de sesión.
+ * Lo único que SOBREVIVE al cierre de sesión. Una lista cerrada: lo que no
+ * esté aquí se borra.
  *
  * El desfase con el reloj del servidor no es estado del usuario: no dice nada
  * de él, no es personal, y es la defensa que CU022 y CU009 exigen contra un
@@ -35,8 +38,13 @@ import useRechazosStore from '../store/rechazosStore'
  *
  * Se vuelve a calibrar solo en cuanto el servidor contesta, pero el hueco entre
  * el login y esa primera respuesta es justo donde no conviene estar ciego.
+ *
+ * El TEMA (claro, oscuro o sistema) tampoco es del usuario: es una preferencia
+ * del equipo, y solo guarda una de esas tres palabras. Se borraba con todo lo
+ * demás y el login volvía a salir con el tema por defecto. Aquí no puede
+ * entrar nada personal —ni DNI, ni correo, ni nombres (D115)—.
  */
-const CLAVES_QUE_NO_SON_DEL_USUARIO = ['sicedu.reloj.desfase']
+const CLAVES_QUE_NO_SON_DEL_USUARIO = ['sicedu.reloj.desfase', CLAVE_TEMA]
 
 export function limpiarLocalStorageDeSesion() {
   try {

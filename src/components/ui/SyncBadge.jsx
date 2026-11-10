@@ -33,15 +33,15 @@ export default function SyncBadge({ pendientes = 0, sincronizando = false, error
       onClick={onClick}
       aria-label={`Estado de sincronización: ${texto}`}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-80',
+        'inline-flex h-10 min-w-[40px] items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-opacity duration-150 hover:opacity-80 sm:h-8',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
         clases,
         className,
       )}
     >
-      <Icon className={cn('h-3.5 w-3.5', sincronizando && 'animate-spin')} aria-hidden="true" />
+      <Icon className={cn('h-4 w-4', sincronizando && 'animate-spin')} aria-hidden="true" />
       <span className="hidden sm:inline">{texto}</span>
-      <span className="sm:hidden tabular-nums">{hayPendientes ? pendientes : '✓'}</span>
+      {hayPendientes && <span className="tabular-nums sm:hidden">{pendientes}</span>}
     </button>
   )
 }

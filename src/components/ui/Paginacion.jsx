@@ -9,7 +9,7 @@
  * `ink-900` y el estado apagado es un color explícito, no una transparencia.
  */
 const BOTON_PAGINA = [
-  'h-8 rounded-lg border px-3 text-xs font-semibold transition-colors',
+  'h-11 rounded-lg border px-3 text-xs font-semibold transition-colors sm:h-8',
   'border-line-strong bg-surface-0 text-ink-900 hover:bg-brand-100 hover:border-brand-500 hover:text-brand-700',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
   // Apagado: gris sólido y legible, en vez de medio transparente.
@@ -29,7 +29,7 @@ export default function Paginacion({ desde, hasta, total, pagina, totalPaginas, 
           <select
             value={porPagina}
             onChange={(e) => onPorPagina(Number(e.target.value))}
-            className="h-8 rounded-lg border border-line-strong bg-surface-0 px-2 text-xs font-semibold text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="h-11 rounded-lg border border-line-strong bg-surface-0 px-2 text-xs font-semibold text-ink-900 sm:h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             {opciones.map((n) => (
               <option key={n} value={n}>

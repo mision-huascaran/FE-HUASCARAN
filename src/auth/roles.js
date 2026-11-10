@@ -20,17 +20,23 @@ export const NOMBRE_ROL = {
 /**
  * Ruta de aterrizaje tras el login.
  *
- * Los tres roles aterrizan en `/inicio`: la matriz del sprint da esa sección a
- * todos, con un contenido distinto por rol (al Docente sus asignaciones, al
- * Supervisor métricas por docente, al Directivo el resumen ejecutivo).
+ * El Docente y el Supervisor aterrizan en `/inicio`, con un contenido distinto
+ * cada uno (al Docente sus asignaciones, al Supervisor métricas por docente).
+ *
+ * EL DIRECTIVO ATERRIZA EN `/dashboard` y ya no tiene Inicio. Su Inicio eran
+ * tres indicadores institucionales que el Dashboard cubre mejor y con filtros;
+ * tenerlos en dos pantallas obligaba a mantener dos veces el mismo número y a
+ * explicar por qué no siempre coincidían. La sección `inicio` es
+ * `[DIRECTIVO]: null` en la matriz de permisos, así que tampoco le aparece en
+ * el menú ni le deja entrar a mano.
  */
 export const INICIO_POR_ROL = {
   [ROLES.PROFESOR]: '/inicio',
   [ROLES.DOCENTE]: '/inicio',
   [ROLES.JEFA]: '/inicio',
   [ROLES.SUPERVISOR]: '/inicio',
-  [ROLES.DIRECTIVOS]: '/inicio',
-  [ROLES.DIRECTIVO]: '/inicio',
+  [ROLES.DIRECTIVOS]: '/dashboard',
+  [ROLES.DIRECTIVO]: '/dashboard',
 }
 
 export function rutaInicioDe(idRol) {

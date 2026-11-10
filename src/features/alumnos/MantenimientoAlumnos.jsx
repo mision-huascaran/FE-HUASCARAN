@@ -6,12 +6,16 @@
 //
 // Al crear un alumno el backend crea su expediente en la misma transacción, así
 // que aquí no hay una segunda llamada que pudiera quedarse a medias.
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
+import { Upload } from 'lucide-react'
+import Mantenimiento, { avisoSinConexion } from '../../components/mantenimiento/Mantenimiento'
+import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { consultaDetalleColegio } from '../../hooks/consultaColegio'
+import ImportarNominaModal from './ImportarNominaModal'
 import {
   actualizarAlumno,
   cambiarEstadoAlumno,
@@ -35,6 +39,7 @@ import useFiltrosGuardados from '../../hooks/useFiltrosGuardados'
 import usePrecarga from '../../hooks/usePrecarga'
 import useSessionStore from '../../store/sessionStore'
 import { alcanceDe } from '../../auth/permisos'
+import { ROLES } from '../../auth/roles'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -72,6 +77,10 @@ export default function MantenimientoAlumnos() {
   const enLinea = useConexion()
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const soloSusSecciones = alcanceDe('alumnos', idRol) === 'asignado'
+  // "Importar nómina" es exclusiva del Supervisor (CU014): la ingesta masiva
+  // y las correcciones administrativas son suyas; el Docente ni la ve.
+  const esSupervisor = idRol === ROLES.SUPERVISOR
+  const [importando, setImportando] = useState(false)
 
   // CU014: los filtros se guardan en LocalStorage y se borran al cerrar sesión.
   const [filtros, setFiltros] = useFiltrosGuardados('alumnos', { estado: 'activo' })
@@ -167,7 +176,57 @@ export default function MantenimientoAlumnos() {
     }
   }, [soloSusSecciones, asignaciones, colegios, grados])
 
+  /**
+   * Los GRADOS que de verdad tiene cada colegio, no todos los que existen.
+   *
+   * `permitidos.grados` es el catálogo entero (o el del Docente); un colegio
+   * nuevo o pequeño no necesariamente lo imparte completo. El detalle del
+   * colegio (el mismo que arma `seccionesPorGrado`) ya trae su propia lista
+   * de grados, así que de ahí sale el filtro.
+   */
+  const gradosPorColegio = useMemo(() => {
+    const mapa = {}
+    for (const { data } of detalles) {
+      if (!data) continue
+      mapa[data.id_colegio] = new Set((data.grados ?? []).map((g) => Number(g.id_grado)))
+    }
+    return mapa
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detalles.map((d) => d.data?.id_colegio).join(), detalles.filter((d) => d.data).length])
+
+  const gradosDe = useCallback(
+    (valores) => {
+      const delColegio = gradosPorColegio[valores?.id_colegio]
+      if (!delColegio) return []
+      return permitidos.grados.filter((g) => delColegio.has(Number(g.id_grado)))
+    },
+    [gradosPorColegio, permitidos.grados],
+  )
+
   const opciones = (lista, clave) => lista.map((x) => ({ value: x[clave], label: x.nombre }))
+
+  /**
+   * Semana 14 — el alumno con la PERTENENCIA PENDIENTE: el que todavía no
+   * tiene ningún intervalo en su historial (de una importación, o de antes de
+   * que el backend modelara la pertenencia). `registro.pertenencia_pendiente`
+   * es la señal del backend; se respalda con la señal antigua (activo y sin
+   * `pertenece_desde`) por si llegara un registro de un origen que todavía no
+   * la manda.
+   */
+  const esPendiente = (registro) =>
+    Boolean(registro?.pertenencia_pendiente) || (registro?.activo !== false && !registro?.pertenece_desde)
+
+  /** ¿Se EDITA a un pendiente? Solo entonces el grupo deja de ser obligatorio de entrada. */
+  const editandoPendiente = ({ modo, registro, detalleListo } = {}) =>
+    modo === 'editar' && detalleListo && esPendiente(registro)
+
+  /**
+   * Con un pendiente, el grupo (grado, subprograma, sección) solo se exige
+   * COMPLETO si se informó el subprograma o la sección — el grado puede venir
+   * prellenado de la nómina sin que eso obligue a completar el resto (CU014).
+   */
+  const grupoDebeCompletarse = (valores) => Boolean(valores?.id_programa || valores?.id_seccion)
+  const grupoCompleto = (valores) => Boolean(valores?.id_grado && valores?.id_programa && valores?.id_seccion)
 
   /**
    * Los campos del popup, memorizados.
@@ -182,6 +241,18 @@ export default function MantenimientoAlumnos() {
     () => [
       { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
       { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
+      /**
+       * DNI opcional (semana 14): 8 dígitos exactos cuando se informa, único
+       * entre alumnos (el backend lo rechaza con 409 `dni_duplicado`, que
+       * `conDniLegible` convierte en un error de este campo). Vacío no es un
+       * error: muchos alumnos —y todos los recién importados— no lo tienen.
+       */
+      {
+        nombre: 'dni',
+        etiqueta: 'DNI',
+        placeholder: '8 dígitos',
+        validar: (v) => (/^\d{8}$/.test(String(v ?? '').trim()) ? null : 'El DNI debe tener exactamente 8 dígitos.'),
+      },
       {
         nombre: 'id_colegio',
         etiqueta: 'Colegio',
@@ -195,10 +266,19 @@ export default function MantenimientoAlumnos() {
         nombre: 'id_grado',
         etiqueta: 'Grado',
         tipo: 'select',
-        requerido: true,
+        /**
+         * Con un pendiente, el grado NO es obligatorio de entrada —puede venir
+         * ya puesto desde la nómina, o quedarse vacío—, pero se vuelve
+         * obligatorio en cuanto se informa el subprograma o la sección: el
+         * backend exige el grupo completo o ninguno (semana 14).
+         */
+        requerido: (valores, contexto) => !editandoPendiente(contexto) || grupoDebeCompletarse(valores),
         // Con una sola opción no hay nada que elegir (U27).
         unicaPorDefecto: true,
-        opciones: opciones(permitidos.grados, 'id_grado'),
+        // Solo los grados que el colegio elegido de verdad tiene, no el
+        // catálogo entero: un colegio no ofrece necesariamente los seis.
+        opciones: (valores) => opciones(gradosDe(valores), 'id_grado'),
+        ayuda: 'Los que tiene el colegio elegido',
       },
       /**
        * LA SECCIÓN SE ELIGE. Dejó de ser un atributo heredado del colegio
@@ -212,9 +292,14 @@ export default function MantenimientoAlumnos() {
         nombre: 'id_seccion',
         etiqueta: 'Sección',
         tipo: 'select',
-        // Obligatoria solo cuando hay de dónde elegir: con una sola, el
-        // servidor la asigna igual aunque no se mande.
-        requerido: false,
+        /**
+         * Normalmente NO es obligatoria aquí: con una sola, el servidor la
+         * asigna igual aunque no se mande, y decide por su cuenta si hace
+         * falta con varias. Con un pendiente es distinto: en cuanto se
+         * informa el subprograma o la propia sección, el grupo tiene que
+         * quedar completo (semana 14).
+         */
+        requerido: (valores, contexto) => editandoPendiente(contexto) && grupoDebeCompletarse(valores),
         unicaPorDefecto: true,
         opciones: (valores) =>
           seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
@@ -230,7 +315,9 @@ export default function MantenimientoAlumnos() {
         nombre: 'id_programa',
         etiqueta: 'Subprograma',
         tipo: 'select',
-        requerido: true,
+        // Misma regla que el grado: obligatorio salvo con un pendiente que
+        // todavía no informó ni el subprograma ni la sección (semana 14).
+        requerido: (valores, contexto) => !editandoPendiente(contexto) || grupoDebeCompletarse(valores),
         // Con una sola opción no hay nada que elegir (U27).
         unicaPorDefecto: true,
         opciones: opciones(programas, 'id_programa'),
@@ -249,29 +336,36 @@ export default function MantenimientoAlumnos() {
         nombre: 'pertenece_desde',
         etiqueta: 'Pertenece al grupo desde',
         tipo: 'fecha',
-        requerido: true,
+        /**
+         * Al crear, siempre obligatoria. Al editar a un pendiente (el campo
+         * solo se ve en ese caso, ver `visible`), solo cuando el grupo ya
+         * quedó completo: pedirla antes sería forzar una fecha para un grupo
+         * que todavía no existe (semana 14, "Con pertenece_desde solo…").
+         */
+        requerido: (valores, { modo } = {}) => modo === 'nuevo' || grupoCompleto(valores),
         max: hoy(),
         /**
          * D65 — SE PIDE TAMBIÉN AL EDITAR si al alumno le falta.
          *
          * Al crear siempre; al editar, solo cuando el alumno está activo y no
-         * tiene intervalo de pertenencia. Eso último no debería pasar, pero
-         * pasa con los alumnos cargados antes de que el backend modelara el
-         * historial, y sin esa fecha no se sabe quién estaba en el aula el día
-         * de una clase: el alumno se cae de las tablas históricas de Lectura,
-         * Rúbrica y Registro de Vuelo. El formulario es el único sitio donde
-         * se puede arreglar.
+         * tiene intervalo de pertenencia (un pendiente, por importación o por
+         * ser de antes de que el backend modelara el historial): sin esa
+         * fecha no se sabe quién estaba en el aula el día de una clase, y el
+         * alumno se cae de las tablas históricas de Lectura, Rúbrica y
+         * Registro de Vuelo. El formulario es el único sitio donde se puede
+         * arreglar.
          *
          * Con el alumno INACTIVO no se pregunta: ahí no hay grupo en curso, y
          * volver a uno es justo lo que hace "Activar" con su fecha efectiva.
          * Pedirlo en los dos sitios daría dos fechas para un mismo hecho.
          */
         visible: (valores, { modo, registro, detalleListo } = {}) =>
-          modo === 'nuevo' ||
-          (modo === 'editar' && detalleListo && registro?.activo !== false && !registro?.pertenece_desde),
-        // La fecha propuesta es la de creación del alumno: es la única que se
-        // sabe cierta, y poner hoy inventaría un historial que no ocurrió.
-        porDefecto: (registro) => fechaDeCreacion(registro),
+          modo === 'nuevo' || (modo === 'editar' && detalleListo && registro?.activo !== false && esPendiente(registro)),
+        // La fecha propuesta es la de creación del alumno, que es la única
+        // fecha que se sabe cierta; sin ella —un importado no trae
+        // `fecha_registro` propia, por ejemplo— se propone hoy, tal como pide
+        // CU014 ("en caso contrario, propone la fecha actual").
+        porDefecto: (registro) => fechaDeCreacion(registro) || hoy(),
         ayuda: 'Desde qué día está en este colegio, grado y sección',
       },
       /**
@@ -304,15 +398,14 @@ export default function MantenimientoAlumnos() {
          * hecho, y el servidor rechaza que viajen las dos.
          */
         visible: (valores, { modo, registro, detalleListo } = {}) => {
-          const sinPertenencia =
-            modo === 'editar' && detalleListo && registro?.activo !== false && !registro?.pertenece_desde
+          const sinPertenencia = modo === 'editar' && detalleListo && registro?.activo !== false && esPendiente(registro)
           return !sinPertenencia && cambiaDeGrupo(registro, valores)
         },
         ayuda: 'Desde qué día pertenece a su nuevo grupo',
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [permitidos.colegios, permitidos.grados, programas, seccionesDe],
+    [permitidos.colegios, permitidos.grados, programas, seccionesDe, gradosDe],
   )
 
   const consulta = useQuery({
@@ -324,6 +417,17 @@ export default function MantenimientoAlumnos() {
       if (!enLinea) return filtrarAlumnos(precarga?.alumnos ?? [], filtros)
       return (await listarAlumnosAdmin(filtros)).items
     },
+    /**
+     * D61 — SIN ESTO, TANSTACK QUERY PAUSA LA CONSULTA ÉL SOLO.
+     *
+     * Al perder la conexión el `queryKey` cambia (lleva `enLinea`) y arranca
+     * una consulta NUEVA; con el `networkMode` de por defecto ('online'),
+     * TanStack Query ve el navegador sin red y la deja en pausa SIN LLEGAR A
+     * LLAMAR a `queryFn`, así que la rama de arriba nunca corre y la pantalla
+     * se queda cargando hasta reconectar. Aquí el "sin conexión" ya lo decide
+     * `enLinea`, a mano: no hace falta que la librería también lo decida.
+     */
+    networkMode: 'always',
   })
 
   const sinAsignaciones = soloSusSecciones && enLinea && asignacionesCargadas && asignaciones.length === 0
@@ -350,7 +454,12 @@ export default function MantenimientoAlumnos() {
     // La baja lógica tiene ruta propia (`/desactivar`, `/activar`), como en
     // Colegios: un PATCH con `{activo}` no cambia el estado.
     mutationFn: ({ alumno, activo, fecha }) =>
-      cambiarEstadoAlumno(idDeAlumno(alumno), activo, { aplicarDesde: fecha }),
+      cambiarEstadoAlumno(idDeAlumno(alumno), activo, {
+        aplicarDesde: fecha,
+        // Semana 14: un pendiente no tiene grupo en curso, así que el cuerpo
+        // va vacío en vez de con una fecha que no significa nada para él.
+        pendiente: esPendiente(alumno),
+      }),
     onSuccess: (_d, { activo }) => {
       refrescar()
       toast.success(activo ? 'Alumno activado' : 'Alumno inactivado', 'Su historial académico se conserva.')
@@ -359,107 +468,149 @@ export default function MantenimientoAlumnos() {
   })
 
   return (
-    <Mantenimiento
-      seccion="alumnos"
-      entidad="alumno"
-      titulo="Alumnos"
-      consulta={consulta}
-      guardando={guardado.isPending}
-      // D8: la LISTA se lee de la caché sin conexión; lo que exige red es crear
-      // y editar, para no generar ids en conflicto. Por eso no va `soloOnline`.
-      sinConexion={!enLinea}
-      motivoSinNuevo={sinAsignaciones ? 'No tiene asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
-      valoresFiltro={filtros}
-      onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
-      cargarAuditoria={(id) => listarAuditoria('alumno', id)}
-      // `mutateAsync` y no `mutate`: la plantilla cierra el popup solo si la
-      // promesa se resuelve, y lo deja abierto con los datos si falla.
-      onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
-      // El detalle trae `pertenece_desde`, que es el mínimo de la fecha de
-      // cambio de grupo. El popup lo pide al abrirse.
-      cargarDetalle={obtenerAlumno}
-      onCambiarEstado={(alumno, activo, fecha) => estado.mutate({ alumno, activo, fecha })}
-      /**
-       * Alumnos es la única sección que pregunta DESDE CUÁNDO. El backend lo
-       * exige —sin cuerpo responde 422— porque de esa fecha depende el
-       * historial de pertenencia, y de él, quién aparece en cada tabla
-       * histórica de Lectura, Rúbrica y Registro de Vuelo.
-       */
-      fechaEfectiva={{
-        etiqueta: 'Fecha efectiva',
-        ayuda: 'Desde qué día aplica el cambio, que puede no ser hoy',
-      }}
-      filtros={[
-        { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
-        { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
-        { nombre: 'id_grado', etiqueta: 'Grado', opciones: opciones(permitidos.grados, 'id_grado') },
-        { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
-        { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
-      ]}
-      campos={campos}
-      columnas={[
-        {
-          key: 'nombre',
-          header: 'Alumno',
-          sortable: true,
-          className: 'font-medium text-ink-900',
-          /**
-           * CU014/CU015: el NOMBRE abre el detalle del alumno (resumen,
-           * lectura, rúbrica y vuelo). Antes era un "Ver detalle" en una
-           * columna aparte, junto al "Ver" de Acciones: dos accesos con casi
-           * el mismo nombre en la misma fila (auditoría de UX #737, U06).
-           */
-          render: (a) => (
-            <Link
-              to={`/estudiantes/${idDeAlumno(a)}`}
-              title="Ver detalle del alumno"
-              className="font-semibold text-brand-700 hover:underline"
-              onClick={(e) => e.stopPropagation()}
+    <>
+      <Mantenimiento
+        seccion="alumnos"
+        entidad="alumno"
+        titulo="Alumnos"
+        consulta={consulta}
+        guardando={guardado.isPending}
+        // D8: la LISTA se lee de la caché sin conexión; lo que exige red es crear
+        // y editar, para no generar ids en conflicto. Por eso no va `soloOnline`.
+        sinConexion={!enLinea}
+        // CU014 — "Importar nómina", junto a "Agregar", solo para el
+        // Supervisor. Exclusivamente en línea, igual que crear y editar.
+        accionesExtra={
+          esSupervisor ? (
+            <Button
+              variant="outline"
+              iconLeft={Upload}
+              disabled={!enLinea}
+              title={!enLinea ? avisoSinConexion('alumnos') : undefined}
+              onClick={() => setImportando(true)}
             >
-              {a.nombre}
-            </Link>
-          ),
-        },
+              Importar nómina
+            </Button>
+          ) : null
+        }
+        motivoSinNuevo={sinAsignaciones ? 'No tiene asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
+        valoresFiltro={filtros}
+        onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
+        cargarAuditoria={(id) => listarAuditoria('alumno', id)}
+        // `mutateAsync` y no `mutate`: la plantilla cierra el popup solo si la
+        // promesa se resuelve, y lo deja abierto con los datos si falla.
+        onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
+        // El detalle trae `pertenece_desde`, que es el mínimo de la fecha de
+        // cambio de grupo. El popup lo pide al abrirse.
+        cargarDetalle={obtenerAlumno}
+        onCambiarEstado={(alumno, activo, fecha) => estado.mutate({ alumno, activo, fecha })}
         /**
-         * `sortValue` en TODAS las que se ordenan, y no es opcional: estos
-         * campos llegan como texto desde el simulador y como objeto
-         * `{id, nombre}` desde el backend. La tabla ordena por `row[key]`, así
-         * que sin esto comparaba objetos entre sí y el clic en la cabecera no
-         * hacía nada. `etiquetaDe` resuelve las dos formas.
+         * Alumnos es la única sección que pregunta DESDE CUÁNDO. El backend lo
+         * exige —sin cuerpo responde 422— porque de esa fecha depende el
+         * historial de pertenencia, y de él, quién aparece en cada tabla
+         * histórica de Lectura, Rúbrica y Registro de Vuelo.
          */
-        {
-          key: 'colegio',
-          header: 'Colegio',
-          sortable: true,
-          sortValue: (a) => etiquetaDe(a.colegio),
-          render: (a) => etiquetaDe(a.colegio),
-        },
-        {
-          key: 'grado',
-          header: 'Grado',
-          align: 'center',
-          sortable: true,
-          // Por número, no por texto: por orden alfabético "10.º" iría antes
-          // que "2.º". Hoy solo hay seis grados, pero el criterio es el mismo.
-          sortValue: (a) => Number(String(etiquetaDe(a.grado)).replace(/\D/g, '')) || 0,
-          render: (a) => etiquetaDe(a.grado),
-        },
-        {
-          key: 'seccion',
-          header: 'Sección',
-          align: 'center',
-          sortable: true,
-          sortValue: (a) => etiquetaDe(a.seccion),
-          render: (a) => etiquetaDe(a.seccion),
-        },
-        {
-          key: 'programa',
-          header: 'Subprograma',
-          sortable: true,
-          sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
-          render: (a) => etiquetaDe(a.programa ?? a.subprograma),
-        },
-      ]}
-    />
+        fechaEfectiva={{
+          etiqueta: 'Fecha efectiva',
+          ayuda: 'Desde qué día aplica el cambio, que puede no ser hoy',
+        }}
+        filtros={[
+          { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
+          { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
+          { nombre: 'id_grado', etiqueta: 'Grado', opciones: opciones(permitidos.grados, 'id_grado') },
+          { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
+          { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
+          // Semana 14 — "Definida" o "Pendiente": quién tiene ya un intervalo
+          // en su historial de pertenencia y quién todavía no (un importado
+          // sin completar, por ejemplo).
+          {
+            nombre: 'pertenencia',
+            etiqueta: 'Pertenencia',
+            opciones: [
+              { value: 'definida', label: 'Definida' },
+              { value: 'pendiente', label: 'Pendiente' },
+            ],
+          },
+        ]}
+        campos={campos}
+        columnas={[
+          {
+            key: 'nombre',
+            header: 'Alumno',
+            sortable: true,
+            className: 'font-medium text-ink-900',
+            /**
+             * CU014/CU015: el NOMBRE abre el detalle del alumno (resumen,
+             * lectura, rúbrica y vuelo). Antes era un "Ver detalle" en una
+             * columna aparte, junto al "Ver" de Acciones: dos accesos con casi
+             * el mismo nombre en la misma fila (auditoría de UX #737, U06).
+             */
+            render: (a) => (
+              <>
+                <Link
+                  to={`/estudiantes/${idDeAlumno(a)}`}
+                  title="Ver detalle del alumno"
+                  className="font-semibold text-brand-700 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {a.nombre}
+                </Link>
+                {/* Semana 14: el que todavía no tiene ningún intervalo de
+                    pertenencia, para que se note sin tener que abrirlo. */}
+                {a.pertenencia_pendiente && (
+                  <Badge tone="warning" className="ml-2 align-middle">
+                    Pertenencia pendiente
+                  </Badge>
+                )}
+              </>
+            ),
+          },
+          // El "–" cuando no tiene DNI lo pone `etiquetaDe` (CU014).
+          { key: 'dni', header: 'DNI', align: 'center', sortable: true, render: (a) => etiquetaDe(a.dni) },
+          /**
+           * `sortValue` en TODAS las que se ordenan, y no es opcional: estos
+           * campos llegan como texto desde el simulador y como objeto
+           * `{id, nombre}` desde el backend. La tabla ordena por `row[key]`, así
+           * que sin esto comparaba objetos entre sí y el clic en la cabecera no
+           * hacía nada. `etiquetaDe` resuelve las dos formas.
+           */
+          {
+            key: 'colegio',
+            header: 'Colegio',
+            sortable: true,
+            sortValue: (a) => etiquetaDe(a.colegio),
+            render: (a) => etiquetaDe(a.colegio),
+          },
+          {
+            key: 'grado',
+            header: 'Grado',
+            align: 'center',
+            sortable: true,
+            // Por número, no por texto: por orden alfabético "10.º" iría antes
+            // que "2.º". Hoy solo hay seis grados, pero el criterio es el mismo.
+            sortValue: (a) => Number(String(etiquetaDe(a.grado)).replace(/\D/g, '')) || 0,
+            render: (a) => etiquetaDe(a.grado),
+          },
+          {
+            key: 'seccion',
+            header: 'Sección',
+            align: 'center',
+            sortable: true,
+            sortValue: (a) => etiquetaDe(a.seccion),
+            render: (a) => etiquetaDe(a.seccion),
+          },
+          {
+            key: 'programa',
+            header: 'Subprograma',
+            sortable: true,
+            sortValue: (a) => etiquetaDe(a.programa ?? a.subprograma),
+            render: (a) => etiquetaDe(a.programa ?? a.subprograma),
+          },
+        ]}
+      />
+      {esSupervisor && (
+        <ImportarNominaModal open={importando} onClose={() => setImportando(false)} onImportado={refrescar} />
+      )}
+    </>
   )
 }

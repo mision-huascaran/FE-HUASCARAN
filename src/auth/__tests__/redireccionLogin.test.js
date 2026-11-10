@@ -46,8 +46,9 @@ describe('destinoTrasLogin', () => {
   it('manda al inicio de su rol cuando la ruta anterior era de otro rol', () => {
     // Supervisor cierra sesión en /seguimiento y entra un Docente.
     expect(destinoTrasLogin('/seguimiento', ROLES.DOCENTE)).toBe('/inicio')
-    // Docente cierra sesión en /rubrica y entra un Directivo.
-    expect(destinoTrasLogin('/rubrica', ROLES.DIRECTIVO)).toBe('/inicio')
+    // Docente cierra sesión en /rubrica y entra un Directivo, que aterriza en
+    // su Dashboard: ya no tiene Inicio.
+    expect(destinoTrasLogin('/rubrica', ROLES.DIRECTIVO)).toBe('/dashboard')
   })
 
   it('respeta la ruta pedida cuando el rol sí puede entrar', () => {
@@ -55,11 +56,12 @@ describe('destinoTrasLogin', () => {
     expect(destinoTrasLogin('/seguimiento', ROLES.SUPERVISOR)).toBe('/seguimiento')
   })
 
-  it('sin ruta previa los tres roles aterrizan en Inicio', () => {
-    // La matriz del sprint da la sección Inicio a los tres, con contenido
-    // distinto por rol; ya no hay una ruta de aterrizaje por cada uno.
+  it('sin ruta previa, cada rol aterriza donde trabaja', () => {
+    // El Docente y el Supervisor en Inicio, que es su puesto de trabajo. El
+    // Directivo en el Dashboard: su Inicio eran tres indicadores que el
+    // Dashboard ya da con filtros, y la sección dejó de ser suya.
     expect(destinoTrasLogin(undefined, ROLES.DOCENTE)).toBe('/inicio')
     expect(destinoTrasLogin(undefined, ROLES.SUPERVISOR)).toBe('/inicio')
-    expect(destinoTrasLogin(undefined, ROLES.DIRECTIVO)).toBe('/inicio')
+    expect(destinoTrasLogin(undefined, ROLES.DIRECTIVO)).toBe('/dashboard')
   })
 })

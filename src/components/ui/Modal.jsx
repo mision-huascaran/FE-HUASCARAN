@@ -37,7 +37,7 @@ export default function Modal({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-navy-900/50 p-0 animate-fade-in sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-navy-900/45 p-0 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4">
       {cierreExterior && (
         <button
           type="button"
@@ -59,11 +59,11 @@ export default function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'relative z-10 mx-0 my-0 h-auto w-full rounded-t-xl bg-surface-0 text-inherit shadow-card animate-slide-up sm:my-8 sm:rounded-xl',
+          'relative z-10 mx-0 my-0 h-auto w-full rounded-t-2xl border border-line/70 bg-surface-0 text-inherit shadow-modal animate-modal-in sm:my-8 sm:rounded-2xl',
           size,
         )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-line/70 px-4 py-3.5 sm:px-5 sm:py-4">
           <div className="min-w-0">
             {title && <h2 className="text-lg font-semibold text-ink-900">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
@@ -72,18 +72,18 @@ export default function Modal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-ink-400 sm:h-8 sm:w-8 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto p-4 sm:max-h-[70vh] sm:p-5">{children}</div>
         {/* El pie lleva fondo propio: sin redondear sus esquinas, el gris pinta
             cuadradas las de la tarjeta y el borde inferior parece faltar. En
             móvil la ventana sube desde abajo a sangre, así que solo se redondea
             desde `sm`, igual que la tarjeta. */}
         {footer && (
-          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface-50 px-5 py-4 sm:rounded-b-xl">
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line/70 bg-surface-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:rounded-b-2xl sm:px-5 sm:py-4">
             {footer}
           </footer>
         )}

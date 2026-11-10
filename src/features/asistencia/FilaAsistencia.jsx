@@ -33,14 +33,14 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
 
   return (
     <tr className="border-t border-line" style={{ height: alto }}>
-      <td className="px-4 py-2">
+      <td className="py-2 pl-4 pr-2 sm:px-4">
         <span className="font-medium text-ink-900">{nombre}</span>
         {alumno.inactivo && (
           <Etiqueta titulo="Dado de baja: estaba en la clase cuando se registró">Inactivo</Etiqueta>
         )}
       </td>
 
-      <td className="px-4 py-2 text-center">
+      <td className="px-1 py-2 text-center sm:px-4">
         <ControlSegmentado
           valor={estado}
           nombre={nombre}
@@ -49,7 +49,7 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
         />
       </td>
 
-      <td className="px-4 py-2 text-center">
+      <td className="py-2 pl-1 pr-3 text-center sm:px-4">
         <button
           type="button"
           // Una nota existente se puede LEER aunque no se pueda escribir.
@@ -58,7 +58,7 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
           aria-label={`${conNota ? 'Ver' : 'Añadir'} observación de ${nombre}`}
           title={conNota ? observacion : 'Sin observación'}
           className={[
-            'inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors',
+            'inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-colors sm:h-8 sm:w-8',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
             // Relleno y en oscuro cuando hay nota: se ve a simple vista cuál
             // de las treinta filas lleva una.

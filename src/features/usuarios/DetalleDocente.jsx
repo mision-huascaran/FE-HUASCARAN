@@ -27,7 +27,7 @@ const iniciales = (nombre) =>
 
 export default function DetalleDocente({ docente, colegios, onVolver }) {
   const nombre = docente?.nombre ?? docente?.nombre_completo ?? '—'
-  useMigaExtra(nombre)
+  useMigaExtra(nombre, onVolver)
   const activo = docente?.activo !== false
 
   return (

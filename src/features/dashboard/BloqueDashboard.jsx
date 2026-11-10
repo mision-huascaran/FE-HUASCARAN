@@ -41,6 +41,8 @@ export default function BloqueDashboard({
   mensajeVacio = SIN_DATOS_SELECCION,
   hayCambios = false,
   acciones,
+  icon,
+  tono,
   children,
 }) {
   const sinCalendario = colegiosSinCalendario(consulta?.error)
@@ -50,9 +52,11 @@ export default function BloqueDashboard({
   return (
     <Card
       title={titulo}
+      icon={icon}
+      tono={tono}
       subtitle={contexto.filter(Boolean).join(' · ') || undefined}
       actions={
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {hayCambios && <Badge tone="warning">{CAMBIOS_SIN_APLICAR}</Badge>}
           {desactualizado && <Badge tone="warning">{INFORMACION_NO_ACTUALIZADA}</Badge>}
           {acciones}

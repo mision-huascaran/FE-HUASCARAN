@@ -13,6 +13,7 @@ import {
   actualizarColegio,
   cambiarEstadoColegio,
   crearColegio,
+  filtrarColegios,
   listarAuditoria,
   listarColegiosAdmin,
   obtenerColegio,
@@ -23,6 +24,7 @@ import {
 import { mensajeDeError } from '../../api/client'
 import { etiquetaDe } from '../../lib/format'
 import useConexion from '../../hooks/useConexion'
+import usePrecarga from '../../hooks/usePrecarga'
 import CalendarioAcademico from './CalendarioAcademico'
 import DetalleColegio from './DetalleColegio'
 import GradosConDiaDeClase from './GradosConDiaDeClase'
@@ -37,6 +39,9 @@ export default function MantenimientoColegios() {
   const toast = useToast()
   const queryClient = useQueryClient()
   const enLinea = useConexion()
+  // D61 — Copia de IndexedDB: sin conexión, el listado se lee de aquí en
+  // solo lectura, como ya hace Alumnos.
+  const precarga = usePrecarga()
   const [filtros, setFiltros] = useState({ estado: 'activo' })
   // El calendario académico se ve en vez del listado, sin cambiar de ruta.
   const [verCalendario, setVerCalendario] = useState(false)
@@ -120,8 +125,25 @@ export default function MantenimientoColegios() {
   )
 
   const consulta = useQuery({
-    queryKey: ['colegios', 'mantenimiento', filtros],
-    queryFn: async () => (await listarColegiosAdmin(filtros)).items,
+    queryKey: ['colegios', 'mantenimiento', filtros, enLinea, Boolean(precarga)],
+    queryFn: async () => {
+      // D61 — Sin conexión, se lee la última copia descargada (CU013) en vez
+      // de pedirla al servidor: antes la pantalla entera quedaba en "Sin
+      // registros" aunque los colegios ya estuvieran precargados.
+      if (!enLinea) return filtrarColegios(precarga?.colegios ?? [], filtros)
+      return (await listarColegiosAdmin(filtros)).items
+    },
+    /**
+     * D61 — SIN ESTO, TANSTACK QUERY PAUSA LA CONSULTA ÉL SOLO.
+     *
+     * Al perder la conexión el `queryKey` cambia (lleva `enLinea`) y arranca
+     * una consulta NUEVA; con el `networkMode` de por defecto ('online'),
+     * TanStack Query ve el navegador sin red y la deja en pausa SIN LLEGAR A
+     * LLAMAR a `queryFn`, así que la rama de arriba nunca corre y la pantalla
+     * se queda cargando hasta reconectar. Aquí el "sin conexión" ya lo decide
+     * `enLinea`, a mano: no hace falta que la librería también lo decida.
+     */
+    networkMode: 'always',
   })
 
   const refrescar = () => {

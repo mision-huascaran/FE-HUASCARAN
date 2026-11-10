@@ -33,7 +33,7 @@ function leer(rol, idUsuario) {
 /**
  * Devuelve el resumen a pintar y si procede de la copia local.
  *
- * @param rol      'supervisor' | 'directivo'
+ * @param rol      'supervisor' | 'directivo' | 'docente'
  * @param datos    lo que devolvió el servidor, o undefined si aún no llegó
  * @param enLinea  si hay conexión ahora mismo
  * @param falloServidor hay conexión pero el servidor no contestó (D52): CU011

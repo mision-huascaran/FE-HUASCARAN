@@ -29,10 +29,10 @@ export default function DemoDatos({ setModal, setDrawer }) {
         onClear={() => setBusqueda('')}
         activeCount={2}
       >
-        <Select label="Colegio" placeholder="Todos" options={['I.E. Amauta', 'I.E. Yungay']} />
-        <Select label="Grado" placeholder="Todos" options={['1.°', '2.°', '3.°']} />
-        <Select label="Programa" placeholder="Todos" options={['Alfabetización', 'Comprensión Lectora']} />
-        <Select label="Periodo" placeholder="Todos" options={['Abril', 'Julio', 'Octubre', 'Diciembre']} />
+        <Select label="Colegio" placeholder="Todos" vacioElegible options={['I.E. Amauta', 'I.E. Yungay']} />
+        <Select label="Grado" placeholder="Todos" vacioElegible options={['1.°', '2.°', '3.°']} />
+        <Select label="Programa" placeholder="Todos" vacioElegible options={['Alfabetización', 'Comprensión Lectora']} />
+        <Select label="Periodo" placeholder="Todos" vacioElegible options={['Abril', 'Julio', 'Octubre', 'Diciembre']} />
       </FilterBar>
 
       <Card

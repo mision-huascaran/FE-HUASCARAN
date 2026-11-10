@@ -57,6 +57,9 @@ export const navegacionDe = (idRol) =>
     icon: ICONOS[s.clave] ?? Home,
   }))
 
+/** Cuántas secciones caben en la barra inferior sin que las etiquetas se corten, a 360px. */
+export const RANURAS_BARRA_INFERIOR = 4
+
 /** Compatibilidad con las pruebas y pantallas que leían el mapa por rol. */
 export const NAV_BY_ROLE = {
   1: navegacionDe(1),

@@ -25,8 +25,8 @@ export default function Stepper({ steps = [], current = 0, onStepClick, classNam
               <span
                 className={cn(
                   'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold tabular-nums',
-                  completado && 'border-success-600 bg-success-600 text-white',
-                  activo && 'border-brand-600 bg-brand-600 text-white',
+                  completado && 'border-success-600 bg-success-solid text-white',
+                  activo && 'border-brand-600 bg-brand-solid text-white',
                   !completado && !activo && 'border-line-strong bg-surface-0 text-ink-400',
                 )}
               >
@@ -42,7 +42,7 @@ export default function Stepper({ steps = [], current = 0, onStepClick, classNam
               </span>
             </button>
             {i < steps.length - 1 && (
-              <span className={cn('h-px flex-1 rounded-full', completado ? 'bg-success-600' : 'bg-line')} />
+              <span className={cn('h-px flex-1 rounded-full', completado ? 'bg-success-solid' : 'bg-line')} />
             )}
           </li>
         )
