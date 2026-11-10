@@ -91,7 +91,7 @@ export default function GraficaDeVuelo({ periodos = [] }) {
           </g>
         ))}
 
-        <polyline points={linea} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-600" />
+        <polyline points={linea} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-700" />
 
         {puntos.map((p, i) => (
           <g key={p.numero}>

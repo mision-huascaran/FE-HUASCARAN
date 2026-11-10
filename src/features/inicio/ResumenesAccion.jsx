@@ -14,13 +14,16 @@
 // pantalla entera con un `.join` sobre un campo que el contrato renombró, y una
 // pantalla en blanco es mucho peor que un guion.
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, CloudOff, KeyRound } from 'lucide-react'
+import { ChevronDown, CloudOff, KeyRound, MapPinned } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import { formatearFechaHora } from '../../lib/format'
+
+/** FE-13: con más de estos permisos, el bloque arranca plegado. */
+const PERMISOS_ABIERTOS_HASTA = 4
 
 /** Lista de textos únicos, en orden, lista para pintar. */
 const unirUnicos = (valores) => [...new Set(valores.filter(Boolean))].join(', ') || '—'
@@ -36,11 +39,11 @@ const ETIQUETA_MODULO = {
   registro_vuelo: 'Registro de Vuelo',
 }
 
-function Dato({ etiqueta, children }) {
+function Dato({ etiqueta, className, children }) {
   return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-400">{etiqueta}</dt>
-      <dd className="mt-1 text-ink-900">{children}</dd>
+    <div className={className}>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{etiqueta}</dt>
+      <dd className="mt-1 font-medium text-ink-900">{children}</dd>
     </div>
   )
 }
@@ -100,9 +103,9 @@ export default function ResumenesAccion() {
   }
 
   return (
-    <Card title="Mis asignaciones">
-      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
-        <Dato etiqueta="Colegios">{unirUnicos(asignaciones.map((a) => a.colegio?.nombre ?? a.colegio))}</Dato>
+    <Card title="Mis asignaciones" icon={MapPinned} tono="azul">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-sm lg:grid-cols-[2fr_1.3fr_0.8fr_1fr_0.6fr]">
+        <Dato etiqueta="Colegios" className="col-span-2 lg:col-span-1">{unirUnicos(asignaciones.map((a) => a.colegio?.nombre ?? a.colegio))}</Dato>
         <Dato etiqueta="Grados">{unirUnicos(grados)}</Dato>
         <Dato etiqueta="Ciclos">{unirUnicos(ciclos)}</Dato>
         <Dato etiqueta="Subprograma">{unirUnicos(totales.subprogramas ?? [])}</Dato>
@@ -123,8 +126,8 @@ export default function ResumenesAccion() {
         que funciona con teclado y lector de pantalla sin nada más.
       */}
       {permisos.length > 0 && (
-        <details className="group mt-4 border-t border-line pt-4">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-ink-900 [&::-webkit-details-marker]:hidden">
+        <details open={permisos.length <= PERMISOS_ABIERTOS_HASTA} className="group mt-4 border-t border-line/70 pt-2">
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-ink-900 [&::-webkit-details-marker]:hidden">
             <ChevronDown className="h-4 w-4 shrink-0 text-ink-400 transition-transform group-open:rotate-180" aria-hidden="true" />
             Permisos de corrección vigentes ({permisos.length})
           </summary>

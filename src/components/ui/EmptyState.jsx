@@ -4,7 +4,7 @@ import cn from '../../lib/cn'
 export default function EmptyState({ icon: Icon = Inbox, title, description, action, className }) {
   return (
     <div className={cn('flex flex-col items-center justify-center px-6 py-12 text-center', className)}>
-      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-100 text-ink-400">
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-tinte-azulBg text-tinte-azul">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       {title && <h3 className="mt-4 text-base font-semibold text-ink-900">{title}</h3>}

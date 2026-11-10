@@ -1,10 +1,11 @@
 // Cubre: RF-004, RF-002, RN-001, RN-003, RN-006, RNF-006
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
+import { CalendarCheck, ClipboardCheck, ClipboardList, GraduationCap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
 import AvisoDatosLocales from './AvisoDatosLocales'
+import LibroInicio from './LibroInicio'
 import useResumenDocente from './useResumenDocente'
 import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
@@ -99,7 +100,8 @@ export default function InicioDocente() {
   return (
     <div className="flex flex-col gap-6">
       {/* Los controles van en la esquina superior derecha, como pide CU010. */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="relative flex min-h-[52px] flex-col items-start gap-2 pr-28 sm:min-h-[96px] sm:justify-center sm:pr-72">
+        <LibroInicio />
         <div>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">
           {saludo()}, {primerNombre}
@@ -112,7 +114,7 @@ export default function InicioDocente() {
             servidor. La semana en curso sí se queda: esa es del calendario,
             no de un periodo, y le dice al docente dónde está. */}
         {semanaActual && (
-          <p className="mt-1 text-sm text-ink-500">
+          <p className="mt-1 pl-3.5 text-sm font-medium text-ink-700">
             {`Semana del ${formatearRangoSemana(semanaActual)}`}
           </p>
         )}
@@ -126,7 +128,7 @@ export default function InicioDocente() {
             lee como que quedan menos de tres horas cuando quedan cinco, o peor,
             como que ya pasó. */}
         {sesion && (
-          <p className="text-sm text-ink-500">
+          <p className="rounded-lg bg-surface-0/85 px-3 py-1.5 text-sm text-ink-700">
             {`Actividad iniciada a las ${formatearHora(sesion.inicio)}. La sesión finaliza `}
             {enOtroDia(sesion.inicio, finDeSesion)
               ? `el ${formatearDiaMes(finDeSesion)} a las ${formatearHora(finDeSesion)}.`
@@ -140,7 +142,7 @@ export default function InicioDocente() {
             vive en su base de datos: "fuera de periodo" no se puede deducir
             aquí. Los textos son los literales de CU010. */}
         {!sesion && sinAsignaciones && (
-          <p className="text-sm font-medium text-warning-600">
+          <p className="rounded-lg bg-warning-100 px-3 py-1.5 text-sm font-medium text-warning-600">
             {textoNoPuedeIniciar ??
               MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ??
               MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
@@ -165,7 +167,7 @@ export default function InicioDocente() {
             </div>
             <Link
               to="/registro-vuelo/nuevo"
-              className="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+              className="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand-solid px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-solidHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
             >
               Registrar evaluación
             </Link>
@@ -174,7 +176,7 @@ export default function InicioDocente() {
       )}
 
       {isLoading ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} variant="card" />
           ))}
@@ -184,22 +186,25 @@ export default function InicioDocente() {
       ) : (
         <>
           {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={Users} label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <StatCard icon={GraduationCap} tono="celeste" label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
           <StatCard
             icon={ClipboardList}
+            tono="verde"
             label="Reporte de esta semana"
             value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
             hint="Estudiantes con registro semanal"
           />
           <StatCard
-            icon={BookOpen}
+            icon={ClipboardCheck}
+            tono="indigo"
             label="Pendientes de rúbrica"
             value={resumen?.pendientes_rubrica ?? 0}
             hint="Sin Fluidez y Comprensión de la semana"
           />
           <StatCard
             icon={CalendarCheck}
+            tono="naranja"
             label="Ajustes por revisar"
             value={resumen?.ajustes_por_revisar ?? 0}
             hint="Sugerencias sin confirmar del periodo"
@@ -214,8 +219,8 @@ export default function InicioDocente() {
           que podían contradecirse. */}
 
       <section>
-        <h2 className="text-xl font-semibold text-ink-900">Accesos rápidos</h2>
-        <div className="mt-4">
+        <h2 className="text-lg font-semibold text-ink-900 sm:text-xl">Accesos rápidos</h2>
+        <div className="mt-3 sm:mt-4">
           <AccesosRapidos />
         </div>
       </section>

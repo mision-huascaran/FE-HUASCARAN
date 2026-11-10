@@ -157,7 +157,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
                 type="button"
                 onClick={() => onVerRubrica({ alumno, periodo })}
                 aria-label={`Ver la rúbrica que sustenta la sugerencia de ${alumno.nombre}`}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-line text-ink-400 transition-colors hover:border-brand-500/60 hover:text-ink-700"
+                className="inline-flex h-9 w-9 items-center justify-center sm:h-7 sm:w-7 rounded-lg border border-line text-ink-400 transition-colors hover:border-brand-500/60 hover:text-ink-700"
               >
                 <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -207,7 +207,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
           onClick={() => onObservar({ alumno, periodo })}
           aria-label={`${conNota ? 'Ver' : 'Añadir'} observación de ${alumno.nombre}`}
           title={conNota ? periodo.observacion : 'Sin observación'}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink-400 transition-colors hover:border-brand-500/60 hover:text-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg sm:h-8 sm:w-8 border border-line text-ink-400 transition-colors hover:border-brand-500/60 hover:text-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Globo className="h-4 w-4" aria-hidden="true" />
         </button>

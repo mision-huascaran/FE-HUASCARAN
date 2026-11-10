@@ -70,7 +70,7 @@ export default function TarjetaAsignaciones({ asignaciones = [], idSemana }) {
                     <BarraAvance registrados={fila.registrados} total={fila.total} />
                     <Link
                       to={`/reporte-semanal?colegio=${idColegio}&grado=${fila.id_grado}&semana=${idSemana ?? ''}`}
-                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
                     >
                       Registrar
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

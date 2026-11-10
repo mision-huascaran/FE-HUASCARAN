@@ -34,7 +34,7 @@ export function CeldaFiltro({ className, children }) {
 export default function BarraDeFiltros({ onFiltrar, onLimpiar, filtrarDeshabilitado, className, children }) {
   return (
     <form
-      className={cn('flex flex-wrap items-end gap-3 border-b border-line p-4', className)}
+      className={cn('flex flex-wrap items-start gap-3 border-b border-line/70 p-4', className)}
       onSubmit={(e) => {
         e.preventDefault()
         onFiltrar?.()
@@ -44,7 +44,7 @@ export default function BarraDeFiltros({ onFiltrar, onLimpiar, filtrarDeshabilit
 
       {/* Los botones bajan a su propia fila en móvil, donde no caben al lado
           de los filtros sin dejarlos en dos columnas de 100px. */}
-      <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
+      <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto sm:pt-[26px]">
         <Button type="submit" iconLeft={Filter} disabled={filtrarDeshabilitado}>
           Filtrar
         </Button>

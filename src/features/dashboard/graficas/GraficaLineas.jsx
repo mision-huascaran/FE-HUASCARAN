@@ -60,6 +60,13 @@ export function topeRedondo(maximo) {
 /** Las letras al doble en compacto; ver el porqué en `GraficaBarras`. */
 const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
 
+/** La etiqueta del primer y del último punto crece hacia dentro de la gráfica. */
+function anclaDeEtiqueta(indice, total) {
+  if (total < 2) return 'middle'
+  if (indice === 0) return 'start'
+  return indice === total - 1 ? 'end' : 'middle'
+}
+
 export default function GraficaLineas({
   datos = [],
   campo = 'porcentaje',
@@ -112,7 +119,7 @@ export default function GraficaLineas({
         />
       ))}
 
-      {puntos.map((p) => (
+      {puntos.map((p, i) => (
         <g key={`${p.nombre}-${p.anio ?? ''}`}>
           {!p.vacio && (
             <>
@@ -126,7 +133,7 @@ export default function GraficaLineas({
                 fillOpacity={p.estado === 'en_curso' || p.parcial ? 0.4 : 1}
                 stroke={color}
               />
-              <text x={p.x} y={p.y - 10} textAnchor="middle" fill={TINTA.fuerte} fontSize={letra(compacto, 10)} fontWeight="600">
+              <text x={p.x} y={p.y - 10} textAnchor={anclaDeEtiqueta(i, datos.length)} fill={TINTA.fuerte} fontSize={letra(compacto, 10)} fontWeight="600">
                 {p[campo]}
                 {sufijo}
               </text>

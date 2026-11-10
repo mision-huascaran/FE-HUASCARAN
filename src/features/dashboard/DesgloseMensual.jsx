@@ -123,7 +123,7 @@ export default function DesgloseMensual({ alumno, mes, filtros, onActualizar, on
                   render: (i) => (
                     <Link
                       to={`/seguimiento-lectura?tabla=${i.id_lectura_semanal}`}
-                      className="text-xs font-semibold text-brand-600 hover:underline"
+                      className="text-xs font-semibold text-brand-700 hover:underline"
                     >
                       Ver registro
                     </Link>

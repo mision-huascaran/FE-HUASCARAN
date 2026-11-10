@@ -31,6 +31,9 @@ const ABAJO = 44
  */
 const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
 
+/** Lo que se LEE sobre la barra: un decimal basta; el dato sigue completo en `aria-label`. */
+const etiquetaDeValor = (v) => (typeof v === 'number' && !Number.isInteger(v) ? Number(v.toFixed(1)) : v)
+
 export default function GraficaBarras({ datos = [], campo = 'cantidad', color = MARCA, sufijo = '', compacto = false }) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
   const maximo = Math.max(1, ...valores)
@@ -38,6 +41,8 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
   const alturaUtil = ALTO - ARRIBA - ABAJO
   const paso = util / Math.max(1, datos.length)
   const anchoBarra = Math.min(42, paso * 0.6)
+  // Doce meses con la letra doble no caben enteros en un teléfono.
+  const abreviar = compacto && datos.length > 6
 
   const y = (valor) => ALTO - ABAJO - (valor / maximo) * alturaUtil
 
@@ -85,7 +90,7 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
                   fontSize={letra(compacto, 10)}
                   fontWeight="600"
                 >
-                  {dato[campo]}
+                  {etiquetaDeValor(dato[campo])}
                   {sufijo}
                 </text>
               </>
@@ -98,9 +103,9 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
             )}
 
             <text x={centro} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(compacto, 10)}>
-              {String(dato.nombre ?? '').split(' ')[0]}
+              {abreviar ? String(dato.nombre ?? '').slice(0, 3) : String(dato.nombre ?? '').split(' ')[0]}
             </text>
-            {dato.anio && (
+            {dato.anio && !abreviar && (
               <text x={centro} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
                 {dato.anio}
               </text>

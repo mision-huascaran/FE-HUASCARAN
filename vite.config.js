@@ -62,7 +62,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           // El Application Shell: el HTML, el JS y el CSS del build.
-          globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,svg,woff,woff2,webp,png}'],
           // Cualquier ruta de navegación se sirve con `index.html`: es una
           // SPA, así que /asistencia o /alumnos no son documentos distintos.
           navigateFallback: 'index.html',

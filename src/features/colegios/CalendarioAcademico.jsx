@@ -866,7 +866,7 @@ function TablaPeriodos({ filas, editando, onCambio, erroresCampo = {}, periodoAc
                     <span className="ml-2 text-xs font-normal text-ink-500">receso posterior a PA{p.numero}</span>
                   )}
                   {esDeHoy && (
-                    <span className="ml-2 whitespace-nowrap rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">
+                    <span className="ml-2 whitespace-nowrap rounded-full bg-brand-solid px-2 py-0.5 text-xs font-semibold text-white">
                       Periodo actual
                     </span>
                   )}

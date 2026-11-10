@@ -47,7 +47,7 @@ export default function CredencialesDemo({ onUsar }) {
             <button
               type="button"
               onClick={() => onUsar(cuenta.correo, cuenta.password)}
-              className="shrink-0 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+              className="shrink-0 text-xs font-semibold text-brand-700 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
             >
               Usar
             </button>

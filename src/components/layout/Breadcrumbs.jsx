@@ -37,7 +37,7 @@ export default function Breadcrumbs({ className }) {
 
   return (
     <nav aria-label="Ruta de navegación" className={cn('min-w-0', className)}>
-      <ol className="flex items-center gap-1 text-sm">
+      <ol className="flex items-center gap-1 text-[13px] sm:text-sm">
         {completas.map((miga, i) => {
           const ultima = i === completas.length - 1
           return (
@@ -66,14 +66,14 @@ export default function Breadcrumbs({ className }) {
                 <button
                   type="button"
                   onClick={volver}
-                  className="truncate text-ink-500 transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                  className="truncate text-ink-500 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
                 >
                   {miga.label}
                 </button>
               ) : (
                 <Link
                   to={miga.to}
-                  className="truncate text-ink-500 transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                  className="truncate text-ink-500 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
                 >
                   {miga.label}
                 </Link>

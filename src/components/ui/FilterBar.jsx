@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import Button from './Button'
 import Drawer from './Drawer'
+import { controlClases } from './Field'
 import cn from '../../lib/cn'
 import resumenDeFiltros from './resumenDeFiltros'
 import { useIsDesktop } from '../../hooks/useMediaQuery'
@@ -37,7 +38,7 @@ export default function FilterBar({
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder={searchPlaceholder}
         aria-label={searchPlaceholder}
-        className="h-10 w-full rounded-lg border border-line-strong bg-surface-0 pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+        className={controlClases(false, 'h-11 pl-9 pr-3 sm:h-10')}
       />
     </div>
   )

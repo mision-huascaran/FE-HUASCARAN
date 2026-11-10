@@ -48,7 +48,7 @@ export default function Tooltip({ content, side = 'top', className, children }) 
           id={id}
           role="tooltip"
           className={cn(
-            'pointer-events-none absolute z-40 w-64 rounded-lg bg-navy-900 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-card animate-fade-in',
+            'pointer-events-none absolute z-40 w-64 max-w-[70vw] rounded-lg bg-navy-800 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-modal ring-1 ring-white/10 animate-fade-in',
             side === 'top' && 'bottom-full left-1/2 mb-2 -translate-x-1/2',
             side === 'bottom' && 'top-full left-1/2 mt-2 -translate-x-1/2',
             side === 'left' && 'right-full top-1/2 mr-2 -translate-y-1/2',

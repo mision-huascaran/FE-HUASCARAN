@@ -22,7 +22,7 @@ const Select = forwardRef(function Select(
           ref={ref}
           id={selectId}
           aria-invalid={Boolean(error) || undefined}
-          className={cn(controlClases(error, 'h-10 appearance-none pr-9'))}
+          className={cn(controlClases(error, 'h-11 appearance-none pr-9 sm:h-10'))}
           {...props}
         >
           {placeholder && <option value="">{placeholder}</option>}
