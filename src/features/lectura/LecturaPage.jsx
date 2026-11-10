@@ -93,9 +93,31 @@ export default function LecturaPage() {
     queryFn: listarAniosEscolares,
     ...SIEMPRE,
   })
-  const idAnioEscolar = useMemo(() => anioVigente(anios)?.id ?? null, [anios])
+  const anioEscolar = useMemo(() => anioVigente(anios), [anios])
+  const idAnioEscolar = anioEscolar?.id ?? null
 
-  const { colegios, grados, secciones, programas, semanas, filtros, cambiar } = useFiltrosDeGrupo({
+  /**
+   * Los meses que YA EMPEZARON, no los doce.
+   *
+   * Antes de este cambio se ofrecía diciembre estando en noviembre: el
+   * docente lo elegía, `semanas` venía vacío y se topaba con "Sin clases este
+   * mes" sin entender por qué, si el mes ni siquiera había llegado. Mejor no
+   * ofrecerlo.
+   *
+   * `anioEscolar.nombre` es el año civil (`db.ANIO_LECTIVO` en el simulador,
+   * "2026"…). Es una aproximación: si el año escolar de un colegio cruzara de
+   * diciembre a enero (el comentario de más arriba lo deja abierto), enero y
+   * febrero de ESE año escolar serían en realidad del año civil siguiente, y
+   * esta cuenta los mostraría como si ya hubieran pasado. No hay en el
+   * catálogo de años escolares más que `{id, nombre, vigente}`: sin fechas de
+   * inicio y fin por año no hay de dónde sacar el caso exacto.
+   */
+  const mesesDisponibles = useMemo(() => {
+    if (!anioEscolar?.nombre) return MESES
+    return MESES.filter((m) => !esFutura(`${anioEscolar.nombre}-${String(m.value).padStart(2, '0')}-01`))
+  }, [anioEscolar])
+
+  const { colegios, grados, secciones, programas, semanas, filtros, grupoValido, cambiar } = useFiltrosDeGrupo({
     esDocente,
     idAnioEscolar,
   })
@@ -116,7 +138,7 @@ export default function LecturaPage() {
     cambiarClase,
     cambiandoClase: guardandoClase,
     guardarFila,
-  } = useTablaLectura(filtros)
+  } = useTablaLectura(filtros, { grupoValido })
 
   /**
    * EL MES SE AJUSTA AL DE LA TABLA (tanda B).
@@ -237,6 +259,9 @@ export default function LecturaPage() {
         <Select
           label="Grado"
           value={filtros.idGrado}
+          // Sin colegio no hay de dónde sacar los grados: un desplegable
+          // vacío sin decir por qué parecía roto (D63/variante Supervisor).
+          placeholder={filtros.idColegio ? 'Selecciona' : (marcadorDeColegio(esDocente) ?? 'Selecciona')}
           onChange={(e) => cambiar('grado', e.target.value)}
           options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
         />
@@ -258,7 +283,7 @@ export default function LecturaPage() {
           label="Mes"
           value={filtros.mes}
           onChange={(e) => cambiar('mes', e.target.value)}
-          options={MESES}
+          options={mesesDisponibles}
         />
         <Select
           label="Semana"

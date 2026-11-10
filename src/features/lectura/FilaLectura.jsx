@@ -161,11 +161,17 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
       </td>
 
       <td className="px-3 py-2">
+        {/*
+          `shrink-0` en los dos: en una tabla angosta un flex sin esto los
+          encoge por debajo de su ancho fijo, y el selector termina tapando el
+          número en vez de quedar al lado. Mejor que se note el scroll de la
+          tabla a que se vea un número ilegible.
+        */}
         <div className="flex items-center gap-1">
           <Input
             type="number"
             aria-label={`Nota del LSN de ${fila.nombre}`}
-            className="w-16"
+            className="sicedu-sin-spinner w-16 shrink-0"
             min={0}
             max={borrador.lsn_maximo ?? 10}
             value={borrador.lsn_nota ?? ''}
@@ -173,11 +179,11 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
             onChange={(e) => setBorrador((b) => ({ ...b, lsn_nota: e.target.value }))}
             onBlur={(e) => alSalirDelLsn({ lsn_nota: e.target.value })}
           />
-          <span className="text-ink-400">/</span>
+          <span className="shrink-0 text-ink-400">/</span>
           {/* Solo 5 o 10: no hay otros máximos (CU024). */}
           <Select
             aria-label={`Puntaje máximo del LSN de ${fila.nombre}`}
-            className="w-20"
+            className="w-20 shrink-0"
             value={borrador.lsn_maximo ?? ''}
             placeholder="—"
             disabled={sinLibros}
@@ -194,7 +200,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
         <Input
           type="number"
           aria-label={`Libros de sala de lectura de ${fila.nombre}`}
-          className="w-20"
+          className="sicedu-sin-spinner w-20"
           min={0}
           step={1}
           // Vacío, no cero: "no registrado" y "leyó cero" son cosas distintas.

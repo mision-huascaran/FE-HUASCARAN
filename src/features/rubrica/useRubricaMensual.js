@@ -31,7 +31,7 @@ export const SIN_COPIA_LOCAL = 'No se pudo guardar el cambio en este dispositivo
 export const SIN_COPIA_LOCAL_DETALLE =
   'Se enviará mientras esta pestaña siga abierta. Si la cierras antes de que se sincronice, se perderá.'
 
-export default function useRubricaMensual({ filtros, pagina }) {
+export default function useRubricaMensual({ filtros, pagina, grupoValido = true }) {
   const toast = useToast()
   // El aviso de D108 una vez por pantalla: repetirlo en cada cambio no añade nada.
   const avisadoSinCopia = useRef(false)
@@ -39,7 +39,11 @@ export default function useRubricaMensual({ filtros, pagina }) {
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes } = filtros
-  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes)
+  // `grupoValido` (de `useFiltrosDeGrupo`): evita mandar una consulta con un
+  // grado y una sección que momentáneamente no van juntos —tras cambiar el
+  // grado, antes de que se corrija la sección— y que el servidor rechazaría
+  // con 422 por una combinación que nadie eligió a propósito.
+  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes) && grupoValido
   const clave = ['rubricas', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, pagina }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])

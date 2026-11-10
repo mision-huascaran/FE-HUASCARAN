@@ -14,7 +14,7 @@
 // pantalla entera con un `.join` sobre un campo que el contrato renombró, y una
 // pantalla en blanco es mucho peor que un guion.
 import { useQuery } from '@tanstack/react-query'
-import { CloudOff, KeyRound } from 'lucide-react'
+import { ChevronDown, CloudOff, KeyRound } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
@@ -114,9 +114,20 @@ export default function ResumenesAccion() {
           a los que el Docente solo llega por un permiso NO suman a sus
           asignaciones ni al conteo de alumnos. Mezclarlos cuadraría mal los
           números y, peor, haría creer que ese grupo es suyo. */}
+      {/*
+        Un Docente con permisos en varios colegios, grados y módulos los
+        tenía todos desplegados a la vez: una lista de diez y más líneas
+        entre las asignaciones y los accesos rápidos, que era justo lo
+        primero que se veía al entrar. `<details>` los guarda detrás de un
+        resumen con la cuenta, y quien los necesita los abre; nativo, así
+        que funciona con teclado y lector de pantalla sin nada más.
+      */}
       {permisos.length > 0 && (
-        <div className="mt-4 border-t border-line pt-4">
-          <h3 className="text-sm font-semibold text-ink-900">Permisos de corrección vigentes</h3>
+        <details className="group mt-4 border-t border-line pt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-ink-900 [&::-webkit-details-marker]:hidden">
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-400 transition-transform group-open:rotate-180" aria-hidden="true" />
+            Permisos de corrección vigentes ({permisos.length})
+          </summary>
           <ul className="mt-2 flex flex-col gap-2">
             {permisos.map((p) => (
               <li key={p.id_permiso} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-700">
@@ -131,7 +142,7 @@ export default function ResumenesAccion() {
               </li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
 
       {asignaciones.length === 0 && (

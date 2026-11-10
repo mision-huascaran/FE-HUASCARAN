@@ -361,6 +361,23 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     cambiar('semana', String(semanaPorDefecto(semanas).id_semana))
   }, [semanas, idSemana, cambiar])
 
+  /**
+   * ¿La combinación de la URL es de verdad una de las que hay para elegir?
+   *
+   * Cambiar el grado deja un instante la sección VIEJA puesta —la corrige el
+   * efecto de arriba, pero en el render siguiente, no en este—. Si quien
+   * consulta (Registro de Vuelo, Lectura, Rúbrica) solo mira que los campos no
+   * estén vacíos, en ese instante lanza la consulta con un grado y una
+   * sección que no van juntos, y el servidor la rechaza con 422: una
+   * respuesta de verdad a una pregunta que no debió hacerse. Esperar a que la
+   * combinación sea válida evita mandarla.
+   */
+  const grupoValido =
+    Boolean(idColegio) &&
+    grados.some((g) => String(g.id_grado) === String(idGrado)) &&
+    secciones.some((s) => String(s.id) === String(idSeccion)) &&
+    programas.some((p) => String(p.id_programa) === String(idPrograma))
+
   return {
     colegios,
     grados,
@@ -368,6 +385,7 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     programas,
     semanas,
     filtros: { idColegio, idGrado, idSeccion, idPrograma, mes, idSemana, idAnioEscolar },
+    grupoValido,
     cambiar,
   }
 }

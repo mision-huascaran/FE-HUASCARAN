@@ -5,6 +5,17 @@ import cn from '../../lib/cn'
 
 const DURACION_MS = 4000
 
+/**
+ * Cuántos avisos como mucho a la vez.
+ *
+ * Sin tope, una ráfaga de errores de sincronización (cada reintento manda el
+ * suyo) apilaba uno tras otro hasta cubrir media pantalla y aturdir a quien
+ * los mira. Se queda con los más NUEVOS, que son los que todavía describen
+ * algo que puede seguir pasando; los viejos ya expiraron solos de todas
+ * formas a los 4 s.
+ */
+const MAXIMO_AVISOS = 8
+
 const TONOS = {
   success: { Icon: CheckCircle2, clases: 'border-success-600/20 bg-success-100 text-success-600' },
   error: { Icon: XCircle, clases: 'border-danger-600/20 bg-danger-100 text-danger-600' },
@@ -31,7 +42,7 @@ export function ToastProvider({ children }) {
 
   const push = useCallback((tone, message, description) => {
     const id = ++idRef.current
-    setAvisos((prev) => [...prev, { id, tone, message, description }])
+    setAvisos((prev) => [...prev, { id, tone, message, description }].slice(-MAXIMO_AVISOS))
     return id
   }, [])
 

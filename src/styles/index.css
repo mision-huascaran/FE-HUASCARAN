@@ -34,6 +34,21 @@
 }
 
 @layer components {
+  /*
+    Sin flechitas de spinner en los números de tablas angostas (LSN · nota,
+    LSL en Seguimiento de Lectura). En una celda de pocos px el spinner nativo
+    se come el ancho del propio dígito y, junto al selector de al lado, el
+    número queda tapado. El teclado numérico del teléfono no las necesita.
+  */
+  .sicedu-sin-spinner::-webkit-outer-spin-button,
+  .sicedu-sin-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .sicedu-sin-spinner {
+    -moz-appearance: textfield;
+  }
+
   .sicedu-scrollbar::-webkit-scrollbar {
     height: 8px;
     width: 8px;

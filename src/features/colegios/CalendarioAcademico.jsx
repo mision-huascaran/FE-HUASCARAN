@@ -122,7 +122,11 @@ function borradorPara(modo, calendario) {
 const SIN_SERVIDOR = new Set([502, 503, 504])
 
 export default function CalendarioAcademico({ colegios = [], onVolver }) {
-  useMigaExtra('Calendario académico')
+  // `salir` se declara más abajo; la función de aquí solo se LLAMA al
+  // pulsar la miga, momento en que ya existe por el cierre del propio
+  // componente (misma razón por la que el botón "Cancelar" de abajo puede
+  // usarla sin que JS se queje).
+  useMigaExtra('Calendario académico', () => salir(onVolver))
   const toast = useToast()
   const enLinea = useConexion()
   const queryClient = useQueryClient()

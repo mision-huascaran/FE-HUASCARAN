@@ -163,9 +163,13 @@ describe('Alumnos — hallazgos del 09/10/2026', () => {
     const colegio = within(dialogo).getByLabelText(/^Colegio/)
     await waitFor(() => expect(within(colegio).getByRole('option', { name: 'I.E. 86021 Ranrahirca' })).toBeInTheDocument(), ESPERA)
     const grado = within(dialogo).getByLabelText(/^Grado/)
-    // Solo el grado asignado (1.º), además del marcador "Selecciona".
-    const opciones = within(grado).getAllByRole('option').filter((o) => o.value !== '')
-    expect(opciones.map((o) => o.value)).toEqual(['1'])
+    // Solo el grado asignado (1.º), además del marcador "Selecciona". El
+    // colegio se autoselecciona por ser el único, y solo entonces aparecen
+    // los grados que ESE colegio tiene (el detalle llega en otra consulta).
+    await waitFor(() => {
+      const opciones = within(grado).getAllByRole('option').filter((o) => o.value !== '')
+      expect(opciones.map((o) => o.value)).toEqual(['1'])
+    }, ESPERA)
   })
 
   it('D11: "Inactivar" envía el id del alumno por la ruta de baja lógica', async () => {

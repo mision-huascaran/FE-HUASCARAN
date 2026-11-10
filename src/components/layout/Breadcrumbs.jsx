@@ -24,6 +24,7 @@ export default function Breadcrumbs({ className }) {
   const inicio = rutaInicioDe(idRol)
 
   const extra = useMigaStore((s) => s.extra)
+  const volver = useMigaStore((s) => s.volver)
   const segmentos = pathname.split('/').filter(Boolean)
   const migas = segmentos.map((segmento, i) => ({
     to: `/${segmentos.slice(0, i + 1).join('/')}`,
@@ -55,6 +56,20 @@ export default function Breadcrumbs({ className }) {
                 <span className="truncate font-semibold text-ink-900" aria-current="page">
                   {miga.label}
                 </span>
+              ) : miga.to === pathname && volver ? (
+                /*
+                  Esta miga apunta a la URL en la que ya se está —la vista de
+                  detalle se abrió sin cambiar de ruta—, así que un `<Link>`
+                  aquí no navegaría a ningún lado y el clic parecería no hacer
+                  nada. Se usa el mismo "volver" del botón de la vista.
+                */
+                <button
+                  type="button"
+                  onClick={volver}
+                  className="truncate text-ink-500 transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+                >
+                  {miga.label}
+                </button>
               ) : (
                 <Link
                   to={miga.to}

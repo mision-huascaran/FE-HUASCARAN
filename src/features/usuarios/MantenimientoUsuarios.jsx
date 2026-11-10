@@ -7,13 +7,14 @@
 // además sus colegios y secciones, porque esas asignaciones son las que definen
 // su alcance. Las de Supervisor y Directivo no tienen alcance que definir.
 import { useCallback, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Badge from '../../components/ui/Badge'
 import { useToast } from '../../components/ui/Toast'
 import ModalCredencialDocente from '../administracion/ModalCredencialDocente'
 import DetalleDocente from './DetalleDocente'
 import ColegiosDelDocente from './ColegiosDelDocente'
+import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import {
   activarUsuario,
   actualizarUsuario,
@@ -89,6 +90,28 @@ export default function MantenimientoUsuarios() {
     queryFn: listarGradosAdmin,
     staleTime: Infinity,
   })
+
+  /**
+   * Los grados que CADA colegio de verdad ofrece.
+   *
+   * `listarColegiosAdmin` (el catálogo que arma el desplegable) no trae
+   * grados: son solo id y nombre. `gradosDe`, más abajo, caía siempre al
+   * catálogo entero (1.º a 6.º) sin importar el colegio elegido, así que
+   * "Nueva cuenta" ofrecía grados que ese colegio no tiene. El detalle de
+   * cada colegio sí los trae, como en Alumnos.
+   */
+  const detallesColegio = useQueries({
+    queries: colegios.map((c) => consultaDetalleColegio(c.id_colegio, { enabled: enLinea })),
+  })
+  const gradosPorColegio = useMemo(() => {
+    const mapa = {}
+    for (const { data } of detallesColegio) {
+      if (!data) continue
+      mapa[data.id_colegio] = data.grados ?? []
+    }
+    return mapa
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detallesColegio.map((d) => d.data?.id_colegio).join(), detallesColegio.filter((d) => d.data).length])
 
   /**
    * En qué periodo está HOY cada colegio.
@@ -271,14 +294,14 @@ export default function MantenimientoUsuarios() {
         // Los grados los ofrece el COLEGIO, no un catálogo global: no todos
         // los colegios dictan los seis.
         gradosDe: (idColegio) => {
-          const suyos = colegios.find((c) => String(c.id_colegio) === String(idColegio))?.grados
+          const suyos = gradosPorColegio[idColegio] ?? gradosPorColegio[Number(idColegio)]
           const lista = Array.isArray(suyos) && suyos.length ? suyos : grados
           return lista.map((g) => ({ value: String(g.id_grado ?? g), label: g.nombre ?? `${g}.°` }))
         },
         recesoDe,
       },
     ],
-    [colegios, grados, recesoDe, anioPropuesto],
+    [colegios, grados, gradosPorColegio, recesoDe, anioPropuesto],
   )
 
   /**

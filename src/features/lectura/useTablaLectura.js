@@ -68,13 +68,17 @@ const esDefinitivo = (error) => {
  */
 const esSinAlumnos = (error) => motivoDe(error) === 'sin_alumnos'
 
-export default function useTablaLectura(filtros) {
+export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
-  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
+  // `grupoValido` (de `useFiltrosDeGrupo`): sin esto, un cambio de grado con
+  // la sección todavía sin corregir manda una consulta con una combinación
+  // que no fue de verdad elegida, y el servidor la rechaza con 422.
+  const listos =
+    Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana) && grupoValido
   /**
    * EL MES NO ENTRA EN LA CLAVE, y no es un descuido.
    *

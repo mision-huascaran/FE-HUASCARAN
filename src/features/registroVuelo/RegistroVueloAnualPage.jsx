@@ -70,14 +70,14 @@ export default function RegistroVueloAnualPage() {
   const idAnioEscolar = useMemo(() => anioVigente(anios)?.id ?? null, [anios])
 
   // El Registro de Vuelo es del AÑO: no lleva mes ni semana.
-  const { colegios, grados, secciones, programas, filtros, cambiar } = useFiltrosDeGrupo({
+  const { colegios, grados, secciones, programas, filtros, grupoValido, cambiar } = useFiltrosDeGrupo({
     esDocente,
     idAnioEscolar,
     conSemana: false,
   })
 
   const { data: niveles = [] } = useNivelesRazkids()
-  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina })
+  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina, grupoValido })
 
   const periodos = datos?.periodos ?? []
 
@@ -143,6 +143,7 @@ export default function RegistroVueloAnualPage() {
         <Select
           label="Grado"
           value={filtros.idGrado}
+          placeholder={filtros.idColegio ? 'Selecciona' : (marcadorDeColegio(esDocente) ?? 'Selecciona')}
           onChange={(e) => cambiar('grado', e.target.value)}
           options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
         />

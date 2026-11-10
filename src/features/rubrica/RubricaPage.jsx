@@ -59,13 +59,13 @@ export default function RubricaPage() {
   const idAnioEscolar = useMemo(() => anioVigente(anios)?.id ?? null, [anios])
 
   // La rúbrica no tiene semana: es del mes entero.
-  const { colegios, grados, secciones, programas, filtros, cambiar } = useFiltrosDeGrupo({
+  const { colegios, grados, secciones, programas, filtros, grupoValido, cambiar } = useFiltrosDeGrupo({
     esDocente,
     idAnioEscolar,
     conSemana: false,
   })
 
-  const { datos, cargando, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina })
+  const { datos, cargando, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina, grupoValido })
 
   const listos = Boolean(
     filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.mes && idAnioEscolar,
@@ -138,6 +138,7 @@ export default function RubricaPage() {
         <Select
           label="Grado"
           value={filtros.idGrado}
+          placeholder={filtros.idColegio ? 'Selecciona' : (marcadorDeColegio(esDocente) ?? 'Selecciona')}
           onChange={(e) => cambiar('grado', e.target.value)}
           options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
         />
