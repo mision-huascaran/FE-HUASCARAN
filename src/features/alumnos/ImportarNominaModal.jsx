@@ -21,13 +21,13 @@ import { useToast } from '../../components/ui/Toast'
 import { confirmarImportacion, consultarImportacion, vistaPreviaImportacion } from '../../api/resources/administracion'
 import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
+import { nuevoUuid } from '../../lib/uuid'
 
 const ACEPTA = '.xlsx'
 const MAXIMO_MB = 5
 
 /** Un id nuevo por archivo elegido; se reutiliza en los reintentos del MISMO envío. */
-const idNuevo = () =>
-  typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `imp-${Date.now()}-${Math.random()}`
+const idNuevo = nuevoUuid
 
 const TONO_OBSERVACION = { rechazo: 'danger', advertencia: 'warning', hoja_omitida: 'neutral' }
 
