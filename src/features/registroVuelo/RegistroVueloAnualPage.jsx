@@ -143,7 +143,10 @@ export default function RegistroVueloAnualPage() {
         <Select
           label="Grado"
           value={filtros.idGrado}
-          placeholder={filtros.idColegio ? 'Selecciona' : (marcadorDeColegio(esDocente) ?? 'Selecciona')}
+          // Sin colegio no hay de dónde sacar los grados: un desplegable
+          // vacío sin decir por qué parecía roto (D63/variante Supervisor).
+          placeholder="Selecciona"
+          pendienteDe={!filtros.idColegio && 'colegio'}
           onChange={(e) => cambiar('grado', e.target.value)}
           options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
         />
@@ -151,6 +154,7 @@ export default function RegistroVueloAnualPage() {
           label="Sección"
           value={filtros.idSeccion}
           placeholder="Selecciona"
+          pendienteDe={!filtros.idGrado && 'grado'}
           onChange={(e) => cambiar('seccion', e.target.value)}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
         />
@@ -158,6 +162,8 @@ export default function RegistroVueloAnualPage() {
           label="Subprograma"
           value={filtros.idPrograma}
           placeholder="Selecciona"
+          // Los subprogramas los dice el colegio.
+          pendienteDe={!filtros.idColegio && 'colegio'}
           onChange={(e) => cambiar('subprograma', e.target.value)}
           options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
         />

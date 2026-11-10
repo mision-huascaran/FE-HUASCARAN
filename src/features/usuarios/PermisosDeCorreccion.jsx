@@ -259,9 +259,9 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
           <CeldaFiltro>
             <Select
               label="Periodo académico"
-              placeholder={borrador.id_colegio ? 'Todos' : 'Elige un colegio'}
+              placeholder="Todos"
+              pendienteDe={!borrador.id_colegio && 'colegio'}
               value={borrador.id_periodo_academico}
-              disabled={!borrador.id_colegio}
               options={periodos.map((pa) => ({ value: String(pa.id), label: pa.nombre }))}
               onChange={(e) => cambiar('id_periodo_academico', e.target.value)}
             />

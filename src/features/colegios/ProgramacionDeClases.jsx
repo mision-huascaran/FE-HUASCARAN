@@ -167,8 +167,8 @@ export default function ProgramacionDeClases({ colegio }) {
           placeholder="Todas"
           onChange={cambiarFiltro('idSeccion')}
           options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
-          disabled={!filtros.idGrado}
-          hint={filtros.idGrado ? undefined : 'Elige un grado: cada uno tiene sus propias secciones'}
+          // Cada grado tiene sus propias secciones.
+          pendienteDe={!filtros.idGrado && 'grado'}
         />
         <Select
           label="Subprograma"

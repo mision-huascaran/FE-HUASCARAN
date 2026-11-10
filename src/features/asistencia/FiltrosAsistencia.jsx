@@ -56,13 +56,16 @@ export default function FiltrosAsistencia({
       <Select
         label="Grado"
         value={filtros.idGrado}
+        placeholder="Selecciona"
+        pendienteDe={!filtros.idColegio && 'colegio'}
         onChange={(e) => cambiar('grado', e.target.value)}
         options={opciones(grados, 'id_grado')}
       />
       <Select
         label="Sección"
         value={filtros.idSeccion}
-        placeholder={secciones.length > 1 ? 'Selecciona' : ''}
+        placeholder="Selecciona"
+        pendienteDe={!filtros.idGrado && 'grado'}
         onChange={(e) => cambiar('seccion', e.target.value)}
         options={secciones.map((x) => ({ value: String(x.id), label: x.nombre }))}
       />
@@ -72,6 +75,7 @@ export default function FiltrosAsistencia({
       <Select
         label="Subprograma"
         placeholder="Todos"
+        pendienteDe={!filtros.idColegio && 'colegio'}
         value={filtros.idPrograma}
         onChange={(e) => cambiar('subprograma', e.target.value)}
         options={opciones(programas, 'id_programa')}

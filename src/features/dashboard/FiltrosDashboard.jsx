@@ -72,7 +72,7 @@ export default function FiltrosDashboard({
             required
             value={borrador.idPeriodoAcademico}
             // Sin año no hay periodos que ofrecer: los PA pertenecen a un año.
-            disabled={!borrador.idAnioEscolar}
+            pendienteDe={!borrador.idAnioEscolar && 'año escolar'}
             options={periodos.map((p) => ({ value: p.id_periodo_academico, label: p.nombre }))}
             onChange={(e) => onCambiar('idPeriodoAcademico', e.target.value)}
           />
