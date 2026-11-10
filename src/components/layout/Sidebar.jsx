@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import { ChevronUp, KeyRound, LogOut, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import BotonTema from '../ui/BotonTema'
 import Logo from '../ui/Logo'
 import ModalCambiarPassword from '../../features/perfil/ModalCambiarPassword'
 import ConfirmarSalida from './ConfirmarSalida'
@@ -94,6 +95,7 @@ function Contenido({ onNavegar, onCerrar }) {
           de contraseña y salida. Antes esto estaba además en la barra superior
           y el nombre salía dos veces en pantalla. */}
       <div className="border-t border-white/10 p-3">
+        {onCerrar && <BotonTema fila className="mb-1" />}
         {menuAbierto && (
           <div role="menu" className="mb-1 rounded-lg bg-white/5 p-1.5">
             <p className="truncate px-3 py-1.5 text-xs text-white/50">{usuario?.correo}</p>

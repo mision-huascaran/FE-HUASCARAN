@@ -3,12 +3,17 @@ import { Menu } from 'lucide-react'
 import BarraActividades from './BarraActividades'
 import Breadcrumbs from './Breadcrumbs'
 import PanelSincronizacion from './PanelSincronizacion'
+import BotonTema from '../ui/BotonTema'
 import SyncBadge from '../ui/SyncBadge'
+import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
+import { navegacionDe, RANURAS_BARRA_INFERIOR } from './navegacion'
 
 export default function Topbar({ onAbrirMenu }) {
   const [panelAbierto, setPanelAbierto] = useState(false)
   const { pendientes, sincronizando, ultimoError } = useSyncStore()
+  const idRol = useSessionStore((s) => s.usuario?.id_rol)
+  const hayMenuMas = navegacionDe(idRol).length > RANURAS_BARRA_INFERIOR
   return (
     <header className="sticky top-0 z-30 flex h-16 print:hidden items-center gap-2 border-b border-line bg-surface-0 px-4 sm:gap-3 sm:px-6">
       {/*
@@ -42,6 +47,9 @@ export default function Topbar({ onAbrirMenu }) {
           error={Boolean(ultimoError)}
           onClick={() => setPanelAbierto(true)}
         />
+        {/* En el teléfono vive en el menú "Más", salvo que el rol no lo tenga:
+            aquí le quitaría a las migas el poco sitio que les queda. */}
+        <BotonTema className={hayMenuMas ? 'hidden sm:flex' : undefined} />
       </div>
 
       <PanelSincronizacion abierto={panelAbierto} onCerrar={() => setPanelAbierto(false)} />

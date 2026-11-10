@@ -98,7 +98,7 @@ function GrupoDeGrado({ grado, meses, onCantidad, onIncompletos, colegio }) {
                   return (
                     <button
                       type="button"
-                      className="font-semibold text-brand-600 hover:underline"
+                      className="font-semibold text-brand-700 hover:underline"
                       onClick={() => onCantidad({ alumno, mes: suyo })}
                     >
                       {suyo.cantidad}

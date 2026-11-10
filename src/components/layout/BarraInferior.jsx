@@ -19,12 +19,9 @@
 // Un rol con cuatro secciones o menos no ve "Más": no haría falta.
 import { NavLink } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
-import { navegacionDe } from './navegacion'
+import { navegacionDe, RANURAS_BARRA_INFERIOR as RANURAS } from './navegacion'
 import { useAuth } from '../../auth/AuthProvider'
 import cn from '../../lib/cn'
-
-/** Cuántas secciones caben sin que las etiquetas se corten, a 360px. */
-const RANURAS = 4
 
 const CLASES_ITEM = [
   // `relative` por la barrita de la sección activa, que va en `absolute`.
@@ -81,7 +78,7 @@ export default function BarraInferior({ onMas }) {
                     aria-hidden="true"
                     className={cn(
                       'absolute top-0 h-0.5 w-10 rounded-b-full transition-colors',
-                      isActive ? 'bg-brand-600' : 'bg-transparent',
+                      isActive ? 'bg-brand-solid' : 'bg-transparent',
                     )}
                   />
                   <Icono className="h-5 w-5 shrink-0" aria-hidden="true" />

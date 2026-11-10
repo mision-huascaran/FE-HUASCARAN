@@ -130,7 +130,7 @@ export default function SelectorColegios({ colegios = [], todos = true, elegidos
               type="checkbox"
               checked={todos}
               onChange={(e) => onChange({ todos: e.target.checked, elegidos: [] })}
-              className="h-4 w-4 rounded border-line-strong text-brand-600"
+              className="h-4 w-4 rounded border-line-strong text-brand-700"
             />
             {'Todos los colegios'}
           </label>
@@ -168,7 +168,7 @@ export default function SelectorColegios({ colegios = [], todos = true, elegidos
                     disabled={todos}
                     checked={marcados.has(String(colegio.id_colegio))}
                     onChange={() => alternar(colegio.id_colegio)}
-                    className="h-4 w-4 rounded border-line-strong text-brand-600"
+                    className="h-4 w-4 rounded border-line-strong text-brand-700"
                   />
                   {colegio.nombre}
                 </label>

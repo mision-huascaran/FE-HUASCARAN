@@ -178,7 +178,7 @@ export default function LibrosPage() {
         </div>
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Volver al dashboard

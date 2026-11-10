@@ -38,7 +38,7 @@ export default function AccesosRapidos() {
           <h3 className="mt-4 flex items-center gap-1.5 text-base font-semibold text-ink-900">
             {titulo}
             <ArrowRight
-              className="h-4 w-4 text-brand-600 opacity-0 transition-opacity group-hover:opacity-100"
+              className="h-4 w-4 text-brand-700 opacity-0 transition-opacity group-hover:opacity-100"
               aria-hidden="true"
             />
           </h3>

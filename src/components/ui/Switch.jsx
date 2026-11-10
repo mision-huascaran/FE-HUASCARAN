@@ -21,7 +21,7 @@ export default function Switch({ checked = false, onChange, disabled, label, id,
         'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'border-brand-600 bg-brand-600' : 'border-line-strong bg-surface-100',
+        checked ? 'border-brand-600 bg-brand-solid' : 'border-line-strong bg-surface-100',
         className,
       )}
     >

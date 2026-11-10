@@ -2,15 +2,15 @@ import { Loader2 } from 'lucide-react'
 import cn from '../../lib/cn'
 
 const VARIANTES = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/50',
+  primary: 'bg-brand-solid text-white hover:bg-brand-solidHover disabled:bg-brand-solid/50',
   secondary: 'bg-brand-100 text-brand-700 hover:bg-brand-100/70',
   outline: 'border border-line-strong bg-surface-0 text-ink-700 hover:bg-surface-50',
   ghost: 'text-ink-700 hover:bg-surface-100',
-  danger: 'bg-danger-600 text-white hover:bg-danger-600/90',
+  danger: 'bg-danger-solid text-white hover:bg-danger-solidHover',
   // Para la acción que ABRE el trabajo del día. Va en verde y no en el azul de
   // marca a propósito: el botón de actividad se perdía entre los demás de la
   // barra, y es el que habilita todo lo que el docente viene a hacer.
-  success: 'bg-success-600 text-white hover:bg-success-500 disabled:bg-success-600/50',
+  success: 'bg-success-solid text-white hover:bg-success-solidHover disabled:bg-success-solid/50',
 }
 
 const TAMANOS = {
