@@ -38,6 +38,10 @@ RUN npm run build
 # vulnerabilidades MEDIUM a CRITICAL que Trivy no deja desplegar.
 FROM nginx:1.30-alpine-slim AS runtime
 
+# CVE-2026-4738 (MEDIUM): la base trae zlib 1.3.2-r1 y Trivy no deja desplegar.
+# Se puede quitar cuando nginx:1.30-alpine-slim traiga zlib 1.4-r0 o superior.
+RUN apk upgrade --no-cache zlib
+
 # La imagen oficial de Nginx procesa /etc/nginx/templates/*.template con
 # envsubst al arrancar: así el destino de /api se decide al desplegar, sin
 # reconstruir. Por defecto, el servicio "backend" de la red de Docker.
