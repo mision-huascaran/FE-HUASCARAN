@@ -1733,3 +1733,23 @@ Defectos de la ronda 7 de QA (front `qa` = `53e8588`, backend `qa` = `8bc66d7`).
 **Pendiente de decidir (no cambiado):** Lectura, Rúbrica y Registro de Vuelo tienen el mismo hueco que D95
 (sin conexión deciden con el `escritura` de su consulta en caché, sin comprobar el paquete de habilitaciones), y
 `sicedu.rechazos` guarda en `localStorage` nombres de alumnos y observaciones.
+
+---
+
+## 8. Rediseño visual Alpine Glass / Alpine Night (Paris, noche del 2026-11-10)
+
+Solo presentación, sobre `a055531`. Detalle, decisiones e informe de 13 puntos en `docs/rediseno-progreso.md`.
+
+Las imágenes `huascaran-alpine*.webp` y `open-book.webp` son **generadas con IA**.
+
+| Fase | Commit |
+|---|---|
+| 1. Tokens, tema y recursos | `295cbc5` |
+| 2. Componentes compartidos | `14cc189` |
+| 3. Inicio del Supervisor y del Docente | `80ee66b` |
+| 4. Módulos y Dashboard móvil | `ed979bf` |
+| 5. Modo oscuro | `3e2beea` |
+| 6. Bugs visuales | `0a68882` |
+| 7. Revisión final | el commit que añade esta sección |
+
+**Bugs de QA, ronda 7 (ticket #793):** FE-01, FE-03, FE-06, FE-07, FE-13 y FE-14 resueltos. FE-11 aplicado, sin verificar en un teléfono real. FE-08 sin cambios: `migas.test.jsx` exige un botón en esa miga, que ya es clicable. FE-02, FE-04, FE-05, FE-09, FE-10 y FE-12 no se tocaron.

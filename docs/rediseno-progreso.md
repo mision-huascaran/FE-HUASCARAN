@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 7, revisión final en todas las resoluciones, CSP, sin conexión e informe de 13 puntos.
+- **Próximo paso:** ninguno pendiente en el rediseño. Falta la revisión de Paris y Antonio y, cuando lo autoricen, el push.
 
 ## Línea base antes de tocar nada
 
@@ -100,3 +100,39 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 
 - FE-02, FE-04, FE-05, FE-09, FE-10 y FE-12 no se tocaron.
 - Hallazgo previo, no corregido: el simulador devuelve siempre `actividad_activa: null` (`src/api/mock/handlers.js`), así que con `VITE_USE_MOCK=true` "Iniciar actividad" se suelta sola en cerca de un segundo por la regla D89. Para revisar las tablas, el script de capturas abrió una actividad local; no hay cambio en el código.
+
+### Fase 7 — Revisión final (cerrada)
+
+Ver el informe final.
+
+---
+
+# Informe final
+
+**1. Pantallas rediseñadas.** Login, Inicio del Supervisor y del Docente, Dashboard (Supervisor y Directivo), Consolidado de libros, Alumnos, ficha del alumno, Usuarios, Colegios y su detalle, Asistencias, Seguimiento de Lectura, Rúbrica, Registro de Vuelo, Seguimiento y Sesiones.
+
+**2. Componentes compartidos.** `AppShell`, `Sidebar`, `Topbar`, `BarraInferior`, `Breadcrumbs`, `Button`, `Card`, `StatCard`, `IconoTinte` (nuevo), `BotonTema` (nuevo), `Field`, `Input`, `Select`, `Textarea`, `FilterBar`, `BarraDeFiltros`, `Paginacion`, `DataTable`, `Modal`, `Drawer`, `Toast`, `Tooltip`, `SyncBadge`, `Skeleton`, `EmptyState`, `Switch`, `Logo`.
+
+**3. Sistema de estilos.** Los valores viven en `src/styles/tokens.css`, una vez por tema; `tailwind.config.js` solo les pone nombre. Separación `*-solid` (fondos con texto blanco) y `*-600/700` (texto). Tintes por categoría. Inter como única familia. Clases propias en `src/styles/index.css` (`sicedu-paisaje`, `sicedu-panel`, `sicedu-tarjeta`, `sicedu-cristal-barra`, `sicedu-tabla-tarjetas`).
+
+**4. Modo claro.** Sidebar navy flotante, panel redondeado, paisaje detrás de toda la página de Inicio con el libro a la derecha del encabezado, y fondo azul grisáceo liso en los demás módulos. Cristal solo en cabecera, barra inferior, modales y tarjetas de Inicio.
+
+**5. Modo oscuro.** Clase `dark` en `<html>`, `useTema`, clave `sicedu.tema` (`claro`, `oscuro`, `sistema`), arranque en `public/tema-inicial.js` sin script en línea. Botón en la cabecera y en "Más". El paisaje lleva filtro y velo nocturno. Las gráficas se recolorean solo en pantalla; el PNG exportado no cambia.
+
+**6. Recursos usados.** `huascaran-alpine.webp` (81 KB), `huascaran-alpine-movil.webp` (27 KB) y `open-book.webp` (22 KB), todos con precache. Originales en `_recursos/`, fuera de git.
+
+**7. Imágenes pendientes.** Ninguna.
+
+**8. Pruebas ejecutadas.** `npm test`: 1115 pasan, 1 todo, igual que antes del rediseño; ningún test se modificó. `npm run lint`: solo el error previo de `dashboard.test.jsx:42`. `npm run build`: correcto. Script propio sobre `dist/` con la cabecera CSP de `deploy/cabeceras-seguridad.conf`: 0 violaciones en 34 vistas (17 pantallas de 3 roles, en 2 temas) y en login. Tema: destello, persistencia y ciclo correctos. Sin conexión: paisaje y libro servidos desde el precache con Inicio cargado. Contraste sobre el paisaje contra cada píxel de fondo: 32/32 mediciones sobre AA; mínimo 6,72:1 en claro y 11,47:1 en oscuro.
+
+**No ejecutado:** `e2e/f10-csp-navegador.spec.js` y el resto de los E2E. Exigen backend real en `/api` y credenciales de qa (`global-setup.js`); el script propio replica su detección, pero no sustituye a correrlos en qa.
+
+**9. Errores encontrados (previos, no corregidos).** El error de lint citado. El simulador devuelve siempre `actividad_activa: null`, por lo que con mock la actividad se suelta sola en cerca de un segundo. FE-08 tiene una contradicción entre el anexo y un test nuevo (ver fase 6, D12).
+
+**10. Pantallas pendientes.** Ninguna de producto. `/_ui` (solo desarrollo) sigue mostrando la tabla antigua de colores en `SeccionesUiKit`.
+
+**11. Pruebas en Web Mobile.** Barra inferior y "Más", cajón con cierre, botón de tema, panel lateral con Escape, modales dentro de la pantalla, tarjetas de tabla, tabla de Lectura con columna fija, FE-01 medido y gráficas del Dashboard, en emulación táctil de Chromium.
+
+**12. Resoluciones.** 360×800, 390×844, 430×932, 768×1024, 1366×768 y 1920×1080, en claro y oscuro: 15 vistas por combinación, 180 capturas en `_capturas/fase7/`, sin desborde horizontal. **Ningún dispositivo físico**; el calendario nativo de FE-11 no se pudo comprobar.
+
+**13. Diferencias entre escritorio y móvil.** Solo de distribución: barra inferior en vez de sidebar, tablas de mantenimiento como tarjetas, indicadores en dos columnas y alertas antes del desglose. Sin diferencias funcionales. Limitación conocida: la vista de tarjetas (`display:block`) quita la semántica de tabla a los lectores de pantalla en móvil.
