@@ -112,10 +112,25 @@ export function erroresDeDuracion(periodos) {
 export const AVISO_FECHAS_PARTICULARES =
   'Al guardar, este colegio tendrá un calendario propio para el año escolar seleccionado. Los cambios posteriores del calendario general no se aplicarán automáticamente.'
 
+/**
+ * La CLAVE de cada fila de días no lectivos, solo para React.
+ *
+ * Los días no traen id del servidor, y la fila no se puede identificar por su
+ * motivo ni por sus fechas: cambian con cada tecla, React vería una fila
+ * nueva y la desmontaría con el <input> dentro (se perdía el foco a cada
+ * letra). Se les da una clave al cargarlos o al añadirlos, que no cambia al
+ * editar, y se quita antes de enviar: no es parte del contrato.
+ */
+let ultimaClaveDeDia = 0
+const conClave = (dia) => ({ ...dia, clave: dia.clave ?? `dia-${++ultimaClaveDeDia}` })
+const diasParaGuardar = (dias) => dias.map(({ clave: _clave, ...dia }) => dia)
+/** Sin edición no hay claves: los días no se superponen, así que sus fechas no se repiten. */
+const claveDeDia = (dia) => dia.clave ?? `${dia.fecha_inicio}|${dia.fecha_fin}`
+
 /** Lo que se edita al empezar: vacío para crear, lo vigente para editar. */
 function borradorPara(modo, calendario) {
   if (modo === 'crear') return { periodos: periodosVacios(), dias: [] }
-  return { periodos: ochoPeriodos(calendario?.periodos), dias: calendario?.dias_no_lectivos ?? [] }
+  return { periodos: ochoPeriodos(calendario?.periodos), dias: (calendario?.dias_no_lectivos ?? []).map(conClave) }
 }
 
 /** Respuestas del proxy cuando el servidor no contesta: no dicen qué pasó con el envío. */
@@ -325,7 +340,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
        * el año con su calendario, o no queda nada. El contrato exige
        * exactamente uno de los dos campos.
        */
-      const cuerpo = { anio: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: dias }
+      const cuerpo = { anio: Number(anio), periodos: periodosParaGuardar(periodos), dias_no_lectivos: diasParaGuardar(dias) }
       return porColegio
         ? crearCalendarioParticular({ ...cuerpo, id_colegio: Number(idColegio) })
         : crearCalendarioGeneral(cuerpo)
@@ -341,7 +356,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
         // en vez de dejar que este guardado pise el ajeno sin enterarse.
         version: calendario.version,
         periodos: periodosParaGuardar(periodos),
-        dias_no_lectivos: dias,
+        dias_no_lectivos: diasParaGuardar(dias),
       }),
     onSuccess: alGuardar('Calendario académico actualizado correctamente.'),
     onError: alFallar,
@@ -658,6 +673,13 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
   )
 }
 
+/** Por qué no se puede guardar todavía, o `undefined` si nada lo impide. */
+function motivoParaNoGuardar(enLinea, faltan) {
+  if (!enLinea) return 'Sin conexión. Conéctate a Internet para guardar.'
+  if (faltan.length) return `Completa para guardar: ${faltan.join(', ')}.`
+  return undefined
+}
+
 /**
  * TRES ESTADOS, NO TRES BOTONES A LA VEZ: en consulta, editar, crear o volver
  * al general según lo que haya; en edición, solo cancelar y guardar.
@@ -681,11 +703,7 @@ function AccionesDelCalendario({
     // D75 — Si falta algo Y además falta la red, lo primero es lo primero:
     // conectarse es lo que de verdad bloquea, completar los campos no sirve
     // de nada todavía.
-    const porQue = !enLinea
-      ? 'Sin conexión. Conéctate a Internet para guardar.'
-      : faltan.length
-        ? `Completa para guardar: ${faltan.join(', ')}.`
-        : undefined
+    const porQue = motivoParaNoGuardar(enLinea, faltan)
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -922,7 +940,7 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
             size="sm"
             variant="outline"
             iconLeft={Plus}
-            onClick={() => onCambio([...dias, { motivo: '', fecha_inicio: '', fecha_fin: '' }])}
+            onClick={() => onCambio([...dias, conClave({ motivo: '', fecha_inicio: '', fecha_fin: '' })])}
           >
             Añadir día
           </Button>
@@ -946,14 +964,10 @@ function DiasNoLectivos({ dias, editando, onCambio, erroresCampo = {} }) {
             </thead>
             <tbody>
               {dias.map((d, i) => (
-                // La clave NO puede llevar `d.motivo` ni una fecha: al escribir
-                // en "Motivo" eso cambia en cada tecla, React ve una clave
-                // nueva y DESMONTA la fila completa (el <input> incluido) para
-                // montar una de cero — el foco se pierde a cada letra y
-                // parece que el campo no deja escribir. Sin reordenamiento en
-                // esta lista (solo "Añadir" al final y "Quitar"), la posición
-                // es clave estable de sobra.
-                <tr key={i} className="border-t border-line">
+                // La clave NO puede llevar `d.motivo` ni una fecha mientras se
+                // edita: cambian en cada tecla y React desmontaría la fila con
+                // su <input>. Ver `conClave`.
+                <tr key={claveDeDia(d)} className="border-t border-line">
                   <td className="px-4 py-2">
                     {editando ? (
                       <Input

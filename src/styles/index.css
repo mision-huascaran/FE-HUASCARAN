@@ -292,6 +292,8 @@
   /* La primera celda hace de título de la tarjeta. */
   .sicedu-tabla-tarjetas tbody td:first-child {
     padding-bottom: 0.5rem;
+    padding-left: 0;
+    padding-right: 0;
     margin-bottom: 0.25rem;
     border-bottom: 1px solid rgb(var(--line) / 0.7);
     color: rgb(var(--ink-900));
@@ -300,10 +302,6 @@
   }
   .sicedu-tabla-tarjetas tbody td:first-child::before {
     display: none;
-  }
-  .sicedu-tabla-tarjetas tbody td:first-child {
-    padding-left: 0;
-    padding-right: 0;
   }
   .sicedu-tabla-tarjetas thead:not(:has(.sicedu-th-ordenable)) {
     display: none;

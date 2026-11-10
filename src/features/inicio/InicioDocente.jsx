@@ -97,6 +97,49 @@ export default function InicioDocente() {
   const expira = caducaEn(token)
   const finDeSesion = expira ? dayjs(expira) : horaFinDe(sesion?.inicio)
 
+  // Las tarjetas del panel: mientras carga, sin datos y sin red, o las cifras.
+  const panel = () => {
+    if (isLoading) {
+      return (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} variant="card" />
+          ))}
+        </div>
+      )
+    }
+    if (!resumen && !enLinea) return <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
+    return (
+      <>
+        {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard icon={GraduationCap} tono="celeste" label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
+        <StatCard
+          icon={ClipboardList}
+          tono="verde"
+          label="Reporte de esta semana"
+          value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
+          hint="Estudiantes con registro semanal"
+        />
+        <StatCard
+          icon={ClipboardCheck}
+          tono="indigo"
+          label="Pendientes de rúbrica"
+          value={resumen?.pendientes_rubrica ?? 0}
+          hint="Sin Fluidez y Comprensión de la semana"
+        />
+        <StatCard
+          icon={CalendarCheck}
+          tono="naranja"
+          label="Ajustes por revisar"
+          value={resumen?.ajustes_por_revisar ?? 0}
+          hint="Sugerencias sin confirmar del periodo"
+        />
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Los controles van en la esquina superior derecha, como pide CU010. */}
@@ -175,43 +218,7 @@ export default function InicioDocente() {
         </Card>
       )}
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} variant="card" />
-          ))}
-        </div>
-      ) : !resumen && !enLinea ? (
-        <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
-      ) : (
-        <>
-          {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <StatCard icon={GraduationCap} tono="celeste" label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
-          <StatCard
-            icon={ClipboardList}
-            tono="verde"
-            label="Reporte de esta semana"
-            value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
-            hint="Estudiantes con registro semanal"
-          />
-          <StatCard
-            icon={ClipboardCheck}
-            tono="indigo"
-            label="Pendientes de rúbrica"
-            value={resumen?.pendientes_rubrica ?? 0}
-            hint="Sin Fluidez y Comprensión de la semana"
-          />
-          <StatCard
-            icon={CalendarCheck}
-            tono="naranja"
-            label="Ajustes por revisar"
-            value={resumen?.ajustes_por_revisar ?? 0}
-            hint="Sugerencias sin confirmar del periodo"
-          />
-          </div>
-        </>
-      )}
+      {panel()}
 
       {/* Las asignaciones las pinta `ResumenesAccion`, que lee el endpoint
           real `GET /inicio/docente`. Antes había aquí una segunda tarjeta con

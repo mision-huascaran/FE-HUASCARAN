@@ -19,7 +19,7 @@ export const CLAVE_VUELO = 'global'
 
 /** Las dimensiones de esas claves, de todos los subprogramas, en una lista. */
 export function dimensionesDe(datos, claves) {
-  const buscadas = new Set([].concat(claves))
+  const buscadas = new Set([claves].flat())
   return (datos?.programas ?? []).flatMap((p) =>
     (p.dimensiones ?? [])
       .filter((d) => buscadas.has(d.clave))
