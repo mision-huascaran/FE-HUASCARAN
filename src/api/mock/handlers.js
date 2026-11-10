@@ -1392,6 +1392,7 @@ export const handlers = {
         .filter((p) => !filtros.modulo || p.modulo === filtros.modulo)
         .filter((p) => !filtros.estado || p.estado === filtros.estado)
         .filter((p) => !filtros.id_colegio || String(p.colegio.id) === String(filtros.id_colegio))
+        .filter((p) => !filtros.id_periodo_academico || String(p.periodo?.id) === String(filtros.id_periodo_academico))
         // Del más recientemente otorgado al más antiguo.
         .sort((a, b) => String(b.otorgado_en).localeCompare(String(a.otorgado_en)))
       return responder({ items: mios, total: mios.length, page: 1, page_size: 40, total_pages: 1 })
@@ -2704,6 +2705,21 @@ export const handlers = {
     nivelGeneral: () => responder(db.NIVEL_GENERAL),
     esperadoPorGrado: () => responder(db.NIVEL_ESPERADO_POR_GRADO),
     periodos: () => responder(db.PERIODOS),
+    /** `GET /periodos-academicos`: los PA del año con las fechas del calendario (el simulador tiene uno). */
+    periodosAcademicos: ({ id_anio_escolar: idAnio } = {}) =>
+      responder(
+        CALENDARIO_MOCK.periodos
+          .filter((p) => p.tipo === 'PA' && (!idAnio || idAnio === 2))
+          .map((p) => ({
+            id: p.id_periodo_academico,
+            id_anio_escolar: 2,
+            numero: p.numero,
+            tipo: 'PA',
+            fecha_inicio: p.fecha_inicio,
+            fecha_fin: p.fecha_fin,
+            vigente: p.fecha_inicio <= hoyLima() && hoyLima() <= p.fecha_fin,
+          })),
+      ),
     /**
      * `GET /semanas` — solo las semanas con ALGUNA CLASE del grupo en ese mes.
      *

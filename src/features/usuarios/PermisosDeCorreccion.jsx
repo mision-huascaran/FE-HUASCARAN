@@ -32,9 +32,9 @@ import {
   MODULOS_PERMISO,
   TONO_ESTADO_PERMISO,
   listarPermisos,
-  opcionesDePermiso,
   revocarPermiso,
 } from '../../api/resources/permisos'
+import { listarPeriodosAcademicos } from '../../api/resources/catalogos'
 import { anioVigente, listarAniosEscolares, obtenerUsuario } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError, motivoDe } from '../../api/client'
 import { formatearFechaHora } from '../../lib/format'
@@ -60,6 +60,13 @@ export function coincideConFiltros(otorgado, filtros) {
     igual(filtros.id_periodo_academico, otorgado.id_periodo_academico) &&
     (!filtros.modulo || (otorgado.modulos ?? []).includes(filtros.modulo))
   )
+}
+
+/** "Primer periodo · 02/03–15/05": con colegio, las fechas de su calendario. */
+export function etiquetaDePeriodo(periodo, conFechas) {
+  const corta = (iso) => iso.split('-').reverse().slice(0, 2).join('/')
+  if (!conFechas || !periodo.fecha_inicio || !periodo.fecha_fin) return periodo.nombre
+  return `${periodo.nombre} · ${corta(periodo.fecha_inicio)}–${corta(periodo.fecha_fin)}`
 }
 
 /** El backend manda `{id, nombre}` donde la tabla quiere un texto. */
@@ -132,18 +139,28 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
   }, [anios, setFiltros])
 
   /**
-   * Los PA que ofrece el filtro salen del COLEGIO y del AÑO.
+   * Los PA que ofrece el filtro son los del AÑO; el colegio solo pone fechas.
    *
-   * No hay un catálogo global de periodos: cada colegio tiene su calendario, y
-   * un PA puede estar cerrado en uno y abierto en otro. Es el mismo endpoint
-   * que usa el modal de otorgar.
+   * Un periodo académico es "el PA n del año X" para todos los colegios: su id
+   * es el mismo en todos y solo cambian sus fechas, según el calendario de
+   * cada uno. Por eso con Colegio en "Todos" se puede filtrar igual —salen los
+   * permisos de ese PA en todos los colegios— y, con un colegio, las opciones
+   * llevan las fechas de su calendario (general o particular).
    */
-  const { data: opcionesPeriodo } = useQuery({
-    queryKey: ['permisos', 'opciones', borrador.id_colegio, borrador.id_anio_escolar],
-    queryFn: () => opcionesDePermiso({ idColegio: borrador.id_colegio, idAnioEscolar: borrador.id_anio_escolar }),
-    enabled: Boolean(borrador.id_colegio && enLinea),
+  const { data: periodos = [], isSuccess: periodosListos } = useQuery({
+    queryKey: ['catalogo', 'periodos-academicos', borrador.id_anio_escolar, borrador.id_colegio],
+    queryFn: () =>
+      listarPeriodosAcademicos({ idAnioEscolar: borrador.id_anio_escolar, idColegio: borrador.id_colegio }),
+    enabled: Boolean(borrador.id_anio_escolar && enLinea),
   })
-  const periodos = opcionesPeriodo?.periodos ?? []
+
+  // Un PA elegido que ya no está entre las opciones (cambió el año) se limpia.
+  useEffect(() => {
+    if (!periodosListos || !borrador.id_periodo_academico) return
+    if (!periodos.some((pa) => String(pa.id) === String(borrador.id_periodo_academico))) {
+      setBorrador((b) => ({ ...b, id_periodo_academico: '' }))
+    }
+  }, [periodosListos, periodos, borrador.id_periodo_academico])
 
   const consulta = useQuery({
     queryKey: ['permisos', idUsuario, filtros],
@@ -204,10 +221,16 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
     )
   }
 
-  const cambiar = (campo, valor) => setBorrador((b) => ({ ...b, [campo]: valor }))
+  // Los PA son de un año: otro año, otro PA. Con el colegio no hace falta, el
+  // PA es el mismo en todos (el efecto de arriba cubre el caso raro).
+  const cambiar = (campo, valor) =>
+    setBorrador((b) => ({ ...b, [campo]: valor, ...(campo === 'id_anio_escolar' ? { id_periodo_academico: '' } : {}) }))
+  // "Limpiar" deja la barra como al entrar: el año vigente y lo demás en "Todos".
   const limpiar = () => {
-    setBorrador(SIN_FILTROS)
-    setFiltros(SIN_FILTROS)
+    const vigente = anioVigente(anios)
+    const inicial = { ...SIN_FILTROS, id_anio_escolar: vigente ? String(vigente.id) : '' }
+    setBorrador(inicial)
+    setFiltros(inicial)
   }
 
   const activo = docente?.activo !== false
@@ -254,18 +277,17 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             />
           </CeldaFiltro>
           {/*
-            D77 — Faltaba, y CU028 lo lista entre los cinco filtros. Sus
-            opciones dependen del COLEGIO y del AÑO, porque cada colegio tiene
-            su calendario: sin esos dos elegidos no hay periodos que ofrecer.
+            D77 — Faltaba, y CU028 lo lista entre los cinco filtros. Depende
+            del AÑO (los PA son de un año), no del colegio: ver `periodos`.
           */}
-          <CeldaFiltro>
+          <CeldaFiltro className="min-w-[17rem] basis-[17rem]">
             <Select
               label="Periodo académico"
               placeholder="Todos"
               vacioElegible
-              pendienteDe={!borrador.id_colegio && 'colegio'}
+              pendienteDe={!borrador.id_anio_escolar && 'año escolar'}
               value={borrador.id_periodo_academico}
-              options={periodos.map((pa) => ({ value: String(pa.id), label: pa.nombre }))}
+              options={periodos.map((pa) => ({ value: String(pa.id), label: etiquetaDePeriodo(pa, Boolean(borrador.id_colegio)) }))}
               onChange={(e) => cambiar('id_periodo_academico', e.target.value)}
             />
           </CeldaFiltro>
