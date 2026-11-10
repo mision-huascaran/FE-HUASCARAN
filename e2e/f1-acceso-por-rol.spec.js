@@ -41,12 +41,18 @@ test.describe('F1 · Acceso por rol (CU001–CU003, CU010–CU012)', () => {
     // El seed garantiza al menos el colegio E2E activo.
     expect(Number(await valorDeTarjeta(page, 'Colegios registrados').innerText())).toBeGreaterThanOrEqual(1)
 
-    // Alertas operativas: o la lista, con cada alerta redactada, o el aviso de
-    // que no hay ninguna.
-    const alertas = page.getByRole('list', { name: 'Alertas operativas' })
-    const sinAlertas = page.getByText('No existen alertas operativas pendientes de atención.', { exact: true })
-    await expect(alertas.or(sinAlertas)).toBeVisible()
-    if (await alertas.isVisible()) {
+    // Alertas operativas: un bloque que se despliega. O el botón para verlas,
+    // que abre la lista con cada alerta redactada, o "Sin alertas".
+    const bloque = page.getByRole('region', { name: 'Alertas' })
+    const ver = bloque.getByRole('button', { name: /^(Ver|Ocultar) alertas$/ })
+    const sinAlertas = bloque.getByText('Sin alertas', { exact: true })
+    await expect(ver.or(sinAlertas)).toBeVisible()
+    if (await ver.isVisible()) {
+      // Puede venir abierto si en este navegador se dejó así.
+      if ((await ver.getAttribute('aria-expanded')) === 'false') await ver.click()
+      await expect(ver).toHaveAttribute('aria-expanded', 'true')
+      const alertas = page.getByRole('list', { name: 'Alertas operativas' })
+      await expect(alertas).toBeVisible()
       const items = alertas.getByRole('listitem')
       expect(await items.count(), 'alertas en la lista').toBeGreaterThan(0)
       for (const texto of await items.allInnerTexts()) expect(texto.trim(), 'mensaje de la alerta').not.toBe('')
