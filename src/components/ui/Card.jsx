@@ -15,7 +15,9 @@ export default function Card({ title, subtitle, actions, icon, tono = 'azul', pa
               {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
             </div>
           </div>
-          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+          {/* En el teléfono las acciones toman su propia fila: sin esto, un botón
+              ancho no podía encogerse y empujaba la página de lado (FE-07). */}
+          {actions && <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">{actions}</div>}
         </header>
       )}
       <div className={cn(padded && 'p-4 sm:p-5', bodyClassName)}>{children}</div>

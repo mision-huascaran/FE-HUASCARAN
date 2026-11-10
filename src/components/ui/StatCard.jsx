@@ -4,8 +4,8 @@ import TrendIndicator from './TrendIndicator'
 
 export default function StatCard({ icon, tono = 'azul', label, value, unit, hint, trend, className }) {
   return (
-    <div className={cn('sicedu-tarjeta sicedu-elevable rounded-xl border border-line/80 bg-surface-0 p-4 shadow-card sm:p-5', className)}>
-      <div className="flex flex-col items-start gap-2.5 sm:flex-row sm:items-center sm:gap-3.5">
+    <div className={cn('sicedu-stat sicedu-tarjeta sicedu-elevable rounded-xl border border-line/80 bg-surface-0 p-4 shadow-card sm:p-5', className)}>
+      <div className="sicedu-stat-fila flex items-center gap-3.5">
         {icon && <IconoTinte icon={icon} tono={tono} tamano="lg" />}
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-ink-500">{label}</p>

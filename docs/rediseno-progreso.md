@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 4, módulos: Dashboard, Alumnos, Usuarios, Colegios, Asistencias, Lectura, Rúbrica, Vuelo, Seguimiento, Sesiones, ficha, login.
+- **Próximo paso:** fase 5, modo oscuro completo: gráficas y revisión de todas las pantallas.
 
 ## Línea base antes de tocar nada
 
@@ -70,3 +70,10 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 - FE-13: permisos de corrección plegables, cerrados si hay más de 4, con los mismos datos.
 - El Directivo sigue sin Inicio ni libro.
 - Tests: 1115 pasan. Lint: solo el error previo. Capturas en `_capturas/fase3/`, sin desborde a 390 y 1366.
+
+### Fase 4 — Módulos (cerrada)
+
+- Con los tokens y los componentes de la fase 2, Alumnos, Usuarios, Colegios, Seguimiento, Sesiones, ficha del alumno y login ya heredan el sistema; revisados en 390 y 1366.
+- Ajustes propios: `Card` (acciones en fila propia en móvil, FE-07), `BloqueDashboard` y `TarjetaModulo` (icono y color por módulo), `GraficaBarras` (etiquetas a un decimal y meses abreviados en móvil; el dato completo sigue en `aria-label`), `ListaAsistencia` y `FilaAsistencia` (columnas ajustadas a 390), botones de observación de 40 px en móvil, indicadores con *container query*.
+- Decisión D10: las gráficas conservan colores fijos en sus atributos porque la exportación a PNG viaja sin hoja de estilos.
+- Sin desborde horizontal a 360, 390 y 1366. Tests: 1115 pasan. Lint: solo el error previo.

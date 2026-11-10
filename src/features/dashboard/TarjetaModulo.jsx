@@ -19,10 +19,18 @@
 // "cambios sin aplicar"— lo sigue poniendo `BloqueDashboard`, que ya resuelve
 // que un bloque roto no se lleve por delante a los otros tres.
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BookOpenCheck, CalendarCheck, ClipboardCheck, Plane } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import BloqueDashboard from './BloqueDashboard'
 import { SIN_INFORMACION } from './estados'
+
+/** El color de cada módulo, el mismo que en Inicio y en los accesos. */
+const IDENTIDAD = {
+  Asistencias: { icon: CalendarCheck, tono: 'turquesa' },
+  'Seguimiento de Lectura': { icon: BookOpenCheck, tono: 'violeta' },
+  Rúbrica: { icon: ClipboardCheck, tono: 'indigo' },
+  'Registro de Vuelo': { icon: Plane, tono: 'azul' },
+}
 
 export default function TarjetaModulo({
   /** El nombre del módulo, igual que en el menú. Dos o tres palabras. */
@@ -47,6 +55,7 @@ export default function TarjetaModulo({
 }) {
   return (
     <BloqueDashboard
+      {...IDENTIDAD[titulo]}
       titulo={titulo}
       contexto={contexto}
       consulta={consulta}
