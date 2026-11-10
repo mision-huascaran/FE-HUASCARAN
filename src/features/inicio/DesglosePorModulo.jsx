@@ -56,13 +56,16 @@ export default function DesglosePorModulo({ vencidos, incompletos }) {
 
   return (
     <div className="-mx-1 overflow-x-auto">
-      {/* Compacta: en pantallas anchas no se estira a todo el bloque. */}
-      <table className="w-full min-w-[18rem] max-w-2xl table-fixed border-collapse text-sm">
+      {/* Todo el ancho del bloque. `table-fixed`: la primera columna tiene su
+          ancho y las cuatro de módulos se reparten el resto en partes iguales.
+          Por debajo de 380 px (el mínimo es 360) se aprieta un poco más para
+          que "Asistencias" no toque a "Lectura". */}
+      <table className="w-full min-w-[18rem] table-fixed border-collapse text-sm">
         <thead>
           <tr className="border-b border-line">
-            <td className="w-[5.5rem] px-1 pb-2 sm:w-32" />
+            <td className="w-[5.5rem] px-1 pb-2 max-[379px]:w-[4.75rem] sm:w-36" />
             {MODULOS.map((m) => (
-              <th key={m.clave} scope="col" className="px-0.5 pb-2 text-center text-[11px] font-medium leading-tight text-ink-500 sm:text-xs">
+              <th key={m.clave} scope="col" className="px-0.5 pb-2 text-center text-[11px] font-medium leading-tight text-ink-500 max-[379px]:px-0 max-[379px]:text-[10px] sm:text-xs">
                 {m.nombre}
               </th>
             ))}
@@ -71,7 +74,7 @@ export default function DesglosePorModulo({ vencidos, incompletos }) {
         <tbody>
           {filas.map((fila) => (
             <tr key={fila.clave} className="border-b border-line/60 last:border-b-0">
-              <th scope="row" className="py-1.5 pl-1 pr-2 text-left text-[13px] font-medium text-ink-700 sm:text-sm">
+              <th scope="row" className="py-1.5 pl-1 pr-2 text-left text-[13px] font-medium text-ink-700 max-[379px]:pr-1 max-[379px]:text-xs sm:text-sm">
                 {fila.nombre}
               </th>
               {MODULOS.map((m) => (
