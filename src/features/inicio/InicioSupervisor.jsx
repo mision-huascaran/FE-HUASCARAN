@@ -121,7 +121,7 @@ export default function InicioSupervisor() {
         asistencias" sí, porque se persiguen de formas distintas.
       */}
       {(resumen.vencidosPorModulo || resumen.incompletosPorModulo) && (
-        <Card title="Qué está vencido y qué está a medias" icon={BarChart3} tono="azul" className="max-lg:order-2">
+        <Card title="Qué está vencido y qué está incompleto" icon={BarChart3} tono="azul" className="max-lg:order-2">
           <div className="flex flex-col gap-4">
             <DesglosePorModulo titulo="Vencidos por módulo" desglose={resumen.vencidosPorModulo} />
             <DesglosePorModulo titulo="Incompletos por módulo" desglose={resumen.incompletosPorModulo} />

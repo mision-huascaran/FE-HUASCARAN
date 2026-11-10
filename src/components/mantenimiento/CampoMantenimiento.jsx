@@ -41,6 +41,9 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
         {...comun}
         value={valor ?? ''}
         placeholder={campo.placeholder ?? 'Selecciona'}
+        // Un campo opcional se puede volver a dejar vacío; en uno obligatorio
+        // «Selecciona» solo es la indicación de que falta.
+        vacioElegible={!comun.required}
         options={campo.opciones ?? []}
         onChange={(e) => onCambio(campo.nombre, e.target.value)}
       />

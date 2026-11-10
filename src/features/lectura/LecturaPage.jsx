@@ -27,12 +27,13 @@ import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FilterBar from '../../components/ui/FilterBar'
 import Select from '../../components/ui/Select'
+import selectsDelGrupo from '../../components/filtros/selectsDelGrupo'
 import ModalObservacionLectura from './ModalObservacionLectura'
 import ModalNoRealizada from './ModalNoRealizada'
 import ModalHabilitarRegistro from './ModalHabilitarRegistro'
 import ModalCambiarClase from './ModalCambiarClase'
 import TablaLectura from './TablaLectura'
-import useFiltrosDeGrupo, { marcadorDeColegio, MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo, { MESES, esSemanaFutura, etiquetaDeSemanaDeGrupo } from '../../hooks/useFiltrosDeGrupo'
 import useTablaLectura from './useTablaLectura'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
@@ -249,36 +250,7 @@ export default function LecturaPage() {
       {/* El MES va antes que la semana: las semanas que se ofrecen son las que
           tienen clase de este grupo en ese mes, y no las del año entero. */}
       <FilterBar>
-        <Select
-          label="Colegio"
-          value={filtros.idColegio}
-          placeholder={marcadorDeColegio(esDocente)}
-          onChange={(e) => cambiar('colegio', e.target.value)}
-          options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
-        />
-        <Select
-          label="Grado"
-          value={filtros.idGrado}
-          // Sin colegio no hay de dónde sacar los grados: un desplegable
-          // vacío sin decir por qué parecía roto (D63/variante Supervisor).
-          placeholder={filtros.idColegio ? 'Selecciona' : (marcadorDeColegio(esDocente) ?? 'Selecciona')}
-          onChange={(e) => cambiar('grado', e.target.value)}
-          options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
-        />
-        <Select
-          label="Sección"
-          value={filtros.idSeccion}
-          placeholder="Selecciona"
-          onChange={(e) => cambiar('seccion', e.target.value)}
-          options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
-        />
-        <Select
-          label="Subprograma"
-          value={filtros.idPrograma}
-          placeholder="Selecciona"
-          onChange={(e) => cambiar('subprograma', e.target.value)}
-          options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
-        />
+        {selectsDelGrupo({ filtros, cambiar, colegios, grados, secciones, programas, esDocente })}
         <Select
           label="Mes"
           value={filtros.mes}

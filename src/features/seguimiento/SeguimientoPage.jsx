@@ -123,6 +123,7 @@ export default function SeguimientoPage() {
             <Select
               label="Colegio"
               placeholder="Todos"
+              vacioElegible
               value={borrador.id_colegio}
               options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
               onChange={(e) => cambiar('id_colegio', e.target.value)}
@@ -158,6 +159,7 @@ export default function SeguimientoPage() {
             <Select
               label="Sincronización"
               placeholder="Todas"
+              vacioElegible
               value={borrador.sincronizacion}
               options={SINCRONIZACIONES}
               onChange={(e) => cambiar('sincronizacion', e.target.value)}

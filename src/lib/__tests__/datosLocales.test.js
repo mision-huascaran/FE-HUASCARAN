@@ -1,7 +1,8 @@
 // D03 / D02 — Qué queda en el navegador tras cerrar sesión (CP06, CP13).
 //
-// Se borra la precarga de IndexedDB y se VACÍA localStorage entero; la cola de
-// envíos pendientes NO se toca (CU007, CU008).
+// Se borra la precarga de IndexedDB y se VACÍA localStorage entero salvo el
+// desfase del reloj y el tema; la cola de envíos pendientes NO se toca (CU007,
+// CU008).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { limpiarDatosLocalesDeSesion } from '../datosLocales'
 
@@ -22,6 +23,10 @@ vi.mock('idb-keyval', () => {
   }
 })
 
+const RELOJ = 'sicedu.reloj.desfase'
+const TEMA = 'sicedu.tema'
+const FILTROS = 'sicedu.filtros.alumnos'
+
 beforeEach(() => localStorage.clear())
 
 describe('limpieza local al cerrar sesión', () => {
@@ -29,16 +34,16 @@ describe('limpieza local al cerrar sesión', () => {
     const idb = await import('idb-keyval')
     idb.__sembrar('sicedu.precarga', { datos: { alumnos: [{ nombre: 'Ana' }] }, propietario: 1 })
     idb.__sembrar('sicedu.cola-envios', [{ clave: 'actividad-cierre-1' }])
-    localStorage.setItem('sicedu.filtros.alumnos', '{"id_ciclo":"1"}')
+    localStorage.setItem(FILTROS, '{"id_ciclo":"1"}')
     localStorage.setItem('sicedu.resumen.directivo', '{}')
     localStorage.setItem('otra.app', 'x')
-    localStorage.setItem('sicedu.reloj.desfase', '-3600000')
+    localStorage.setItem(RELOJ, '-3600000')
 
     await limpiarDatosLocalesDeSesion()
 
     expect(idb.__leer('sicedu.precarga')).toBeUndefined()
     expect(idb.__leer('sicedu.cola-envios')).toHaveLength(1)
-    expect(localStorage.getItem('sicedu.filtros.alumnos')).toBeNull()
+    expect(localStorage.getItem(FILTROS)).toBeNull()
     expect(localStorage.getItem('sicedu.resumen.directivo')).toBeNull()
     /**
      * CU007 pide limpiar localStorage ÍNTEGRAMENTE, no solo las claves
@@ -52,6 +57,27 @@ describe('limpieza local al cerrar sesión', () => {
      * siguiente sesión fiándose de la hora del dispositivo hasta la primera
      * respuesta del servidor, que es justo lo que el caso de uso prohíbe.
      */
-    expect(localStorage.getItem('sicedu.reloj.desfase')).toBe('-3600000')
+    expect(localStorage.getItem(RELOJ)).toBe('-3600000')
+  })
+
+  it.each(['claro', 'oscuro', 'sistema'])('conserva el tema «%s»: es del equipo, no del usuario', async (tema) => {
+    localStorage.setItem(TEMA, tema)
+    localStorage.setItem(FILTROS, '{"id_ciclo":"1"}')
+
+    await limpiarDatosLocalesDeSesion()
+
+    expect(localStorage.getItem(TEMA)).toBe(tema)
+    expect(localStorage.getItem(FILTROS)).toBeNull()
+  })
+
+  it('no conserva nada más que el reloj y el tema: ningún dato personal (D115)', async () => {
+    localStorage.setItem(TEMA, 'oscuro')
+    localStorage.setItem(RELOJ, '0')
+    localStorage.setItem('sicedu.perfil', '{"dni":"12345678","correo":"a@b.pe","nombres":"Ana"}')
+    localStorage.setItem('sicedu.ultimo.usuario', '4')
+
+    await limpiarDatosLocalesDeSesion()
+
+    expect(Object.keys(localStorage).sort()).toEqual([RELOJ, TEMA].sort())
   })
 })
