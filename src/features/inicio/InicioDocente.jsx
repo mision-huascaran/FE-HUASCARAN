@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
 import AvisoDatosLocales from './AvisoDatosLocales'
-import LibroInicio from './LibroInicio'
+import ContextoInicio from './ContextoInicio'
 import useResumenDocente from './useResumenDocente'
 import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
@@ -143,8 +143,7 @@ export default function InicioDocente() {
   return (
     <div className="flex flex-col gap-6">
       {/* Los controles van en la esquina superior derecha, como pide CU010. */}
-      <header className="relative flex min-h-[52px] flex-col items-start gap-2 pr-28 sm:min-h-[96px] sm:justify-center sm:pr-72">
-        <LibroInicio />
+      <header className="flex flex-col items-start gap-2">
         <div>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">
           {saludo()}, {primerNombre}
@@ -156,11 +155,7 @@ export default function InicioDocente() {
             aplicable es función de (colegio, fecha) y lo resuelve el
             servidor. La semana en curso sí se queda: esa es del calendario,
             no de un periodo, y le dice al docente dónde está. */}
-        {semanaActual && (
-          <p className="mt-1 pl-3.5 text-sm font-medium text-ink-700">
-            {`Semana del ${formatearRangoSemana(semanaActual)}`}
-          </p>
-        )}
+        <ContextoInicio rol="Docente" extra={semanaActual && `Semana del ${formatearRangoSemana(semanaActual)}`} />
         </div>
 
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
@@ -171,7 +166,7 @@ export default function InicioDocente() {
             lee como que quedan menos de tres horas cuando quedan cinco, o peor,
             como que ya pasó. */}
         {sesion && (
-          <p className="rounded-lg bg-surface-0/85 px-3 py-1.5 text-sm text-ink-700">
+          <p className="rounded-lg border border-line bg-surface-0 px-3 py-1.5 text-sm text-ink-700">
             {`Actividad iniciada a las ${formatearHora(sesion.inicio)}. La sesión finaliza `}
             {enOtroDia(sesion.inicio, finDeSesion)
               ? `el ${formatearDiaMes(finDeSesion)} a las ${formatearHora(finDeSesion)}.`

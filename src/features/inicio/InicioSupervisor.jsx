@@ -14,7 +14,7 @@ import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import AlertasInactividad from './AlertasInactividad'
 import DesglosePorModulo from './DesglosePorModulo'
-import LibroInicio from './LibroInicio'
+import ContextoInicio from './ContextoInicio'
 import AvisoDatosLocales from './AvisoDatosLocales'
 import useResumenLocal from './useResumenLocal'
 import { obtenerResumenSupervisor } from '../../api/resources/inicio'
@@ -80,7 +80,10 @@ export default function InicioSupervisor() {
       <Skeleton className="h-40 w-full" />
     ) : (
       <div className="flex flex-col gap-5">
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
+        <header>
+          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
+          <ContextoInicio rol="Supervisor" />
+        </header>
         <AvisoDatosLocales rol="supervisor" sinDatos enLinea={enLinea} />
       </div>
     )
@@ -88,9 +91,9 @@ export default function InicioSupervisor() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="relative flex min-h-[52px] items-center pr-32 sm:min-h-[96px] sm:pr-72">
+      <header>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">Inicio</h1>
-        <LibroInicio />
+        <ContextoInicio rol="Supervisor" />
       </header>
 
       {desactualizado && <AvisoDatosLocales enLinea={enLinea} />}
