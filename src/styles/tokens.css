@@ -31,6 +31,7 @@
   --surface-0: 255 255 255;
   --surface-50: 238 243 250;
   --surface-100: 232 239 250;
+  --fondo-panel: 238 243 250;
 
   --line: 220 230 245;
   --line-strong: 198 211 232;
@@ -130,7 +131,7 @@
   --ink-400: 150 168 195;
 
   --surface-0: 21 42 71;
-  --surface-50: 8 20 38;
+  --surface-50: 16 33 58;
   --surface-100: 26 52 86;
 
   --line: 46 66 97;
@@ -197,6 +198,7 @@
   --cristal-tarjeta: 0.86;
   --cristal-barra: 0.74;
   --fondo-exterior: 5 14 28;
+  --fondo-panel: 8 20 38;
   --panel-paisaje: 8 20 38;
   --panel-paisaje-alfa: 0.42;
 

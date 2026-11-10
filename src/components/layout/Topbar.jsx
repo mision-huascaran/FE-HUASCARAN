@@ -15,7 +15,7 @@ export default function Topbar({ onAbrirMenu }) {
   const idRol = useSessionStore((s) => s.usuario?.id_rol)
   const hayMenuMas = navegacionDe(idRol).length > RANURAS_BARRA_INFERIOR
   return (
-    <header className="sticky top-0 z-30 flex h-16 print:hidden items-center gap-2 border-b border-line bg-surface-0 px-4 sm:gap-3 sm:px-6">
+    <header className="sicedu-cristal-barra sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-2 border-b border-line/70 px-4 pt-[env(safe-area-inset-top)] sm:h-16 sm:gap-3 sm:px-6 lg:rounded-t-panel lg:px-7 print:hidden">
       {/*
         EL BOTÓN DE MENÚ SOLO EN TABLETA.
         
@@ -32,7 +32,7 @@ export default function Topbar({ onAbrirMenu }) {
         type="button"
         onClick={onAbrirMenu}
         aria-label="Abrir menú"
-        className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-700 transition-colors hover:bg-surface-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:flex lg:hidden"
+        className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-700 transition-colors hover:bg-surface-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:flex lg:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>

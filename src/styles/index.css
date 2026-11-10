@@ -13,7 +13,8 @@
   }
 
   body {
-    @apply bg-surface-50 font-sans text-sm text-ink-700 antialiased;
+    background-color: rgb(var(--fondo-panel));
+    @apply font-sans text-sm text-ink-700 antialiased;
     margin: 0;
     /* RNF-002: de 360px a 1920px sin desplazamiento horizontal. */
     overflow-x: hidden;
@@ -126,13 +127,17 @@
     );
   }
 
+  .sicedu-fondo {
+    background-color: rgb(var(--fondo-exterior));
+  }
+
   /* El panel claro que contiene cada pantalla. */
   .sicedu-panel {
     position: relative;
     z-index: 1;
     min-height: 100vh;
     min-height: 100dvh;
-    background-color: rgb(var(--surface-50));
+    background-color: rgb(var(--fondo-panel));
   }
   .sicedu-con-paisaje .sicedu-panel {
     background-color: rgb(var(--panel-paisaje) / var(--panel-paisaje-alfa));
@@ -182,6 +187,87 @@
   .sicedu-tema-transicion *::before,
   .sicedu-tema-transicion *::after {
     transition: background-color 240ms ease, border-color 240ms ease, color 240ms ease !important;
+  }
+}
+
+/* DataTable en el teléfono: cada fila, una tarjeta; cada celda, "etiqueta · valor".
+   El orden sigue disponible: las cabeceras ordenables quedan como botones arriba. */
+@media (max-width: 767.98px) {
+  .sicedu-tabla-tarjetas,
+  .sicedu-tabla-tarjetas tbody,
+  .sicedu-tabla-tarjetas thead {
+    display: block;
+    min-width: 0;
+  }
+  .sicedu-tabla-tarjetas thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    padding: 0.625rem 0.875rem;
+  }
+  .sicedu-tabla-tarjetas thead th {
+    display: none;
+  }
+  .sicedu-tabla-tarjetas thead th.sicedu-th-ordenable {
+    display: block;
+    border: 0;
+    padding: 0.25rem 0;
+  }
+  .sicedu-tabla-tarjetas tbody {
+    padding: 0.75rem;
+  }
+  .sicedu-tabla-tarjetas tbody tr,
+  .sicedu-tabla-tarjetas tbody tr:last-child {
+    display: block;
+    margin-bottom: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid rgb(var(--line));
+    border-radius: 14px;
+    background-color: rgb(var(--surface-0));
+  }
+  .sicedu-tabla-tarjetas tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 2rem;
+    padding: 0.3rem 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .sicedu-tabla-tarjetas tbody td[data-etiqueta]::before {
+    content: attr(data-etiqueta);
+    flex: 0 0 38%;
+    color: rgb(var(--ink-500));
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: left;
+  }
+  /* Las acciones no se parten letra por letra: bajan enteras a su propia línea. */
+  .sicedu-tabla-tarjetas tbody td:has(button, a) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .sicedu-tabla-tarjetas tbody td button,
+  .sicedu-tabla-tarjetas tbody td a {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+  /* La primera celda hace de título de la tarjeta. */
+  .sicedu-tabla-tarjetas tbody td:first-child {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid rgb(var(--line) / 0.7);
+    color: rgb(var(--ink-900));
+    font-weight: 600;
+    text-align: left;
+  }
+  .sicedu-tabla-tarjetas tbody td:first-child::before {
+    display: none;
+  }
+  /* Sin etiqueta suele ser la columna de acciones. */
+  .sicedu-tabla-tarjetas tbody td:not([data-etiqueta]) {
+    justify-content: flex-end;
   }
 }
 

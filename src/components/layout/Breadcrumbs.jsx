@@ -37,7 +37,7 @@ export default function Breadcrumbs({ className }) {
 
   return (
     <nav aria-label="Ruta de navegación" className={cn('min-w-0', className)}>
-      <ol className="flex items-center gap-1 text-sm">
+      <ol className="flex items-center gap-1 text-[13px] sm:text-sm">
         {completas.map((miga, i) => {
           const ultima = i === completas.length - 1
           return (

@@ -65,7 +65,7 @@ export function ToastProvider({ children }) {
         createPortal(
           <div
             aria-live="polite"
-            className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2"
+            className="pointer-events-none fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2 lg:bottom-5 lg:right-5"
           >
             {avisos.map((a) => (
               <ToastItem key={a.id} {...a} onClose={() => cerrar(a.id)} />
@@ -88,7 +88,7 @@ function ToastItem({ tone = 'info', message, description, onClose }) {
   return (
     <output
       className={cn(
-        'pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface-0 p-4 shadow-card animate-slide-up',
+        'pointer-events-auto flex items-start gap-3 rounded-xl border p-4 shadow-modal animate-slide-up',
         clases,
       )}
     >
@@ -101,7 +101,7 @@ function ToastItem({ tone = 'info', message, description, onClose }) {
         type="button"
         onClick={onClose}
         aria-label="Cerrar aviso"
-        className="shrink-0 rounded-lg p-0.5 text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        className="-m-1.5 shrink-0 rounded-lg p-1.5 text-ink-500 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       >
         <X className="h-4 w-4" />
       </button>

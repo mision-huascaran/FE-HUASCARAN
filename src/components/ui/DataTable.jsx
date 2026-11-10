@@ -45,6 +45,9 @@ export default function DataTable({
   rowClassName,
   onRowClick,
   stickyFirstColumn = false,
+  // En el teléfono cada fila se lee como una tarjeta, salvo las tablas de
+  // captura con columna fija, que necesitan seguir comparándose por columnas.
+  tarjetasEnMovil = !stickyFirstColumn,
   footNote,
   className,
 }) {
@@ -123,7 +126,7 @@ export default function DataTable({
   return (
     <div className={className}>
       <div className="sicedu-scrollbar overflow-x-auto">
-        <table className="w-full min-w-full border-collapse text-sm">
+        <table className={cn('w-full min-w-full border-collapse text-sm', tarjetasEnMovil && 'sicedu-tabla-tarjetas')}>
           <thead>
             <tr className="bg-surface-100">
               {columns.map((col, i) => {
@@ -136,8 +139,9 @@ export default function DataTable({
                     style={col.width ? { width: col.width } : undefined}
                     aria-sort={ariaSort(activa, orden.dir)}
                     className={cn(
-                      'whitespace-nowrap border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-500',
+                      'whitespace-nowrap border-b border-line/70 px-3 py-3 text-[11px] first:pl-4 last:pr-4 xl:px-4 font-semibold uppercase tracking-wide text-ink-500',
                       alineacion(col.align),
+                      col.sortable && 'sicedu-th-ordenable',
                       stickyFirstColumn && i === 0 && 'sticky left-0 z-10 bg-surface-100',
                       col.headerClassName,
                     )}
@@ -169,7 +173,7 @@ export default function DataTable({
                 key={getRowId(row, i)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cn(
-                  'border-b border-line transition-colors last:border-0 hover:bg-brand-50',
+                  'border-b border-line/60 transition-colors duration-150 last:border-0 hover:bg-brand-50/70',
                   onRowClick && 'cursor-pointer',
                   typeof rowClassName === 'function' ? rowClassName(row) : rowClassName,
                 )}
@@ -177,8 +181,9 @@ export default function DataTable({
                 {columns.map((col, ci) => (
                   <td
                     key={col.key}
+                    data-etiqueta={typeof col.header === 'string' ? col.header : undefined}
                     className={cn(
-                      'px-4 py-3 align-middle text-ink-700',
+                      'px-3 py-3.5 align-middle text-ink-700 first:pl-4 last:pr-4 xl:px-4',
                       alineacion(col.align, 'tabular-nums'),
                       stickyFirstColumn && ci === 0 && 'sticky left-0 z-10 bg-surface-0',
                       col.className,
@@ -193,7 +198,7 @@ export default function DataTable({
         </table>
       </div>
 
-      {footNote && <p className="border-t border-line px-4 py-3 text-xs text-ink-500">{footNote}</p>}
+      {footNote && <p className="border-t border-line/70 px-4 py-3 text-xs text-ink-500">{footNote}</p>}
 
       {paginated && (
         <Paginacion

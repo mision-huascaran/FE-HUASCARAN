@@ -6,7 +6,7 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 ## Estado
 
 - Rama `development`, partiendo de `a055531` (fast-forward desde `4b59dca`, árbol limpio). Commits locales, sin push.
-- **Próximo paso:** fase 2, componentes compartidos (AppShell, Sidebar, Topbar, BarraInferior, Button, Input, Select, Card, StatCard, Badge, DataTable, Modal, Drawer, Toast).
+- **Próximo paso:** fase 3, Inicio del Supervisor y del Docente (libro, iconos por categoría, orden móvil, permisos plegables FE-13).
 
 ## Línea base antes de tocar nada
 
@@ -52,3 +52,12 @@ Documentos: `prompt_disenio.md`, `indicaciones_definitivas.md`, `anexo_rediseno_
 - Tests: 1115 pasan. Lint: solo el error previo. Build correcto, 71 entradas en el precache.
 - Capturas: `_capturas/fase1/` (Inicio y login, 390 y 1366, claro y oscuro). Sin desborde horizontal.
 - `npm run dev` se levanta con `Ing Soft/.claude/launch.json` (fuera del repo), que exige la herramienta de vista previa.
+
+### Fase 2 — Componentes compartidos (cerrada)
+
+- Rediseñados: `AppShell` (panel y paisaje solo en `/inicio`), `Sidebar` flotante y cajón móvil, `Topbar` de cristal, `BarraInferior` (mismas ranuras y mismo "Más"), `Breadcrumbs`, `Button` (nueva variante `warning`), `Card` (icono opcional), `StatCard` (icono a la izquierda y `tono`), `IconoTinte` (nuevo), `Field`, `Input`, `Select`, `Textarea`, `FilterBar`, `Paginacion`, `Modal`, `Drawer`, `Toast` (ya no tapa la barra inferior), `Tooltip`, `SyncBadge`, `Skeleton`, `EmptyState`, `DataTable`.
+- `DataTable` en móvil: cada fila es una tarjeta por CSS (`data-etiqueta`), con los mismos datos, acciones y orden. Las tablas con `stickyFirstColumn` siguen con desplazamiento interno.
+- `StatCard` conserva `rounded-xl shadow-card` y `> div > div > p + p`, de los que depende `e2e/support/tarjetas.js`.
+- Decisión D9: controles de 44 px en teléfono y de 40 px desde `sm`; texto de 16 px en los campos móviles para evitar el zoom de iOS.
+- Limitación conocida: `display:block` en la tabla móvil hace que los lectores de pantalla pierdan la semántica de tabla en esa vista. No se añadieron `role` explícitos porque el proyecto los viene retirando por Sonar.
+- Tests: 1115 pasan. Lint: solo el error previo. Capturas en `_capturas/fase2/`.
