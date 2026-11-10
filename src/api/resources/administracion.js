@@ -470,6 +470,59 @@ export const crearAlumno = ({
     forzarReal: adminContraApiReal,
   })
 
+// ── Importación de nómina de alumnos (CU014, semana 14) ─────────────────────
+//
+// Exclusiva del Supervisor. El archivo viaja como CUERPO CRUDO, no como
+// `multipart/form-data`: el nombre va en el query, no en un campo del
+// formulario. Axios no lo serializa a JSON porque un `File` es un `Blob`, así
+// que basta con decirle su tipo real (el que el navegador detectó al
+// elegirlo) para que llegue igual que con `fetch`, que es como lo probó el
+// backend.
+const tipoDelArchivo = (archivo) => archivo?.type || 'application/octet-stream'
+
+/**
+ * `POST /alumnos/importaciones/vista-previa` — lee el archivo SIN registrar
+ * ningún alumno. Devuelve los conteos, la huella (para detectar si algo
+ * cambió antes de confirmar) y la lista de observaciones por fila.
+ */
+export const vistaPreviaImportacion = (archivo, nombreArchivo) =>
+  resolver({
+    mock: () => handlers.administracion.vistaPreviaImportacion(archivo),
+    real: () =>
+      api.post(alumnos.importacionVistaPrevia(nombreArchivo), archivo, {
+        headers: { 'Content-Type': tipoDelArchivo(archivo) },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * `POST /alumnos/importaciones` — confirma la importación.
+ *
+ * `idImportacion` se genera UNA VEZ al elegir el archivo (`crypto.randomUUID`)
+ * y se reutiliza en los reintentos: así un reenvío por una respuesta perdida
+ * no duplica alumnos (D75, la misma idea de los reintentos de otros módulos).
+ */
+export const confirmarImportacion = (archivo, { idImportacion, huella, nombreArchivo }) =>
+  resolver({
+    mock: () => handlers.administracion.confirmarImportacion({ idImportacion, huella, nombreArchivo }),
+    real: () =>
+      api.post(alumnos.importacionConfirmar({ idImportacion, huella, nombreArchivo }), archivo, {
+        headers: { 'Content-Type': tipoDelArchivo(archivo) },
+      }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
+ * `GET /alumnos/importaciones/{id}` — para cuando se perdió la respuesta de
+ * confirmar: dice si de verdad se aplicó (200) o no (404), sin reenviar nada.
+ */
+export const consultarImportacion = (idImportacion) =>
+  resolver({
+    mock: () => handlers.administracion.consultarImportacion(idImportacion),
+    real: () => api.get(alumnos.importacionDetalle(idImportacion)),
+    forzarReal: adminContraApiReal,
+  })
+
 /**
  * `GET /alumnos/{id}` — el alumno completo.
  *

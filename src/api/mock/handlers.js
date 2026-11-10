@@ -130,6 +130,9 @@ function errorMock(status, detail, motivo, errores) {
 
 const ACTIVIDADES_MOCK = {}
 
+/** Resultados de importación de nómina, por `id_importacion` (semana 14). */
+const IMPORTACIONES_MOCK = {}
+
 /**
  * Los tres estados de sincronización que la pantalla pinta distinto.
  *
@@ -3229,6 +3232,54 @@ export const handlers = {
       }
       db.ALUMNOS.push(nuevo)
       return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Importación de nómina (semana 14). El simulador NO lee el .xlsx de
+     * verdad —eso es justo lo que hace el backend real—, así que esto es una
+     * respuesta plausible y fija, suficiente para probar la pantalla sin
+     * servidor. Contra la API real (`VITE_ADMIN_REAL=true`, que es el modo de
+     * hoy) esto ni se usa.
+     */
+    vistaPreviaImportacion: async (archivo) => {
+      if (!archivo || archivo.size > 5 * 1024 * 1024) {
+        throw errorMock(422, 'No se pudo leer el archivo. Verifica que sea un archivo Excel (.xlsx) de hasta 5 MB.', 'archivo_invalido')
+      }
+      const huella = `mock-${archivo.size}-${archivo.lastModified ?? Date.now()}`
+      return responder({
+        listos: 3,
+        con_advertencia: 1,
+        no_importadas: 1,
+        huella,
+        observaciones: [
+          { hoja: 'Hoja1', fila: 2, tipo: 'advertencia', motivo: 'grado_no_reconocido', detalle: 'Grado no reconocido. Se importará sin grado.' },
+          { hoja: 'Hoja1', fila: 5, tipo: 'rechazo', motivo: 'colegio_no_registrado', detalle: 'Colegio no registrado.' },
+        ],
+      })
+    },
+
+    confirmarImportacion: async ({ idImportacion, huella, nombreArchivo }) => {
+      if (!idImportacion || !huella || !nombreArchivo) {
+        throw errorMock(422, 'Faltan datos de la importación.', 'validacion')
+      }
+      const existente = IMPORTACIONES_MOCK[idImportacion]
+      if (existente) return responder(existente)
+      const resultado = {
+        id_importacion: idImportacion,
+        fecha: new Date().toISOString(),
+        nombre_archivo: nombreArchivo,
+        importados: 3,
+        no_importadas: 1,
+        con_advertencia: 1,
+      }
+      IMPORTACIONES_MOCK[idImportacion] = resultado
+      return responder(resultado, RETARDO_ESCRITURA_MS)
+    },
+
+    consultarImportacion: async (idImportacion) => {
+      const existente = IMPORTACIONES_MOCK[idImportacion]
+      if (!existente) throw errorMock(404, 'No se encontró la importación.', 'importacion_no_encontrada')
+      return responder(existente)
     },
 
     /**

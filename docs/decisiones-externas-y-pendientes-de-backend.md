@@ -1250,3 +1250,62 @@ sobre `5f7e98d`; el detalle técnico está en la sección 7 de
   texto. Un código (por ejemplo `sin_actividad`) dejaría al front distinguir
   "falta la actividad" de "falta la habilitación" sin leer textos (D114).
 
+## Ronda de QA del 09/11/2026 (16 bugs reportados por Antonio)
+
+De los 16, 14 se corrigieron en el front (commits de esta tanda) y uno ya no
+aplicaba (el Dashboard viejo que los mostraba se reemplazó por completo en la
+tanda anterior). Queda uno **que no es del front**:
+
+- **Calendario académico — PA4 y PR4 editados a la vez (CU027).** Con un PA4
+  hasta el 15/11 y un PR4 desde el 16/11, cambiar en el MISMO guardado el fin
+  de PA4 a 14/11 y el inicio de PR4 a 15/11 lo rechaza: el servidor sigue
+  comparando contra las fechas VIEJAS de uno de los dos periodos. El front ya
+  manda los ocho periodos juntos en un solo `PUT /calendarios/{id}`
+  (`periodosParaGuardar` en `CalendarioAcademico.jsx`), no uno por uno, así
+  que no hay nada que batchear mejor desde aquí: la validación del backend
+  necesita comparar el periodo `i` contra el `i±1` del mismo envío, no contra
+  lo que hay hoy en la base, para aceptar un cambio donde dos fechas vecinas
+  se mueven una hacia la otra en la misma operación.
+
+- **Seguimiento — el calendario del filtro de fecha no se investigó a fondo.**
+  Se buscó `disabled`, `readOnly`, `pointer-events` y recortes por overflow en
+  `SeguimientoPage.jsx` y no hay ninguno: el campo no tiene nada en el código
+  que le impida abrir el selector nativo del navegador. No se pudo reproducir
+  en vivo (el entorno de desarrollo de este equipo no tiene el backend real
+  levantado, y `VITE_AUTH_REAL`/`VITE_ADMIN_REAL` exigen uno para entrar).
+  Queda pendiente de ver en un navegador real antes de tocar algo a ciegas.
+
+## Tanda Q2 · Importar nómina de alumnos desde Excel (semana 14, CU014)
+
+Commit del backend `b08d548`. Contrato en `cambiosFront_semana14_v1.md` y
+`cambiosTest_semana14_v1.md` (carpeta de reportes, no en este repo).
+Implementado **solo esto** de la actualización de CU014: no se tocó el resto
+de la tanda Q1 (alumno con pertenencia pendiente, DNI, filtro "Pertenencia")
+porque no se pidió.
+
+- `src/api/resources/administracion.js`: `vistaPreviaImportacion`,
+  `confirmarImportacion` y `consultarImportacion`. El archivo viaja como
+  cuerpo crudo (`Content-Type` del propio `File`, no JSON ni
+  `multipart/form-data`), tal como lo probó el backend.
+- `src/features/alumnos/ImportarNominaModal.jsx`: el modal de dos pasos
+  (elegir archivo → vista previa → confirmar), con los tres casos de error
+  que cambian el paso (`importacion_desactualizada`, `importacion_existente`,
+  sin respuesta del servidor) y la reconciliación al recuperar la conexión
+  (`GET /alumnos/importaciones/{id}`).
+- Botón "Importar nómina" en `MantenimientoAlumnos.jsx`, junto a "Agregar",
+  solo para el Supervisor (`accionesExtra` de `Mantenimiento`).
+- `nginx.conf`: `client_max_body_size 6m;` en `location /api/` — el límite
+  por defecto (1 MB) rechazaba con 413 cualquier nómina de más de 1 MB antes
+  de que llegara al backend. Lo señalaba el propio reporte del backend.
+
+**Pendiente, fuera de este alcance:** un alumno importado queda con
+"pertenencia pendiente" (sin grado, sección, subprograma ni fecha de
+pertenencia). Hoy no hay forma de completar esos datos desde el formulario de
+"Editar alumno" — eso es la tanda Q1, que trata al alumno pendiente como un
+caso aparte del modal (`PATCH /alumnos/{id}` sin `pertenece_desde` sigue
+guardando solo lo que se informó). Sin implementarla, un alumno recién
+importado se puede VER en la tabla pero no completarse desde la pantalla; el
+backend no se queja porque ningún campo del formulario actual coincide con
+los suyos (`grado`, `programa`, `seccion` llegan en `null` y la tabla ya los
+pinta como "—" con `etiquetaDe`, sin romperse).
+
