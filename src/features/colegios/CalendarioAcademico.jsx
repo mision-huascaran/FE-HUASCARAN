@@ -430,8 +430,27 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
 
   const editando = modo !== 'consulta'
 
-  const ponerFecha = (i, campo, valor) =>
+  /**
+   * Hallazgo de Paris (backend) sobre BE-04 — `erroresCampo` solo se
+   * limpiaba al volver a pulsar "Guardar", nunca al tocar una fecha. Un
+   * mensaje de validación de un intento anterior ("PR4 debe empezar después
+   * del fin de PA4 (15/11/2026)") se quedaba debajo del campo aunque la fecha
+   * ya hubiera cambiado, y parecía que el servidor seguía pensando en la
+   * vieja. Los ocho periodos se validan entre sí —PA4 y PR4 son dos campos
+   * distintos—, así que se limpian TODOS al tocar cualquiera, no solo el que
+   * se edita: un error de PR4 puede dejar de aplicar al corregir PA4.
+   */
+  const ponerFecha = (i, campo, valor) => {
     setPeriodos((previos) => previos.map((p, n) => (n === i ? { ...p, [campo]: valor } : p)))
+    setErroresCampo({})
+    setIncompatibilidades([])
+  }
+
+  const cambiarDias = (siguientes) => {
+    setDias(siguientes)
+    setErroresCampo({})
+    setIncompatibilidades([])
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -589,7 +608,7 @@ export default function CalendarioAcademico({ colegios = [], onVolver }) {
           filas={editando ? periodos : ochoPeriodos(calendario?.periodos)}
           dias={editando ? dias : (calendario?.dias_no_lectivos ?? [])}
           onFecha={ponerFecha}
-          onDias={setDias}
+          onDias={cambiarDias}
           erroresCampo={erroresCampo}
           periodoActual={calendario?.periodo_actual}
           onIrAlGeneral={() => setAlcance('general')}

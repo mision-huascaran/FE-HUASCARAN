@@ -1256,24 +1256,23 @@ De los 16, 14 se corrigieron en el front (commits de esta tanda) y uno ya no
 aplicaba (el Dashboard viejo que los mostraba se reemplazó por completo en la
 tanda anterior). Queda uno **que no es del front**:
 
-- **Calendario académico — PA4 y PR4 editados a la vez (CU027).** Con un PA4
-  hasta el 15/11 y un PR4 desde el 16/11, cambiar en el MISMO guardado el fin
-  de PA4 a 14/11 y el inicio de PR4 a 15/11 lo rechaza: el servidor sigue
-  comparando contra las fechas VIEJAS de uno de los dos periodos. El front ya
-  manda los ocho periodos juntos en un solo `PUT /calendarios/{id}`
-  (`periodosParaGuardar` en `CalendarioAcademico.jsx`), no uno por uno, así
-  que no hay nada que batchear mejor desde aquí: la validación del backend
-  necesita comparar el periodo `i` contra el `i±1` del mismo envío, no contra
-  lo que hay hoy en la base, para aceptar un cambio donde dos fechas vecinas
-  se mueven una hacia la otra en la misma operación.
+- **Calendario académico — PA4 y PR4 editados a la vez (CU027). RESUELTO.**
+  Paris (backend) reprodujo BE-04: un solo `PUT` que mueve PA4 a X-1 y PR4 a X
+  responde `200` — el backend SÍ valida el orden contra las fechas del propio
+  envío, no contra las guardadas, así que el batching del front
+  (`periodosParaGuardar`) ya era correcto. Lo que de verdad pasaba: en
+  `CalendarioAcademico.jsx`, `erroresCampo` solo se limpiaba al volver a
+  pulsar "Guardar", nunca al tocar una fecha. El mensaje de un 422 de un
+  intento anterior —p. ej. "PR4 debe empezar después del fin de PA4
+  (15/11/2026)"— se quedaba debajo del campo aunque la fecha ya hubiera
+  cambiado, y parecía que el servidor "seguía pensando" en la vieja. Corregido:
+  `ponerFecha` y `onDias` ahora limpian `erroresCampo` e `incompatibilidades`
+  en cuanto se edita cualquier fecha, no solo al reintentar guardar. Cubierto
+  por un test nuevo en `calendarioAcademicoPantalla.test.jsx`.
 
-- **Seguimiento — el calendario del filtro de fecha no se investigó a fondo.**
-  Se buscó `disabled`, `readOnly`, `pointer-events` y recortes por overflow en
-  `SeguimientoPage.jsx` y no hay ninguno: el campo no tiene nada en el código
-  que le impida abrir el selector nativo del navegador. No se pudo reproducir
-  en vivo (el entorno de desarrollo de este equipo no tiene el backend real
-  levantado, y `VITE_AUTH_REAL`/`VITE_ADMIN_REAL` exigen uno para entrar).
-  Queda pendiente de ver en un navegador real antes de tocar algo a ciegas.
+- **Seguimiento — el calendario del filtro de fecha. NO ES UN BUG.** El
+  tester (Joaquín) confirmó que fue un error de prueba: el selector sí abre.
+  No se tocó nada.
 
 ## Tanda Q2 · Importar nómina de alumnos desde Excel (semana 14, CU014)
 

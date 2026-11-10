@@ -296,6 +296,35 @@ describe('CU027 · Calendario académico', () => {
     expect(boton('Guardar')).toBeInTheDocument()
   })
 
+  /**
+   * Hallazgo de Paris (backend) sobre BE-04: el mensaje de un 422 por campo
+   * se quedaba debajo del campo aunque la fecha ya hubiera cambiado, y
+   * parecía que el servidor seguía pensando en la fecha vieja. `periodos.6`
+   * es PA4 (0-indexado: PA1, PR1, PA2, PR2, PA3, PR3, **PA4**, PR4).
+   */
+  it('al corregir una fecha, el error de validación de un intento anterior desaparece (hallazgo de Paris)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    actualizar.mockRejectedValueOnce(
+      errorHttp(422, {
+        detail: 'Error de validación.',
+        motivo: 'validacion',
+        errores: [{ campo: 'periodos.6.fecha_fin', mensaje: 'PR4 debe empezar después del fin de PA4 (15/11/2026).' }],
+      }),
+    )
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText('Fin de PA4'), { target: { value: '2026-12-20' } })
+    fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
+
+    expect(await screen.findByText('PR4 debe empezar después del fin de PA4 (15/11/2026).', {}, ESPERA)).toBeInTheDocument()
+
+    // Se corrige la fecha: el mensaje del intento anterior se va, aunque
+    // todavía no se haya vuelto a pulsar "Guardar".
+    fireEvent.change(screen.getByLabelText('Fin de PA4'), { target: { value: '2026-12-17' } })
+    expect(screen.queryByText('PR4 debe empezar después del fin de PA4 (15/11/2026).')).not.toBeInTheDocument()
+  })
+
   it('por colegio: pide el colegio, crea fechas particulares sobre el general', async () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
