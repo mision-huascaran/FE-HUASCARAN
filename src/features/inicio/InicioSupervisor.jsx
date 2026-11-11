@@ -21,12 +21,12 @@ import { obtenerResumenSupervisor } from '../../api/resources/inicio'
 import useConexion from '../../hooks/useConexion'
 
 const ACCESOS = [
-  { to: '/usuarios', label: 'Usuarios', icon: Users, tono: 'violeta' },
-  { to: '/alumnos', label: 'Alumnos', icon: GraduationCap, tono: 'celeste' },
-  { to: '/colegios', label: 'Colegios', icon: School, tono: 'azul' },
+  { to: '/usuarios', label: 'Usuarios', icon: Users },
+  { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
+  { to: '/colegios', label: 'Colegios', icon: School },
   // El Supervisor sigue a sus docentes en Seguimiento (CU020): Sesiones es
   // solo del Docente y lo mandaba a /403.
-  { to: '/seguimiento', label: 'Seguimiento de los docentes', icon: Activity, tono: 'turquesa' },
+  { to: '/seguimiento', label: 'Seguimiento de los docentes', icon: Activity },
 ]
 
 /** Lo que se pinta cuando el servidor no puede calcular un indicador. */
@@ -151,7 +151,7 @@ export default function InicioSupervisor() {
               to={acceso.to}
               className="sicedu-elevable group flex min-h-[60px] items-center gap-3 rounded-xl border border-line/80 bg-surface-0 px-3 py-2.5 text-sm font-semibold text-ink-900 hover:border-brand-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <IconoTinte icon={acceso.icon} tono={acceso.tono} tamano="sm" />
+              <IconoTinte icon={acceso.icon} tono="neutro" tamano="sm" />
               <span className="min-w-0 flex-1">{acceso.label}</span>
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-400 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
             </Link>
