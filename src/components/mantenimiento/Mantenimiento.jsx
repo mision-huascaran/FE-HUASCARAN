@@ -103,6 +103,7 @@ export default function Mantenimiento({
   motivoSinNuevo = null,
   // Género de la entidad, para el título del popup: era "Nuevo cuenta".
   genero = 'm',
+  notaFormulario = null,
 }) {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   /**
@@ -460,6 +461,7 @@ export default function Mantenimiento({
         cargarAuditoria={cargarAuditoria}
         cargarDetalle={cargarDetalle}
         genero={genero}
+        notaFormulario={notaFormulario}
         // D61 — Si la conexión se va con el modal abierto, se queda abierto y
         // con lo escrito; solo "Guardar" espera a que vuelva.
         motivoSinGuardar={sinConexion ? avisoSinConexion(seccion) : null}

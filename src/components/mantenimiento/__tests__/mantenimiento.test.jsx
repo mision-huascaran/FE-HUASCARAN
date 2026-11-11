@@ -293,3 +293,22 @@ describe('Plantilla de mantenimiento', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 })
+
+describe('Nota del formulario (D012)', () => {
+  const NOTA = 'Al cambiar de grupo se pedirá la fecha.'
+  const nota = (modo) => (modo === 'editar' ? NOTA : null)
+
+  it('al editar se ve bajo la línea de los obligatorios', async () => {
+    montar(ROLES.SUPERVISOR, { notaFormulario: nota })
+    fireEvent.click(screen.getByRole('button', { name: /^editar I\.E\. 86021/i }))
+    expect(await within(screen.getByRole('dialog')).findByText(NOTA)).toBeInTheDocument()
+  })
+
+  it('al crear no aparece', async () => {
+    montar(ROLES.SUPERVISOR, { notaFormulario: nota })
+    fireEvent.click(screen.getByRole('button', { name: /agregar/i }))
+    const dialogo = await screen.findByRole('dialog')
+    expect(within(dialogo).getByText(/son obligatorios/)).toBeInTheDocument()
+    expect(within(dialogo).queryByText(NOTA)).not.toBeInTheDocument()
+  })
+})

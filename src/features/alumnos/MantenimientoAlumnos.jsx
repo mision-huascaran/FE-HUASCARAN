@@ -252,6 +252,10 @@ export default function MantenimientoAlumnos() {
         nombre: 'dni',
         etiqueta: 'DNI',
         placeholder: '8 dígitos',
+        // D012: no deja escribir un noveno dígito ni letras.
+        maximo: 8,
+        inputMode: 'numeric',
+        soloDigitos: true,
         validar: (v) => (/^\d{8}$/.test(String(v ?? '').trim()) ? null : 'El DNI debe tener exactamente 8 dígitos.'),
       },
       {
@@ -279,7 +283,6 @@ export default function MantenimientoAlumnos() {
         // Solo los grados que el colegio elegido de verdad tiene, no el
         // catálogo entero: un colegio no ofrece necesariamente los seis.
         opciones: (valores) => opciones(gradosDe(valores), 'id_grado'),
-        ayuda: 'Los que tiene el colegio elegido',
       },
       /**
        * LA SECCIÓN SE ELIGE. Dejó de ser un atributo heredado del colegio
@@ -304,13 +307,12 @@ export default function MantenimientoAlumnos() {
         unicaPorDefecto: true,
         opciones: (valores) =>
           seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
-        ayuda: 'Las del colegio y grado elegidos',
       },
       {
         nombre: 'ciclo',
         etiqueta: 'Ciclo',
         soloLectura: true,
-        ayuda: 'Lo calcula el sistema según el subprograma y el grado',
+        ayuda: 'Se calcula con el grado y el subprograma',
       },
       {
         nombre: 'id_programa',
@@ -472,6 +474,13 @@ export default function MantenimientoAlumnos() {
     <>
       <Mantenimiento
         seccion="alumnos"
+        // D012: «Cambia de grupo desde» aparece solo al cambiar de grupo (ver
+        // el campo); esto avisa de antemano que se pedirá.
+        notaFormulario={(modo) =>
+          modo === 'editar'
+            ? 'Si cambias el colegio, el grado, la sección o el subprograma, se pedirá desde qué fecha aplica el cambio.'
+            : null
+        }
         entidad="alumno"
         titulo="Alumnos"
         consulta={consulta}
