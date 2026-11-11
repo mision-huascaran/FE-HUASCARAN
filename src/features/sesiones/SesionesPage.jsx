@@ -53,11 +53,17 @@ const CIERRES = [
 
 const TONO_SINCRONIZACION = { sincronizada: 'success', pendiente: 'warning', error: 'danger' }
 
-/** Segundos a "1 h 25 min", que es como se lee una jornada. */
-function duracion(segundos) {
+/**
+ * Segundos a "1 h 25 min", que es como se lee una jornada.
+ *
+ * Se redondea el TOTAL de minutos y después se reparte en horas: redondear
+ * solo el resto daba "7 h 60 min" para una actividad de 7 h 59 min 40 s.
+ */
+export function duracion(segundos) {
   if (segundos == null) return '—'
-  const horas = Math.floor(segundos / 3600)
-  const minutos = Math.round((segundos % 3600) / 60)
+  const totalMinutos = Math.round(segundos / 60)
+  const horas = Math.floor(totalMinutos / 60)
+  const minutos = totalMinutos % 60
   return horas ? `${horas} h ${minutos} min` : `${minutos} min`
 }
 
