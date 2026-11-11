@@ -402,7 +402,11 @@ export default function Mantenimiento({
           // de escribir y manda el conjunto entero en una sola consulta.
           onAplicar={(nuevos) => Object.entries(nuevos).forEach(([n, v]) => onFiltro?.(n, v))}
         />
+      </Card>
 
+      {/* D007: filtros y tabla en tarjetas separadas, como en Asistencias,
+          Seguimiento de Lectura, Rúbrica y Registro de Vuelo. */}
+      <Card padded={false}>
         {consulta.isError ? (
           <EmptyState title={`No se pudieron cargar los ${entidad.toLowerCase()}s`} description={mensajeDeError(consulta.error)} />
         ) : (

@@ -26,15 +26,29 @@ import { Filter, X } from 'lucide-react'
 import Button from './Button'
 import cn from '../../lib/cn'
 
-/** Una celda de la fila: puede encogerse, con un mínimo legible. */
-export function CeldaFiltro({ className, children }) {
-  return <div className={cn('min-w-[150px] flex-1 basis-[150px]', className)}>{children}</div>
+/**
+ * Anchos según lo que cabe en el filtro (D007 del reporte de UX).
+ *
+ * Antes todas las celdas crecían sin tope: una que caía sola en la segunda
+ * fila («Pertenencia», con «Definida» o «Pendiente») ocupaba media pantalla,
+ * mientras las de la primera se encogían hasta cortar «Comprensión Lectora».
+ */
+const ANCHOS = new Map([
+  ['corto', 'min-w-[130px] basis-[140px] max-w-[180px]'],
+  ['normal', 'min-w-[150px] basis-[170px] max-w-[250px]'],
+  ['largo', 'min-w-[200px] basis-[230px] max-w-[320px]'],
+])
+
+/** Una celda de la fila: puede encogerse, con un mínimo legible y un tope. */
+export function CeldaFiltro({ ancho = 'normal', className, children }) {
+  const clases = ANCHOS.get(ancho) ?? ANCHOS.get('normal')
+  return <div className={cn('flex-1', clases, className)}>{children}</div>
 }
 
 export default function BarraDeFiltros({ onFiltrar, onLimpiar, filtrarDeshabilitado, className, children }) {
   return (
     <form
-      className={cn('flex flex-wrap items-start gap-3 border-b border-line/70 p-4', className)}
+      className={cn('flex flex-wrap items-start gap-3 p-4', className)}
       onSubmit={(e) => {
         e.preventDefault()
         onFiltrar?.()

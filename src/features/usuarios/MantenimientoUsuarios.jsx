@@ -370,7 +370,7 @@ export default function MantenimientoUsuarios() {
         filtros={[
           { nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre o correo' },
           { nombre: 'rol', etiqueta: 'Rol', opciones: ROLES_CREABLES.map((r) => ({ value: r.label, label: r.label })) },
-          { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
+          { nombre: 'id_colegio', etiqueta: 'Colegio', ancho: 'largo', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
         ]}
         columnas={[
           // Las columnas que pide CU016, en su orden.

@@ -526,16 +526,17 @@ export default function MantenimientoAlumnos() {
         }}
         filtros={[
           { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
-          { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
-          { nombre: 'id_grado', etiqueta: 'Grado', opciones: opciones(permitidos.grados, 'id_grado') },
-          { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
-          { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
+          { nombre: 'id_colegio', etiqueta: 'Colegio', ancho: 'largo', opciones: opciones(permitidos.colegios, 'id_colegio') },
+          { nombre: 'id_grado', etiqueta: 'Grado', ancho: 'corto', opciones: opciones(permitidos.grados, 'id_grado') },
+          { nombre: 'id_ciclo', etiqueta: 'Ciclo', ancho: 'corto', opciones: CICLOS },
+          { nombre: 'id_programa', etiqueta: 'Subprograma', ancho: 'largo', opciones: opciones(programas, 'id_programa') },
           // Semana 14 — "Definida" o "Pendiente": quién tiene ya un intervalo
           // en su historial de pertenencia y quién todavía no (un importado
           // sin completar, por ejemplo).
           {
             nombre: 'pertenencia',
             etiqueta: 'Pertenencia',
+            ancho: 'corto',
             opciones: [
               { value: 'definida', label: 'Definida' },
               { value: 'pendiente', label: 'Pendiente' },

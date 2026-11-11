@@ -145,6 +145,9 @@ export default function SesionesPage() {
             />
           </CeldaFiltro>
         </BarraDeFiltros>
+      </Card>
+
+      <Card padded={false}>
 
         {consulta.isError ? (
           <EmptyState title="No se pudo obtener el historial de sesiones" description={mensajeDeError(consulta.error)} />

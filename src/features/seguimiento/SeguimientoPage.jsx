@@ -166,6 +166,9 @@ export default function SeguimientoPage() {
             />
           </CeldaFiltro>
         </BarraDeFiltros>
+      </Card>
+
+      <Card padded={false}>
 
         {consulta.isError ? (
           <EmptyState title="No se pudo cargar el seguimiento" description={mensajeDeError(consulta.error)} />
