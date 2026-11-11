@@ -87,11 +87,11 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
    * tabla aunque el mes enviado no sea el suyo: una semana que cae en dos meses
    * tiene UNA sola tabla, y su mes es el de su clase de referencia.
    *
-   * Si el mes estuviera en la clave, ajustar el filtro al mes que responde el
-   * servidor cambiaría la clave y dispararía otra consulta por los MISMOS
-   * datos. Y mientras esa consulta vuelve, `data` queda en `undefined` y la
-   * tabla desaparece de la pantalla: el docente vería su trabajo parpadear por
-   * un filtro que solo sirve para ubicarse.
+   * Si el mes estuviera en la clave, la MISMA semana pedida desde los dos
+   * meses que toca daría dos consultas por los mismos datos, y mientras la
+   * segunda vuelve, `data` queda en `undefined` y la tabla parpadea. Cambiar de
+   * mes sí cambia la tabla, pero porque descarta la semana
+   * (`useFiltrosDeGrupo`), no por el mes.
    */
   const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, idSemana }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
