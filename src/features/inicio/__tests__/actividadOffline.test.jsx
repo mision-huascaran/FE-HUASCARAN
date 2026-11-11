@@ -187,3 +187,63 @@ describe('Rechazos de la cola de actividades', () => {
     expect(useActividadStore.getState().sesion).toBeNull()
   })
 })
+
+/**
+ * D011 del reporte de UX (11/11): iniciar y finalizar seguido.
+ *
+ * La actividad se abre en local antes de que responda `POST /actividades`, y
+ * el botón ya dice "Finalizar". Si el cierre salía en ese intervalo llegaba
+ * antes que el inicio (404) y la actividad quedaba abierta en el servidor.
+ */
+describe('Iniciar y finalizar antes de que responda el servidor (D011)', () => {
+  function inicioPendiente() {
+    let responder
+    iniciarEnServidor.mockImplementation(() => new Promise((ok) => { responder = ok }))
+    return () => responder({ estado: 'en_curso' })
+  }
+
+  it('el cierre espera a que el servidor confirme el inicio', async () => {
+    definirConexion(true)
+    vi.mocked(finalizarActividad).mockClear()
+    vi.mocked(finalizarActividad).mockResolvedValue({})
+    const responderInicio = inicioPendiente()
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    const iniciando = result.current.iniciar()
+    await waitFor(() => expect(useActividadStore.getState().confirmandoInicio).toBe(true))
+    const id = useActividadStore.getState().sesion.id
+    const finalizando = result.current.finalizar()
+
+    // Con el inicio en vuelo, el cierre todavía no sale.
+    await new Promise((ok) => setTimeout(ok, 20))
+    expect(finalizarActividad).not.toHaveBeenCalled()
+
+    responderInicio()
+    await iniciando
+    await finalizando
+
+    expect(finalizarActividad).toHaveBeenCalledWith(id)
+    expect(useActividadStore.getState().confirmandoInicio).toBe(false)
+    expect(useActividadStore.getState().sesion).toBeNull()
+  })
+
+  it('si el servidor rechaza el inicio, no se manda ningún cierre', async () => {
+    definirConexion(true)
+    vi.mocked(finalizarActividad).mockClear()
+    let rechazar
+    iniciarEnServidor.mockImplementation(() => new Promise((_, no) => { rechazar = no }))
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    const iniciando = result.current.iniciar()
+    await waitFor(() => expect(useActividadStore.getState().confirmandoInicio).toBe(true))
+    const finalizando = result.current.finalizar()
+
+    rechazar(Object.assign(new Error('rechazado'), { response: { status: 422, data: {} } }))
+    await iniciando
+    await finalizando
+
+    expect(finalizarActividad).not.toHaveBeenCalled()
+    expect(useActividadStore.getState().sesion).toBeNull()
+    expect(useActividadStore.getState().confirmandoInicio).toBe(false)
+  })
+})

@@ -15,6 +15,7 @@ import useActividad, { SIN_HABILITACIONES } from '../../features/inicio/useActiv
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
+import useActividadStore from '../../store/actividadStore'
 import { ROLES } from '../../auth/roles'
 
 /**
@@ -41,6 +42,8 @@ export default function BarraActividades() {
   const [procesando, setProcesando] = useState(false)
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   const pendientes = useSyncStore((s) => s.pendientes)
+  // D011: hasta que el servidor confirme el inicio, finalizar no puede salir.
+  const confirmandoInicio = useActividadStore((s) => s.confirmandoInicio)
   const enLinea = useConexion()
   const { sesion, iniciar, finalizar, sinAsignaciones, motivoNoPuedeIniciar, textoNoPuedeIniciar } =
     useActividad()
@@ -68,8 +71,8 @@ export default function BarraActividades() {
             variant="danger"
             iconLeft={StopCircle}
             className="shadow-sm ring-2 ring-danger-600/20"
-            loading={procesando}
-            disabled={procesando}
+            loading={procesando || confirmandoInicio}
+            disabled={procesando || confirmandoInicio}
             onClick={async () => {
               setProcesando(true)
               try {
@@ -86,7 +89,9 @@ export default function BarraActividades() {
             variant="success"
             iconLeft={PlayCircle}
             className="shadow-sm ring-2 ring-success-600/20"
-            disabled={sinAsignaciones}
+            // Mientras se envía un cierre, otro inicio chocaría con la
+            // actividad que el servidor aún tiene abierta (409).
+            disabled={sinAsignaciones || procesando}
             /**
              * CU010: deshabilitado, NUNCA oculto, y con el motivo a la vista.
              *
