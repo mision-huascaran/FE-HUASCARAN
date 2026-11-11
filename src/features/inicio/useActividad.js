@@ -72,6 +72,9 @@ const cambiosGuardados = (n) => (n === 1 ? 'Queda 1 cambio guardado' : `Quedan $
  */
 let inicioEnVuelo = null
 
+/** D009: los avisos de iniciar y finalizar se reemplazan entre sí, no se apilan. */
+const AVISO_ACTIVIDAD = { clave: 'actividad' }
+
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
@@ -195,6 +198,7 @@ export default function useActividad() {
       toast.success(
         'Actividad iniciada sin conexión',
         'Ya puedes registrar. El inicio se enviará con su hora real al recuperar la conexión.',
+        AVISO_ACTIVIDAD,
       )
       return
     }
@@ -225,7 +229,7 @@ export default function useActividad() {
          * vigentes." Repetirlo en el cliente garantizaba que un día dejaran de
          * coincidir. El literal de respaldo es solo para cuando no llega.
          */
-        toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES))
+        toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES), AVISO_ACTIVIDAD)
       } else if (motivo === 'actividad_activa_existente') {
         /**
          * El texto del SERVIDOR primero, igual que en `sin_asignaciones`.
@@ -239,13 +243,18 @@ export default function useActividad() {
         toast.error(
           'Ya hay una actividad abierta',
           mensajeDeError(error, 'Debes finalizar la actividad actual antes de iniciar una nueva.'),
+          AVISO_ACTIVIDAD,
         )
       } else if (motivo === 'actividad_superpuesta') {
         // Puede pasar al sincronizar: el horario choca con otra actividad suya
         // de la misma sesión. No es culpa de lo que acaba de hacer.
-        toast.error('El horario se cruza con otra actividad', 'Ya tiene registrada otra actividad en ese mismo tramo.')
+        toast.error(
+          'El horario se cruza con otra actividad',
+          'Ya tiene registrada otra actividad en ese mismo tramo.',
+          AVISO_ACTIVIDAD,
+        )
       } else {
-        toast.error('No se pudo iniciar la actividad', mensajeDeError(error))
+        toast.error('No se pudo iniciar la actividad', mensajeDeError(error), AVISO_ACTIVIDAD)
       }
       return
     } finally {
@@ -253,7 +262,7 @@ export default function useActividad() {
       useActividadStore.setState({ confirmandoInicio: false })
     }
 
-    toast.success('Actividad iniciada', 'Ya puedes registrar.')
+    toast.success('Actividad iniciada', 'Ya puedes registrar.', AVISO_ACTIVIDAD)
 
     // La precarga no bloquea: si falla, se trabaja en línea y el docente se
     // entera por el aviso, no por una grilla vacía.
@@ -310,6 +319,7 @@ export default function useActividad() {
         pendientes > 0
           ? `${cambiosGuardados(pendientes)} en este dispositivo. Se enviarán al recuperar la conexión.`
           : 'Se registrará el cierre al recuperar la conexión.',
+        AVISO_ACTIVIDAD,
       )
       return
     }
@@ -320,9 +330,9 @@ export default function useActividad() {
       // solo cierra la promesa, igual que en `iniciarCola`.
       reintentarAhora().catch(() => null)
       refrescarTrasActividad()
-      toast.success('Actividad finalizada')
+      toast.success('Actividad finalizada', undefined, AVISO_ACTIVIDAD)
     } catch (error) {
-      toast.error('No se pudo registrar el cierre', mensajeDeError(error))
+      toast.error('No se pudo registrar el cierre', mensajeDeError(error), AVISO_ACTIVIDAD)
     }
   }
 
