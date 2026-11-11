@@ -35,8 +35,12 @@ export default function AppShell() {
       {conPaisaje && <div className="sicedu-paisaje" aria-hidden="true" />}
       <Sidebar abierto={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
 
-      <div className="relative lg:pl-[260px] print:pl-0">
-        <div className="sicedu-panel lg:my-3 lg:mr-3 lg:min-h-[calc(100vh-1.5rem)] lg:rounded-panel lg:border lg:border-line/60 lg:shadow-card print:m-0 print:border-0 print:shadow-none">
+      {/* El hueco de arriba y abajo es RELLENO del contenedor, no margen del
+          panel: el margen colapsaba hacia afuera y sumaba 12 px a la altura de
+          la pantalla, así que todas las vistas tenían scroll aunque cupieran
+          (D006 y S001 del reporte de UX). */}
+      <div className="relative lg:py-3 lg:pl-[260px] print:p-0">
+        <div className="sicedu-panel lg:mr-3 lg:min-h-[calc(100vh-1.5rem)] lg:rounded-panel lg:border lg:border-line/60 lg:shadow-card print:m-0 print:border-0 print:shadow-none">
         <Topbar onAbrirMenu={() => setMenuAbierto(true)} />
         {/* `key` fuerza el reinicio del scroll y del estado al cambiar de pantalla. */}
         {/* `pb-24` en móvil: sin ese hueco, la barra inferior tapa la última
