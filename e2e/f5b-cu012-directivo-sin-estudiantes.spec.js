@@ -10,13 +10,21 @@
 // Directivo entra a `/dashboard`, pero no a `/dashboard/libros` (CU034), que es
 // el que baja hasta el alumno.
 //
+// Y ES SU PANTALLA DE ENTRADA: S36 (docs/decisiones-externas-y-pendientes-de-
+// backend.md) le quitó el Inicio, así que `iniciarSesion` espera /dashboard y
+// no /inicio. Por eso esta prueba fallaba en el login, antes de llegar a lo
+// que verifica.
+//
 // Las verificaciones son `expect.soft` para que el reporte muestre TODO lo que
 // falla, no solo lo primero.
 import { expect, test } from '@playwright/test'
 import { evidencia } from './support/evidencia.js'
+import { leerEstado } from './support/estado.js'
 import { iniciarSesion, menu } from './support/sesion.js'
+import { vigilarDatosDeAlumnos } from './support/sinAlumnos.js'
 
 test('CU012/RN-033 – el Directivo no accede a datos de estudiantes', async ({ page }) => {
+  const revisarApi = vigilarDatosDeAlumnos(page)
   await iniciarSesion(page, 'directivo')
   await expect.soft(menu(page).getByRole('link', { name: 'Alumnos', exact: true }), 'Alumnos en el menú').toHaveCount(0)
   await evidencia(page, 'directivo-menu')
@@ -30,4 +38,9 @@ test('CU012/RN-033 – el Directivo no accede a datos de estudiantes', async ({ 
   await expect.soft(page, 'escribir /estudiantes/1 debería llevar a /403').toHaveURL(/\/403$/)
   await expect.soft(page.getByRole('heading', { name: 'Ficha del estudiante' }), 'ficha del estudiante').toHaveCount(0)
   await evidencia(page, 'directivo-ficha-estudiante')
+
+  // Ni la ficha ni el consolidado llegaron a pedir datos: en todo el recorrido
+  // ninguna respuesta de la API trae datos personales de alumnos.
+  const { hallazgos } = await revisarApi(leerEstado().alumno ?? null)
+  expect.soft(hallazgos, 'datos de alumnos en las respuestas de la API').toEqual([])
 })

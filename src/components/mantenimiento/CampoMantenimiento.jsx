@@ -41,6 +41,9 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
         {...comun}
         value={valor ?? ''}
         placeholder={campo.placeholder ?? 'Selecciona'}
+        // Un campo opcional se puede volver a dejar vacío; en uno obligatorio
+        // «Selecciona» solo es la indicación de que falta.
+        vacioElegible={!comun.required}
         options={campo.opciones ?? []}
         onChange={(e) => onCambio(campo.nombre, e.target.value)}
       />
@@ -112,7 +115,7 @@ function SeleccionMultiple({ campo, valor, onCambio, modo, error, bloqueado }) {
           <button
             type="button"
             onClick={() => onCambio(campo.nombre, todos ? [] : opciones.map((o) => String(o.value)))}
-            className="rounded text-xs font-semibold text-brand-600 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="rounded text-xs font-semibold text-brand-700 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             {todos ? 'Quitar todos' : 'Marcar todos'}
           </button>

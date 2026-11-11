@@ -1,16 +1,22 @@
 // Cubre: RF-004, RF-002, RN-001, RN-003, RN-006, RNF-006
-import { BookOpen, CalendarCheck, ClipboardList, Users } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarCheck, ClipboardCheck, ClipboardList, GraduationCap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import AccesosRapidos from './AccesosRapidos'
+import AvisoDatosLocales from './AvisoDatosLocales'
+import ContextoInicio from './ContextoInicio'
 import useResumenDocente from './useResumenDocente'
+import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
+import { obtenerInicioDocente } from '../../api/resources/inicio'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
+import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
 import { enOtroDia, formatearDiaMes, formatearHora, formatearRangoSemana } from '../../lib/format'
 
@@ -40,7 +46,36 @@ const MOTIVO_SIN_ACTIVIDAD = {
 
 export default function InicioDocente() {
   const usuario = useSessionStore((s) => s.usuario)
-  const { data: resumen, isLoading, semanaActual } = useResumenDocente()
+  const enLinea = useConexion()
+  const { data: datosServidor, isLoading, isError, semanaActual } = useResumenDocente(enLinea)
+  /**
+   * D52 — CON EL SERVIDOR CAÍDO, INICIO MOSTRABA DATOS SIN AVISAR.
+   *
+   * `useResumenDocente` solo sabía pedir al servidor: sin conexión o con un
+   * fallo de red, `resumen` se quedaba con lo último que había en memoria
+   * (o en nada si era una recarga), sin ninguna señal de que podía estar
+   * desactualizado. Supervisor y Directivo ya resuelven esto con la copia
+   * de `useResumenLocal` (CU011, CU012); el Docente nunca la tuvo.
+   */
+  const { resumen, desactualizado } = useResumenLocal('docente', datosServidor, enLinea, {
+    falloServidor: isError,
+  })
+
+  /**
+   * "Mis alumnos" NO sale de `useResumenDocente` (ese endpoint no existe
+   * todavía: ver `api/resources/docentes.js`, siempre `null` contra el
+   * backend real). El total de alumnos SÍ lo trae `GET /inicio/docente`, el
+   * mismo que ya pinta "Mis asignaciones" más abajo — de ahí que esa tarjeta
+   * mostrara 7 mientras esta decía 0 con los mismos datos cargados. Mismo
+   * `queryKey` que usa `ResumenesAccion`: TanStack Query comparte la caché,
+   * así que esto no duplica la petición.
+   */
+  const { data: inicioDocente } = useQuery({
+    queryKey: ['inicio', 'docente', usuario?.id_docente],
+    queryFn: obtenerInicioDocente,
+    enabled: Boolean(usuario?.id_docente),
+  })
+  const totalAlumnos = inicioDocente?.totales?.cantidad_alumnos
 
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
@@ -62,10 +97,53 @@ export default function InicioDocente() {
   const expira = caducaEn(token)
   const finDeSesion = expira ? dayjs(expira) : horaFinDe(sesion?.inicio)
 
+  // Las tarjetas del panel: mientras carga, sin datos y sin red, o las cifras.
+  const panel = () => {
+    if (isLoading) {
+      return (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} variant="card" />
+          ))}
+        </div>
+      )
+    }
+    if (!resumen && !enLinea) return <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
+    return (
+      <>
+        {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard sobria icon={GraduationCap} label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
+        <StatCard
+          sobria
+          icon={ClipboardList}
+          label="Reporte de esta semana"
+          value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
+          hint="Estudiantes con registro semanal"
+        />
+        <StatCard
+          sobria
+          icon={ClipboardCheck}
+          label="Pendientes de rúbrica"
+          value={resumen?.pendientes_rubrica ?? 0}
+          hint="Sin Fluidez y Comprensión de la semana"
+        />
+        <StatCard
+          sobria
+          icon={CalendarCheck}
+          label="Ajustes por revisar"
+          value={resumen?.ajustes_por_revisar ?? 0}
+          hint="Sugerencias sin confirmar del periodo"
+        />
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Los controles van en la esquina superior derecha, como pide CU010. */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex flex-col items-start gap-2">
         <div>
         <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">
           {saludo()}, {primerNombre}
@@ -77,11 +155,7 @@ export default function InicioDocente() {
             aplicable es función de (colegio, fecha) y lo resuelve el
             servidor. La semana en curso sí se queda: esa es del calendario,
             no de un periodo, y le dice al docente dónde está. */}
-        {semanaActual && (
-          <p className="mt-1 text-sm text-ink-500">
-            {`Semana del ${formatearRangoSemana(semanaActual)}`}
-          </p>
-        )}
+        <ContextoInicio rol="Docente" extra={semanaActual && `Semana del ${formatearRangoSemana(semanaActual)}`} />
         </div>
 
         {/* El BOTÓN vive en la barra superior, uno solo para toda la
@@ -92,7 +166,7 @@ export default function InicioDocente() {
             lee como que quedan menos de tres horas cuando quedan cinco, o peor,
             como que ya pasó. */}
         {sesion && (
-          <p className="text-sm text-ink-500">
+          <p className="rounded-lg border border-line bg-surface-0 px-3 py-1.5 text-sm text-ink-700">
             {`Actividad iniciada a las ${formatearHora(sesion.inicio)}. La sesión finaliza `}
             {enOtroDia(sesion.inicio, finDeSesion)
               ? `el ${formatearDiaMes(finDeSesion)} a las ${formatearHora(finDeSesion)}.`
@@ -106,7 +180,7 @@ export default function InicioDocente() {
             vive en su base de datos: "fuera de periodo" no se puede deducir
             aquí. Los textos son los literales de CU010. */}
         {!sesion && sinAsignaciones && (
-          <p className="text-sm font-medium text-warning-600">
+          <p className="rounded-lg bg-warning-100 px-3 py-1.5 text-sm font-medium text-warning-600">
             {textoNoPuedeIniciar ??
               MOTIVO_SIN_ACTIVIDAD[motivoNoPuedeIniciar] ??
               MOTIVO_SIN_ACTIVIDAD.sin_asignaciones}
@@ -131,7 +205,7 @@ export default function InicioDocente() {
             </div>
             <Link
               to="/registro-vuelo/nuevo"
-              className="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+              className="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand-solid px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-solidHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
             >
               Registrar evaluación
             </Link>
@@ -139,37 +213,7 @@ export default function InicioDocente() {
         </Card>
       )}
 
-      {/* Sin datos del servidor no se pintan: mostrar las cifras del
-          simulador junto a las asignaciones reales confundía (D13). */}
-      {isLoading ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} variant="card" />
-          ))}
-        </div>
-      ) : resumen && (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={Users} label="Mis alumnos" value={resumen?.mis_estudiantes ?? 0} />
-          <StatCard
-            icon={ClipboardList}
-            label="Reporte de esta semana"
-            value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
-            hint="Estudiantes con registro semanal"
-          />
-          <StatCard
-            icon={BookOpen}
-            label="Pendientes de rúbrica"
-            value={resumen?.pendientes_rubrica ?? 0}
-            hint="Sin Fluidez y Comprensión de la semana"
-          />
-          <StatCard
-            icon={CalendarCheck}
-            label="Ajustes por revisar"
-            value={resumen?.ajustes_por_revisar ?? 0}
-            hint="Sugerencias sin confirmar del periodo"
-          />
-        </div>
-      )}
+      {panel()}
 
       {/* Las asignaciones las pinta `ResumenesAccion`, que lee el endpoint
           real `GET /inicio/docente`. Antes había aquí una segunda tarjeta con
@@ -177,8 +221,8 @@ export default function InicioDocente() {
           que podían contradecirse. */}
 
       <section>
-        <h2 className="text-xl font-semibold text-ink-900">Accesos rápidos</h2>
-        <div className="mt-4">
+        <h2 className="text-lg font-semibold text-ink-900 sm:text-xl">Accesos rápidos</h2>
+        <div className="mt-3 sm:mt-4">
           <AccesosRapidos />
         </div>
       </section>

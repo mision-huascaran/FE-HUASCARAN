@@ -24,7 +24,7 @@ export default function DetalleColegio({ colegio, onVolver }) {
   const consulta = useQuery(consultaDetalleColegio(colegio?.id_colegio))
 
   const ficha = consulta.data ?? colegio
-  useMigaExtra(ficha?.nombre)
+  useMigaExtra(ficha?.nombre, onVolver)
 
   return (
     <div className="flex flex-col gap-5">

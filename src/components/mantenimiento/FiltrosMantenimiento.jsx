@@ -95,6 +95,7 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
               label={filtro.etiqueta}
               value={borrador[filtro.nombre] ?? ''}
               placeholder="Todos"
+              vacioElegible
               options={filtro.opciones ?? []}
               onChange={(e) => escribir(filtro.nombre, e.target.value)}
             />

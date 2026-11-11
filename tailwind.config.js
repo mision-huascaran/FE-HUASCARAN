@@ -1,48 +1,83 @@
 /** @type {import('tailwindcss').Config} */
-// Tokens de diseño SICEDU. Cualquier color fuera de este archivo es un error de
-// implementación (ver PROMPT_FRONTEND_SICEDU.md §4.1).
+// Tokens de diseño SICEDU (rediseño Alpine Glass / Alpine Night).
+//
+// Los VALORES viven en `src/styles/tokens.css`, una vez por tema; aquí solo se
+// les pone nombre. Por eso una pantalla escrita con `bg-surface-0 text-ink-900`
+// sirve para claro y oscuro sin una sola clase `dark:`.
+//
+// Cualquier color fuera de estos dos archivos es un error de implementación.
+const c = (nombre) => `rgb(var(--${nombre}) / <alpha-value>)`
+
+/** Genera `{ 900: 'rgb(var(--ink-900) / …)', … }` para una familia de tokens. */
+const familia = (prefijo, claves) =>
+  Object.fromEntries(claves.map((clave) => [clave, c(`${prefijo}-${clave}`)]))
+
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        navy: { 900: '#0A2249', 800: '#0E2E5E', 700: '#123A75' },
-        brand: { 700: '#10428F', 600: '#1D4ED8', 500: '#2563EB', 100: '#E6EEFB', 50: '#F2F6FD' },
-        ink: { 900: '#0F1E3D', 700: '#33415A', 500: '#5B6577', 400: '#8A94A6' },
-        surface: { 0: '#FFFFFF', 50: '#F5F8FD', 100: '#EEF2F9' },
-        line: { DEFAULT: '#E2E8F2', strong: '#CFD8E6' },
-        success: { 600: '#17795A', 500: '#1E9E6A', 100: '#E3F6EC' },
-        warning: { 600: '#946200', 500: '#E9A23B', 100: '#FDF3DC' },
-        danger: { 600: '#B3261E', 500: '#DC3545', 100: '#FDE7E9' },
-        info: { 600: '#1D4ED8', 100: '#E6EFFD' },
+        navy: familia('navy', [900, 800, 700]),
+        // `solid` es para FONDOS con texto blanco; 600 y 700, para texto y
+        // bordes. En oscuro dejan de poder ser el mismo color: un azul que se
+        // lee sobre una tarjeta oscura es demasiado claro para llevar blanco.
+        brand: familia('brand', [700, 600, 500, 100, 50, 'solid', 'solidHover']),
+        ink: familia('ink', [900, 700, 500, 400]),
+        surface: familia('surface', [0, 50, 100]),
+        line: { DEFAULT: c('line'), strong: c('line-strong') },
+        success: familia('success', [600, 500, 100, 'solid', 'solidHover']),
+        warning: familia('warning', [600, 500, 100]),
+        danger: familia('danger', [600, 500, 100, 'solid', 'solidHover']),
+        info: familia('info', [600, 100]),
         lvl: {
-          preinicio: '#6D28D9', preinicioBg: '#EDE9FE',
-          inicio: '#B3261E', inicioBg: '#FDE7E9',
-          proceso: '#946200', procesoBg: '#FDF3DC',
-          logrado: '#17795A', logradoBg: '#E3F6EC',
-          destacado: '#10428F', destacadoBg: '#E6EEFB',
+          preinicio: c('lvl-preinicio'), preinicioBg: c('lvl-preinicio-bg'),
+          inicio: c('lvl-inicio'), inicioBg: c('lvl-inicio-bg'),
+          proceso: c('lvl-proceso'), procesoBg: c('lvl-proceso-bg'),
+          logrado: c('lvl-logrado'), logradoBg: c('lvl-logrado-bg'),
+          destacado: c('lvl-destacado'), destacadoBg: c('lvl-destacado-bg'),
+        },
+        // Identidad cromática de los iconos por categoría (ver IconoTinte).
+        tinte: {
+          azul: c('tinte-azul'), azulBg: c('tinte-azul-bg'),
+          violeta: c('tinte-violeta'), violetaBg: c('tinte-violeta-bg'),
+          celeste: c('tinte-celeste'), celesteBg: c('tinte-celeste-bg'),
+          verde: c('tinte-verde'), verdeBg: c('tinte-verde-bg'),
+          turquesa: c('tinte-turquesa'), turquesaBg: c('tinte-turquesa-bg'),
+          indigo: c('tinte-indigo'), indigoBg: c('tinte-indigo-bg'),
+          naranja: c('tinte-naranja'), naranjaBg: c('tinte-naranja-bg'),
+          ambar: c('tinte-ambar'), ambarBg: c('tinte-ambar-bg'),
+          rojo: c('tinte-rojo'), rojoBg: c('tinte-rojo-bg'),
+          gris: c('tinte-gris'), grisBg: c('tinte-gris-bg'),
         },
       },
+      ringOffsetColor: { DEFAULT: c('surface-0') },
       fontFamily: {
-        display: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Una sola familia: Inter, servida desde el mismo origen (CSP).
+        display: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(15,30,61,0.04), 0 8px 24px rgba(15,30,61,0.06)',
-        drawer: '-8px 0 32px rgba(15,30,61,0.12)',
+        card: 'var(--sombra-card)',
+        'card-hover': 'var(--sombra-card-hover)',
+        drawer: 'var(--sombra-drawer)',
+        modal: 'var(--sombra-modal)',
+        barra: 'var(--sombra-barra)',
       },
-      borderRadius: { xl: '12px' },
+      borderRadius: { lg: '10px', xl: '16px', '2xl': '20px', panel: '22px' },
       keyframes: {
         'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
         'slide-in-right': { '0%': { transform: 'translateX(100%)' }, '100%': { transform: 'translateX(0)' } },
         'slide-in-left': { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(0)' } },
         'slide-up': { '0%': { transform: 'translateY(8px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+        'modal-in': { '0%': { transform: 'translateY(6px) scale(0.985)', opacity: '0' }, '100%': { transform: 'translateY(0) scale(1)', opacity: '1' } },
       },
       animation: {
         'fade-in': 'fade-in 150ms ease-out',
         'slide-in-right': 'slide-in-right 200ms ease-out',
         'slide-in-left': 'slide-in-left 200ms ease-out',
         'slide-up': 'slide-up 180ms ease-out',
+        'modal-in': 'modal-in 180ms cubic-bezier(0.2, 0.8, 0.3, 1)',
       },
     },
   },

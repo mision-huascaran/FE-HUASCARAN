@@ -20,35 +20,54 @@ import DashboardPage from '../DashboardPage'
 import LibrosPage from '../LibrosPage'
 
 const ESPERA = { timeout: 15000 }
-const ASISTENCIA = 'Asistencia de Alumnos'
-const VER_ASISTENCIA = 'Ver asistencia'
+/** Los títulos de las cuatro tarjetas son los del menú, y en su orden. */
+const MODULOS = ['Asistencias', 'Seguimiento de Lectura', 'Rúbrica', 'Registro de Vuelo']
+const ASISTENCIA = 'Asistencias'
 
 const montar = (rol = ROLES.SUPERVISOR, ruta = '/dashboard') => renderConProveedores(null, { ruta, rol })
 
-describe('Dashboard del Supervisor (CU033)', () => {
-  it('carga sola con la selección inicial del servidor y pinta sus bloques', async () => {
+describe('Dashboard del Supervisor', () => {
+  it('carga sola con la selección inicial del servidor y pinta una tarjeta por módulo', async () => {
     montar()
 
     // La carga inicial es automática porque `seleccion_inicial` llega completa
     // y válida: nadie tuvo que pulsar "Aplicar".
-    expect(
-      await screen.findByRole('heading', { name: 'Distribución de alumnos por subprograma' }, ESPERA),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Resultados de aprendizaje' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Comparación de resultados de aprendizaje' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: ASISTENCIA })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Evolución de la cobertura de Alumnos' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: MODULOS[0] }, ESPERA)).toBeInTheDocument()
+    MODULOS.slice(1).forEach((modulo) =>
+      expect(screen.getByRole('heading', { name: modulo })).toBeInTheDocument(),
+    )
 
     // El periodo se nombra por su nombre visible, nunca "PA3".
     expect(screen.getAllByText(/Tercer periodo/).length).toBeGreaterThan(0)
     expect(document.body.textContent).not.toMatch(/\bPA3\b/)
   })
 
+  /**
+   * LO QUE EL DASHBOARD VIEJO NO HACÍA: llevar al módulo.
+   *
+   * Se miraban nueve bloques de indicadores y para actuar sobre lo que
+   * mostraban había que ir al menú, entrar al módulo y volver a montar los
+   * filtros a mano.
+   */
+  it('cada tarjeta lleva a su módulo, con el colegio de la consulta', async () => {
+    montar()
+    await screen.findByRole('heading', { name: MODULOS[0] }, ESPERA)
+
+    const destinos = {
+      'Ver en Asistencias': '/asistencia',
+      'Ver en Seguimiento de Lectura': '/seguimiento-lectura',
+      'Ver en Rúbrica': '/rubrica',
+      'Ver en Registro de Vuelo': '/registro-vuelo',
+    }
+    Object.entries(destinos).forEach(([texto, ruta]) =>
+      expect(screen.getByRole('link', { name: texto })).toHaveAttribute('href', ruta),
+    )
+  })
+
   it('tocar un filtro avisa "Cambios sin aplicar" y no cambia los resultados', async () => {
     montar()
-    // Se cuenta con TODOS los bloques cargados: los títulos de las gráficas
-    // también llevan el alcance y aparecen cuando llegan sus datos. Contar al
-    // primer rótulo hacía la prueba dependiente de la velocidad de la máquina.
+    // Se cuenta con TODAS las tarjetas cargadas: el contexto de cada gráfica
+    // lleva el alcance y aparece cuando llegan sus datos.
     await screen.findAllByText(/en todos los colegios/, {}, ESPERA)
     await waitFor(() => expect(document.querySelectorAll('.animate-pulse')).toHaveLength(0), ESPERA)
     const antes = screen.getAllByText(/en todos los colegios/).length
@@ -59,11 +78,10 @@ describe('Dashboard del Supervisor (CU033)', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Todos los colegios' }))
 
     expect(screen.getAllByText(CAMBIOS_SIN_APLICAR).length).toBeGreaterThan(0)
-    // Los bloques siguen rotulados con el alcance de SU consulta.
+    // Las tarjetas siguen rotuladas con el alcance de SU consulta.
     expect(screen.getAllByText(/en todos los colegios/).length).toBe(antes)
-    // Y "Aplicar" queda deshabilitado: una selección vacía no es "todos". Es
-    // el de la barra de filtros, el primero: la comparación tiene el suyo.
-    expect(screen.getAllByRole('button', { name: 'Aplicar' })[0]).toBeDisabled()
+    // Y "Aplicar" queda deshabilitado: una selección vacía no es "todos".
+    expect(screen.getByRole('button', { name: 'Aplicar' })).toBeDisabled()
   })
 
   it('un colegio sin información va aparte y no como 0 alumnos', async () => {
@@ -73,58 +91,15 @@ describe('Dashboard del Supervisor (CU033)', () => {
     expect(await screen.findByText(/Todavía no empezaron el periodo seleccionado/, ESPERA)).toBeInTheDocument()
   })
 
-  it('ofrece el acceso a CU034 con el año y los colegios de la consulta', async () => {
+  it('el consolidado de libros hereda el año y los colegios de la consulta', async () => {
     montar()
 
-    const enlace = await screen.findByRole('link', { name: /Ver consolidado de libros leídos/ }, ESPERA)
+    const enlace = await screen.findByRole('link', { name: 'Consolidado por meses' }, ESPERA)
     // Lleva el año y "todos", y NO el periodo académico: el consolidado se
     // organiza por meses del año escolar.
     expect(enlace.getAttribute('href')).toContain('anio=2')
     expect(enlace.getAttribute('href')).toContain('todos=1')
     expect(enlace.getAttribute('href')).not.toMatch(/periodo/)
-  })
-})
-
-describe('Detalle de asistencia por clase (CU033, paso 8)', () => {
-  it('separa las clases sin registro y abre CU022 con su aula precargada', async () => {
-    montar()
-
-    const [primero] = await screen.findAllByRole('button', { name: /Ver grados y clases/ }, ESPERA)
-    await userEvent.click(primero)
-
-    // Las programadas sin ninguna asistencia van aparte: no son 0 % ni
-    // ausencias, simplemente nadie las registró.
-    expect(await screen.findByText(/Clases programadas sin registro/, ESPERA)).toBeInTheDocument()
-    expect(screen.getByText(/No se consideran dictadas ni generan ausencias/)).toBeInTheDocument()
-
-    // El enlace a CU022 lleva colegio, grado, sección y fecha: sin eso, el
-    // Supervisor aterrizaría en el aula que miró la última vez.
-    const href = screen.getAllByRole('link', { name: VER_ASISTENCIA })[0].getAttribute('href')
-    expect(href).toMatch(/colegio=\d+/)
-    expect(href).toMatch(/grado=\d+/)
-    expect(href).toMatch(/seccion=\d+/)
-    expect(href).toMatch(/fecha=\d{4}-\d{2}-\d{2}/)
-  })
-
-  it('el selector de grado no desaparece al filtrar y se puede volver a "Todos"', async () => {
-    montar()
-
-    const [primero] = await screen.findAllByRole('button', { name: /Ver grados y clases/ }, ESPERA)
-    await userEvent.click(primero)
-    const selector = await screen.findByRole('combobox', { name: 'Grado' }, ESPERA)
-    const opciones = within(selector).getAllByRole('option').length
-    expect(opciones).toBeGreaterThan(2)
-
-    // Elegir un grado deja solo sus clases, pero el selector sigue con todas
-    // sus opciones.
-    await userEvent.selectOptions(selector, '2')
-    const filas = screen.getAllByRole('link', { name: VER_ASISTENCIA })
-    expect(filas.every((a) => a.getAttribute('href').includes('grado=2'))).toBe(true)
-    expect(within(screen.getByRole('combobox', { name: 'Grado' })).getAllByRole('option')).toHaveLength(opciones)
-
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Grado' }), '')
-    const todas = screen.getAllByRole('link', { name: VER_ASISTENCIA })
-    expect(todas.some((a) => !a.getAttribute('href').includes('grado=2'))).toBe(true)
   })
 })
 
@@ -244,36 +219,27 @@ describe('El detalle de "Información incompleta" del consolidado de libros (Tan
   })
 })
 
-describe('Dashboard del Directivo (CU035)', () => {
-  it('ve su resumen anual y la comparación, sin los bloques nominales', async () => {
+describe('Dashboard del Directivo', () => {
+  it('ve las MISMAS cuatro tarjetas, con los mismos títulos', async () => {
     montar(ROLES.DIRECTIVO)
 
-    expect(await screen.findByRole('heading', { name: /Resumen anual de Primaria/ }, ESPERA)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Comparación entre colegios' })).toBeInTheDocument()
-
-    // Los tres bloques del Supervisor NO están: sus endpoints le dan 403.
-    expect(screen.queryByRole('heading', { name: 'Distribución de alumnos por subprograma' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Comparación de resultados de aprendizaje' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Ver consolidado de libros leídos/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: MODULOS[0] }, ESPERA)).toBeInTheDocument()
+    MODULOS.slice(1).forEach((modulo) =>
+      expect(screen.getByRole('heading', { name: modulo })).toBeInTheDocument(),
+    )
   })
 
-  it('no le ofrece el detalle por clase, que es nominal', async () => {
+  /**
+   * Las tarjetas informan, pero no le abren puerta: los cuatro módulos son
+   * `[DIRECTIVO]: null` en la matriz de permisos, y el consolidado de libros
+   * es nominal. Ofrecerle el enlace sería mandarlo a su propia guarda.
+   */
+  it('no le ofrece entrar a los módulos ni al consolidado nominal', async () => {
     montar(ROLES.DIRECTIVO)
+    await screen.findByRole('heading', { name: MODULOS[0] }, ESPERA)
 
-    const asistencia = (await screen.findByRole('heading', { name: ASISTENCIA }, ESPERA)).closest(
-      'section',
-    )
-    expect(within(asistencia).queryByRole('button', { name: /Ver grados y clases/ })).not.toBeInTheDocument()
-  })
-
-  it('ve las asistencias completadas sobre las esperadas (CU035 paso 7)', async () => {
-    montar(ROLES.DIRECTIVO)
-
-    const asistencia = (await screen.findByRole('heading', { name: ASISTENCIA }, ESPERA)).closest(
-      'section',
-    )
-    expect(await within(asistencia).findByText('Asistencias completadas', {}, ESPERA)).toBeInTheDocument()
-    expect(within(asistencia).getByText(/^[\d,.]+ de [\d,.]+$/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Ver en / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Consolidado por meses' })).not.toBeInTheDocument()
   })
 })
 

@@ -159,6 +159,34 @@ describe('CU027 · Calendario académico', () => {
     expect(await screen.findByText('Calendario académico actualizado correctamente.', {}, ESPERA)).toBeInTheDocument()
   })
 
+  /**
+   * Bug reportado: "el motivo no funciona, no deja escribir". La fila de
+   * `DiasNoLectivos` llevaba `key={`${d.motivo}-${d.fecha_inicio}-${i}`}` —
+   * una clave que CAMBIA en cada letra escrita, así que React desmontaba la
+   * fila entera (el `<input>` incluido) y montaba una nueva en su lugar: el
+   * foco se perdía a cada tecla. Se comprueba que el MISMO nodo del DOM siga
+   * ahí —no uno nuevo— después de escribir, y que el valor completo llegue.
+   */
+  it('escribir en "Motivo" no remonta la fila ni le quita el foco (bug del 10/11)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+
+    fireEvent.click(boton('Añadir día'))
+    const campo = screen.getByLabelText('Motivo del día no lectivo 2')
+    campo.focus()
+    expect(document.activeElement).toBe(campo)
+
+    for (const letra of 'Aniversario') {
+      fireEvent.change(campo, { target: { value: campo.value + letra } })
+    }
+
+    expect(campo.value).toBe('Aniversario')
+    // Sigue siendo EL MISMO nodo y conserva el foco: no se desmontó la fila.
+    expect(screen.getByLabelText('Motivo del día no lectivo 2')).toBe(campo)
+    expect(document.activeElement).toBe(campo)
+  })
+
   it('ofrece el AÑO SIGUIENTE, que todavía no existe (D81)', async () => {
     /**
      * Era una lista de los años escolares ya creados, así que para configurar
@@ -296,6 +324,35 @@ describe('CU027 · Calendario académico', () => {
     expect(boton('Guardar')).toBeInTheDocument()
   })
 
+  /**
+   * Hallazgo de Paris (backend) sobre BE-04: el mensaje de un 422 por campo
+   * se quedaba debajo del campo aunque la fecha ya hubiera cambiado, y
+   * parecía que el servidor seguía pensando en la fecha vieja. `periodos.6`
+   * es PA4 (0-indexado: PA1, PR1, PA2, PR2, PA3, PR3, **PA4**, PR4).
+   */
+  it('al corregir una fecha, el error de validación de un intento anterior desaparece (hallazgo de Paris)', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    actualizar.mockRejectedValueOnce(
+      errorHttp(422, {
+        detail: 'Error de validación.',
+        motivo: 'validacion',
+        errores: [{ campo: 'periodos.6.fecha_fin', mensaje: 'PR4 debe empezar después del fin de PA4 (15/11/2026).' }],
+      }),
+    )
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText('Fin de PA4'), { target: { value: '2026-12-20' } })
+    fireEvent.click(boton('Guardar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambios' }, ESPERA))
+
+    expect(await screen.findByText('PR4 debe empezar después del fin de PA4 (15/11/2026).', {}, ESPERA)).toBeInTheDocument()
+
+    // Se corrige la fecha: el mensaje del intento anterior se va, aunque
+    // todavía no se haya vuelto a pulsar "Guardar".
+    fireEvent.change(screen.getByLabelText('Fin de PA4'), { target: { value: '2026-12-17' } })
+    expect(screen.queryByText('PR4 debe empezar después del fin de PA4 (15/11/2026).')).not.toBeInTheDocument()
+  })
+
   it('por colegio: pide el colegio, crea fechas particulares sobre el general', async () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
@@ -366,8 +423,43 @@ describe('CU027 · Calendario académico', () => {
     obtenerCalendario.mockResolvedValue(calendario())
     montar()
 
-    expect(await screen.findByText(/Sin conexión. Estás consultando la última versión guardada del calendario/, {}, ESPERA)).toBeInTheDocument()
+    // D75 — El aviso dice DESDE CUÁNDO es la copia (la fecha la pone
+    // `dataUpdatedAt`, que es del momento del `obtenerCalendario` de arriba).
+    expect(await screen.findByText(/Sin conexión. Estás consultando la versión guardada el/, {}, ESPERA)).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: EDITAR }, ESPERA)).toBeDisabled()
+  })
+
+  /**
+   * D75 — Perder la conexión A MITAD de la edición es otra cosa: entrar a
+   * editar ya exige red, pero una vez dentro nada volvía a mirarla, y
+   * "Guardar" seguía habilitado con el formulario completo aunque el envío
+   * no tuviera cómo salir. El calendario nunca se encola ni se guarda en
+   * `localStorage` (CU027): lo único que evita perderlo es que la vista se
+   * quede abierta, con "Guardar" deshabilitado y diciéndolo.
+   */
+  it('sin conexión A MITAD de la edición bloquea Guardar y lo dice, sin perder lo escrito', async () => {
+    obtenerCalendario.mockResolvedValue(calendario())
+    montar()
+    fireEvent.click(await screen.findByRole('button', { name: EDITAR }, ESPERA))
+    fireEvent.change(screen.getByLabelText(FIN_PA1), { target: { value: '2026-05-14' } })
+    expect(boton('Guardar')).toBeEnabled()
+
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+
+    expect(await screen.findByText(/Sin conexión. Tus cambios aún no se han guardado/, {}, ESPERA)).toBeInTheDocument()
+    expect(boton('Guardar')).toBeDisabled()
+    // Lo escrito se conserva: no se vacía ni se descarta solo.
+    expect(screen.getByLabelText(FIN_PA1)).toHaveValue('2026-05-14')
+
+    /**
+     * El `onlineManager` de TanStack Query es un singleton GLOBAL que
+     * escucha estos mismos eventos del `window`, no algo propio de este
+     * `QueryClient`: sin devolver el 'online', las pruebas que vengan
+     * después se quedan pausadas igual que se pausaba el calendario.
+     */
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('online'))
   })
 })
 

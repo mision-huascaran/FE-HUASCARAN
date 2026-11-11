@@ -25,3 +25,7 @@ zap-reports/
 
 # Reportes del escaneo Trivy (stage de Jenkins).
 trivy-reports/
+
+# Rediseño visual: recursos de partida y capturas de revisión.
+_recursos/
+_capturas/

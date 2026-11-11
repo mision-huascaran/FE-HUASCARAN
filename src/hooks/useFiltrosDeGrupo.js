@@ -147,6 +147,15 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
           const siguientes = new URLSearchParams(previos)
           if (valor == null || valor === '') siguientes.delete(clave)
           else siguientes.set(clave, String(valor))
+          /**
+           * EL MES MANDA SOBRE LA SEMANA. La semana elegida es de OTRO mes, así
+           * que se descarta en el mismo paso y el efecto de la semana por
+           * defecto elige una del mes nuevo. Si se quedaba, la tabla se pedía
+           * con la semana vieja, el servidor devolvía la de ese mes y el
+           * filtro volvía a él: elegir octubre con una semana de noviembre
+           * acababa otra vez en noviembre.
+           */
+          if (clave === 'mes' && previos.get('mes') !== siguientes.get('mes')) siguientes.delete('semana')
           return siguientes
         },
         { replace: true },
@@ -234,7 +243,26 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   const idGrado = params.get('grado') || ''
   const idSeccion = params.get('seccion') || ''
   const idPrograma = params.get('subprograma') || ''
-  const mes = params.get('mes') || String(ahora().getMonth() + 1)
+  const mesElegido = params.get('mes')
+  const mes = mesElegido || String(ahora().getMonth() + 1)
+  /**
+   * El mes propuesto (el de hoy) también se escribe en la URL: la semana se
+   * guarda junto con SU mes, y una búsqueda guardada sin mes, recuperada al
+   * mes siguiente, emparejaría la semana vieja con el mes nuevo. Va directo
+   * con `setParams` y no con `cambiar`, que descartaría la semana.
+   */
+  useEffect(() => {
+    if (mesElegido) return
+    setParams(
+      (previos) => {
+        if (previos.get('mes')) return previos
+        const siguientes = new URLSearchParams(previos)
+        siguientes.set('mes', mes)
+        return siguientes
+      },
+      { replace: true },
+    )
+  }, [mesElegido, mes, setParams])
   const idSemana = params.get('semana') || ''
 
   // El detalle del colegio es lo único que trae grados, secciones y
@@ -316,7 +344,7 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
    * nada que registrar.
    */
   const semanasListas = conSemana && Boolean(idAnioEscolar && mes && idColegio && idGrado && idSeccion)
-  const { data: semanas = [] } = useQuery({
+  const { data: semanas = [], isSuccess: semanasCargadas } = useQuery({
     queryKey: ['semanas', { idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }],
     queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }),
     enabled: semanasListas,
@@ -354,12 +382,40 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     cambiar('subprograma', String(programas[0].id_programa))
   }, [programas, idPrograma, cambiar])
 
-  // La semana por defecto es la de HOY (ver `semanaPorDefecto`).
+  /**
+   * La semana por defecto es la de HOY (ver `semanaPorDefecto`), o la última
+   * ya empezada en un mes pasado. Solo se propone si no hay semana o si la que
+   * hay NO ES DE ESTE MES —una URL o una búsqueda guardada con un mes y una
+   * semana que no coinciden—: el mes se respeta y la semana se recalcula.
+   * Un mes sin clases del grupo no tiene semanas: la vieja se quita, para que
+   * la URL y lo guardado no queden con una semana de otro mes.
+   */
   useEffect(() => {
-    if (!semanas.length) return
+    if (!semanasCargadas) return
+    if (!semanas.length) {
+      if (idSemana) cambiar('semana', '')
+      return
+    }
     if (semanas.some((s) => String(s.id_semana) === String(idSemana))) return
     cambiar('semana', String(semanaPorDefecto(semanas).id_semana))
-  }, [semanas, idSemana, cambiar])
+  }, [semanasCargadas, semanas, idSemana, cambiar])
+
+  /**
+   * ¿La combinación de la URL es de verdad una de las que hay para elegir?
+   *
+   * Cambiar el grado deja un instante la sección VIEJA puesta —la corrige el
+   * efecto de arriba, pero en el render siguiente, no en este—. Si quien
+   * consulta (Registro de Vuelo, Lectura, Rúbrica) solo mira que los campos no
+   * estén vacíos, en ese instante lanza la consulta con un grado y una
+   * sección que no van juntos, y el servidor la rechaza con 422: una
+   * respuesta de verdad a una pregunta que no debió hacerse. Esperar a que la
+   * combinación sea válida evita mandarla.
+   */
+  const grupoValido =
+    Boolean(idColegio) &&
+    grados.some((g) => String(g.id_grado) === String(idGrado)) &&
+    secciones.some((s) => String(s.id) === String(idSeccion)) &&
+    programas.some((p) => String(p.id_programa) === String(idPrograma))
 
   return {
     colegios,
@@ -368,6 +424,7 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     programas,
     semanas,
     filtros: { idColegio, idGrado, idSeccion, idPrograma, mes, idSemana, idAnioEscolar },
+    grupoValido,
     cambiar,
   }
 }

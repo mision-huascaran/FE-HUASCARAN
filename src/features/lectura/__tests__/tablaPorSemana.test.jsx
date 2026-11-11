@@ -1,8 +1,9 @@
 // Tandas B y D de Seguimiento de Lectura: lo que cambió de identidad.
 //
 //   · LA TABLA ES DE LA SEMANA, no del mes. Una semana que cae en dos meses
-//     tiene UNA sola tabla, y su mes es el de su clase de referencia; el
-//     filtro Mes solo la ubica, así que se ajusta al que responde el servidor.
+//     tiene UNA sola tabla, y su mes es el de su clase de referencia. El filtro
+//     Mes ya NO se ajusta al de la tabla: el mes manda sobre la semana
+//     (mesYSemana.test.jsx), y moverlo impedía ir a un mes pasado.
 //   · "Cambiar clase" existe y se apoya en el listado de clases del colegio,
 //     porque no hay endpoint de "clases candidatas".
 //   · "Habilitar registro de lectura" deshace la declaración de "no realizada"
@@ -201,18 +202,25 @@ describe('La tabla se identifica por SEMANA (tanda B)', () => {
     expect(await screen.findByText('Clase de esta semana: 29/06/2026', {}, ESPERA)).toBeInTheDocument()
   })
 
-  it('el filtro Mes se AJUSTA al mes de la tabla', async () => {
+  it('el filtro Mes NO se mueve al mes de la tabla: lo eligió el docente', async () => {
     /**
-     * El servidor devuelve la tabla aunque el mes enviado no sea el suyo. Si el
-     * filtro no se moviera, la pantalla diría un mes y enseñaría la tabla de
-     * otro, que es justo la confusión que la tanda B viene a quitar.
+     * El servidor devuelve la tabla aunque el mes enviado no sea el suyo. Antes
+     * el filtro se movía a ese mes, y con una semana elegida eso devolvía la
+     * pantalla al mes de la semana cada vez que se elegía otro. La semana
+     * partida aparece en el mes donde la pone `GET /semanas`, sin tocar el
+     * filtro.
      */
     obtenerTabla.mockResolvedValue(tabla())
     montar()
     await screen.findByText('Clase de esta semana: 29/06/2026', {}, ESPERA)
 
+    // Julio: la semana 27 también es de julio, así que la tabla sigue siendo
+    // la misma (su mes es junio) y el filtro tiene que quedarse en julio.
     abrirFiltros()
-    await waitFor(() => expect(screen.getByLabelText('Mes')).toHaveValue('6'), ESPERA)
+    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '7' } })
+    await waitFor(() => expect(obtenerTabla.mock.calls.at(-1)[0]).toMatchObject({ mes: '7', idSemana: '27' }), ESPERA)
+    await screen.findByText('Clase de esta semana: 29/06/2026', {}, ESPERA)
+    expect(screen.getByLabelText('Mes')).toHaveValue('7')
   })
 
   it('la semana PARTIDA se escribe con las fechas completas', async () => {
@@ -256,6 +264,7 @@ describe('"Cambiar clase" (CU024, B6)', () => {
     })
     montar()
     fireEvent.click(await screen.findByRole('button', { name: 'Cambiar clase' }, ESPERA))
+    const mesElegido = new URLSearchParams(localStorage.getItem('sicedu.filtros.grupo:/') ?? '').get('mes')
 
     const dialogo = await screen.findByRole('dialog', {}, ESPERA)
     fireEvent.change(await within(dialogo).findByLabelText(/clase de la semana/i, {}, ESPERA), {
@@ -266,9 +275,11 @@ describe('"Cambiar clase" (CU024, B6)', () => {
     await waitFor(() => expect(cambiarClaseReferencia).toHaveBeenCalled(), ESPERA)
     expect(cambiarClaseReferencia.mock.calls[0][1]).toMatchObject({ idClase: 42, version: 1 })
 
-    // La clase nueva es de julio: el filtro sigue a la tabla.
+    // La clase nueva es de julio, pero el filtro Mes no sigue a la tabla: es
+    // la misma semana, que sigue en el mes elegido.
+    await screen.findByText('Clase de esta semana: 02/07/2026', {}, ESPERA)
     abrirFiltros()
-    await waitFor(() => expect(screen.getByLabelText('Mes')).toHaveValue('7'), ESPERA)
+    expect(screen.getByLabelText('Mes')).toHaveValue(mesElegido ?? String(new Date().getMonth() + 1))
   })
 
   /**

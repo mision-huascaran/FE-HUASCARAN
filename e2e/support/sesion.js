@@ -88,15 +88,26 @@ export async function enviarLoginCon(page, { usuario, password }) {
 export const enviarLogin = (page, rol) => enviarLoginCon(page, cuentaDe(rol))
 
 /**
- * Inicia sesión y espera a estar en /inicio.
- * Para el Docente devuelve además `GET /inicio/docente` (asignaciones y
- * actividad abierta), que deciden si se puede trabajar hoy.
+ * Dónde aterriza cada rol tras el login.
+ *
+ * El Directivo entra a /dashboard, no a /inicio: decisión S36 de
+ * docs/decisiones-externas-y-pendientes-de-backend.md ("El Dashboard se rearma
+ * por MÓDULO, y el Directivo pierde su Inicio"). Sus indicadores los da el
+ * Dashboard, y la guarda de /inicio ya no lo admite.
+ */
+export const aterrizajeDe = (rol) => (rol === 'directivo' ? '/dashboard' : '/inicio')
+
+/**
+ * Inicia sesión y espera a estar en la pantalla de entrada del rol
+ * (`aterrizajeDe`). Para el Docente devuelve además `GET /inicio/docente`
+ * (asignaciones y actividad abierta), que deciden si se puede trabajar hoy.
  */
 export async function iniciarSesion(page, rol) {
+  const destino = aterrizajeDe(rol)
   const inicioDocente =
     rol === 'docente' ? page.waitForResponse((r) => esApi(r, '/inicio/docente') && r.ok()) : null
 
-  // Tras el 200 la app pide GET /me antes de entrar: si no llega a /inicio,
+  // Tras el 200 la app pide GET /me antes de entrar: si no llega a su destino,
   // el error dice qué respondió /me y qué aviso quedó en el login, en vez de
   // solo «sigue en /login».
   const perfil = []
@@ -108,10 +119,10 @@ export async function iniciarSesion(page, rol) {
     const respuesta = await enviarLogin(page, rol)
     expect(respuesta.status(), `POST /login de la cuenta ${rol}`).toBe(200)
     try {
-      await expect(page).toHaveURL(/\/inicio$/)
+      await expect(page).toHaveURL((url) => url.pathname === destino)
     } catch (error) {
       const avisos = (await page.getByRole('alert').allInnerTexts()).join(' · ') || 'ninguno'
-      error.message += `\n\nEl login de ${rol} respondió 200 pero la app no llegó a /inicio. GET /api/me: ${perfil.join(', ') || 'sin respuesta todavía'}. Aviso en el login: «${avisos}»`
+      error.message += `\n\nEl login de ${rol} respondió 200 pero la app no llegó a ${destino}. GET /api/me: ${perfil.join(', ') || 'sin respuesta todavía'}. Aviso en el login: «${avisos}»`
       throw error
     }
   } finally {

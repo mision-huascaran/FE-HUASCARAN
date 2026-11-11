@@ -1,0 +1,207 @@
+/*
+  Tokens de color y profundidad: Alpine Glass (claro) y Alpine Night (oscuro).
+
+  Canales RGB separados por espacios para que Tailwind pueda aplicar opacidad
+  (`bg-surface-0/80`). Los nombres se declaran en `tailwind.config.js`.
+
+  Regla de contraste (WCAG AA, 4,5:1): `ink-*` y `*-600` son TEXTO y se han
+  medido sobre `surface-0`, `surface-50` y `surface-100`, y cada `*-600` sobre
+  su propio `*-100`. `*-solid` son FONDOS que llevan texto blanco.
+*/
+:root {
+  color-scheme: light;
+
+  --navy-900: 11 33 68;
+  --navy-800: 16 43 85;
+  --navy-700: 23 58 112;
+
+  --brand-700: 22 66 158;
+  --brand-600: 29 78 216;
+  --brand-500: 37 99 235;
+  --brand-100: 228 238 254;
+  --brand-50: 241 246 255;
+  --brand-solid: 37 99 235;
+  --brand-solidHover: 29 78 216;
+
+  --ink-900: 20 33 61;
+  --ink-700: 51 65 90;
+  --ink-500: 84 98 122;
+  --ink-400: 92 106 131;
+
+  --surface-0: 255 255 255;
+  --surface-50: 238 243 250;
+  --surface-100: 232 239 250;
+  --fondo-panel: 238 243 250;
+
+  --line: 220 230 245;
+  --line-strong: 198 211 232;
+
+  --success-600: 11 112 78;
+  --success-500: 16 185 129;
+  --success-100: 222 247 236;
+  --success-solid: 11 122 85;
+  --success-solidHover: 9 102 71;
+
+  --warning-600: 138 84 0;
+  --warning-500: 245 158 11;
+  --warning-100: 254 243 220;
+
+  --danger-600: 176 32 32;
+  --danger-500: 239 68 68;
+  --danger-100: 253 232 232;
+  --danger-solid: 185 38 34;
+  --danger-solidHover: 160 30 28;
+
+  --info-600: 29 78 216;
+  --info-100: 230 239 253;
+
+  --lvl-preinicio: 109 40 217;
+  --lvl-preinicio-bg: 237 233 254;
+  --lvl-inicio: 176 32 32;
+  --lvl-inicio-bg: 253 232 232;
+  --lvl-proceso: 138 84 0;
+  --lvl-proceso-bg: 254 243 220;
+  --lvl-logrado: 11 112 78;
+  --lvl-logrado-bg: 222 247 236;
+  --lvl-destacado: 22 66 158;
+  --lvl-destacado-bg: 228 238 254;
+
+  --tinte-azul: 37 99 235;
+  --tinte-azul-bg: 228 238 254;
+  --tinte-violeta: 124 58 237;
+  --tinte-violeta-bg: 238 234 254;
+  --tinte-celeste: 3 132 199;
+  --tinte-celeste-bg: 224 242 254;
+  --tinte-verde: 5 150 105;
+  --tinte-verde-bg: 220 247 235;
+  --tinte-turquesa: 13 148 136;
+  --tinte-turquesa-bg: 214 245 240;
+  --tinte-indigo: 79 70 229;
+  --tinte-indigo-bg: 231 232 253;
+  --tinte-naranja: 234 88 12;
+  --tinte-naranja-bg: 255 237 220;
+  --tinte-ambar: 180 113 6;
+  --tinte-ambar-bg: 254 245 208;
+  --tinte-rojo: 220 38 38;
+  --tinte-rojo-bg: 254 230 230;
+  --tinte-gris: 84 98 122;
+  --tinte-gris-bg: 234 239 246;
+
+  --sombra-card: 0 1px 2px rgb(30 64 120 / 0.04), 0 8px 24px rgb(30 64 120 / 0.07);
+  --sombra-card-hover: 0 2px 4px rgb(30 64 120 / 0.05), 0 14px 32px rgb(30 64 120 / 0.11);
+  --sombra-drawer: -8px 0 32px rgb(15 30 61 / 0.14);
+  --sombra-modal: 0 24px 64px rgb(11 33 68 / 0.24);
+  --sombra-barra: 0 -1px 2px rgb(30 64 120 / 0.04), 0 -8px 24px rgb(30 64 120 / 0.08);
+
+  /* Superficies de cristal: solo cabecera, barra inferior y modales. */
+  --cristal: 255 255 255;
+  --cristal-barra: 0.72;
+  --fondo-exterior: 225 233 245;
+  --panel-paisaje: 255 255 255;
+  --panel-paisaje-alfa: 0.34;
+
+  /* Velos sobre el paisaje: lo aclaran donde hay texto directamente encima. */
+  --paisaje-velo-a: 255 255 255;
+  --paisaje-velo-alfa-1: 0.88;
+  --paisaje-velo-alfa-2: 0.62;
+  --paisaje-velo-alfa-3: 0.16;
+  --paisaje-filtro: saturate(0.82) brightness(1.04);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --navy-900: 7 23 46;
+  --navy-800: 10 30 58;
+  --navy-700: 18 42 76;
+
+  --brand-700: 147 197 253;
+  --brand-600: 96 165 250;
+  --brand-500: 96 165 250;
+  --brand-100: 28 58 102;
+  --brand-50: 25 50 84;
+  --brand-solid: 37 99 235;
+  --brand-solidHover: 29 78 216;
+
+  --ink-900: 241 245 252;
+  --ink-700: 208 219 234;
+  --ink-500: 168 184 208;
+  --ink-400: 150 168 195;
+
+  --surface-0: 21 42 71;
+  --surface-50: 16 33 58;
+  --surface-100: 26 52 86;
+
+  --line: 46 66 97;
+  --line-strong: 66 88 122;
+
+  --success-600: 52 211 153;
+  --success-500: 52 211 153;
+  --success-100: 15 58 54;
+  --success-solid: 11 122 85;
+  --success-solidHover: 9 102 71;
+
+  --warning-600: 251 191 36;
+  --warning-500: 251 191 36;
+  --warning-100: 61 49 22;
+
+  --danger-600: 253 164 175;
+  --danger-500: 251 113 133;
+  --danger-100: 67 32 47;
+  --danger-solid: 185 38 34;
+  --danger-solidHover: 160 30 28;
+
+  --info-600: 147 197 253;
+  --info-100: 28 58 102;
+
+  --lvl-preinicio: 196 181 253;
+  --lvl-preinicio-bg: 46 38 88;
+  --lvl-inicio: 253 164 175;
+  --lvl-inicio-bg: 67 32 47;
+  --lvl-proceso: 251 191 36;
+  --lvl-proceso-bg: 61 49 22;
+  --lvl-logrado: 110 231 183;
+  --lvl-logrado-bg: 15 58 54;
+  --lvl-destacado: 147 197 253;
+  --lvl-destacado-bg: 28 58 102;
+
+  --tinte-azul: 96 165 250;
+  --tinte-azul-bg: 28 58 102;
+  --tinte-violeta: 167 139 250;
+  --tinte-violeta-bg: 46 38 88;
+  --tinte-celeste: 56 189 248;
+  --tinte-celeste-bg: 16 62 92;
+  --tinte-verde: 52 211 153;
+  --tinte-verde-bg: 15 58 54;
+  --tinte-turquesa: 45 212 191;
+  --tinte-turquesa-bg: 14 60 62;
+  --tinte-indigo: 165 180 252;
+  --tinte-indigo-bg: 40 44 96;
+  --tinte-naranja: 251 146 60;
+  --tinte-naranja-bg: 70 42 22;
+  --tinte-ambar: 251 191 36;
+  --tinte-ambar-bg: 61 49 22;
+  --tinte-rojo: 251 113 133;
+  --tinte-rojo-bg: 67 32 47;
+  --tinte-gris: 168 184 208;
+  --tinte-gris-bg: 36 56 86;
+
+  --sombra-card: 0 1px 2px rgb(0 0 0 / 0.24), 0 10px 28px rgb(2 10 26 / 0.34);
+  --sombra-card-hover: 0 2px 4px rgb(0 0 0 / 0.26), 0 16px 36px rgb(2 10 26 / 0.46), 0 0 0 1px rgb(96 165 250 / 0.14);
+  --sombra-drawer: -8px 0 32px rgb(0 0 0 / 0.46);
+  --sombra-modal: 0 24px 64px rgb(0 0 0 / 0.56);
+  --sombra-barra: 0 -1px 2px rgb(0 0 0 / 0.26), 0 -8px 24px rgb(0 0 0 / 0.32);
+
+  --cristal: 18 35 61;
+  --cristal-barra: 0.74;
+  --fondo-exterior: 5 14 28;
+  --fondo-panel: 8 20 38;
+  --panel-paisaje: 8 20 38;
+  --panel-paisaje-alfa: 0.42;
+
+  --paisaje-velo-a: 8 20 38;
+  --paisaje-velo-alfa-1: 0.9;
+  --paisaje-velo-alfa-2: 0.72;
+  --paisaje-velo-alfa-3: 0.48;
+  --paisaje-filtro: saturate(0.7) brightness(0.62) hue-rotate(6deg);
+}

@@ -17,6 +17,38 @@ export function conExtra(migas, extra, pathname) {
   return [...migas, { to: `${pathname}#${extra}`, label: extra }]
 }
 
+const CLASE_MIGA =
+  'truncate text-ink-500 transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1'
+
+/** Lo que muestra una miga: la actual en texto, la de esta misma URL como "volver", y el resto como enlace. */
+function ContenidoMiga({ miga, ultima, pathname, volver }) {
+  if (ultima) {
+    return (
+      <span className="truncate font-semibold text-ink-900" aria-current="page">
+        {miga.label}
+      </span>
+    )
+  }
+  if (miga.to === pathname && volver) {
+    /*
+      Esta miga apunta a la URL en la que ya se está —la vista de
+      detalle se abrió sin cambiar de ruta—, así que un `<Link>`
+      aquí no navegaría a ningún lado y el clic parecería no hacer
+      nada. Se usa el mismo "volver" del botón de la vista.
+    */
+    return (
+      <button type="button" onClick={volver} className={CLASE_MIGA}>
+        {miga.label}
+      </button>
+    )
+  }
+  return (
+    <Link to={miga.to} className={CLASE_MIGA}>
+      {miga.label}
+    </Link>
+  )
+}
+
 /** Migas de pan de la barra superior: `Inicio › Registro de Vuelo › Detalle` (P2). */
 export default function Breadcrumbs({ className }) {
   const { pathname } = useLocation()
@@ -24,6 +56,7 @@ export default function Breadcrumbs({ className }) {
   const inicio = rutaInicioDe(idRol)
 
   const extra = useMigaStore((s) => s.extra)
+  const volver = useMigaStore((s) => s.volver)
   const segmentos = pathname.split('/').filter(Boolean)
   const migas = segmentos.map((segmento, i) => ({
     to: `/${segmentos.slice(0, i + 1).join('/')}`,
@@ -36,7 +69,7 @@ export default function Breadcrumbs({ className }) {
 
   return (
     <nav aria-label="Ruta de navegación" className={cn('min-w-0', className)}>
-      <ol className="flex items-center gap-1 text-sm">
+      <ol className="flex items-center gap-1 text-[13px] sm:text-sm">
         {completas.map((miga, i) => {
           const ultima = i === completas.length - 1
           return (
@@ -51,18 +84,7 @@ export default function Breadcrumbs({ className }) {
               {i > 0 && (
                 <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-ink-400 sm:block" aria-hidden="true" />
               )}
-              {ultima ? (
-                <span className="truncate font-semibold text-ink-900" aria-current="page">
-                  {miga.label}
-                </span>
-              ) : (
-                <Link
-                  to={miga.to}
-                  className="truncate text-ink-500 transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
-                >
-                  {miga.label}
-                </Link>
-              )}
+              <ContenidoMiga miga={miga} ultima={ultima} pathname={pathname} volver={volver} />
             </li>
           )
         })}

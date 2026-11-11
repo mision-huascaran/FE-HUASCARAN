@@ -26,8 +26,18 @@ vi.mock('../client', async (importOriginal) => ({
   adminContraApiReal: true,
 }))
 
-const { actualizarUsuario, listarAuditoria, listarUsuariosAdmin, listarGradosAdmin, listarProgramasAdmin, cambiarEstadoAlumno, crearColegio, actualizarColegio } =
-  await import('../resources/administracion')
+const {
+  actualizarUsuario,
+  listarAuditoria,
+  listarUsuariosAdmin,
+  listarGradosAdmin,
+  listarProgramasAdmin,
+  cambiarEstadoAlumno,
+  crearAlumno,
+  actualizarAlumno,
+  crearColegio,
+  actualizarColegio,
+} = await import('../resources/administracion')
 
 const EDICION = { nombres: 'Rosa', apellidos: 'Camones', dni: '12345678', correo: 'rosa@sicedu.test', id_colegio: '7', grados: ['1'] }
 
@@ -85,6 +95,41 @@ describe('Contrato de listados', () => {
       // El cuerpo es obligatorio desde T3; sin él, 422.
       aplicar_desde: expect.any(String),
     })
+  })
+})
+
+describe('DNI y pertenencia pendiente (CU014, semana 14)', () => {
+  it('crear un alumno con DNI lo manda recortado; sin DNI, ni se incluye', async () => {
+    await crearAlumno({ nombres: 'Ana', apellidos: 'Ríos', dni: ' 12345678 ', id_colegio: '1', id_grado: '2', id_programa: '1' })
+    expect(post.mock.calls.at(-1)[1]).toMatchObject({ dni: '12345678' })
+
+    post.mockClear()
+    await crearAlumno({ nombres: 'Ana', apellidos: 'Ríos', dni: '', id_colegio: '1', id_grado: '2', id_programa: '1' })
+    expect(post.mock.calls.at(-1)[1]).not.toHaveProperty('dni')
+  })
+
+  it('editar con el DNI vacío lo QUITA mandando null, no omitiéndolo', async () => {
+    await actualizarAlumno(5, { dni: '' })
+    expect(patch.mock.calls.at(-1)[1]).toMatchObject({ dni: null })
+
+    patch.mockClear()
+    await actualizarAlumno(5, { dni: '87654321' })
+    expect(patch.mock.calls.at(-1)[1]).toMatchObject({ dni: '87654321' })
+  })
+
+  it('un 409 dni_duplicado se reescribe con la forma de un error por campo', async () => {
+    const original = new Error('conflicto')
+    original.response = { status: 409, data: { detail: 'Ya existe un alumno registrado con ese DNI.', motivo: 'dni_duplicado' } }
+    post.mockRejectedValueOnce(original)
+
+    await expect(crearAlumno({ nombres: 'Ana', apellidos: 'Ríos', dni: '12345678', id_colegio: '1', id_grado: '2', id_programa: '1' })).rejects.toMatchObject(
+      { response: { data: { errores: [{ campo: 'dni', mensaje: 'Ya existe un alumno registrado con ese DNI.' }] } } },
+    )
+  })
+
+  it('un alumno pendiente se activa o inactiva con el cuerpo VACÍO, sin aplicar_desde', async () => {
+    await cambiarEstadoAlumno(8, false, { pendiente: true })
+    expect(patch).toHaveBeenCalledWith(expect.stringMatching(/\/alumnos\/8\/desactivar$/), {})
   })
 })
 

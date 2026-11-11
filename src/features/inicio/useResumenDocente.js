@@ -32,14 +32,17 @@ export function semanaEnCurso(referencia = ahora()) {
  * pendientes, que salen de IndexedDB— y dejó los de avance académico "para
  * futuras entregas conforme se aprueben sus reglas de cálculo".
  */
-export default function useResumenDocente() {
+export default function useResumenDocente(enLinea = true) {
   const idDocente = useSessionStore((s) => s.usuario?.id_docente)
   const semanaActual = semanaEnCurso()
 
   const consulta = useQuery({
     queryKey: ['resumen-docente', idDocente, semanaActual.inicio],
     queryFn: () => obtenerResumenDocente(idDocente, {}),
-    enabled: Boolean(idDocente),
+    // D52 — Sin conexión no se intenta: el Inicio cae a la copia local
+    // (`useResumenLocal`) en vez de quedarse esperando una respuesta que no
+    // va a llegar.
+    enabled: Boolean(idDocente) && enLinea,
   })
 
   return { ...consulta, semanaActual }

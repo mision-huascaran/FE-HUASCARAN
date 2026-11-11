@@ -102,7 +102,7 @@ export default function DetalleLibrosIncompletos({ filtros, scope, contexto, onV
               header: '',
               render: (i) =>
                 i.motivo === 'filas_pendientes' ? (
-                  <Link to={enlaceDeFila(i)} className="text-xs font-semibold text-brand-600 hover:underline">
+                  <Link to={enlaceDeFila(i)} className="text-xs font-semibold text-brand-700 hover:underline">
                     Ver en Seguimiento de Lectura
                   </Link>
                 ) : null,

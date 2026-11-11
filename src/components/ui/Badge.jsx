@@ -13,7 +13,10 @@ export default function Badge({ tone = 'neutral', icon: Icon, className, title, 
     <span
       title={title}
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        // `whitespace-nowrap`: en una celda angosta (Sincronización de
+        // Seguimiento, en el teléfono) el texto se partía en dos líneas
+        // dentro de la píldora y la ovalaba — se veía rota, no solo apretada.
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold',
         TONOS[tone],
         className,
       )}

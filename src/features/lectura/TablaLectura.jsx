@@ -135,7 +135,14 @@ export default function TablaLectura({
       <HistorialDeclaraciones declaraciones={tabla.declaraciones} />
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[56rem] text-sm">
+        {/*
+          `border-collapse`: sin ella (a diferencia de `DataTable`, que sí la
+          lleva) el borde de cada fila (`border-t` en `FilaLectura`) se dibuja
+          con el modelo "separate" por defecto, con espacio propio entre
+          celdas — las líneas entre filas no quedan a la misma altura en
+          todas las columnas y la tabla se ve "torcida".
+        */}
+        <table className="w-full min-w-[56rem] border-collapse text-sm">
           <thead className="bg-surface-100 text-left text-xs uppercase tracking-wide text-ink-500">
             <tr>
               <th scope="col" className={`px-3 py-2 font-semibold ${CABECERA_ALUMNO}`}>

@@ -20,10 +20,18 @@ const LITERALES = {
     sinConexion: 'No existe información institucional disponible sin conexión.',
     sinServidor: 'No se pudieron cargar los indicadores y no hay datos locales. Inténtalo más tarde.',
   },
+  // D52 — El Docente tenía CU011/CU012 para el aviso de desactualizado y el
+  // de "sin nada que mostrar", pero nunca los de CU010 para su propio Inicio.
+  // Pendiente que el analista confirme el literal exacto de CU010; mientras,
+  // se sigue el mismo patrón que ya tienen Supervisor y Directivo.
+  docente: {
+    sinConexion: 'No existe información de tu avance disponible sin conexión.',
+    sinServidor: 'No hay conexión con el servidor ni un resumen local guardado. Inténtalo más tarde.',
+  },
 }
 
 /**
- * @param rol      'supervisor' | 'directivo'; elige el literal del caso de uso.
+ * @param rol      'supervisor' | 'directivo' | 'docente'; elige el literal del caso de uso.
  * @param sinDatos no hay nada que pintar, ni del servidor ni de la copia local.
  * @param enLinea  con `sinDatos`, distingue el fallo del servidor del corte.
  */

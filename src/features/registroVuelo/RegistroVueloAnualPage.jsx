@@ -21,12 +21,12 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
 import FilterBar from '../../components/ui/FilterBar'
-import Select from '../../components/ui/Select'
+import selectsDelGrupo from '../../components/filtros/selectsDelGrupo'
 import FilaVuelo from './FilaVuelo'
 import ModalObservacionVuelo from './ModalObservacionVuelo'
 import ModalRubricaDeReferencia from './ModalRubricaDeReferencia'
 import useRegistroVueloAnual from './useRegistroVueloAnual'
-import useFiltrosDeGrupo, { marcadorDeColegio } from '../../hooks/useFiltrosDeGrupo'
+import useFiltrosDeGrupo from '../../hooks/useFiltrosDeGrupo'
 import { ESTADO_PERIODO, periodoDe } from '../../api/resources/registroVueloAnual'
 import { anioVigente, listarAniosEscolares } from '../../api/resources/administracion'
 import { useNivelesRazkids } from '../../hooks/useCatalogos'
@@ -70,14 +70,14 @@ export default function RegistroVueloAnualPage() {
   const idAnioEscolar = useMemo(() => anioVigente(anios)?.id ?? null, [anios])
 
   // El Registro de Vuelo es del AÑO: no lleva mes ni semana.
-  const { colegios, grados, secciones, programas, filtros, cambiar } = useFiltrosDeGrupo({
+  const { colegios, grados, secciones, programas, filtros, grupoValido, cambiar } = useFiltrosDeGrupo({
     esDocente,
     idAnioEscolar,
     conSemana: false,
   })
 
   const { data: niveles = [] } = useNivelesRazkids()
-  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina })
+  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina, grupoValido })
 
   const periodos = datos?.periodos ?? []
 
@@ -133,33 +133,7 @@ export default function RegistroVueloAnualPage() {
       <AvisoConflictos modulo="vuelo" />
 
       <FilterBar>
-        <Select
-          label="Colegio"
-          value={filtros.idColegio}
-          placeholder={marcadorDeColegio(esDocente)}
-          onChange={(e) => cambiar('colegio', e.target.value)}
-          options={colegios.map((c) => ({ value: c.id_colegio, label: c.nombre }))}
-        />
-        <Select
-          label="Grado"
-          value={filtros.idGrado}
-          onChange={(e) => cambiar('grado', e.target.value)}
-          options={grados.map((g) => ({ value: g.id_grado, label: g.nombre ?? `${g.id_grado}.° grado` }))}
-        />
-        <Select
-          label="Sección"
-          value={filtros.idSeccion}
-          placeholder="Selecciona"
-          onChange={(e) => cambiar('seccion', e.target.value)}
-          options={secciones.map((s) => ({ value: s.id, label: s.nombre }))}
-        />
-        <Select
-          label="Subprograma"
-          value={filtros.idPrograma}
-          placeholder="Selecciona"
-          onChange={(e) => cambiar('subprograma', e.target.value)}
-          options={programas.map((p) => ({ value: p.id_programa, label: p.nombre }))}
-        />
+        {selectsDelGrupo({ filtros, cambiar, colegios, grados, secciones, programas, esDocente })}
       </FilterBar>
 
       {!listos && (

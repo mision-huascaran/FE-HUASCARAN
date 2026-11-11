@@ -130,6 +130,9 @@ function errorMock(status, detail, motivo, errores) {
 
 const ACTIVIDADES_MOCK = {}
 
+/** Resultados de importación de nómina, por `id_importacion` (semana 14). */
+const IMPORTACIONES_MOCK = {}
+
 /**
  * Los tres estados de sincronización que la pantalla pinta distinto.
  *
@@ -765,12 +768,14 @@ function alumnoDeAdministracion(a) {
     colegio: colegio?.nombre ?? '—',
     grado: grado?.nombre ?? a.id_grado,
     programa: programa?.nombre ?? '—',
-    // Desde T3 todo alumno pertenece a una sección: la "Única" de su grado, la
-    // misma que da el detalle del colegio (100 + id_grado). Sin ella, editar a
-    // cualquiera rellenaba la sección y el formulario lo tomaba por un cambio
-    // de grupo.
-    id_seccion: a.id_seccion ?? 100 + a.id_grado,
-    seccion: a.seccion ?? 'Única',
+    // Desde T3 todo alumno CON GRADO pertenece a una sección: la "Única" de su
+    // grado, la misma que da el detalle del colegio (100 + id_grado). Sin
+    // ella, editar a cualquiera rellenaba la sección y el formulario lo
+    // tomaba por un cambio de grupo. El pendiente de pertenencia (semana 14,
+    // sin `id_grado`) no tiene de dónde sacarla: inventarle una "Única"
+    // contradiría que su grupo sigue sin completar.
+    id_seccion: a.id_grado != null ? (a.id_seccion ?? 100 + a.id_grado) : null,
+    seccion: a.id_grado != null ? (a.seccion ?? 'Única') : null,
   }
 }
 
@@ -1387,6 +1392,7 @@ export const handlers = {
         .filter((p) => !filtros.modulo || p.modulo === filtros.modulo)
         .filter((p) => !filtros.estado || p.estado === filtros.estado)
         .filter((p) => !filtros.id_colegio || String(p.colegio.id) === String(filtros.id_colegio))
+        .filter((p) => !filtros.id_periodo_academico || String(p.periodo?.id) === String(filtros.id_periodo_academico))
         // Del más recientemente otorgado al más antiguo.
         .sort((a, b) => String(b.otorgado_en).localeCompare(String(a.otorgado_en)))
       return responder({ items: mios, total: mios.length, page: 1, page_size: 40, total_pages: 1 })
@@ -2699,6 +2705,21 @@ export const handlers = {
     nivelGeneral: () => responder(db.NIVEL_GENERAL),
     esperadoPorGrado: () => responder(db.NIVEL_ESPERADO_POR_GRADO),
     periodos: () => responder(db.PERIODOS),
+    /** `GET /periodos-academicos`: los PA del año con las fechas del calendario (el simulador tiene uno). */
+    periodosAcademicos: ({ id_anio_escolar: idAnio } = {}) =>
+      responder(
+        CALENDARIO_MOCK.periodos
+          .filter((p) => p.tipo === 'PA' && (!idAnio || idAnio === 2))
+          .map((p) => ({
+            id: p.id_periodo_academico,
+            id_anio_escolar: 2,
+            numero: p.numero,
+            tipo: 'PA',
+            fecha_inicio: p.fecha_inicio,
+            fecha_fin: p.fecha_fin,
+            vigente: p.fecha_inicio <= hoyLima() && hoyLima() <= p.fecha_fin,
+          })),
+      ),
     /**
      * `GET /semanas` — solo las semanas con ALGUNA CLASE del grupo en ese mes.
      *
@@ -3203,7 +3224,7 @@ export const handlers = {
       return responder(nuevo, RETARDO_ESCRITURA_MS)
     },
 
-    crearAlumno: async ({ nombres, apellidos, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula = 'A' }) => {
+    crearAlumno: async ({ nombres, apellidos, dni, id_colegio: idColegio, id_grado: idGrado, id_programa: idPrograma, aula = 'A' }) => {
       const nombre = String(nombres ?? '').trim()
       const apellido = String(apellidos ?? '').trim()
       const colegioId = Number(idColegio)
@@ -3213,12 +3234,17 @@ export const handlers = {
         throw errorHttp(422, 'Completa nombre, colegio, grado y programa del alumno')
       }
       if (!db.COLEGIOS.some((c) => c.id_colegio === colegioId)) throw errorHttp(404, 'El colegio no existe')
+      const dniLimpio = String(dni ?? '').trim() || null
+      if (dniLimpio && db.ALUMNOS.some((a) => a.dni === dniLimpio)) {
+        throw errorMock(409, 'Ya existe un alumno registrado con ese DNI.', 'dni_duplicado')
+      }
       const ultimo = db.ALUMNOS.at(-1)
       const nuevo = {
         id_alumno: (ultimo?.id_alumno ?? 0) + 1,
         codigo: `EST-${db.COLEGIOS.find((c) => c.id_colegio === colegioId)?.abreviatura ?? 'NUE'}-${String((ultimo?.id_alumno ?? 0) + 1).padStart(4, '0')}`,
         nombres: nombre,
         apellidos: apellido,
+        dni: dniLimpio,
         id_colegio: colegioId,
         id_grado: gradoId,
         aula: String(aula || 'A').toUpperCase(),
@@ -3229,6 +3255,80 @@ export const handlers = {
       }
       db.ALUMNOS.push(nuevo)
       return responder(nuevo, RETARDO_ESCRITURA_MS)
+    },
+
+    /**
+     * Importación de nómina (semana 14). El simulador NO lee el .xlsx de
+     * verdad —eso es justo lo que hace el backend real—, así que esto es una
+     * respuesta plausible y fija, suficiente para probar la pantalla sin
+     * servidor. Contra la API real (`VITE_ADMIN_REAL=true`, que es el modo de
+     * hoy) esto ni se usa.
+     */
+    vistaPreviaImportacion: async (archivo) => {
+      if (!archivo || archivo.size > 5 * 1024 * 1024) {
+        throw errorMock(422, 'No se pudo leer el archivo. Verifica que sea un archivo Excel (.xlsx) de hasta 5 MB.', 'archivo_invalido')
+      }
+      const huella = `mock-${archivo.size}-${archivo.lastModified ?? Date.now()}`
+      return responder({
+        listos: 3,
+        con_advertencia: 1,
+        no_importadas: 1,
+        huella,
+        observaciones: [
+          { hoja: 'Hoja1', fila: 2, tipo: 'advertencia', motivo: 'grado_no_reconocido', detalle: 'Grado no reconocido. Se importará sin grado.' },
+          { hoja: 'Hoja1', fila: 5, tipo: 'rechazo', motivo: 'colegio_no_registrado', detalle: 'Colegio no registrado.' },
+        ],
+      })
+    },
+
+    confirmarImportacion: async ({ idImportacion, huella, nombreArchivo }) => {
+      if (!idImportacion || !huella || !nombreArchivo) {
+        throw errorMock(422, 'Faltan datos de la importación.', 'validacion')
+      }
+      const existente = IMPORTACIONES_MOCK[idImportacion]
+      if (existente) return responder(existente)
+      const resultado = {
+        id_importacion: idImportacion,
+        fecha: new Date().toISOString(),
+        nombre_archivo: nombreArchivo,
+        importados: 3,
+        no_importadas: 1,
+        con_advertencia: 1,
+      }
+      IMPORTACIONES_MOCK[idImportacion] = resultado
+      /**
+       * Se insertan en `db.ALUMNOS` como alumnos de verdad, PENDIENTES, para
+       * que la pantalla de Alumnos tenga algo que mostrar tras importar: sin
+       * grado, sin programa, sin sección —tal como llegan de una nómina— y
+       * ninguno de los generados al arrancar el simulador se toca, así que
+       * las cuentas de las demás pantallas (Dashboard, Asistencias…) no
+       * cambian por haber importado.
+       */
+      for (let i = 0; i < resultado.importados; i += 1) {
+        const ultimo = db.ALUMNOS.at(-1)
+        db.ALUMNOS.push({
+          id_alumno: (ultimo?.id_alumno ?? 0) + 1,
+          codigo: `IMP-${idImportacion.slice(0, 4)}-${i + 1}`,
+          nombres: `Importado ${i + 1}`,
+          apellidos: 'NÓMINA',
+          dni: null,
+          id_colegio: db.COLEGIOS[0]?.id_colegio,
+          id_grado: null,
+          id_programa: null,
+          id_seccion: null,
+          aula: null,
+          activo: true,
+          baja_desde: null,
+          pertenencia_pendiente: true,
+        })
+      }
+      return responder(resultado, RETARDO_ESCRITURA_MS)
+    },
+
+    consultarImportacion: async (idImportacion) => {
+      const existente = IMPORTACIONES_MOCK[idImportacion]
+      if (!existente) throw errorMock(404, 'No se encontró la importación.', 'importacion_no_encontrada')
+      return responder(existente)
     },
 
     /**
@@ -3348,6 +3448,9 @@ export const handlers = {
     actualizarAlumno: async (id, cambios) => {
       const alumno = db.ALUMNOS.find((a) => a.id_alumno === Number(id))
       if (!alumno) throw errorHttp(404, `No existe un alumno con id_alumno=${id}`)
+      if (cambios.dni && db.ALUMNOS.some((a) => a.id_alumno !== alumno.id_alumno && a.dni === cambios.dni)) {
+        throw errorMock(409, 'Ya existe un alumno registrado con ese DNI.', 'dni_duplicado')
+      }
       Object.assign(alumno, cambios)
       return responder(alumno, RETARDO_ESCRITURA_MS)
     },

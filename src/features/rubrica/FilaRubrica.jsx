@@ -66,6 +66,7 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
           aria-label={`Fluidez de ${fila.nombre}`}
           value={fila.fluidez ?? ''}
           placeholder="Sin evaluar"
+          vacioElegible
           disabled={soloLectura}
           onChange={cambiar('fluidez')}
           options={nivelesDe(nombrePrograma, 'fluidez').map((n) => ({ value: n.valor, label: n.nombre }))}
@@ -77,6 +78,7 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
           aria-label={`Comprensión de ${fila.nombre}`}
           value={fila.comprension ?? ''}
           placeholder="Sin evaluar"
+          vacioElegible
           disabled={soloLectura}
           onChange={cambiar('comprension')}
           options={nivelesDe(nombrePrograma, 'comprension').map((n) => ({ value: n.valor, label: n.nombre }))}

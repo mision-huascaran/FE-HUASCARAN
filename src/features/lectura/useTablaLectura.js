@@ -9,7 +9,7 @@
 // Y LA TABLA NO SE CREA SOLA. CU023 lo pide así porque crearla CONGELA la lista
 // de alumnos de su clase de referencia —y crea la clase si no tenía fila—: eso
 // es una decisión del docente, no un efecto secundario de abrir una pantalla.
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -21,12 +21,33 @@ import {
   esTablaPorCrear,
   obtenerTabla,
 } from '../../api/resources/lectura'
-import { encolar } from '../../lib/colaOffline'
-import { TIPOS_ENVIO } from '../../hooks/useOfflineQueue'
+import { encolar, pendientesDeTipo } from '../../lib/colaOffline'
+import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
 import { ahora } from '../../lib/relojServidor'
 import { nuevoUuid } from '../../lib/uuid'
 import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
+import useSyncStore from '../../store/syncStore'
+
+/**
+ * D92 — Una asistencia marcada SIN CONEXIÓN habilita la fila de lectura.
+ *
+ * `GET /lectura/tablas` dice la asistencia que el SERVIDOR conoce; una marca
+ * hecha offline —o hace un instante, en la misma sesión, antes de que la cola
+ * alcance a sincronizar— todavía no llegó, así que la fila se veía "Sin
+ * marcar" y bloqueada aunque el Docente acabara de marcar Presente en
+ * Asistencias. Se completa con lo que la cola todavía tiene pendiente para
+ * ese alumno, esa fecha y esa sección: la misma `clave` con la que
+ * Asistencias encola la marca (`claveDeMarca`), así que el cruce es exacto y
+ * no una suposición por campos sueltos.
+ */
+function asistenciaPendienteDe({ idAlumno, fecha, idSeccion }) {
+  if (!fecha || !idSeccion) return null
+  const clave = claveDeMarca(idAlumno, fecha, idSeccion)
+  const item = pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).find((it) => it.clave === clave)
+  const estado = item?.payload?.registros?.[0]?.estado
+  return estado === 'presente' || estado === 'tardanza' ? estado : null
+}
 
 /** Un `id_operacion` nuevo por intento del usuario, estable en el reintento. */
 const nuevaOperacion = nuevoUuid
@@ -47,13 +68,17 @@ const esDefinitivo = (error) => {
  */
 const esSinAlumnos = (error) => motivoDe(error) === 'sin_alumnos'
 
-export default function useTablaLectura(filtros) {
+export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const idActividad = useActividadStore((s) => s.sesion?.id ?? null)
 
   const { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, mes, idSemana } = filtros
-  const listos = Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana)
+  // `grupoValido` (de `useFiltrosDeGrupo`): sin esto, un cambio de grado con
+  // la sección todavía sin corregir manda una consulta con una combinación
+  // que no fue de verdad elegida, y el servidor la rechaza con 422.
+  const listos =
+    Boolean(idColegio && idPrograma && idGrado && idSeccion && idAnioEscolar && mes && idSemana) && grupoValido
   /**
    * EL MES NO ENTRA EN LA CLAVE, y no es un descuido.
    *
@@ -62,11 +87,11 @@ export default function useTablaLectura(filtros) {
    * tabla aunque el mes enviado no sea el suyo: una semana que cae en dos meses
    * tiene UNA sola tabla, y su mes es el de su clase de referencia.
    *
-   * Si el mes estuviera en la clave, ajustar el filtro al mes que responde el
-   * servidor cambiaría la clave y dispararía otra consulta por los MISMOS
-   * datos. Y mientras esa consulta vuelve, `data` queda en `undefined` y la
-   * tabla desaparece de la pantalla: el docente vería su trabajo parpadear por
-   * un filtro que solo sirve para ubicarse.
+   * Si el mes estuviera en la clave, la MISMA semana pedida desde los dos
+   * meses que toca daría dos consultas por los mismos datos, y mientras la
+   * segunda vuelve, `data` queda en `undefined` y la tabla parpadea. Cambiar de
+   * mes sí cambia la tabla, pero porque descarta la semana
+   * (`useFiltrosDeGrupo`), no por el mes.
    */
   const clave = ['lectura', 'tabla', { idColegio, idPrograma, idGrado, idSeccion, idAnioEscolar, idSemana }]
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
@@ -360,9 +385,29 @@ export default function useTablaLectura(filtros) {
    * Normalizando aquí, la pantalla puede fiarse de la forma y enseñar SU estado
    * vacío, que es lo que el caso de uso pide.
    */
-  const datosTabla = tabla.data
-    ? { ...tabla.data, filas: tabla.data.filas ?? [], declaraciones: tabla.data.declaraciones ?? [] }
-    : null
+  /**
+   * La cola vive fuera de React (IndexedDB + un array en memoria): esta
+   * suscripción no lee nada de ella, solo fuerza que el componente vuelva a
+   * renderizar cuando algo se encola, se confirma o se descarta, para que el
+   * overlay de abajo vea la cola TAL COMO ESTÁ AHORA y no la de cuando se
+   * montó la pantalla.
+   */
+  const colaCambio = useSyncStore((s) => s.items)
+
+  const datosTabla = useMemo(() => {
+    if (!tabla.data) return null
+    const fecha = tabla.data.clase_referencia?.fecha ?? null
+    const filas = (tabla.data.filas ?? []).map((fila) => {
+      if (fila.asistencia != null) return fila
+      const pendiente = asistenciaPendienteDe({ idAlumno: fila.id_alumno, fecha, idSeccion })
+      // `asistencia_pendiente` es solo para la pantalla: avisa que ese
+      // "Presente" todavía no lo confirmó el servidor, sin inventar un campo
+      // que el contrato no define.
+      return pendiente ? { ...fila, asistencia: pendiente, asistencia_pendiente: true } : fila
+    })
+    return { ...tabla.data, filas, declaraciones: tabla.data.declaraciones ?? [] }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabla.data, idSeccion, colaCambio])
 
   return {
     tabla: datosTabla,

@@ -149,6 +149,14 @@ export const ENDPOINTS = {
     historial: (id) => `/alumnos/${id}/historial`, // exige conexión (CU015)
     activar: (id) => `/alumnos/${id}/activar`,
     desactivar: (id) => `/alumnos/${id}/desactivar`,
+    // Importación de nómina (CU014, semana 14) — exclusiva del Supervisor.
+    // El archivo viaja como CUERPO CRUDO (no `multipart/form-data`): el
+    // nombre va en el query, no en el formulario.
+    importacionVistaPrevia: (nombreArchivo) =>
+      `/alumnos/importaciones/vista-previa?nombre_archivo=${encodeURIComponent(nombreArchivo)}`,
+    importacionConfirmar: ({ idImportacion, huella, nombreArchivo }) =>
+      `/alumnos/importaciones?${new URLSearchParams({ id_importacion: idImportacion, huella, nombre_archivo: nombreArchivo })}`,
+    importacionDetalle: (idImportacion) => `/alumnos/importaciones/${idImportacion}`,
   },
 
   // PUBLICADO — Usuarios de los tres roles (CU016) ───────────────────────────

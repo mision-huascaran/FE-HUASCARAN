@@ -19,12 +19,9 @@
 // Un rol con cuatro secciones o menos no ve "Más": no haría falta.
 import { NavLink } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
-import { navegacionDe } from './navegacion'
+import { navegacionDe, RANURAS_BARRA_INFERIOR as RANURAS } from './navegacion'
 import { useAuth } from '../../auth/AuthProvider'
 import cn from '../../lib/cn'
-
-/** Cuántas secciones caben sin que las etiquetas se corten, a 360px. */
-const RANURAS = 4
 
 const CLASES_ITEM = [
   // `relative` por la barrita de la sección activa, que va en `absolute`.
@@ -54,9 +51,8 @@ export default function BarraInferior({ onMas }) {
        */
       className={cn(
         'fixed inset-x-0 bottom-0 z-40 lg:hidden print:hidden',
-        'border-t border-line bg-surface-0',
+        'sicedu-cristal-barra rounded-t-2xl border-t border-line/70 shadow-barra',
         'pb-[env(safe-area-inset-bottom)]',
-        'shadow-[0_-1px_2px_rgba(15,30,61,0.04),0_-8px_24px_rgba(15,30,61,0.06)]',
       )}
     >
       <ul className="flex items-stretch">
@@ -69,22 +65,23 @@ export default function BarraInferior({ onMas }) {
               // un lector de pantalla.
               aria-label={label}
               className={({ isActive }) =>
-                cn(CLASES_ITEM, isActive ? 'text-brand-700' : 'text-ink-500')
+                cn(CLASES_ITEM, isActive ? 'font-semibold text-brand-700' : 'text-ink-500')
               }
             >
               {({ isActive }) => (
                 <>
-                  {/* La sección activa se marca con una barra ARRIBA, no con
-                      el color solo: un icono azul sobre otro gris es poca
+                  {/* La sección activa se marca con una píldora, no con el
+                      color solo: un icono azul sobre otro gris es poca
                       diferencia en una pantalla al sol. */}
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'absolute top-0 h-0.5 w-10 rounded-b-full transition-colors',
-                      isActive ? 'bg-brand-600' : 'bg-transparent',
+                      'flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200',
+                      isActive ? 'bg-brand-100' : 'bg-transparent',
                     )}
-                  />
-                  <Icono className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  >
+                    <Icono className="h-5 w-5 shrink-0" strokeWidth={isActive ? 2.1 : 1.8} />
+                  </span>
                   <span className="w-full truncate text-center">{corta}</span>
                 </>
               )}
@@ -100,7 +97,9 @@ export default function BarraInferior({ onMas }) {
               aria-label="Más secciones"
               className={cn(CLASES_ITEM, 'text-ink-500')}
             >
-              <MoreHorizontal className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span aria-hidden="true" className="flex h-7 w-12 items-center justify-center">
+                <MoreHorizontal className="h-5 w-5 shrink-0" strokeWidth={1.8} />
+              </span>
               <span className="w-full truncate text-center">Más</span>
             </button>
           </li>

@@ -98,7 +98,7 @@ function GrupoDeGrado({ grado, meses, onCantidad, onIncompletos, colegio }) {
                   return (
                     <button
                       type="button"
-                      className="font-semibold text-brand-600 hover:underline"
+                      className="font-semibold text-brand-700 hover:underline"
                       onClick={() => onCantidad({ alumno, mes: suyo })}
                     >
                       {suyo.cantidad}
@@ -172,6 +172,7 @@ export default function DetalleColegioLibros({ filtros, colegio, contexto, anioE
               <Select
                 label="Grado"
                 placeholder="Todos los grados"
+                vacioElegible
                 value={idGrado}
                 options={opcionesDeGrado.map((g) => ({ value: g.id_grado, label: g.nombre }))}
                 onChange={(e) => setIdGrado(e.target.value)}

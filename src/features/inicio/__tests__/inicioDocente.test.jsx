@@ -7,10 +7,10 @@ import useSessionStore from '../../../store/sessionStore'
 import { PERIODO_VIGENTE } from '../../../api/mock/db'
 import { ROLES } from '../../../auth/roles'
 import { SIN_HABILITACIONES } from '../useActividad'
-import { jwtDePrueba } from '../../../test/fabricas'
+import { cuentaDe, jwtDePrueba } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 
-const estado = vi.hoisted(() => ({ resumen: {}, actividad: {} }))
+const estado = vi.hoisted(() => ({ resumen: {}, actividad: {}, inicioDocente: null }))
 vi.mock('../useResumenDocente', () => ({ default: () => estado.resumen }))
 // Mock PARCIAL: el hook se sustituye, pero el literal de respaldo de CU010 es
 // una constante del módulo y la pantalla lo importa de ahí.
@@ -20,6 +20,17 @@ vi.mock('../useActividad', async (importOriginal) => ({
 }))
 // Los Resúmenes de Acción tienen su propia prueba (resumenesAccion.test.jsx).
 vi.mock('../ResumenesAccion', () => ({ default: () => null }))
+/**
+ * "Mis alumnos" también pide `GET /inicio/docente` (el mismo endpoint real
+ * que usaba `ResumenesAccion`, arriba) para no depender del endpoint
+ * `useResumenDocente`, que contra el backend real siempre vuelve `null`. Se
+ * controla aparte para que las pruebas del `resumen` de siempre no dependan
+ * de una segunda consulta asíncrona sin relación.
+ */
+vi.mock('../../../api/resources/inicio', async (importOriginal) => ({
+  ...(await importOriginal()),
+  obtenerInicioDocente: async () => estado.inicioDocente,
+}))
 
 const RESUMEN = {
   mis_estudiantes: 48,
@@ -39,6 +50,11 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   estado.resumen = { data: RESUMEN, isLoading: false, semanaActual: null }
   estado.actividad = { sesion: null, sinAsignaciones: false }
+  estado.inicioDocente = null
+  // D52 — `useResumenLocal` guarda una copia real en localStorage; sin
+  // limpiarla, una prueba hereda la copia que dejó la anterior y "sin datos
+  // del servidor" deja de ser cierto.
+  localStorage.clear()
 })
 
 afterEach(() => {
@@ -160,10 +176,58 @@ describe('Tarjetas del panel', () => {
     expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
   })
 
-  it('sin datos del servidor no pinta las tarjetas (D13)', async () => {
+  it('con conexión pero sin datos del servidor, las tarjetas igual se pintan, en cero', async () => {
     estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
     montar()
-    await screen.findByRole('heading', { level: 1 })
+    expect(await screen.findByText('Mis alumnos')).toBeInTheDocument()
+    expect(screen.getByText('0 / 0')).toBeInTheDocument()
+  })
+
+  /**
+   * `useResumenDocente` no trae "Mis alumnos" contra el backend real (siempre
+   * `null`), pero `GET /inicio/docente` sí lo sabe —es el mismo total que
+   * "Mis asignaciones" ya mostraba correctamente—, así que esta tarjeta no
+   * tiene por qué decir 0 cuando ese dato sí está disponible.
+   */
+  it('"Mis alumnos" usa el total de GET /inicio/docente aunque el resumen no traiga nada', async () => {
+    estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
+    estado.inicioDocente = { totales: { cantidad_alumnos: 7 }, asignaciones: [], permisos_vigentes: [] }
+    montar()
+    const etiqueta = await screen.findByText('Mis alumnos')
+    expect(await screen.findByText('7')).toBe(etiqueta.nextElementSibling)
+  })
+
+  /**
+   * D52 — Supervisor y Directivo ya avisaban con la copia local y CU011/CU012
+   * cuando el servidor no contestaba; el Docente se quedaba sin eso: con el
+   * backend caído, `resumen` se iba a `undefined` y las tarjetas
+   * desaparecían sin ningún aviso de que había una copia más vieja.
+   */
+  it('D52: con el servidor caído muestra la copia local y avisa de que puede estar desactualizada', async () => {
+    const { id_usuario: idUsuario } = cuentaDe(ROLES.DOCENTE)
+    localStorage.setItem(
+      `sicedu.resumen.docente.${idUsuario}`,
+      JSON.stringify({ datos: RESUMEN, fecha: '2026-10-09T12:00:00Z' }),
+    )
+    estado.resumen = { data: undefined, isLoading: false, isError: true, semanaActual: null }
+
+    montar()
+
+    const aviso = await screen.findByRole('status')
+    expect(aviso).toHaveTextContent(/No se pudo recuperar la información del servidor/)
+    expect(aviso).toHaveTextContent(/puede estar desactualizado/)
+    expect(screen.getByText('48')).toBeInTheDocument()
+  })
+
+  it('D52: sin conexión y sin copia local, dice que no hay nada que mostrar', async () => {
+    estado.resumen = { data: undefined, isLoading: false, isError: false, semanaActual: null }
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+
+    montar()
+
+    expect(await screen.findByText(/no existe información de tu avance disponible sin conexión/i)).toBeInTheDocument()
     expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
   })
 })

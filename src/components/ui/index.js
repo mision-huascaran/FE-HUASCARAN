@@ -2,7 +2,9 @@
 // nunca vuelven a declarar estilos propios para estos elementos.
 export { default as BarraDeFiltros, CeldaFiltro } from './BarraDeFiltros'
 export { default as Badge } from './Badge'
+export { default as BotonTema } from './BotonTema'
 export { default as Button } from './Button'
+export { default as IconoTinte } from './IconoTinte'
 export { default as Card } from './Card'
 export { default as DataTable } from './DataTable'
 export { default as Drawer } from './Drawer'

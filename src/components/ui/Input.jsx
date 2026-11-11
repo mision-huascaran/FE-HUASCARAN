@@ -25,7 +25,7 @@ const Input = forwardRef(function Input(
           type={tipoReal}
           aria-label={label ?? undefined}
           aria-invalid={Boolean(error) || undefined}
-          className={cn(controlClases(error, 'h-10'), IconLeft && 'pl-9', esPassword && 'pr-10')}
+          className={cn(controlClases(error, 'h-11 sm:h-10'), IconLeft && 'pl-9', esPassword && 'pr-10')}
           {...props}
         />
         {esPassword && (
@@ -33,7 +33,7 @@ const Input = forwardRef(function Input(
             type="button"
             onClick={() => setVerClave((v) => !v)}
             aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             {verClave ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>

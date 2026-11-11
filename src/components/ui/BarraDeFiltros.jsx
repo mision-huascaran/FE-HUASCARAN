@@ -15,6 +15,13 @@
 //     bailaban: con dos filtros salían a media pantalla y con seis al extremo
 //     derecho. Y van alineados por abajo (`items-end`), no centrados: lo que
 //     tiene que cuadrar con ellos es la caja del control, no la etiqueta.
+//   · ENTRE FILTROS, por ARRIBA (`items-start`), no por abajo. Un campo con
+//     error (el rango de fechas de Sesiones, por ejemplo) añade una línea de
+//     texto bajo su caja; con `items-end` esa línea empujaba hacia abajo las
+//     CAJAS de los filtros vecinos —se veía como si "el filtro entero se
+//     moviera" cada vez que la fecha dejaba de ser válida—. Con las etiquetas
+//     arriba alineadas, el que crece lo hace hacia su propio pie, sin tocar
+//     a los demás.
 import { Filter, X } from 'lucide-react'
 import Button from './Button'
 import cn from '../../lib/cn'
@@ -27,17 +34,17 @@ export function CeldaFiltro({ className, children }) {
 export default function BarraDeFiltros({ onFiltrar, onLimpiar, filtrarDeshabilitado, className, children }) {
   return (
     <form
-      className={cn('flex flex-wrap items-end gap-3 border-b border-line p-4', className)}
+      className={cn('flex flex-wrap items-start gap-3 border-b border-line/70 p-4', className)}
       onSubmit={(e) => {
         e.preventDefault()
         onFiltrar?.()
       }}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-end gap-3">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">{children}</div>
 
       {/* Los botones bajan a su propia fila en móvil, donde no caben al lado
           de los filtros sin dejarlos en dos columnas de 100px. */}
-      <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto">
+      <div className="flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:w-auto sm:pt-[26px]">
         <Button type="submit" iconLeft={Filter} disabled={filtrarDeshabilitado}>
           Filtrar
         </Button>

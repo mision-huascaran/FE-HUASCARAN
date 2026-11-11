@@ -68,7 +68,7 @@ const iniciales = (docente) =>
     .slice(0, 2)
 
 export default function DetalleDocente({ docente, onVolver }) {
-  useMigaExtra([docente?.nombres, docente?.apellidos].filter(Boolean).join(' '))
+  useMigaExtra([docente?.nombres, docente?.apellidos].filter(Boolean).join(' '), onVolver)
   const [viendo, setViendo] = useState(null)
   const consulta = useQuery({
     queryKey: ['seguimiento', 'actividades', docente.id_docente],
