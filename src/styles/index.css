@@ -165,12 +165,11 @@
     }
   }
 
-  /* Cambio de tema suave, solo durante el propio cambio. */
-  .sicedu-tema-transicion,
-  .sicedu-tema-transicion *,
-  .sicedu-tema-transicion *::before,
-  .sicedu-tema-transicion *::after {
-    transition: background-color 240ms ease, border-color 240ms ease, color 240ms ease !important;
+  /* Cambio de tema suave (D010): un fundido de la página entera con View
+     Transitions, en vez de animar el color de cada elemento. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 240ms;
   }
 }
 
