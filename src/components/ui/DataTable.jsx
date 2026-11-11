@@ -1,14 +1,44 @@
-import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import cn from '../../lib/cn'
 import EmptyState from './EmptyState'
 import Paginacion from './Paginacion'
 import Skeleton from './Skeleton'
 
-/** Flecha de la cabecera: doble mientras no se ordena por esa columna. */
+/**
+ * Flecha de la cabecera (D008 del reporte de UX).
+ *
+ * La que se ordena lleva una flecha clara hacia arriba o hacia abajo; las
+ * demás, una doble tenue que solo dice «se puede ordenar». Antes las tres
+ * formas eran chevrones del mismo peso y no se distinguía cuál mandaba.
+ */
 function iconoDeOrden(activa, direccion) {
-  if (!activa) return ChevronsUpDown
-  return direccion === 'asc' ? ChevronUp : ChevronDown
+  if (!activa) return ArrowUpDown
+  return direccion === 'asc' ? ArrowUp : ArrowDown
+}
+
+/** Qué hace el próximo clic, dicho en la propia cabecera. */
+function tituloDeOrden(activa, direccion, header) {
+  if (!activa) return `Ordenar por ${String(header).toLowerCase()}`
+  return direccion === 'asc' ? 'Orden ascendente. Pulsa para invertirlo' : 'Orden descendente. Pulsa para quitarlo'
+}
+
+const SIN_ORDEN = { key: null, dir: 'asc' }
+const CLAVE_ORDEN = (nombre) => `sicedu.orden.${nombre}`
+
+/**
+ * El orden elegido se recuerda en la pestaña (D008): ir a otro módulo y volver
+ * lo borraba. `sessionStorage` y no `localStorage`: al cerrar el navegador la
+ * tabla vuelve a salir como la manda el servidor.
+ */
+function leerOrden(persistirOrden) {
+  if (!persistirOrden) return SIN_ORDEN
+  try {
+    const guardado = JSON.parse(window.sessionStorage.getItem(CLAVE_ORDEN(persistirOrden)) ?? 'null')
+    return guardado?.key ? { key: guardado.key, dir: guardado.dir === 'desc' ? 'desc' : 'asc' } : SIN_ORDEN
+  } catch {
+    return SIN_ORDEN
+  }
 }
 
 /** `aria-sort` solo va en la columna por la que se está ordenando. */
@@ -50,8 +80,20 @@ export default function DataTable({
   tarjetasEnMovil = !stickyFirstColumn,
   footNote,
   className,
+  // Nombre con el que se recuerda el orden elegido en la pestaña (D008).
+  persistirOrden,
 }) {
-  const [orden, setOrden] = useState({ key: null, dir: 'asc' })
+  const [orden, setOrden] = useState(() => leerOrden(persistirOrden))
+
+  useEffect(() => {
+    if (!persistirOrden) return
+    try {
+      if (orden.key) window.sessionStorage.setItem(CLAVE_ORDEN(persistirOrden), JSON.stringify(orden))
+      else window.sessionStorage.removeItem(CLAVE_ORDEN(persistirOrden))
+    } catch {
+      // Sin almacenamiento, el orden vale mientras la tabla esté en pantalla.
+    }
+  }, [orden, persistirOrden])
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(initialPageSize)
 
@@ -100,11 +142,12 @@ export default function DataTable({
 
   function alternarOrden(col) {
     if (!col.sortable) return
-    setOrden((prev) =>
-      prev.key === col.key
-        ? { key: col.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { key: col.key, dir: 'asc' },
-    )
+    // Ascendente → descendente → sin orden (el del servidor). Una sola columna
+    // manda a la vez: elegir otra reemplaza a la anterior.
+    setOrden((prev) => {
+      if (prev.key !== col.key) return { key: col.key, dir: 'asc' }
+      return prev.dir === 'asc' ? { key: col.key, dir: 'desc' } : SIN_ORDEN
+    })
     setPagina(1)
   }
 
@@ -150,14 +193,18 @@ export default function DataTable({
                       <button
                         type="button"
                         onClick={() => alternarOrden(col)}
+                        title={tituloDeOrden(activa, orden.dir, col.header)}
                         className={cn(
-                          'inline-flex items-center gap-1 rounded transition-colors hover:text-ink-900',
+                          'group inline-flex items-center gap-1 rounded transition-colors hover:text-ink-900',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
                           activa && 'text-brand-700',
                         )}
                       >
                         {col.header}
-                        <Icono className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Icono
+                          className={cn('h-3.5 w-3.5', !activa && 'opacity-40 group-hover:opacity-80')}
+                          aria-hidden="true"
+                        />
                       </button>
                     ) : (
                       col.header

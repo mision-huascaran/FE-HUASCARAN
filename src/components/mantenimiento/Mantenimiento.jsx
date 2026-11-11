@@ -415,6 +415,7 @@ export default function Mantenimiento({
             getRowId={(f) => f.id ?? f[`id_${seccion.replace(/s$/, '')}`] ?? f.id_usuario}
             initialPageSize={40}
             columns={columnasConAcciones}
+            persistirOrden={seccion}
           />
         )}
       </Card>
