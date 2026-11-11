@@ -16,7 +16,7 @@
 // referencia no hay libros que registrar. La asistencia se muestra pero no se
 // edita aquí; su sitio es el módulo de Asistencia, y duplicar el control haría
 // que el docente marcara la falta dos veces.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BookOpenCheck, CalendarPlus, Users } from 'lucide-react'
 import AvisoActividades from '../../components/layout/AvisoActividades'
@@ -123,6 +123,17 @@ export default function LecturaPage() {
     idAnioEscolar,
   })
 
+  /**
+   * La semana elegida, SOLO si es una de las del mes. Mientras llegan las
+   * semanas de un mes nuevo, o si la URL trae una semana de otro mes, no hay
+   * semana elegida y la tabla no se pide: se pediría con una semana que el
+   * filtro ya descartó.
+   */
+  const semanaElegida = useMemo(
+    () => semanas.find((s) => String(s.id_semana) === String(filtros.idSemana)) ?? null,
+    [semanas, filtros.idSemana],
+  )
+
   const {
     tabla,
     cargando,
@@ -139,29 +150,16 @@ export default function LecturaPage() {
     cambiarClase,
     cambiandoClase: guardandoClase,
     guardarFila,
-  } = useTablaLectura(filtros, { grupoValido })
+  } = useTablaLectura(filtros, { grupoValido: grupoValido && Boolean(semanaElegida) })
 
-  /**
-   * EL MES SE AJUSTA AL DE LA TABLA (tanda B).
-   *
-   * Una semana que cae en dos meses —lunes 29/06 a viernes 03/07— tiene UNA
-   * sola tabla, y su mes es el de su clase de referencia. El servidor devuelve
-   * la tabla aunque el `mes` que se mande no sea el suyo, justamente para que
-   * no haga falta adivinarlo; lo que toca aquí es poner el filtro donde de
-   * verdad está la tabla, o la pantalla diría julio mientras enseña la tabla
-   * de junio.
-   *
-   * También cubre el cambio de clase a otra de otro mes y el 409
-   * `tabla_existente` de una tabla creada desde el otro mes.
+  /*
+   * EL FILTRO MES YA NO SIGUE A LA TABLA. Lo movía un efecto al `mes` de la
+   * tabla (tanda B), y con una semana ya elegida eso impedía ir a un mes
+   * pasado: la tabla que llegaba era la de la semana vieja y devolvía el
+   * filtro a su mes. Ahora el mes lo elige el docente y la semana se busca
+   * dentro de él; una semana que cae en dos meses aparece en el mes donde la
+   * pone `GET /semanas`, sin mover el filtro.
    */
-  useEffect(() => {
-    if (tabla?.mes && String(tabla.mes) !== String(filtros.mes)) cambiar('mes', String(tabla.mes))
-  }, [tabla?.mes, filtros.mes, cambiar])
-
-  const semanaElegida = useMemo(
-    () => semanas.find((s) => String(s.id_semana) === String(filtros.idSemana)) ?? null,
-    [semanas, filtros.idSemana],
-  )
 
   // Un solo estado vacío a la vez (U07): sin clases en el mes no hay filtro que completar.
   const sinClasesEsteMes = Boolean(filtros.idSeccion) && semanas.length === 0
