@@ -14,6 +14,7 @@
 // distingue se quedaría sin la alerta. Los avisos van en ámbar.
 import { useId, useState } from 'react'
 import { AlertTriangle, ChevronDown, Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { guardarAlertasAbiertas, leerAlertasAbiertas } from './alertasAbiertas'
 
 const CRITICA = {
@@ -44,7 +45,12 @@ function Resumen({ criticas, avisos }) {
   )
 }
 
-export default function AlertasInactividad({ alertas = [], desactualizadas = false }) {
+/**
+ * `enlace` ({ to, label }): adónde ir a resolverlas. Reemplaza al bloque
+ * «Accesos» del Inicio (D001 y S002 del reporte de UX), que repetía el menú;
+ * aquí el acceso a Seguimiento está junto a lo que hay que revisar.
+ */
+export default function AlertasInactividad({ alertas = [], desactualizadas = false, enlace = null }) {
   const idLista = useId()
   const [abiertas, setAbiertas] = useState(leerAlertasAbiertas)
 
@@ -73,6 +79,14 @@ export default function AlertasInactividad({ alertas = [], desactualizadas = fal
             <Resumen criticas={criticas.length} avisos={avisos.length} />
           </p>
         </div>
+        {hayAlertas && enlace && (
+          <Link
+            to={enlace.to}
+            className="inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2.5 text-sm font-semibold text-brand-700 hover:bg-surface-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            {enlace.label}
+          </Link>
+        )}
         {hayAlertas && (
           <button
             type="button"

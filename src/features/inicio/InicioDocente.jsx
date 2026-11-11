@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { CalendarCheck, ClipboardCheck, ClipboardList, GraduationCap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
-import AccesosRapidos from './AccesosRapidos'
 import AvisoDatosLocales from './AvisoDatosLocales'
 import ContextoInicio from './ContextoInicio'
 import useResumenDocente from './useResumenDocente'
@@ -219,13 +218,6 @@ export default function InicioDocente() {
           real `GET /inicio/docente`. Antes había aquí una segunda tarjeta con
           el mismo título alimentada por el simulador: dos "Mis asignaciones"
           que podían contradecirse. */}
-
-      <section>
-        <h2 className="text-lg font-semibold text-ink-900 sm:text-xl">Accesos rápidos</h2>
-        <div className="mt-3 sm:mt-4">
-          <AccesosRapidos />
-        </div>
-      </section>
     </div>
   )
 }
