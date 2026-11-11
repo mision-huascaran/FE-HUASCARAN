@@ -79,15 +79,10 @@ function Contenido({ onNavegar, onCerrar }) {
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-white/90" aria-hidden="true" />
-                    )}
-                    <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" strokeWidth={1.8} />
-                    <span className="truncate">{label}</span>
-                  </>
-                )}
+                {/* Sin la rayita blanca a la izquierda del activo (D006 y S001):
+                    el fondo azul ya dice cuál es. */}
+                <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" strokeWidth={1.8} />
+                <span className="truncate">{label}</span>
               </NavLink>
             </li>
           ))}
