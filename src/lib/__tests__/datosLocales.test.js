@@ -25,7 +25,9 @@ vi.mock('idb-keyval', () => {
 
 const RELOJ = 'sicedu.reloj.desfase'
 const TEMA = 'sicedu.tema'
+const ALERTAS = 'sicedu.inicio.alertasAbiertas'
 const FILTROS = 'sicedu.filtros.alumnos'
+const UN_FILTRO = '{"id_ciclo":"1"}'
 
 beforeEach(() => localStorage.clear())
 
@@ -34,7 +36,7 @@ describe('limpieza local al cerrar sesión', () => {
     const idb = await import('idb-keyval')
     idb.__sembrar('sicedu.precarga', { datos: { alumnos: [{ nombre: 'Ana' }] }, propietario: 1 })
     idb.__sembrar('sicedu.cola-envios', [{ clave: 'actividad-cierre-1' }])
-    localStorage.setItem(FILTROS, '{"id_ciclo":"1"}')
+    localStorage.setItem(FILTROS, UN_FILTRO)
     localStorage.setItem('sicedu.resumen.directivo', '{}')
     localStorage.setItem('otra.app', 'x')
     localStorage.setItem(RELOJ, '-3600000')
@@ -62,7 +64,7 @@ describe('limpieza local al cerrar sesión', () => {
 
   it.each(['claro', 'oscuro', 'sistema'])('conserva el tema «%s»: es del equipo, no del usuario', async (tema) => {
     localStorage.setItem(TEMA, tema)
-    localStorage.setItem(FILTROS, '{"id_ciclo":"1"}')
+    localStorage.setItem(FILTROS, UN_FILTRO)
 
     await limpiarDatosLocalesDeSesion()
 
@@ -70,14 +72,25 @@ describe('limpieza local al cerrar sesión', () => {
     expect(localStorage.getItem(FILTROS)).toBeNull()
   })
 
-  it('no conserva nada más que el reloj y el tema: ningún dato personal (D115)', async () => {
+  it.each(['true', 'false'])('conserva si las Alertas de Inicio quedaron abiertas («%s»)', async (abiertas) => {
+    localStorage.setItem(ALERTAS, abiertas)
+    localStorage.setItem(FILTROS, UN_FILTRO)
+
+    await limpiarDatosLocalesDeSesion()
+
+    expect(localStorage.getItem(ALERTAS)).toBe(abiertas)
+    expect(localStorage.getItem(FILTROS)).toBeNull()
+  })
+
+  it('no conserva nada más que el reloj, el tema y las Alertas abiertas: ningún dato personal (D115)', async () => {
     localStorage.setItem(TEMA, 'oscuro')
+    localStorage.setItem(ALERTAS, 'true')
     localStorage.setItem(RELOJ, '0')
     localStorage.setItem('sicedu.perfil', '{"dni":"12345678","correo":"a@b.pe","nombres":"Ana"}')
     localStorage.setItem('sicedu.ultimo.usuario', '4')
 
     await limpiarDatosLocalesDeSesion()
 
-    expect(Object.keys(localStorage).sort()).toEqual([RELOJ, TEMA].sort())
+    expect(Object.keys(localStorage).sort()).toEqual([RELOJ, TEMA, ALERTAS].sort())
   })
 })

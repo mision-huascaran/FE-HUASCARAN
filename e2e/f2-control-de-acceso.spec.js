@@ -32,6 +32,13 @@ const PROHIBIDAS = {
     { ruta: '/dashboard', menu: 'Dashboard', api: 'dashboard' },
   ],
   directivo: [
+    /**
+     * S36 (docs/decisiones-externas-y-pendientes-de-backend.md): el Directivo
+     * ya no tiene Inicio. Entra a /dashboard (`aterrizajeDe` en
+     * support/sesion.js, que es lo que esta prueba esperaba antes en /inicio)
+     * y la guarda de /inicio tampoco lo deja entrar escribiendo la URL.
+     */
+    { ruta: '/inicio', menu: 'Inicio', api: 'inicio' },
     { ruta: '/usuarios', menu: 'Usuarios', api: 'usuarios' },
     { ruta: '/colegios', menu: 'Colegios', api: 'colegios' },
     { ruta: '/seguimiento', menu: 'Seguimiento', api: 'seguimiento' },
@@ -62,7 +69,7 @@ for (const [rol, secciones] of Object.entries(PROHIBIDAS)) {
     }
     await evidencia(page, `menu-${rol}`)
 
-    // Lo que Inicio haya pedido al entrar (la precarga offline del Docente pide
+    // Lo que la pantalla de entrada haya pedido (la precarga offline del Docente pide
     // colegios y alumnos) no cuenta. Se pasa primero por /403, que está fuera
     // del armazón y no pide datos: al recargar, el documento de Inicio y sus
     // peticiones desaparecen, y recién entonces se empieza a escuchar.

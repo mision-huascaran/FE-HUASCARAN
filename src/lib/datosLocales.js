@@ -25,6 +25,7 @@ import { borrarCacheConsultas } from './cacheConsultas'
 import { borrarHabilitaciones } from '../api/resources/habilitaciones'
 import useRechazosStore from '../store/rechazosStore'
 import { CLAVE_TEMA } from '../hooks/useTema'
+import { CLAVE_ALERTAS_ABIERTAS } from '../features/inicio/alertasAbiertas'
 
 /**
  * Lo único que SOBREVIVE al cierre de sesión. Una lista cerrada: lo que no
@@ -43,8 +44,11 @@ import { CLAVE_TEMA } from '../hooks/useTema'
  * del equipo, y solo guarda una de esas tres palabras. Se borraba con todo lo
  * demás y el login volvía a salir con el tema por defecto. Aquí no puede
  * entrar nada personal —ni DNI, ni correo, ni nombres (D115)—.
+ *
+ * Lo mismo con el bloque de Alertas de Inicio abierto o cerrado: un booleano
+ * de presentación, sin nada de la cuenta ni de las alertas.
  */
-const CLAVES_QUE_NO_SON_DEL_USUARIO = ['sicedu.reloj.desfase', CLAVE_TEMA]
+const CLAVES_QUE_NO_SON_DEL_USUARIO = ['sicedu.reloj.desfase', CLAVE_TEMA, CLAVE_ALERTAS_ABIERTAS]
 
 export function limpiarLocalStorageDeSesion() {
   try {

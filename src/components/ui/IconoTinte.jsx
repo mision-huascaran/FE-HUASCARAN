@@ -12,6 +12,9 @@ const TONOS = {
   ambar: 'bg-tinte-ambarBg text-tinte-ambar',
   rojo: 'bg-tinte-rojoBg text-tinte-rojo',
   gris: 'bg-tinte-grisBg text-tinte-gris',
+  // Sin cuadro de color: el gris de los iconos de las tarjetas de Inicio
+  // (StatCard `sobria`). Conserva el hueco del tamaño para no mover nada.
+  neutro: 'text-ink-500',
 }
 
 const TAMANOS = {

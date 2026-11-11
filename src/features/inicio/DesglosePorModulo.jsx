@@ -5,9 +5,11 @@
 // la evaluación del mes sin empezar, y se resuelven de formas distintas. El
 // desglose convierte una cifra en una decisión.
 //
-// Y LOS CEROS SE PINTAN. Un módulo en 0 no es un hueco: es la información de
-// que ahí no hay nada que perseguir. Ocultarlo dejaría al Supervisor sin saber
-// si el módulo está al día o si el servidor no lo calculó.
+// Una tabla de dos filas (Vencidos, Incompletos) por los cuatro módulos.
+//
+// Y LOS CEROS SE PINTAN, en gris. Un módulo en 0 no es un hueco: es la
+// información de que ahí no hay nada que perseguir. Ocultarlo dejaría al
+// Supervisor sin saber si el módulo está al día o si el servidor no lo calculó.
 //
 // Y CADA MÓDULO CON ALGO PENDIENTE LLEVA A SU PANTALLA (auditoría de UX #737,
 // U12): el Supervisor veía "Rúbrica 72" y no tenía forma de ir a corregirlo.
@@ -20,47 +22,70 @@ const MODULOS = [
   { clave: 'registro_vuelo', nombre: 'Registro de Vuelo', ruta: '/registro-vuelo' },
 ]
 
-const CHIP = 'flex items-baseline gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm'
+/** Vencidos en rojo y incompletos en ámbar, como sus tarjetas. */
+const FILAS = [
+  { clave: 'vencidos', nombre: 'Vencidos', color: 'text-danger-600' },
+  { clave: 'incompletos', nombre: 'Incompletos', color: 'text-warning-600' },
+]
+
+function Celda({ cuantos, fila, modulo }) {
+  // Un módulo que el servidor no nombró no se puede afirmar en 0.
+  if (cuantos == null) return <span className="text-ink-500">—</span>
+  if (cuantos <= 0) return <span className="text-ink-500">{cuantos}</span>
+  return (
+    <Link
+      to={modulo.ruta}
+      title={`Ir a ${modulo.nombre}`}
+      aria-label={`${fila.nombre} en ${modulo.nombre}: ${cuantos}. Ir a ${modulo.nombre}`}
+      className={`inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded-md px-1.5 font-bold underline decoration-1 underline-offset-2 hover:bg-surface-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${fila.color}`}
+    >
+      {cuantos}
+    </Link>
+  )
+}
 
 /**
- * @param desglose el objeto del contrato, o `null` si el servidor no lo manda.
- *   Un servidor sin actualizar no lo trae, y entonces no se pinta nada en vez
- *   de cuatro ceros que serían mentira.
+ * @param vencidos, incompletos el objeto del contrato, o `null` si el servidor
+ *   no lo manda. Un servidor sin actualizar no lo trae, y entonces esa fila no
+ *   se pinta en vez de cuatro ceros que serían mentira.
  */
-export default function DesglosePorModulo({ titulo, desglose }) {
-  if (!desglose) return null
+export default function DesglosePorModulo({ vencidos, incompletos }) {
+  const desgloses = { vencidos, incompletos }
+  const filas = FILAS.filter((f) => desgloses[f.clave])
+  if (!filas.length) return null
 
   return (
-    <div>
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{titulo}</h4>
-      <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-        {MODULOS.map(({ clave, nombre, ruta }) => {
-          const cuantos = desglose[clave]
-          // Un módulo que el servidor no nombró se omite; uno en 0 se pinta.
-          if (cuantos == null) return null
-          const contenido = (
-            <>
-              <span className="text-ink-700">{nombre}</span>
-              <span className={cuantos > 0 ? 'font-bold text-warning-600' : 'font-semibold text-ink-500'}>{cuantos}</span>
-            </>
-          )
-          return (
-            <li key={clave}>
-              {cuantos > 0 ? (
-                <Link
-                  to={ruta}
-                  title={`Ir a ${nombre}`}
-                  className={`${CHIP} border-warning-600/30 bg-warning-100 transition-colors hover:border-warning-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500`}
-                >
-                  {contenido}
-                </Link>
-              ) : (
-                <span className={`${CHIP} border-line bg-surface-0`}>{contenido}</span>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+    <div className="-mx-1 overflow-x-auto">
+      {/* Todo el ancho del bloque. `table-fixed`: la primera columna tiene su
+          ancho y las cuatro de módulos se reparten el resto en partes iguales.
+          Por debajo de 380 px (el mínimo es 360) se aprieta un poco más para
+          que "Asistencias" no toque a "Lectura". */}
+      <table className="w-full min-w-[18rem] table-fixed border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-line">
+            <td className="w-[5.5rem] px-1 pb-2 max-[379px]:w-[4.75rem] sm:w-36" />
+            {MODULOS.map((m) => (
+              <th key={m.clave} scope="col" className="px-0.5 pb-2 text-center text-[11px] font-medium leading-tight text-ink-500 max-[379px]:px-0 max-[379px]:text-[10px] sm:text-xs">
+                {m.nombre}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((fila) => (
+            <tr key={fila.clave} className="border-b border-line/60 last:border-b-0">
+              <th scope="row" className="py-1.5 pl-1 pr-2 text-left text-[13px] font-medium text-ink-700 max-[379px]:pr-1 max-[379px]:text-xs sm:text-sm">
+                {fila.nombre}
+              </th>
+              {MODULOS.map((m) => (
+                <td key={m.clave} className="px-1 py-1.5 text-center tabular-nums">
+                  <Celda cuantos={desgloses[fila.clave][m.clave]} fila={fila} modulo={m} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

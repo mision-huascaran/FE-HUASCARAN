@@ -93,10 +93,8 @@
   --sombra-modal: 0 24px 64px rgb(11 33 68 / 0.24);
   --sombra-barra: 0 -1px 2px rgb(30 64 120 / 0.04), 0 -8px 24px rgb(30 64 120 / 0.08);
 
-  /* Superficies de cristal: solo cabecera, barra inferior, modales y las
-     tarjetas principales de Inicio. */
+  /* Superficies de cristal: solo cabecera, barra inferior y modales. */
   --cristal: 255 255 255;
-  --cristal-tarjeta: 0.84;
   --cristal-barra: 0.72;
   --fondo-exterior: 225 233 245;
   --panel-paisaje: 255 255 255;
@@ -195,7 +193,6 @@
   --sombra-barra: 0 -1px 2px rgb(0 0 0 / 0.26), 0 -8px 24px rgb(0 0 0 / 0.32);
 
   --cristal: 18 35 61;
-  --cristal-tarjeta: 0.86;
   --cristal-barra: 0.74;
   --fondo-exterior: 5 14 28;
   --fondo-panel: 8 20 38;

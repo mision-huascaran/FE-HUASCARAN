@@ -6,8 +6,11 @@
 // (evento securitypolicyviolation), mensaje de CSP en la consola o petición
 // bloqueada por la política. Solo navega: no crea ni modifica datos.
 import { expect, test } from '@playwright/test'
-import { cerrarSesion, iniciarSesion, irPorMenu } from './support/sesion.js'
+import { aterrizajeDe, cerrarSesion, iniciarSesion, irPorMenu } from './support/sesion.js'
+import { esperarDashboardDelDirectivo } from './support/dashboard.js'
 import { valorDeTarjeta } from './support/tarjetas.js'
+
+const PROHIBIDO = 'No tiene permisos para acceder a esta sección'
 
 const titulo = (page, nombre) => page.getByRole('main').getByRole('heading', { name: nombre, level: 1 })
 
@@ -44,10 +47,17 @@ const PANTALLAS = {
       ['Seguimiento', '/seguimiento', (page) => conTabla(page, 'Seguimiento')],
     ],
   },
+  /**
+   * S36 (docs/decisiones-externas-y-pendientes-de-backend.md): el Directivo no
+   * tiene Inicio; su pantalla de entrada es el Dashboard, con sus gráficas, y
+   * es la única de su menú. Antes se esperaba aquí una tarjeta de su Inicio.
+   * Su otra pantalla es /403, adonde lo lleva cualquier sección ajena: se
+   * recorre también, escribiendo la URL (`directas`).
+   */
   directivo: {
-    // El valor de una tarjeta y no cuántas hay: el conteo lo validan F1 y F5.
-    inicio: (page) => expect(valorDeTarjeta(page, 'Total de beneficiarios activos')).toHaveText(/^\d+$/),
+    inicio: (page) => esperarDashboardDelDirectivo(page),
     menu: [],
+    directas: [['/inicio', '/403', (page) => expect(page.getByRole('heading', { name: PROHIBIDO })).toBeVisible()]],
   },
 }
 
@@ -104,7 +114,7 @@ test.describe('F10 · CSP en el navegador', () => {
     expect(problemas, 'sin violaciones de CSP').toEqual([])
   })
 
-  for (const [rol, { inicio, menu }] of Object.entries(PANTALLAS)) {
+  for (const [rol, { inicio, menu, directas = [] }] of Object.entries(PANTALLAS)) {
     test(`${rol}: Inicio y sus pantallas`, async ({ page }) => {
       const problemas = await vigilarCsp(page)
 
@@ -115,6 +125,18 @@ test.describe('F10 · CSP en el navegador', () => {
         await irPorMenu(page, etiqueta, ruta)
         await lista(page)
         await esperarFuentesEImagenes(page)
+      }
+      for (const [ruta, destino, lista] of directas) {
+        await page.goto(ruta)
+        await expect(page).toHaveURL((url) => url.pathname === destino)
+        await lista(page)
+        await esperarFuentesEImagenes(page)
+      }
+      // Desde /403 (fuera del armazón) no hay menú para salir: se vuelve a la
+      // pantalla de entrada.
+      if (directas.length) {
+        await page.goto(aterrizajeDe(rol))
+        await inicio(page)
       }
       await cerrarSesion(page)
 

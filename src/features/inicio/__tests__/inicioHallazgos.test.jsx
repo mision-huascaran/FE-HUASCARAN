@@ -13,7 +13,7 @@
 //   · "Sin datos disponibles" ante un `null` es de `StatCard`, y lo cubren las
 //     pruebas del Inicio del Supervisor.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
@@ -68,7 +68,10 @@ describe('Inicio — hallazgos del 09/10/2026', () => {
     const tarjeta = (await screen.findByText('Con actividad en curso', {}, ESPERA)).closest('div').parentElement
     expect(tarjeta).toHaveTextContent('1')
 
+    // Las alertas están detrás del desplegable, cerrado por defecto.
+    fireEvent.click(screen.getByRole('button', { name: 'Ver alertas' }))
     const alerta = screen.getByText(MENSAJE).closest('li')
+    expect(alerta).toBeVisible()
     // La etiqueta la pone la gravedad, no el texto del servidor.
     expect(alerta.textContent).toBe(`Aviso: ${MENSAJE}`)
     // El acceso del Supervisor a sus docentes va a Seguimiento, no a /sesiones (403).

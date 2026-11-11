@@ -7,21 +7,18 @@ const ACCESOS = [
   {
     to: '/seguimiento-lectura',
     icon: BookOpenCheck,
-    tono: 'violeta',
     titulo: 'Seguimiento de Lectura',
     descripcion: 'La tabla semanal de tu grupo: LSN, LSL y observaciones.',
   },
   {
     to: '/rubrica',
     icon: ClipboardCheck,
-    tono: 'indigo',
     titulo: 'Rúbrica',
     descripcion: 'Fluidez y comprensión de cada alumno, una vez al mes.',
   },
   {
     to: '/registro-vuelo',
     icon: Plane,
-    tono: 'azul',
     titulo: 'Registro de Vuelo',
     descripcion: 'El nivel colocado de cada alumno en cada periodo académico.',
   },
@@ -30,13 +27,13 @@ const ACCESOS = [
 export default function AccesosRapidos() {
   return (
     <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-      {ACCESOS.map(({ to, icon, tono, titulo, descripcion }) => (
+      {ACCESOS.map(({ to, icon, titulo, descripcion }) => (
         <Link
           key={to}
           to={to}
           className="sicedu-tarjeta sicedu-elevable group flex items-center gap-3.5 rounded-xl border border-line/80 bg-surface-0 p-4 shadow-card hover:border-brand-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 sm:items-start sm:p-5"
         >
-          <IconoTinte icon={icon} tono={tono} tamano="md" />
+          <IconoTinte icon={icon} tono="neutro" tamano="md" />
           <div className="min-w-0 flex-1">
             <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-ink-900">
               {titulo}
