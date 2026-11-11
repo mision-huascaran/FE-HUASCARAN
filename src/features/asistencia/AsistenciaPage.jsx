@@ -97,7 +97,8 @@ const RECHAZO = {
 }
 
 const SUBTITULO = {
-  registra: 'Cada marca se guarda al tocarla.',
+  // D007: qué se hace aquí, no un detalle técnico del guardado.
+  registra: 'Marca si cada alumno está presente, llegó tarde o faltó. Cada marca se guarda sola.',
   consulta: 'Modo consulta: no puedes modificar asistencias.',
 }
 

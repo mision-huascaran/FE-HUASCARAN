@@ -22,6 +22,7 @@ import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
+import AvisoActividades from '../layout/AvisoActividades'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
 import useActividad from '../../features/inicio/useActividad'
@@ -381,11 +382,9 @@ export default function Mantenimiento({
         </div>
       </header>
 
-      {motivoNuevo && puedeCrear && (
-        <p role="note" className="-mt-2 text-sm text-ink-500">
-          {motivoNuevo}
-        </p>
-      )}
+      {/* D007: el mismo recuadro que en Asistencias, Lectura, Rúbrica y Vuelo,
+          no un texto suelto bajo el título. */}
+      {motivoNuevo && puedeCrear && <AvisoActividades mensaje={motivoNuevo} />}
 
       {sinConexion && (
         <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
