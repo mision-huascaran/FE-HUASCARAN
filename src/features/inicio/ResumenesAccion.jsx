@@ -14,9 +14,10 @@
 // pantalla entera con un `.join` sobre un campo que el contrato renombró, y una
 // pantalla en blanco es mucho peor que un guion.
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, CloudOff, KeyRound, MapPinned } from 'lucide-react'
+import { ChevronDown, CloudOff, KeyRound, MapPinned, School } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
+import cn from '../../lib/cn'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
@@ -39,11 +40,24 @@ const ETIQUETA_MODULO = {
   registro_vuelo: 'Registro de Vuelo',
 }
 
-function Dato({ etiqueta, className, children }) {
+/**
+ * Cada dato en su recuadro (D002 del reporte de UX): antes eran cinco columnas
+ * de texto sobre el mismo fondo, que se leían como una tabla sin bordes.
+ * `cifra` destaca un número (los alumnos), que es lo primero que se busca.
+ */
+function Dato({ etiqueta, icono: Icono, cifra = false, className, children }) {
   return (
-    <div className={className}>
+    <div className={cn('rounded-lg border border-line/70 bg-surface-50 px-3.5 py-3', className)}>
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{etiqueta}</dt>
-      <dd className="mt-1 font-medium text-ink-900">{children}</dd>
+      <dd
+        className={cn(
+          'mt-1 flex items-start gap-2 text-ink-900',
+          cifra ? 'text-2xl font-bold tabular-nums leading-tight' : 'font-medium',
+        )}
+      >
+        {Icono && <Icono className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />}
+        <span className="min-w-0">{children}</span>
+      </dd>
     </div>
   )
 }
@@ -104,12 +118,14 @@ export default function ResumenesAccion() {
 
   return (
     <Card title="Mis asignaciones" icon={MapPinned} tono="azul">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-sm lg:grid-cols-[2fr_1.3fr_0.8fr_1fr_0.6fr]">
-        <Dato etiqueta="Colegios" className="col-span-2 lg:col-span-1">{unirUnicos(asignaciones.map((a) => a.colegio?.nombre ?? a.colegio))}</Dato>
+      <dl className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.3fr)_minmax(0,0.8fr)]">
+        <Dato etiqueta="Colegios" icono={School} className="col-span-2 lg:col-span-1">
+          {unirUnicos(asignaciones.map((a) => a.colegio?.nombre ?? a.colegio))}
+        </Dato>
         <Dato etiqueta="Grados">{unirUnicos(grados)}</Dato>
         <Dato etiqueta="Ciclos">{unirUnicos(ciclos)}</Dato>
         <Dato etiqueta="Subprograma">{unirUnicos(totales.subprogramas ?? [])}</Dato>
-        <Dato etiqueta="Alumnos">{totales.cantidad_alumnos ?? 0}</Dato>
+        <Dato etiqueta="Alumnos" cifra>{totales.cantidad_alumnos ?? 0}</Dato>
       </dl>
 
       {/* CU010 — PERMISOS DE CORRECCIÓN VIGENTES.
