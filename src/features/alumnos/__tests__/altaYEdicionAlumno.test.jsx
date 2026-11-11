@@ -142,9 +142,12 @@ describe('Alumnos — guardar desde el popup', () => {
    * backend modelara el historial. Sin esa fecha no se sabe quién estaba en el
    * aula el día de una clase, así que el alumno se cae de las tablas
    * históricas, y el formulario es el único sitio donde se puede arreglar.
+   *
+   * El backend lo marca con `pertenencia_pendiente: true` (sin ningún
+   * intervalo), y esa es la única señal que mira la pantalla.
    */
   it('al editar SIN pertenencia se pide la fecha, propuesta con la de creación', async () => {
-    conDetalle({ activo: true, pertenece_desde: null, creado_en: '2026-03-02T08:15:00-05:00' })
+    conDetalle({ activo: true, pertenece_desde: null, pertenencia_pendiente: true, creado_en: '2026-03-02T08:15:00-05:00' })
     const dialogo = await abrirEdicion()
 
     const campo = await within(dialogo).findByLabelText(/^Pertenece al grupo desde/, {}, ESPERA)

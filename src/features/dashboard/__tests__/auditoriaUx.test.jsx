@@ -40,14 +40,14 @@ describe('U10 — Evolución anual', () => {
 
 describe('U12 — Vencidos por módulo', () => {
   it('un módulo con vencidos lleva a su pantalla; uno en cero no', () => {
-    montar(<DesglosePorModulo titulo="Vencidos por módulo" desglose={{ asistencias: 3, rubrica: 0 }} />)
-    expect(screen.getByRole('link', { name: /Asistencias/ })).toHaveAttribute('href', '/asistencia')
+    montar(<DesglosePorModulo vencidos={{ asistencias: 3, rubrica: 0 }} incompletos={null} />)
+    expect(screen.getByRole('link', { name: /Vencidos en Asistencias: 3/ })).toHaveAttribute('href', '/asistencia')
     expect(screen.queryByRole('link', { name: /Rúbrica/ })).toBeNull()
-    expect(screen.getByText('Rúbrica')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Rúbrica' })).toBeInTheDocument()
   })
 
   it('sin desglose del servidor no pinta nada', () => {
-    const { container } = montar(<DesglosePorModulo titulo="Vencidos" desglose={null} />)
+    const { container } = montar(<DesglosePorModulo vencidos={null} incompletos={null} />)
     expect(container).toBeEmptyDOMElement()
   })
 })

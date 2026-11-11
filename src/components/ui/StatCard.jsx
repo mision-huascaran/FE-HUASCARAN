@@ -2,14 +2,48 @@ import cn from '../../lib/cn'
 import IconoTinte from './IconoTinte'
 import TrendIndicator from './TrendIndicator'
 
-export default function StatCard({ icon, tono = 'azul', label, value, unit, hint, trend, className }) {
+/** Color del número: el de texto, salvo que pida atención. */
+function colorDelValor(tono) {
+  if (tono === 'peligro') return 'text-danger-600'
+  if (tono === 'aviso') return 'text-warning-600'
+  return 'text-ink-900'
+}
+
+/**
+ * Tarjeta de indicador.
+ *
+ * `sobria` es la de Inicio: icono gris sin cuadro de color, etiqueta en formato
+ * oración y borde en vez de sombra. `tonoValor` ('peligro' | 'aviso') colorea
+ * el número solo cuando hay algo que atender; si no, va en el color de texto.
+ */
+export default function StatCard({ icon: Icono, tono = 'azul', label, value, unit, hint, trend, sobria = false, tonoValor, className }) {
   return (
-    <div className={cn('sicedu-stat sicedu-tarjeta sicedu-elevable rounded-xl border border-line/80 bg-surface-0 p-4 shadow-card sm:p-5', className)}>
+    <div
+      className={cn(
+        'sicedu-stat sicedu-tarjeta rounded-xl border bg-surface-0 p-4 sm:p-5',
+        sobria ? 'border-line' : 'sicedu-elevable border-line/80 shadow-card',
+        className,
+      )}
+    >
       <div className="sicedu-stat-fila flex items-center gap-3.5">
-        {icon && <IconoTinte icon={icon} tono={tono} tamano="lg" />}
+        {Icono && !sobria && <IconoTinte icon={Icono} tono={tono} tamano="lg" />}
+        {Icono && sobria && <Icono className="h-6 w-6 shrink-0 text-ink-500" aria-hidden="true" strokeWidth={1.8} />}
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-ink-500">{label}</p>
-          <p className="mt-1 font-display text-[26px] font-bold leading-none tabular-nums text-ink-900 sm:text-[28px]">
+          <p
+            className={
+              sobria
+                ? 'text-sm font-medium leading-tight text-ink-700'
+                : 'text-[11px] font-semibold uppercase leading-tight tracking-wide text-ink-500'
+            }
+          >
+            {label}
+          </p>
+          <p
+            className={cn(
+              'mt-1 font-display text-[26px] font-bold leading-none tabular-nums sm:text-[28px]',
+              colorDelValor(tonoValor),
+            )}
+          >
             {value}
             {unit && <span className="ml-1 text-base font-semibold text-ink-500">{unit}</span>}
           </p>

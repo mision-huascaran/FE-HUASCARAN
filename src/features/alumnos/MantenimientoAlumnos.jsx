@@ -207,14 +207,15 @@ export default function MantenimientoAlumnos() {
 
   /**
    * Semana 14 — el alumno con la PERTENENCIA PENDIENTE: el que todavía no
-   * tiene ningún intervalo en su historial (de una importación, o de antes de
-   * que el backend modelara la pertenencia). `registro.pertenencia_pendiente`
-   * es la señal del backend; se respalda con la señal antigua (activo y sin
-   * `pertenece_desde`) por si llegara un registro de un origen que todavía no
-   * la manda.
+   * tiene ningún intervalo en su historial (de una importación, por ejemplo).
+   *
+   * SOLO LO DICE EL BACKEND (`pertenencia_pendiente`). Había un respaldo,
+   * "activo y sin `pertenece_desde`", que tomaba por pendiente a todo alumno
+   * de la LISTA: el listado no trae `pertenece_desde` (solo el detalle). La
+   * baja se enviaba entonces con el cuerpo vacío, sin la fecha efectiva que
+   * el diálogo sí pedía, y el servidor la rechazaba con 422 `aplicar_desde`.
    */
-  const esPendiente = (registro) =>
-    Boolean(registro?.pertenencia_pendiente) || (registro?.activo !== false && !registro?.pertenece_desde)
+  const esPendiente = (registro) => Boolean(registro?.pertenencia_pendiente)
 
   /** ¿Se EDITA a un pendiente? Solo entonces el grupo deja de ser obligatorio de entrada. */
   const editandoPendiente = ({ modo, registro, detalleListo } = {}) =>
