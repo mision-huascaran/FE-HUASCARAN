@@ -10,7 +10,7 @@ import { SIN_HABILITACIONES } from '../useActividad'
 import { cuentaDe, jwtDePrueba } from '../../../test/fabricas'
 import { renderConProveedores } from '../../../test/renderConProveedores'
 
-const estado = vi.hoisted(() => ({ resumen: {}, actividad: {}, inicioDocente: null }))
+const estado = vi.hoisted(() => ({ resumen: {}, actividad: {} }))
 vi.mock('../useResumenDocente', () => ({ default: () => estado.resumen }))
 // Mock PARCIAL: el hook se sustituye, pero el literal de respaldo de CU010 es
 // una constante del módulo y la pantalla lo importa de ahí.
@@ -20,18 +20,6 @@ vi.mock('../useActividad', async (importOriginal) => ({
 }))
 // Los Resúmenes de Acción tienen su propia prueba (resumenesAccion.test.jsx).
 vi.mock('../ResumenesAccion', () => ({ default: () => null }))
-/**
- * "Mis alumnos" también pide `GET /inicio/docente` (el mismo endpoint real
- * que usaba `ResumenesAccion`, arriba) para no depender del endpoint
- * `useResumenDocente`, que contra el backend real siempre vuelve `null`. Se
- * controla aparte para que las pruebas del `resumen` de siempre no dependan
- * de una segunda consulta asíncrona sin relación.
- */
-vi.mock('../../../api/resources/inicio', async (importOriginal) => ({
-  ...(await importOriginal()),
-  obtenerInicioDocente: async () => estado.inicioDocente,
-}))
-
 const RESUMEN = {
   mis_estudiantes: 48,
   reporte_semana: { registrados: 30, total: 48 },
@@ -50,7 +38,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   estado.resumen = { data: RESUMEN, isLoading: false, semanaActual: null }
   estado.actividad = { sesion: null, sinAsignaciones: false }
-  estado.inicioDocente = null
   // D52 — `useResumenLocal` guarda una copia real en localStorage; sin
   // limpiarla, una prueba hereda la copia que dejó la anterior y "sin datos
   // del servidor" deja de ser cierto.
@@ -157,44 +144,47 @@ describe('Tarjetas del panel', () => {
   it('con el corte completo no insiste', async () => {
     estado.resumen.data = { ...RESUMEN, evaluacion_abierta: { nombre: 'Octubre', registrados: 48, total: 48 } }
     montar()
-    await screen.findByText('Mis alumnos')
+    await screen.findByText('Reporte de esta semana')
     expect(screen.queryByText(/Evaluación diagnóstica de Octubre abierta/)).not.toBeInTheDocument()
   })
 
-  it('pinta las cuatro cifras del resumen', async () => {
+  it('pinta las tres cifras del resumen', async () => {
     montar()
-    expect(await screen.findByText('48')).toBeInTheDocument()
-    expect(screen.getByText('30 / 48')).toBeInTheDocument()
-    expect(screen.getByText('Pendientes de rúbrica')).toBeInTheDocument()
-    expect(screen.getByText('Ajustes por revisar')).toBeInTheDocument()
+    expect(await screen.findByText('30 / 48')).toBeInTheDocument()
+    expect(screen.getByText('Pendientes de rúbrica').nextElementSibling).toHaveTextContent('5')
+    expect(screen.getByText('Ajustes por revisar').nextElementSibling).toHaveTextContent('2')
+  })
+
+  it('la Rúbrica es mensual, y la tarjeta lo dice (N011)', async () => {
+    montar()
+    expect(await screen.findByText('Sin Fluidez y Comprensión del mes')).toBeInTheDocument()
+  })
+
+  it('no repite «Mis alumnos»: ya está en «Mis asignaciones» (N011)', async () => {
+    montar()
+    await screen.findByText('Reporte de esta semana')
+    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
   })
 
   it('mientras carga no inventa cifras', async () => {
     estado.resumen = { data: undefined, isLoading: true, semanaActual: null }
     montar()
     await screen.findByRole('heading', { level: 1 })
-    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
-  })
-
-  it('con conexión pero sin datos del servidor, las tarjetas igual se pintan, en cero', async () => {
-    estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
-    montar()
-    expect(await screen.findByText('Mis alumnos')).toBeInTheDocument()
-    expect(screen.getByText('0 / 0')).toBeInTheDocument()
+    expect(screen.queryByText('Reporte de esta semana')).not.toBeInTheDocument()
   })
 
   /**
-   * `useResumenDocente` no trae "Mis alumnos" contra el backend real (siempre
-   * `null`), pero `GET /inicio/docente` sí lo sabe —es el mismo total que
-   * "Mis asignaciones" ya mostraba correctamente—, así que esta tarjeta no
-   * tiene por qué decir 0 cuando ese dato sí está disponible.
+   * N001 — Contra el backend real el resumen todavía no existe (siempre
+   * `null`). Antes las tarjetas se pintaban igual, en cero: "0 / 0" y
+   * "Pendientes de rúbrica 0" a un Docente con alumnos pendientes.
    */
-  it('"Mis alumnos" usa el total de GET /inicio/docente aunque el resumen no traiga nada', async () => {
+  it('con conexión pero sin datos del servidor no pinta tarjetas en cero (N001)', async () => {
     estado.resumen = { data: undefined, isLoading: false, semanaActual: null }
-    estado.inicioDocente = { totales: { cantidad_alumnos: 7 }, asignaciones: [], permisos_vigentes: [] }
     montar()
-    const etiqueta = await screen.findByText('Mis alumnos')
-    expect(await screen.findByText('7')).toBe(etiqueta.nextElementSibling)
+    await screen.findByRole('heading', { level: 1 })
+    expect(screen.queryByText('Reporte de esta semana')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pendientes de rúbrica')).not.toBeInTheDocument()
+    expect(screen.queryByText('0 / 0')).not.toBeInTheDocument()
   })
 
   /**
@@ -216,7 +206,7 @@ describe('Tarjetas del panel', () => {
     const aviso = await screen.findByRole('status')
     expect(aviso).toHaveTextContent(/No se pudo recuperar la información del servidor/)
     expect(aviso).toHaveTextContent(/puede estar desactualizado/)
-    expect(screen.getByText('48')).toBeInTheDocument()
+    expect(screen.getByText('30 / 48')).toBeInTheDocument()
   })
 
   it('D52: sin conexión y sin copia local, dice que no hay nada que mostrar', async () => {
@@ -226,7 +216,7 @@ describe('Tarjetas del panel', () => {
     montar()
 
     expect(await screen.findByText(/no existe información de tu avance disponible sin conexión/i)).toBeInTheDocument()
-    expect(screen.queryByText('Mis alumnos')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reporte de esta semana')).not.toBeInTheDocument()
 
     Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
   })

@@ -10,6 +10,9 @@ import useHabilitacion, { MOTIVO_LOCAL, SIN_HABILITACION_VERIFICABLE } from '../
 import { MOTIVO, TEXTO_MOTIVO } from '../../auth/habilitaciones'
 import { SIN_REFERENCIA_TEMPORAL } from '../../lib/relojServidor'
 import useActividadStore from '../../store/actividadStore'
+import useSessionStore from '../../store/sessionStore'
+import { ROLES } from '../../auth/roles'
+import { obtenerMisHabilitaciones } from '../../api/resources/habilitaciones'
 
 const PAQUETE = { generado_en: '2026-10-22T12:00:00Z', asignaciones: [], permisos: [], calendarios: [] }
 const INSTANTE = new Date('2026-10-22T15:00:00Z')
@@ -156,5 +159,29 @@ describe('useHabilitacion', () => {
       expect(result.current.permitida).toBe(false)
       expect(habilitacionPara).toHaveBeenLastCalledWith(expect.objectContaining({ habilitaciones: PAQUETE }))
     })
+  })
+})
+
+/**
+ * `GET /me/habilitaciones` es solo del Docente: al Supervisor el servidor le
+ * responde 403, y quedaba un error en la consola cada vez que abría Asistencias.
+ */
+describe('useHabilitacion según el rol', () => {
+  beforeEach(() => habilitacionPara.mockReturnValue({ permitida: false, motivo: MOTIVO.SIN_HABILITACION }))
+  afterEach(() => useSessionStore.setState({ usuario: null }))
+
+  it('al Supervisor no le pide el paquete del Docente', async () => {
+    obtenerMisHabilitaciones.mockClear()
+    useSessionStore.setState({ usuario: { id_usuario: 4, id_rol: ROLES.JEFA } })
+    usar({ ...GRUPO, exigeActividad: false })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(obtenerMisHabilitaciones).not.toHaveBeenCalled()
+  })
+
+  it('al Docente sí', async () => {
+    obtenerMisHabilitaciones.mockClear()
+    useSessionStore.setState({ usuario: { id_usuario: 7, id_rol: ROLES.PROFESOR } })
+    usar({ ...GRUPO, exigeActividad: false })
+    await waitFor(() => expect(obtenerMisHabilitaciones).toHaveBeenCalled())
   })
 })

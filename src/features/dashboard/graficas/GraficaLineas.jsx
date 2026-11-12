@@ -9,6 +9,7 @@
 // Los meses futuros tampoco tienen punto ni valor de cero.
 import { LINEA, MARCA, TINTA } from './paleta'
 import { esFuturo, sinInformacion } from '../estados'
+import { anchoDeTexto, factorDeLetra, letra } from './escala'
 
 const ANCHO = 680
 const ALTO = 240
@@ -57,8 +58,6 @@ export function topeRedondo(maximo) {
   return paso * 4
 }
 
-/** Las letras al doble en compacto; ver el porqué en `GraficaBarras`. */
-const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
 
 /** La etiqueta del primer y del último punto crece hacia dentro de la gráfica. */
 function anclaDeEtiqueta(indice, total) {
@@ -74,17 +73,23 @@ export default function GraficaLineas({
   color = MARCA,
   maximo,
   compacto = false,
+  anchoVisible = 0,
 }) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
   const tope = maximo ?? topeRedondo(Math.max(1, ...valores))
-  const util = ANCHO - IZQUIERDA - DERECHA
+  // Letras al tamaño que se lee en la caja real (ver `escala.js`); los márgenes
+  // crecen con ellas para que el valor del eje y el último mes no se corten.
+  const factor = factorDeLetra({ anchoBase: ANCHO, anchoVisible, compacto })
+  const izquierda = Math.max(IZQUIERDA, 12 + anchoDeTexto(Math.round(tope), 10 * factor))
+  const derecha = DERECHA * factor
+  const util = ANCHO - izquierda - derecha
   const alturaUtil = ALTO - ARRIBA - ABAJO
   const paso = datos.length > 1 ? util / (datos.length - 1) : 0
 
   const puntos = datos.map((dato, i) => ({
     ...dato,
     vacio: sinInformacion(dato, campo),
-    x: IZQUIERDA + paso * i + (datos.length === 1 ? util / 2 : 0),
+    x: izquierda + paso * i + (datos.length === 1 ? util / 2 : 0),
     y: ALTO - ABAJO - ((dato[campo] ?? 0) / tope) * alturaUtil,
   }))
 
@@ -101,8 +106,8 @@ export default function GraficaLineas({
         const y = ALTO - ABAJO - f * alturaUtil
         return (
           <g key={f}>
-            <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={y} y2={y} stroke={LINEA} />
-            <text x={IZQUIERDA - 8} y={y + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(compacto, 10)}>
+            <line x1={izquierda} x2={ANCHO - derecha} y1={y} y2={y} stroke={LINEA} />
+            <text x={izquierda - 8} y={y + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(factor, 10)}>
               {Math.round(tope * f)}
             </text>
           </g>
@@ -133,29 +138,29 @@ export default function GraficaLineas({
                 fillOpacity={p.estado === 'en_curso' || p.parcial ? 0.4 : 1}
                 stroke={color}
               />
-              <text x={p.x} y={p.y - 10} textAnchor={anclaDeEtiqueta(i, datos.length)} fill={TINTA.fuerte} fontSize={letra(compacto, 10)} fontWeight="600">
+              <text x={p.x} y={p.y - 10} textAnchor={anclaDeEtiqueta(i, datos.length)} fill={TINTA.fuerte} fontSize={letra(factor, 10)} fontWeight="600">
                 {p[campo]}
                 {sufijo}
               </text>
             </>
           )}
           {p.vacio && (
-            <text x={p.x} y={ALTO - ABAJO - 8} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
+            <text x={p.x} y={ALTO - ABAJO - 8} textAnchor="middle" fill={TINTA.suave} fontSize={letra(factor, 9)}>
               {esFuturo(p) ? 'Futuro' : 'Sin inf.'}
             </text>
           )}
-          <text x={p.x} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(compacto, 10)}>
+          <text x={p.x} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(factor, 10)}>
             {String(p.nombre ?? '').split(' ')[0]}
           </text>
           {(p.estado === 'en_curso' || p.parcial) && (
-            <text x={p.x} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
+            <text x={p.x} y={Math.min(ALTO - 1, ALTO - 24 + 12 * factor)} textAnchor="middle" fill={TINTA.suave} fontSize={letra(factor, 9)}>
               {p.parcial ? 'Parcial' : 'En curso'}
             </text>
           )}
         </g>
       ))}
 
-      <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={ALTO - ABAJO} y2={ALTO - ABAJO} stroke={TINTA.suave} />
+      <line x1={izquierda} x2={ANCHO - derecha} y1={ALTO - ABAJO} y2={ALTO - ABAJO} stroke={TINTA.suave} />
     </svg>
   )
 }

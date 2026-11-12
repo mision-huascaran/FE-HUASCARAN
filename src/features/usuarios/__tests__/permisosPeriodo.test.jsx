@@ -69,7 +69,7 @@ describe('Periodo académico en Permisos de corrección', () => {
 
     fireEvent.change(anio(), { target: { value: '' } })
     expect(periodo()).toBeDisabled()
-    expect(periodo()).toHaveDisplayValue('Primero selecciona un año escolar')
+    expect(periodo()).toHaveDisplayValue('Elige un año escolar')
 
     fireEvent.change(anio(), { target: { value: '2' } })
     await waitFor(() => expect(periodo()).toBeEnabled(), ESPERA)

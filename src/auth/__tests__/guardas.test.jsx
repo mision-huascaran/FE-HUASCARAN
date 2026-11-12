@@ -90,9 +90,9 @@ describe('guardas de rol (RNF-004)', () => {
           } else {
             expect(await screen.findByRole('heading', { name: titulo })).toBeInTheDocument()
           }
-          expect(screen.queryByText(/No tiene permisos/i)).not.toBeInTheDocument()
+          expect(screen.queryByText(/No tienes permisos/i)).not.toBeInTheDocument()
         } else {
-          expect(await screen.findByText(/No tiene permisos para acceder a esta sección/i)).toBeInTheDocument()
+          expect(await screen.findByText(/No tienes permisos para acceder a esta sección/i)).toBeInTheDocument()
           expect(screen.queryByRole('heading', { name: titulo })).not.toBeInTheDocument()
         }
       })

@@ -148,12 +148,13 @@ export default function ProgramacionDeClases({ colegio }) {
     <div className="flex flex-col gap-5">
       <FilterBar>
         <Select
+          ancho="corto"
           label="Año escolar"
           value={filtros.idAnioEscolar}
           onChange={cambiarFiltro('idAnioEscolar')}
           options={anios.map((a) => ({ value: a.id, label: a.nombre }))}
         />
-        <Select label="Mes" value={filtros.mes} onChange={cambiarFiltro('mes')} options={MESES} />
+        <Select ancho="corto" label="Mes" value={filtros.mes} onChange={cambiarFiltro('mes')} options={MESES} />
         <Select
           label="Grado"
           value={filtros.idGrado}
@@ -173,6 +174,7 @@ export default function ProgramacionDeClases({ colegio }) {
           pendienteDe={!filtros.idGrado && 'grado'}
         />
         <Select
+          ancho="largo"
           label="Subprograma"
           value={filtros.idPrograma}
           placeholder="Todos"

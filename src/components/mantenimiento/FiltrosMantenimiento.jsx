@@ -82,7 +82,7 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
   return (
     <BarraDeFiltros onFiltrar={aplicar} onLimpiar={limpiar}>
       {filtros.map((filtro) => (
-        <CeldaFiltro key={filtro.nombre}>
+        <CeldaFiltro key={filtro.nombre} ancho={filtro.ancho}>
           {filtro.tipo === 'busqueda' ? (
             <Input
               label={filtro.etiqueta}
@@ -103,7 +103,7 @@ export default function FiltrosMantenimiento({ filtros = [], valores = {}, onCam
         </CeldaFiltro>
       ))}
 
-      <CeldaFiltro>
+      <CeldaFiltro ancho="corto">
         <Select
           label="Estado"
           value={borrador.estado ?? 'activo'}

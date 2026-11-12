@@ -150,7 +150,7 @@ export default function LoginPage() {
             <output className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                Su sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
+                Tu sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
                 hubieran enviado siguen guardados y se sincronizarán al volver a entrar.
               </span>
             </output>

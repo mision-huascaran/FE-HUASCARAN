@@ -4,7 +4,7 @@
 // estado y deja auditoría (D5 — se descarta "Eliminar" de todas las secciones).
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Eye } from 'lucide-react'
+import { CalendarClock, CalendarDays } from 'lucide-react'
 import Mantenimiento from '../../components/mantenimiento/Mantenimiento'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -32,8 +32,17 @@ import { comoGradosConDia, sinDiaDeClase } from '../../lib/gradosColegio'
 
 
 
-/** El texto de ayuda del ojo, tal como lo nombra CU013. */
-const VER_DETALLE = 'Ver detalle'
+/**
+ * N004 — El botón dice A DÓNDE va, como «Otorgar permisos» en Usuarios.
+ *
+ * CU013 lo llama "Ver detalle" y le daba el ojo, pero en Usuarios y Alumnos el
+ * ojo es "Visualizar" (la ficha del registro): el mismo ícono significaba dos
+ * cosas según el módulo, y en cada fila de Colegios había dos botones de "ver"
+ * —el ojo y una hoja— sin pista de cuál abría qué. Lo que abre es la
+ * Programación de clases, así que se llama así, y el ojo vuelve a ser la ficha
+ * en todos los módulos.
+ */
+const PROGRAMACION = 'Programación de clases'
 
 export default function MantenimientoColegios() {
   const toast = useToast()
@@ -204,6 +213,7 @@ export default function MantenimientoColegios() {
       }
       entidad="colegio"
       titulo="Colegios"
+      subtitulo="Registra los colegios del programa y revisa su programación de clases y su calendario académico."
       consulta={consulta}
       campos={campos}
       valoresFiltro={filtros}
@@ -222,11 +232,12 @@ export default function MantenimientoColegios() {
         return c && { ...c, programas: (c.programas ?? []).map((p) => String(p.id_programa)) }
       }}
       /*
-       * D50 — "Ver detalle" (el ojo) abre la vista interna del colegio con su
-       * Programación de clases. CU013 fija el orden de los controles de fila:
-       * Ver detalle, Editar, Estado.
+       * D50 — El primer botón de la fila abre la vista interna del colegio con
+       * su Programación de clases (el "Ver detalle" de CU013; ver PROGRAMACION
+       * arriba). CU013 fija el orden de los controles de fila: ese, Editar,
+       * Estado.
        */
-      verDetalle={{ abrir: setColegioAbierto, icono: Eye, etiqueta: VER_DETALLE }}
+      verDetalle={{ abrir: setColegioAbierto, icono: CalendarClock, etiqueta: PROGRAMACION }}
       onGuardar={(valores, popup) => guardado.mutateAsync({ valores, popup })}
       onCambiarEstado={(colegio, activo) => estado.mutate({ colegio, activo })}
       /*

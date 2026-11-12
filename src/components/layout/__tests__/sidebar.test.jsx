@@ -12,6 +12,8 @@ import Sidebar from '../Sidebar'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
 
+const NOMBRE = 'Ana Lucía Bustamante'
+
 function montar(idRol = ROLES.SUPERVISOR) {
   useSessionStore.setState({
     token: 'mock.4.2026',
@@ -19,7 +21,7 @@ function montar(idRol = ROLES.SUPERVISOR) {
       id_usuario: 4,
       id_rol: idRol,
       id_docente: idRol === ROLES.DOCENTE ? 1 : null,
-      nombre_completo: 'Ana Lucía Bustamante',
+      nombre_completo: NOMBRE,
       correo: 'jefatura@sicedu.test',
     },
     cargando: false,
@@ -40,8 +42,19 @@ function montar(idRol = ROLES.SUPERVISOR) {
 describe('Sidebar', () => {
   it('muestra el nombre y el rol de quien tiene la sesión', () => {
     montar()
-    expect(screen.getByText('Ana Lucía Bustamante')).toBeInTheDocument()
+    expect(screen.getByText(NOMBRE)).toBeInTheDocument()
     expect(screen.getByText('Supervisor')).toBeInTheDocument()
+  })
+
+  it('el nombre largo se corta, pero al pasar el mouse se lee entero (N012)', () => {
+    montar()
+    expect(screen.getByText(NOMBRE)).toHaveAttribute('title', NOMBRE)
+  })
+
+  it('las secciones del menú no se cortan con «…» (N012)', () => {
+    montar()
+    const etiqueta = screen.getByText('Seguimiento de Lectura')
+    expect(etiqueta.className).not.toMatch(/\btruncate\b/)
   })
 
   it('el correo y el cambio de contraseña viven en el menú, no a la vista', () => {

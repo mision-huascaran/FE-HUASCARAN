@@ -43,6 +43,19 @@ describe('Colegios (CU013)', () => {
   })
 
   /**
+   * N004 — Cada fila tenía dos botones de "ver" (un ojo y una hoja) sin pista
+   * de cuál abría qué, y el ojo significaba otra cosa que en Usuarios.
+   */
+  it('el botón de la fila dice que abre la Programación de clases, y el ojo es la ficha', async () => {
+    montar()
+    const [programacion] = await screen.findAllByRole('button', { name: /^Programación de clases de / }, ESPERA)
+    expect(programacion).toHaveTextContent('Programación de clases')
+    expect(screen.queryByRole('button', { name: /^Ver detalle/ })).not.toBeInTheDocument()
+    const [ficha] = screen.getAllByRole('button', { name: /^Visualizar / })
+    expect(ficha.querySelector('svg')).toHaveClass('lucide-eye')
+  })
+
+  /**
    * D61 y D70 — CP-COL-04, CP-CAL-01. Sin conexión la pantalla entera se
    * cambiaba por "Requiere conexión": no se veía la copia y no había forma
    * de llegar al Calendario académico, que sí se consulta sin conexión.

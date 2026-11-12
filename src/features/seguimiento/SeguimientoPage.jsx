@@ -166,6 +166,9 @@ export default function SeguimientoPage() {
             />
           </CeldaFiltro>
         </BarraDeFiltros>
+      </Card>
+
+      <Card padded={false}>
 
         {consulta.isError ? (
           <EmptyState title="No se pudo cargar el seguimiento" description={mensajeDeError(consulta.error)} />
@@ -180,7 +183,7 @@ export default function SeguimientoPage() {
              * dispositivo no ha comunicado todavía no aparece en ninguna fila.
              */
             footNote={AVISO_SINCRONIZACION}
-            empty={<EmptyState icon={Users} title="Sin docentes que mostrar" description="Pruebe a quitar algún filtro." />}
+            empty={<EmptyState icon={Users} title="Sin docentes que mostrar" description="Prueba a quitar algún filtro." />}
             columns={[
               {
                 key: 'nombre',
@@ -241,9 +244,10 @@ export default function SeguimientoPage() {
               },
               {
                 key: 'acciones',
-                header: '',
+                header: 'Acciones',
+                align: 'center',
                 render: (d) => (
-                  <Button size="sm" variant="ghost" iconLeft={Eye} onClick={() => setDocente(d)}>
+                  <Button size="sm" variant="ghost" iconLeft={Eye} className="whitespace-nowrap" onClick={() => setDocente(d)}>
                     Ver detalle
                   </Button>
                 ),

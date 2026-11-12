@@ -178,6 +178,8 @@ export default function PopupMantenimiento({
   genero = 'm',
   puedeVerAuditoria = false,
   cargarAuditoria,
+  // Una línea más bajo la de los obligatorios, según el modo (D012).
+  notaFormulario = null,
   onGuardar,
   onCerrar,
 }) {
@@ -354,6 +356,7 @@ export default function PopupMantenimiento({
         {camposVisibles.some((campo) => campo.requerido) && (
           <p className="mb-4 text-xs text-ink-500">
             Los campos marcados con <span className="font-semibold text-danger-600">*</span> son obligatorios.
+            {notaFormulario?.(modo) && <span className="mt-1 block">{notaFormulario(modo)}</span>}
           </p>
         )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

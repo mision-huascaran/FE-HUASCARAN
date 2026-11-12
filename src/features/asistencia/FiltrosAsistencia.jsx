@@ -39,6 +39,7 @@ export default function FiltrosAsistencia({
       {/* El Supervisor ve la asistencia de todos, así que elige de quién. */}
       {eligeDocente && (
         <Select
+          ancho="largo"
           label="Docente"
           value={filtros.idDocente ?? ''}
           placeholder="Todos"
@@ -48,6 +49,7 @@ export default function FiltrosAsistencia({
         />
       )}
       <Select
+        ancho="largo"
         label="Colegio"
         value={filtros.idColegio}
         placeholder={placeholderColegio}
@@ -74,6 +76,7 @@ export default function FiltrosAsistencia({
           marcado. Por eso su valor por defecto es "Todos": una clase reúne a
           los alumnos de los dos subprogramas que haya en esa aula. */}
       <Select
+        ancho="largo"
         label="Subprograma"
         placeholder="Todos"
         vacioElegible
@@ -83,6 +86,7 @@ export default function FiltrosAsistencia({
         options={opciones(programas, 'id_programa')}
       />
       <Input
+        ancho="corto"
         label="Fecha"
         type="date"
         max={hoy()}

@@ -66,7 +66,9 @@ describe('Select', () => {
     const select = screen.getByLabelText('Grado')
 
     expect(select).toBeDisabled()
-    expect(select).toHaveDisplayValue('Primero selecciona un colegio')
+    expect(select).toHaveDisplayValue('Elige un colegio')
+    // Corto para que quepa en la celda angosta; la frase entera, al pasar el mouse.
+    expect(select).toHaveAttribute('title', 'Primero selecciona un colegio')
     expect(within(select).getAllByRole('option')).toHaveLength(1)
   })
 
@@ -74,7 +76,7 @@ describe('Select', () => {
     const { rerender } = render(
       <Select label="Sección" value="" placeholder="Selecciona" pendienteDe="grado" onChange={() => {}} options={[]} />,
     )
-    expect(screen.getByLabelText('Sección')).toHaveDisplayValue('Primero selecciona un grado')
+    expect(screen.getByLabelText('Sección')).toHaveDisplayValue('Elige un grado')
 
     rerender(<Select label="Sección" value="" placeholder="Selecciona" pendienteDe={false} onChange={() => {}} options={GRADOS} />)
     const select = screen.getByLabelText('Sección')

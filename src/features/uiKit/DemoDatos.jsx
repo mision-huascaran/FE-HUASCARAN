@@ -78,8 +78,8 @@ export default function DemoDatos({ setModal, setDrawer }) {
         <Card title="Estado vacío" padded={false}>
           <EmptyState
             icon={Lock}
-            title="No tiene permisos para acceder a esta sección"
-            description="Ingresó con el rol Profesor. Vuelva a su panel para continuar."
+            title="No tienes permisos para acceder a esta sección"
+            description="Ingresaste con el rol Docente. Vuelve a tu inicio para continuar."
             action={<Button variant="primary">Volver al inicio</Button>}
           />
         </Card>

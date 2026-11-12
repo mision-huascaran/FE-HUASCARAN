@@ -312,6 +312,9 @@ export default function PermisosDeCorreccion({ docente, colegios = [] }) {
             />
           </CeldaFiltro>
         </BarraDeFiltros>
+      </Card>
+
+      <Card padded={false}>
 
         {consulta.isError ? (
           <EmptyState title="No se pudieron cargar los permisos" description={mensajeDeError(consulta.error)} />

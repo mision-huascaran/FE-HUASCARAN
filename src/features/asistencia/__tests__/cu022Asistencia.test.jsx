@@ -334,8 +334,8 @@ describe('Asistencia (CU022)', () => {
 
     const grado = await screen.findByLabelText('Grado', {}, ESPERA)
     expect(grado).toBeDisabled()
-    expect(grado).toHaveDisplayValue('Primero selecciona un colegio')
-    expect(screen.getByLabelText('Sección')).toHaveDisplayValue('Primero selecciona un grado')
+    expect(grado).toHaveDisplayValue('Elige un colegio')
+    expect(screen.getByLabelText('Sección')).toHaveDisplayValue('Elige un grado')
 
     // Al elegir el colegio, el Grado se habilita.
     await elegirPrimerColegio(ESPERA)
