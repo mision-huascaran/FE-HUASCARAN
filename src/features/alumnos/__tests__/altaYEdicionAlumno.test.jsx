@@ -135,6 +135,26 @@ describe('Alumnos — guardar desde el popup', () => {
     )
   })
 
+  const SOLO_LETRAS = 'Usa solo letras, espacios, apóstrofo y guion.'
+  it.each([
+    ['300 caracteres sin espacios', 'a'.repeat(300), 'Tiene 300 caracteres; el máximo es 60.'],
+    ['solo espacios', '     ', 'No puede tener solo espacios.'],
+    ['símbolos', '<b>Rosa</b>', SOLO_LETRAS],
+    ['una fórmula', '+SUM(1,1)', SOLO_LETRAS],
+  ])('"Nuevo alumno" no guarda un nombre con %s y dice por qué', async (_caso, nombre, mensaje) => {
+    useActividadStore.getState().iniciar({ idDocente: 1 })
+    montar(ROLES.DOCENTE)
+    fireEvent.click(await screen.findByRole('button', { name: /^agregar$/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+
+    fireEvent.change(within(dialogo).getByLabelText(/^Nombres/), { target: { value: nombre } })
+    fireEvent.change(within(dialogo).getByLabelText(/^Apellidos/), { target: { value: 'Quispe Ramos' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Guardar' }))
+
+    expect(await within(dialogo).findByText(mensaje, {}, ESPERA)).toBeInTheDocument()
+    expect(crear).not.toHaveBeenCalled()
+  })
+
   /**
    * D65 — Un alumno ACTIVO al que le falta el inicio de su pertenencia.
    *

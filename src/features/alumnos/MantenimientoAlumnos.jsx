@@ -43,6 +43,7 @@ import useSessionStore from '../../store/sessionStore'
 import { alcanceDe } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
 import NombreLargo from '../../components/ui/NombreLargo'
+import { LARGO_MAXIMO_NOMBRE, motivoNombreInvalido } from '../../lib/nombrePersona'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -243,8 +244,13 @@ export default function MantenimientoAlumnos() {
    */
   const campos = useMemo(
     () => [
-      { nombre: 'nombres', etiqueta: 'Nombres', requerido: true },
-      { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true },
+      /**
+       * Letras, espacios, apóstrofo y guion, hasta 60 caracteres. El backend
+       * solo exige que no estén vacíos: sin esto se guardaban nombres de
+       * 10 000 caracteres o con "<script>" (ver lib/nombrePersona.js).
+       */
+      { nombre: 'nombres', etiqueta: 'Nombres', requerido: true, maximo: LARGO_MAXIMO_NOMBRE, validar: motivoNombreInvalido },
+      { nombre: 'apellidos', etiqueta: 'Apellidos', requerido: true, maximo: LARGO_MAXIMO_NOMBRE, validar: motivoNombreInvalido },
       /**
        * DNI opcional (semana 14): 8 dígitos exactos cuando se informa, único
        * entre alumnos (el backend lo rechaza con 409 `dni_duplicado`, que
