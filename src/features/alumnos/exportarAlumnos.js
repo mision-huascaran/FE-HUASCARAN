@@ -8,8 +8,13 @@
 import * as XLSX from 'xlsx'
 import { etiquetaDe } from '../../lib/format'
 import { hoy } from '../../lib/relojServidor'
+import { neutralizarCelda } from '../../lib/nombrePersona'
 
-const filaDe = (a) => ({
+/**
+ * Cada texto sale neutralizado: un nombre importado como "=HYPERLINK(...)" o
+ * "+SUM(1,1)" no se ejecuta al abrir el archivo en Excel (`neutralizarCelda`).
+ */
+const filaDe = (a) => neutralizarFila({
   Alumno: a.nombre,
   DNI: etiquetaDe(a.dni),
   Colegio: etiquetaDe(a.colegio),
@@ -19,6 +24,10 @@ const filaDe = (a) => ({
   Pertenencia: a.pertenencia_pendiente ? 'Pendiente' : 'Definida',
   Estado: a.activo === false ? 'Inactivo' : 'Activo',
 })
+
+function neutralizarFila(fila) {
+  return Object.fromEntries(Object.entries(fila).map(([columna, valor]) => [columna, neutralizarCelda(valor)]))
+}
 
 export function exportarAlumnos(alumnos) {
   const hoja = XLSX.utils.json_to_sheet(alumnos.map(filaDe))

@@ -14,6 +14,7 @@
 import Select from '../../components/ui/Select'
 import { ESTADO_RUBRICA, comoNota, nivelesDe } from '../../api/resources/rubricaMensual'
 import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
+import NombreLargo from '../../components/ui/NombreLargo'
 
 const TONO = {
   success: 'bg-success-100 text-success-600',
@@ -39,7 +40,7 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
   return (
     <tr className="border-t border-line">
       <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
-        <span className="font-medium text-ink-900">{fila.nombre}</span>
+        <NombreLargo className="max-w-[18rem] font-medium text-ink-900">{fila.nombre}</NombreLargo>
         {fila.inactivo && (
           <span
             title="Hoy está inactivo, pero corresponde evaluarlo en este mes"
