@@ -42,6 +42,7 @@ import usePrecarga from '../../hooks/usePrecarga'
 import useSessionStore from '../../store/sessionStore'
 import { alcanceDe } from '../../auth/permisos'
 import { ROLES } from '../../auth/roles'
+import NombreLargo from '../../components/ui/NombreLargo'
 
 const SIEMPRE = { staleTime: Infinity, gcTime: Infinity }
 
@@ -589,7 +590,7 @@ export default function MantenimientoAlumnos() {
                   className="font-semibold text-brand-700 hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {a.nombre}
+                  <NombreLargo className="max-w-[18rem]">{a.nombre}</NombreLargo>
                 </Link>
                 {/* Semana 14: el que todavía no tiene ningún intervalo de
                     pertenencia, para que se note sin tener que abrirlo. */}
