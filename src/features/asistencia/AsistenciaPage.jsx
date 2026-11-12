@@ -47,7 +47,7 @@ import ListaAsistencia from './ListaAsistencia'
 import ModalObservacion from './ModalObservacion'
 import { marcadorDeColegio, debeElegirColegio } from '../../hooks/useFiltrosDeGrupo'
 import useHabilitacion from '../../hooks/useHabilitacion'
-import { consultaDetalleColegio } from '../../hooks/consultaColegio'
+import { colegioInaccesible, consultaDetalleColegio } from '../../hooks/consultaColegio'
 import { MODULOS } from '../../auth/habilitaciones'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
@@ -185,7 +185,15 @@ export default function AsistenciaPage() {
 
   // El colegio dice qué grados ofrece y con qué subprogramas, los dos con id.
   // D110 — Se vuelve a pedir al abrir la pantalla: trae las secciones nuevas.
-  const { data: colegio } = useQuery(consultaDetalleColegio(filtros.idColegio))
+  const { data: colegio, error: errorColegio } = useQuery(consultaDetalleColegio(filtros.idColegio))
+
+  // Bug UAT #820: el mismo caso que `useFiltrosDeGrupo`. Un colegio guardado
+  // que ya no es suyo (403/404) se descarta para que se elija uno válido.
+  useEffect(() => {
+    if (!filtros.idColegio || !colegioInaccesible(errorColegio)) return
+    if (colegios.some((c) => String(c.id_colegio) === String(filtros.idColegio))) return
+    cambiar('colegio', '')
+  }, [errorColegio, filtros.idColegio, colegios, cambiar])
 
   const asignacion = useMemo(
     () => asignaciones.find((a) => String(a.id_colegio) === String(filtros.idColegio)),

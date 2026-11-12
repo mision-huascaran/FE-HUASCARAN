@@ -1354,3 +1354,17 @@ que esa tanda dejaba: un alumno importado ya se puede completar desde
   "Pertenencia pendiente" de sus tags no se agregó ahí, solo en la tabla de
   CU014. Si hace falta, es el mismo patrón.
 
+## UAT #820 · Grado vacío en Rúbrica y Registro de Vuelo — RESUELTO (Paris)
+
+Franco reportó en OpenProject que, con cuenta Docente, el filtro de Grado salía vacío y sin poder elegir nada en
+Rúbrica y Registro de Vuelo. Paris lo diagnosticó: era del front, no del backend —`GET /me/asignaciones` y
+`GET /colegios/{id}` respondían bien—. La causa y el parche (que Paris mismo escribió y probó, 1200 tests en
+verde) están detallados en la sección 9 de `docs/plan-semana12-front.md`. En resumen: un colegio guardado en
+`localStorage` (D105) que dejó de estar al alcance del Docente nunca se reemplazaba porque el efecto que
+autoelige un colegio válido solo actuaba con el campo vacío, no con un colegio inválido puesto. `AsistenciaPage.jsx`
+tenía el mismo hueco, aunque no se había reportado.
+
+Del mismo ticket #820: el bug 1 (Importar nómina) era el backend de UAT desactualizado, lo resuelve Paris con su
+propio pase. El bug 3 (filtro de colegios del Directivo) no se pudo reproducir; queda pendiente de más información
+de Franco.
+
