@@ -119,6 +119,12 @@ describe('DataTable — orden (D008)', () => {
     expect(nombres()).toEqual(['Julio', 'Rosa', 'Ana'])
   })
 
+  it('la cabecera ordenable va en mayúsculas como las demás (N003)', () => {
+    // El reset de Tailwind quita `uppercase` a los botones; el botón lo repite.
+    render(<DataTable columns={columnas} rows={filas} />)
+    expect(cabecera('Estudiante').className).toMatch(/\buppercase\b/)
+  })
+
   it('la cabecera dice qué hace el próximo clic', () => {
     render(<DataTable columns={columnas} rows={filas} />)
     expect(cabecera('Estudiante')).toHaveAttribute('title', 'Ordenar por estudiante')

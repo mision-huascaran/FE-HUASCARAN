@@ -195,7 +195,10 @@ export default function DataTable({
                         onClick={() => alternarOrden(col)}
                         title={tituloDeOrden(activa, orden.dir, col.header)}
                         className={cn(
-                          'group inline-flex items-center gap-1 rounded transition-colors hover:text-ink-900',
+                          // `uppercase` otra vez: el reset de Tailwind pone `text-transform: none`
+                          // en los botones, y sin esto las columnas ordenables salían en
+                          // "Nombre completo" junto a "DNI" y "ACCIONES" (N003).
+                          'group inline-flex items-center gap-1 rounded uppercase transition-colors hover:text-ink-900',
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
                           activa && 'text-brand-700',
                         )}
