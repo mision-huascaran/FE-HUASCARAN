@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { LARGO_MAXIMO_NOMBRE, motivoNombreInvalido, neutralizarCelda } from '../nombrePersona'
 
 describe('motivoNombreInvalido', () => {
-  it.each(['Rosa', 'José María', 'Ñahui Quispe', 'Huamán-Villar', "O'Higgins", 'D’Alessandro', 'Müller', 'Ana  Luz '])(
+  it.each(['Rosa', 'José María', 'Ñahui Quispe', 'Huamán-Villar', "O'Higgins", 'D’Alessandro', 'Müller', 'Ana  Luz ', 'Ana2', 'Luis 3ro'])(
     'acepta «%s»',
     (nombre) => expect(motivoNombreInvalido(nombre)).toBeNull(),
   )
@@ -25,9 +25,9 @@ describe('motivoNombreInvalido', () => {
     expect(motivoNombreInvalido('a'.repeat(LARGO_MAXIMO_NOMBRE))).toBeNull()
   })
 
-  it.each(['<script>', 'Ana>', 'Ana=Luz', 'Ana;', '{Ana}', 'Ana$', 'ana@correo', 'Ana2', 'Ana, Luz', '=SUM(1)', '+SUM(1,1)', '@Ana'])(
+  it.each(['<script>', 'Ana>', 'Ana=Luz', 'Ana;', '{Ana}', 'Ana$', 'ana@correo', 'Ana, Luz', '=SUM(1)', '+SUM(1,1)', '@Ana', 'Ana (2)'])(
     'rechaza símbolos: «%s»',
-    (nombre) => expect(motivoNombreInvalido(nombre)).toBe('Usa solo letras, espacios, apóstrofo y guion.'),
+    (nombre) => expect(motivoNombreInvalido(nombre)).toBe('Usa solo letras, números, espacios, apóstrofo y guion.'),
   )
 
   it.each(['-Ana', "'Ana", 'Ana-'])('rechaza que empiece o termine con guion o apóstrofo: «%s»', (nombre) => {

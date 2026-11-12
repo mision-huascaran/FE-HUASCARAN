@@ -11,9 +11,9 @@ const DIALOGO_BAJA = 'Inactivar alumno'
 
 /**
  * Una marca única (p. ej. `Date.now()`) escrita solo con letras: 0→a … 9→j.
- * El formulario de Alumnos acepta solo letras, espacios, apóstrofo y guion
- * (ver src/lib/nombrePersona.js), así que un nombre de prueba no puede llevar
- * dígitos.
+ * Los nombres de prueba se quedan sin dígitos aunque el formulario ya los
+ * acepte (ver src/lib/nombrePersona.js): así la marca no se confunde con
+ * un DNI en las búsquedas.
  */
 export const marcaEnLetras = (marca) => String(marca).replace(/\d/g, (d) => 'abcdefghij'[Number(d)])
 
