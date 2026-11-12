@@ -33,6 +33,14 @@ export const MENSAJE = {
   temporalExpirada: "Tu contraseña temporal ha expirado. Usa '¿Olvidaste tu contraseña?' para generar una nueva.",
 }
 
+/**
+ * Zod 4 compila los objetos con `new Function` y, para saber si puede, lo
+ * prueba al validar. La CSP no permite `eval` (script-src sin 'unsafe-eval'),
+ * así que esa prueba disparaba una violación en cada intento de login (F10).
+ * Sin JIT valida igual, con el intérprete: para dos campos no hay diferencia.
+ */
+z.config({ jitless: true })
+
 const esquema = z.object({
   correo: z.string().min(1, 'Ingresa tu correo').email('Ingresa un correo válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),

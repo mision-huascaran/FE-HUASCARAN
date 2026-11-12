@@ -11,6 +11,9 @@ import { ToastProvider } from '../../../components/ui'
 import AuthProvider from '../../../auth/AuthProvider'
 import useSessionStore from '../../../store/sessionStore'
 import { CLAVE_DEMO, USUARIOS } from '../../../api/mock/db'
+import { z } from 'zod'
+// Carga el módulo del login: ahí se configura zod (`jitless`).
+import '../LoginPage'
 
 const DOCENTE = USUARIOS.find((u) => u.id_rol === 1)
 
@@ -42,6 +45,21 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Ingresa un correo válido')).toBeInTheDocument()
     expect(screen.getByText('La contraseña debe tener al menos 8 caracteres')).toBeInTheDocument()
+  })
+
+  it('zod valida sin JIT: la CSP no permite eval (F10)', () => {
+    renderLogin()
+    expect(z.config().jitless).toBe(true)
+  })
+
+  it('con el correo vacío pide el correo, no un correo válido (zod 4)', async () => {
+    // El correo vacío incumple dos reglas (min y email): se muestra la primera.
+    renderLogin()
+    await userEvent.type(screen.getByLabelText(/Contraseña/), 'claveclave')
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }))
+
+    expect(await screen.findByText('Ingresa tu correo')).toBeInTheDocument()
+    expect(screen.queryByText('Ingresa un correo válido')).not.toBeInTheDocument()
   })
 
   it('ante un 401 no revela cuál de los dos campos falló', async () => {
