@@ -99,7 +99,7 @@ export default function DetalleLibrosIncompletos({ filtros, scope, contexto, onV
             },
             {
               key: 'acciones',
-              header: '',
+              header: 'Acciones',
               render: (i) =>
                 i.motivo === 'filas_pendientes' ? (
                   <Link to={enlaceDeFila(i)} className="text-xs font-semibold text-brand-700 hover:underline">

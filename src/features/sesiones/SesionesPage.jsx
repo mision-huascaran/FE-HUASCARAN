@@ -13,7 +13,7 @@
 //     sesión puede estar Finalizada y a la vez Pendiente de sincronizar.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { History, WifiOff } from 'lucide-react'
+import { Eye, History, WifiOff } from 'lucide-react'
 import CeldaCierre from '../../components/actividades/CeldaCierre'
 import CeldaFin from '../../components/actividades/CeldaFin'
 import Badge from '../../components/ui/Badge'
@@ -52,6 +52,9 @@ const CIERRES = [
 ]
 
 const TONO_SINCRONIZACION = { sincronizada: 'success', pendiente: 'warning', error: 'danger' }
+
+/** Encabezado que puede partirse en dos líneas (el de DataTable no se parte). */
+const ENCABEZADO_LARGO = '!whitespace-normal'
 
 /**
  * Segundos a "1 h 25 min", que es como se lee una jornada.
@@ -170,13 +173,25 @@ export default function SesionesPage() {
               />
             }
             columns={[
+              /*
+               * Los encabezados largos pueden ir en dos líneas (ENCABEZADO_LARGO):
+               * con "Ver detalle" y la duración en una sola (N007), la tabla
+               * se salía de una pantalla de 1366 px por culpa de títulos como
+               * "Estado de sincronización" sobre celdas de una palabra.
+               */
               // dd/mm/aaaa, y en Inicio y Fin SOLO LA HORA, como pide CU017: la
               // fecha ya está en su columna (auditoría de UX #737, U15).
               { key: 'fecha', header: 'Fecha', render: (s) => formatearFecha(s.fecha) },
               { key: 'inicio', header: 'Hora de inicio', render: (s) => formatearHora(s.inicio) },
-              { key: 'fin', header: 'Hora de finalización', render: (s) => <CeldaFin sesion={s} /> },
-              { key: 'duracion_segundos', header: 'Duración', render: (s) => duracion(s.duracion_segundos) },
-              { key: 'cambios', header: 'Cantidad de cambios', align: 'center' },
+              { key: 'fin', header: 'Hora de finalización', headerClassName: ENCABEZADO_LARGO, render: (s) => <CeldaFin sesion={s} /> },
+              {
+                key: 'duracion_segundos',
+                header: 'Duración',
+                // "8 h 0 min" en una línea: partido en dos se lee como dos datos.
+                className: 'whitespace-nowrap',
+                render: (s) => duracion(s.duracion_segundos),
+              },
+              { key: 'cambios', header: 'Cantidad de cambios', headerClassName: ENCABEZADO_LARGO, align: 'center' },
               {
                 /*
                  * SIN columna "Estado de la actividad": la dice "Hora de
@@ -193,6 +208,7 @@ export default function SesionesPage() {
                  */
                 key: 'sincronizacion',
                 header: 'Estado de sincronización',
+                headerClassName: ENCABEZADO_LARGO,
                 render: (s) => (
                   <Badge tone={TONO_SINCRONIZACION[s.sincronizacion] ?? 'neutral'}>
                     {ETIQUETA_SINCRONIZACION[s.sincronizacion] ?? s.sincronizacion}
@@ -211,10 +227,20 @@ export default function SesionesPage() {
                 render: (s) => <CeldaCierre tipo={s.tipo_cierre} />,
               },
               {
+                // N007 — Igual que en Seguimiento, Usuarios y Colegios: columna
+                // "Acciones", ojo y en una sola línea.
                 key: 'acciones',
-                header: '',
+                header: 'Acciones',
+                align: 'center',
                 render: (s) => (
-                  <Button size="sm" variant="ghost" onClick={() => setAbierta(s)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    iconLeft={Eye}
+                    className="whitespace-nowrap"
+                    aria-label={`Ver detalle de la actividad del ${formatearFecha(s.fecha)} a las ${formatearHora(s.inicio)}`}
+                    onClick={() => setAbierta(s)}
+                  >
                     Ver detalle
                   </Button>
                 ),

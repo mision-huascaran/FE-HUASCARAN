@@ -244,9 +244,10 @@ export default function SeguimientoPage() {
               },
               {
                 key: 'acciones',
-                header: '',
+                header: 'Acciones',
+                align: 'center',
                 render: (d) => (
-                  <Button size="sm" variant="ghost" iconLeft={Eye} onClick={() => setDocente(d)}>
+                  <Button size="sm" variant="ghost" iconLeft={Eye} className="whitespace-nowrap" onClick={() => setDocente(d)}>
                     Ver detalle
                   </Button>
                 ),
