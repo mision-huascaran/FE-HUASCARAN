@@ -6,7 +6,7 @@
 // una fecha fija: el periodo y los días lectivos los decide el backend.
 //
 // Dos actividades, a propósito:
-//   · A (preparación): inactiva los alumnos «E2E-AS-» que hayan quedado y da de
+//   · A (preparación): inactiva los alumnos «Etoe-Asis-» que hayan quedado y da de
 //     alta 2 alumnos nuevos en ese grado. Un resto que el servidor no deja
 //     inactivar hoy (figura en la lista de una clase de hoy) queda anotado como
 //     pendiente: la prueba no depende de que el grupo esté vacío.
@@ -26,7 +26,7 @@ import {
   finalizarActividad,
   iniciarActividad,
 } from './support/actividad.js'
-import { crearAlumno, filtrarAlumnos, limpiarAlumnos } from './support/alumnos.js'
+import { crearAlumno, filtrarAlumnos, limpiarAlumnos, marcaEnLetras } from './support/alumnos.js'
 import {
   SUBPROGRAMA,
   contarGuardados,
@@ -40,7 +40,9 @@ import { guardarEstado } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { iniciarSesion, irPorMenu } from './support/sesion.js'
 
-const PREFIJO = 'E2E-AS-'
+// Solo letras y guion: el formulario de Alumnos no acepta dígitos en el nombre
+// (por eso ya no es «E2E-AS-»).
+const PREFIJO = 'Etoe-Asis-'
 const OBSERVACION = 'Llegó con justificación de la familia (E2E)'
 const MARCAR_TODOS = 'Marcar todos como presentes'
 const PRESIONADO = 'aria-pressed'
@@ -94,10 +96,10 @@ test('F8 · Jornada del Docente con Asistencias: marcar todos, una tardanza y un
   test.skip(!clase, 'Ningún lunes, martes ni miércoles del periodo vigente hasta hoy es lectivo, sin asistencia registrada ni anterior a otra clase de su grado con asistencia (CU022)')
   test.info().annotations.push({ type: 'clase', description: `${clase.fecha} · ${clase.grado} · ${SUBPROGRAMA}` })
 
-  const marca = Date.now()
+  const marca = marcaEnLetras(Date.now())
   const alumnos = [
-    { nombres: `${PREFIJO}${marca}-1`, apellidos: 'Asistencia' },
-    { nombres: `${PREFIJO}${marca}-2`, apellidos: 'Asistencia' },
+    { nombres: `${PREFIJO}${marca}-uno`, apellidos: 'Asistencia' },
+    { nombres: `${PREFIJO}${marca}-dos`, apellidos: 'Asistencia' },
   ].map((a) => ({ ...a, nombre: `${a.nombres} ${a.apellidos}` }))
   const [tarde, observado] = alumnos
 
