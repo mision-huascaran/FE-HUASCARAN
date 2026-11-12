@@ -136,6 +136,24 @@ describe('El bloque de cada colegio', () => {
     expect(within(segundo).getByRole('option', { name: 'I.E. Lejano' })).toBeInTheDocument()
   })
 
+  /**
+   * D80 dice que un colegio en el historial "no se vuelve a asignar al
+   * guardar. Para asignarlo otra vez, añádelo arriba." `disponibles()`
+   * excluía CUALQUIER colegio ya presente en `colegios` —vigente o
+   * historial—, así que ese "añádelo arriba" era falso: el desplegable
+   * nunca lo ofrecía de nuevo.
+   */
+  it('un colegio que solo quedó en el historial SÍ se puede volver a elegir', () => {
+    montar([
+      { id_colegio: '1', grados: [], inicio_asignacion: '', solo_historial: true },
+      { id_colegio: '', grados: [], inicio_asignacion: '' },
+    ])
+
+    expect(screen.getByText('Colegios con periodos ya terminados')).toBeInTheDocument()
+    const select = screen.getByRole('combobox')
+    expect(within(select).getByRole('option', { name: 'I.E. Amashca' })).toBeInTheDocument()
+  })
+
   it('cada bloque tiene su propio botón de quitar', () => {
     montar([
       { id_colegio: '1', grados: [], inicio_asignacion: '' },
