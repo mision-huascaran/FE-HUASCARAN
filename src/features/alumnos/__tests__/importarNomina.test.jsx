@@ -159,7 +159,7 @@ describe('Alumnos — plantilla y exportar', () => {
    */
   it('"Exportar" descarga los alumnos que la tabla tiene cargados, todos, no uno solo', async () => {
     montar(ROLES.SUPERVISOR)
-    await waitFor(() => expect(screen.getByText('Quispe, Juan')).toBeInTheDocument(), ESPERA)
+    expect(await screen.findByText('Quispe, Juan', {}, ESPERA)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^exportar$/i }))
 

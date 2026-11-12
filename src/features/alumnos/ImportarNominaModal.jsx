@@ -37,6 +37,13 @@ const textoDeExito = ({ importados, no_importadas: noImportadas }) =>
     ? `Importación completada. Alumnos importados: ${importados}. Filas no importadas: ${noImportadas}.`
     : `Importación completada. Alumnos importados: ${importados}.`
 
+/** El aspecto de la zona de soltar: deshabilitada, con un archivo encima o en reposo. */
+function claseDeZona(puedeElegir, arrastrando) {
+  if (!puedeElegir) return 'cursor-not-allowed border-line bg-surface-100'
+  if (arrastrando) return 'cursor-pointer border-brand-500 bg-brand-50'
+  return 'cursor-pointer border-line hover:border-brand-400 hover:bg-surface-50'
+}
+
 export default function ImportarNominaModal({ open, onClose, onImportado }) {
   const toast = useToast()
   const enLinea = useConexion()
@@ -219,45 +226,39 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
               abre el selector nativo del sistema operativo —`inputRef`—, no
               hay que simularlo.
             */}
-            <div
-              role="button"
-              tabIndex={puedeElegir ? 0 : -1}
+            {/*
+              Un <button> de verdad: Enter y Espacio lo activan solos. Sin el
+              atributo `disabled` a propósito: un botón deshabilitado no recibe
+              los eventos de arrastre, y un archivo soltado ahí sin conexión lo
+              abriría el navegador en la pestaña. Se bloquea con `puedeElegir`.
+              Dentro van <span> y no <p>, que no es válido en un botón.
+            */}
+            <button
+              type="button"
               aria-disabled={!puedeElegir}
               aria-label="Seleccionar archivo"
               onClick={() => puedeElegir && inputRef.current?.click()}
-              onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && puedeElegir) {
-                  e.preventDefault()
-                  inputRef.current?.click()
-                }
-              }}
               onDragEnter={alEntrarArrastre}
               onDragOver={alEntrarArrastre}
               onDragLeave={alSalirArrastre}
               onDrop={alSoltar}
-              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-                !puedeElegir
-                  ? 'cursor-not-allowed border-line bg-surface-100'
-                  : arrastrando
-                    ? 'cursor-pointer border-brand-500 bg-brand-50'
-                    : 'cursor-pointer border-line hover:border-brand-400 hover:bg-surface-50'
-              }`}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${claseDeZona(puedeElegir, arrastrando)}`}
             >
               {paso === 'cargando' ? (
                 <>
                   <Loader2 className="h-8 w-8 animate-spin text-brand-600" aria-hidden="true" />
-                  <p className="text-sm font-medium text-ink-700">Leyendo el archivo…</p>
+                  <span className="block text-sm font-medium text-ink-700">Leyendo el archivo…</span>
                 </>
               ) : (
                 <>
                   <FileSpreadsheet className="h-8 w-8 text-brand-600" aria-hidden="true" />
-                  <p className="text-sm font-medium text-ink-700">
+                  <span className="block text-sm font-medium text-ink-700">
                     Arrastra aquí tu archivo, o <span className="text-brand-700 underline">selecciónalo</span>
-                  </p>
-                  <p className="text-xs text-ink-400">Excel (.xlsx), hasta {MAXIMO_MB} MB y 3000 alumnos.</p>
+                  </span>
+                  <span className="block text-xs text-ink-400">Excel (.xlsx), hasta {MAXIMO_MB} MB y 3000 alumnos.</span>
                 </>
               )}
-            </div>
+            </button>
             {!enLinea && <p className="text-xs text-warning-600">Sin conexión. Conéctate a Internet para continuar con la importación.</p>}
           </>
         ) : (
