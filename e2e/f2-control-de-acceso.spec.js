@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { evidencia } from './support/evidencia.js'
 import { esApi, iniciarSesion, menu } from './support/sesion.js'
 
-const PROHIBIDO = 'No tiene permisos para acceder a esta sección'
+const PROHIBIDO = 'No tienes permisos para acceder a esta sección'
 
 /**
  * Espera la respuesta de cada llamada /api que hizo el documento ACTUAL. Las

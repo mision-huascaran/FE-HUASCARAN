@@ -47,8 +47,8 @@ export default class LimiteDeError extends Component {
         <AlertTriangle className="h-10 w-10 text-warning-600" aria-hidden="true" />
         <h2 className="text-lg font-semibold text-ink-900">No se pudo mostrar esta pantalla</h2>
         <p className="max-w-md text-sm text-ink-500">
-          Puede seguir usando el resto de la aplicación desde el menú. Si vuelve a ocurrir, avise
-          indicando en qué sección estaba.
+          Puedes seguir usando el resto de la aplicación desde el menú. Si vuelve a ocurrir, avisa
+          indicando en qué sección estabas.
         </p>
         {import.meta.env.DEV && (
           <pre className="mt-2 max-w-full overflow-auto rounded-lg bg-surface-100 p-3 text-left text-xs text-danger-600">

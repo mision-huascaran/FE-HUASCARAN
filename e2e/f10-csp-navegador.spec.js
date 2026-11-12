@@ -10,7 +10,7 @@ import { aterrizajeDe, cerrarSesion, iniciarSesion, irPorMenu } from './support/
 import { esperarDashboardDelDirectivo } from './support/dashboard.js'
 import { valorDeTarjeta } from './support/tarjetas.js'
 
-const PROHIBIDO = 'No tiene permisos para acceder a esta sección'
+const PROHIBIDO = 'No tienes permisos para acceder a esta sección'
 
 const titulo = (page, nombre) => page.getByRole('main').getByRole('heading', { name: nombre, level: 1 })
 

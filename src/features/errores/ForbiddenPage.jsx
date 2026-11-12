@@ -21,10 +21,10 @@ export default function ForbiddenPage() {
       <Card className="w-full max-w-md" padded={false}>
         <EmptyState
           icon={Lock}
-          title="No tiene permisos para acceder a esta sección"
+          title="No tienes permisos para acceder a esta sección"
           description={
             nombreRol
-              ? `Ingresó con el rol ${nombreRol}, que no tiene habilitada esta pantalla.`
+              ? `Ingresaste con el rol ${nombreRol}, que no tiene habilitada esta pantalla.`
               : 'Tu sesión no tiene un rol válido. Vuelve a iniciar sesión.'
           }
           action={

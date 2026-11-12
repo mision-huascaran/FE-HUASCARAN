@@ -166,7 +166,7 @@ export default function ResumenesAccion() {
 
       {asignaciones.length === 0 && (
         <p className="mt-4 text-sm text-ink-500">
-          No tiene asignaciones académicas vigentes en este periodo.
+          No tienes asignaciones académicas vigentes en este periodo.
         </p>
       )}
 

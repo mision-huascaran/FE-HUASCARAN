@@ -504,7 +504,7 @@ export default function MantenimientoAlumnos() {
             </Button>
           ) : null
         }
-        motivoSinNuevo={sinAsignaciones ? 'No tiene asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
+        motivoSinNuevo={sinAsignaciones ? 'No tienes asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
         valoresFiltro={filtros}
         onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
         cargarAuditoria={(id) => listarAuditoria('alumno', id)}

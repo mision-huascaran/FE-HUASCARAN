@@ -183,7 +183,7 @@ export default function SeguimientoPage() {
              * dispositivo no ha comunicado todavía no aparece en ninguna fila.
              */
             footNote={AVISO_SINCRONIZACION}
-            empty={<EmptyState icon={Users} title="Sin docentes que mostrar" description="Pruebe a quitar algún filtro." />}
+            empty={<EmptyState icon={Users} title="Sin docentes que mostrar" description="Prueba a quitar algún filtro." />}
             columns={[
               {
                 key: 'nombre',
