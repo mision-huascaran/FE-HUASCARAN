@@ -226,9 +226,9 @@ export default function Mantenimiento({
 
   const columnasConAcciones = useMemo(() => {
     /**
-     * Si el detalle de la sección ya es el OJO —Colegios, como pide CU013—,
-     * la ficha del popup lleva otro ícono: dos ojos seguidos que abren cosas
-     * distintas no se distinguen (U06).
+     * El ojo es la ficha del popup en todos los módulos (N004). Si alguna
+     * sección volviera a darle el ojo a su detalle, la ficha cambia de ícono:
+     * dos ojos seguidos que abren cosas distintas no se distinguen (U06).
      */
     const iconoFicha = verDetalle?.icono === Eye ? FileText : Eye
     const acciones = {
