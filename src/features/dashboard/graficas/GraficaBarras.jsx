@@ -7,6 +7,8 @@
 // lea como un mes olvidado.
 import { LINEA, MARCA, TINTA } from './paleta'
 import { esFuturo, sinInformacion } from '../estados'
+import { anchoDeTexto, factorDeLetra, letra } from './escala'
+import { topeRedondo } from './GraficaLineas'
 
 const ANCHO = 680
 const ALTO = 240
@@ -16,33 +18,38 @@ const ARRIBA = 16
 const ABAJO = 44
 
 /**
- * EN MÓVIL LAS LETRAS SE AGRANDAN, NO SE ENCOGE EL TEXTO.
- *
- * El SVG tiene ancho fijo y `viewBox`, así que al entrar en una pantalla de
- * 360 px se reduce a la mitad… y con él sus textos: un `fontSize="10"` acaba
- * leyéndose a 5 px. Antes eso se resolvía dejándole su ancho y desplazando la
- * gráfica de lado, que en un dashboard de cuatro tarjetas significa cuatro
- * desplazamientos laterales.
- *
- * Ahora, en compacto, las letras se dibujan al doble para que tras la
- * reducción se lean al tamaño de siempre. Va en el ATRIBUTO `fontSize` y no
- * en una clase de CSS a propósito: la descarga a PNG serializa el SVG suelto,
- * sin hoja de estilos, y lo que esté en clases se pierde.
+ * Las letras se dibujan al tamaño que, tras ajustar el SVG a su caja, se lee
+ * como el de siempre: ver `escala.js`.
  */
-const letra = (compacto, base) => String(compacto ? Math.round(base * 1.9) : base)
 
 /** Lo que se LEE sobre la barra: un decimal basta; el dato sigue completo en `aria-label`. */
 const etiquetaDeValor = (v) => (typeof v === 'number' && !Number.isInteger(v) ? Number(v.toFixed(1)) : v)
 
-export default function GraficaBarras({ datos = [], campo = 'cantidad', color = MARCA, sufijo = '', compacto = false }) {
+export default function GraficaBarras({
+  datos = [],
+  campo = 'cantidad',
+  color = MARCA,
+  sufijo = '',
+  compacto = false,
+  anchoVisible = 0,
+}) {
   const valores = datos.filter((d) => !sinInformacion(d, campo)).map((d) => d[campo])
-  const maximo = Math.max(1, ...valores)
-  const util = ANCHO - IZQUIERDA - DERECHA
+  /**
+   * El eje termina en un número redondo, como en `GraficaLineas` (U10): con el
+   * máximo tal cual, las marcas salían como 6510 / 4883 / 3255 / 1628.
+   */
+  const maximo = topeRedondo(Math.max(1, ...valores))
+  const factor = factorDeLetra({ anchoBase: ANCHO, anchoVisible, compacto })
+  // El margen izquierdo crece con la letra para que el valor del eje no se corte.
+  const izquierda = Math.max(IZQUIERDA, 12 + anchoDeTexto(Math.round(maximo), 10 * factor))
+  const util = ANCHO - izquierda - DERECHA
   const alturaUtil = ALTO - ARRIBA - ABAJO
   const paso = util / Math.max(1, datos.length)
   const anchoBarra = Math.min(42, paso * 0.6)
-  // Doce meses con la letra doble no caben enteros en un teléfono.
-  const abreviar = compacto && datos.length > 6
+  // Si el nombre más largo no cabe en el hueco de su barra, se abrevia a tres
+  // letras (y se omite el año): con letra grande, doce meses no caben enteros.
+  const nombreMasLargo = Math.max(0, ...datos.map((d) => String(d.nombre ?? '').split(' ')[0].length))
+  const abreviar = nombreMasLargo * 10 * factor * 0.58 > paso * 0.95
 
   const y = (valor) => ALTO - ABAJO - (valor / maximo) * alturaUtil
 
@@ -58,15 +65,15 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
       {/* Cuatro guías y su valor: sin eje, una barra no se puede leer. */}
       {[0, 0.25, 0.5, 0.75, 1].map((f) => (
         <g key={f}>
-          <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={y(maximo * f)} y2={y(maximo * f)} stroke={LINEA} />
-          <text x={IZQUIERDA - 8} y={y(maximo * f) + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(compacto, 10)}>
+          <line x1={izquierda} x2={ANCHO - DERECHA} y1={y(maximo * f)} y2={y(maximo * f)} stroke={LINEA} />
+          <text x={izquierda - 8} y={y(maximo * f) + 4} textAnchor="end" fill={TINTA.suave} fontSize={letra(factor, 10)}>
             {Math.round(maximo * f)}
           </text>
         </g>
       ))}
 
       {datos.map((dato, i) => {
-        const centro = IZQUIERDA + paso * i + paso / 2
+        const centro = izquierda + paso * i + paso / 2
         const vacio = sinInformacion(dato, campo)
         return (
           <g key={`${dato.nombre}-${i}`}>
@@ -87,7 +94,7 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
                   y={y(dato[campo]) - 5}
                   textAnchor="middle"
                   fill={TINTA.fuerte}
-                  fontSize={letra(compacto, 10)}
+                  fontSize={letra(factor, 10)}
                   fontWeight="600"
                 >
                   {etiquetaDeValor(dato[campo])}
@@ -97,16 +104,16 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
             )}
 
             {vacio && (
-              <text x={centro} y={ALTO - ABAJO - 6} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
+              <text x={centro} y={ALTO - ABAJO - 6} textAnchor="middle" fill={TINTA.suave} fontSize={letra(factor, 9)}>
                 {esFuturo(dato) ? 'Futuro' : 'Sin inf.'}
               </text>
             )}
 
-            <text x={centro} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(compacto, 10)}>
+            <text x={centro} y={ALTO - 24} textAnchor="middle" fill={TINTA.media} fontSize={letra(factor, 10)}>
               {abreviar ? String(dato.nombre ?? '').slice(0, 3) : String(dato.nombre ?? '').split(' ')[0]}
             </text>
             {dato.anio && !abreviar && (
-              <text x={centro} y={ALTO - 12} textAnchor="middle" fill={TINTA.suave} fontSize={letra(compacto, 9)}>
+              <text x={centro} y={Math.min(ALTO - 1, ALTO - 24 + 12 * factor)} textAnchor="middle" fill={TINTA.suave} fontSize={letra(factor, 9)}>
                 {dato.anio}
               </text>
             )}
@@ -114,7 +121,7 @@ export default function GraficaBarras({ datos = [], campo = 'cantidad', color = 
         )
       })}
 
-      <line x1={IZQUIERDA} x2={ANCHO - DERECHA} y1={ALTO - ABAJO} y2={ALTO - ABAJO} stroke={TINTA.suave} />
+      <line x1={izquierda} x2={ANCHO - DERECHA} y1={ALTO - ABAJO} y2={ALTO - ABAJO} stroke={TINTA.suave} />
     </svg>
   )
 }

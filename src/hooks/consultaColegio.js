@@ -16,6 +16,7 @@
 //     local (`gcTime` infinito y la raíz `colegio` en `cacheConsultas`);
 //   · al crear o editar un colegio se invalida `CLAVE_RAIZ_COLEGIO`.
 import { obtenerColegio } from '../api/resources/administracion'
+import { estadoDe } from '../api/client'
 
 export const CLAVE_RAIZ_COLEGIO = ['colegio']
 
@@ -36,3 +37,13 @@ export function consultaDetalleColegio(idColegio, opciones = {}) {
     ...opciones,
   }
 }
+
+/**
+ * ¿El colegio del filtro dejó de estar al alcance de quien consulta?
+ *
+ * Pasa cuando la URL o la búsqueda guardada (D105) traen un colegio que ya no
+ * es suyo: una asignación que cambió, un periodo que terminó o un enlace viejo.
+ * El servidor responde 403 (fuera de su alcance) o 404 (ya no existe). Sin red
+ * no hay estado y no se toca nada: se sigue con la copia local.
+ */
+export const colegioInaccesible = (error) => [403, 404].includes(estadoDe(error))

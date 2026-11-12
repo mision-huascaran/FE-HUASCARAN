@@ -33,6 +33,14 @@ export const MENSAJE = {
   temporalExpirada: "Tu contraseña temporal ha expirado. Usa '¿Olvidaste tu contraseña?' para generar una nueva.",
 }
 
+/**
+ * Zod 4 compila los objetos con `new Function` y, para saber si puede, lo
+ * prueba al validar. La CSP no permite `eval` (script-src sin 'unsafe-eval'),
+ * así que esa prueba disparaba una violación en cada intento de login (F10).
+ * Sin JIT valida igual, con el intérprete: para dos campos no hay diferencia.
+ */
+z.config({ jitless: true })
+
 const esquema = z.object({
   correo: z.string().min(1, 'Ingresa tu correo').email('Ingresa un correo válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
@@ -150,7 +158,7 @@ export default function LoginPage() {
             <output className="mt-6 flex items-start gap-2 rounded-lg border border-info-600/20 bg-info-100 p-3 text-sm font-medium text-info-600">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                Su sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
+                Tu sesión terminó por alcanzar su tiempo máximo de 8 horas. Los cambios que no se
                 hubieran enviado siguen guardados y se sincronizarán al volver a entrar.
               </span>
             </output>

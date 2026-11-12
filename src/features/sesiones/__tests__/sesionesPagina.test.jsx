@@ -150,6 +150,14 @@ describe('Detalle de una sesión (CU019)', () => {
     expect(screen.getByText(/I.E. 86021/)).toBeInTheDocument()
   })
 
+  it('«Ver detalle» va en la columna «Acciones», con ojo y en una línea, como en las demás tablas (N007)', async () => {
+    montar()
+    const boton = await screen.findByRole('button', { name: /ver detalle/i }, ESPERA)
+    expect(screen.getByRole('columnheader', { name: 'Acciones' })).toBeInTheDocument()
+    expect(boton.querySelector('svg')).toHaveClass('lucide-eye')
+    expect(boton.className).toMatch(/whitespace-nowrap/)
+  })
+
   it('una sesión sin cambios lo dice', async () => {
     detalle.mockResolvedValue({ id: 'a1', estado: 'finalizada', cambios_por_modulo: [] })
     montar()

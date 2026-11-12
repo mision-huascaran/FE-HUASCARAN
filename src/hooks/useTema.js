@@ -10,7 +10,7 @@ export const CLAVE_TEMA = 'sicedu.tema'
 export const TEMAS = ['claro', 'oscuro', 'sistema']
 
 const CONSULTA_OSCURO = '(prefers-color-scheme: dark)'
-const DURACION_TRANSICION_MS = 280
+const CONSULTA_SIN_MOVIMIENTO = '(prefers-reduced-motion: reduce)'
 
 function leerPreferencia() {
   try {
@@ -25,14 +25,28 @@ function sistemaEnOscuro() {
   return typeof window !== 'undefined' && Boolean(window.matchMedia?.(CONSULTA_OSCURO)?.matches)
 }
 
+/**
+ * Pone o quita `.dark` en <html>.
+ *
+ * D010 del reporte de UX: el cambio suave era una `transition` de color sobre
+ * TODOS los elementos (`.sicedu-tema-transicion *`). Con una tabla grande son
+ * miles de celdas animándose a la vez, y en un equipo modesto se notaba
+ * trabado. Ahora el navegador fotografía la página y funde la foto vieja con
+ * la nueva (View Transitions): una sola capa, en la GPU, sin importar cuántos
+ * elementos haya. Donde no existe —o se pidió menos movimiento— el cambio es
+ * instantáneo, que también es fluido.
+ */
 function aplicar(preferencia, { suave = false } = {}) {
   if (typeof document === 'undefined') return
   const raiz = document.documentElement
-  if (suave) {
-    raiz.classList.add('sicedu-tema-transicion')
-    window.setTimeout(() => raiz.classList.remove('sicedu-tema-transicion'), DURACION_TRANSICION_MS)
+  const cambiar = () =>
+    raiz.classList.toggle('dark', preferencia === 'oscuro' || (preferencia === 'sistema' && sistemaEnOscuro()))
+  const sinMovimiento = Boolean(window.matchMedia?.(CONSULTA_SIN_MOVIMIENTO)?.matches)
+  if (suave && !sinMovimiento && typeof document.startViewTransition === 'function') {
+    document.startViewTransition(cambiar)
+  } else {
+    cambiar()
   }
-  raiz.classList.toggle('dark', preferencia === 'oscuro' || (preferencia === 'sistema' && sistemaEnOscuro()))
 }
 
 const useTemaStore = create((set) => ({

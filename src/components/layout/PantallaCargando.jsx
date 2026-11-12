@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import Logo from '../ui/Logo'
 
 /** Pantalla intermedia mientras se verifica la sesión contra /me. */
-export default function PantallaCargando({ mensaje = 'Verificando su sesión…' }) {
+export default function PantallaCargando({ mensaje = 'Verificando tu sesión…' }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-surface-50 px-6">
       <Logo tone="dark" size="lg" />

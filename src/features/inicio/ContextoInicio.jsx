@@ -14,7 +14,7 @@ export default function ContextoInicio({ rol, extra }) {
   // Cada parte entera en su línea: en el teléfono "Semana del 9 – 13 nov" no
   // se corta por la mitad.
   return (
-    <p className="mt-1 pl-3.5 text-sm text-ink-700">
+    <p className="mt-1 text-sm text-ink-700">
       {partes.map((parte, i) => (
         <Fragment key={parte}>
           {i > 0 && ' · '}

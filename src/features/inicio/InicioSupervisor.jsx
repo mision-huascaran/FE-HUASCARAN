@@ -6,10 +6,8 @@
 //
 // El Supervisor NO tiene "Iniciar actividad": esos botones son del Docente.
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, ArrowRight, BarChart3, CalendarClock, GraduationCap, Lock, Play, School, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { AlertTriangle, BarChart3, CalendarClock, Play, School, Users } from 'lucide-react'
 import Card from '../../components/ui/Card'
-import IconoTinte from '../../components/ui/IconoTinte'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
 import AlertasInactividad from './AlertasInactividad'
@@ -19,15 +17,6 @@ import AvisoDatosLocales from './AvisoDatosLocales'
 import useResumenLocal from './useResumenLocal'
 import { obtenerResumenSupervisor } from '../../api/resources/inicio'
 import useConexion from '../../hooks/useConexion'
-
-const ACCESOS = [
-  { to: '/usuarios', label: 'Usuarios', icon: Users },
-  { to: '/alumnos', label: 'Alumnos', icon: GraduationCap },
-  { to: '/colegios', label: 'Colegios', icon: School },
-  // El Supervisor sigue a sus docentes en Seguimiento (CU020): Sesiones es
-  // solo del Docente y lo mandaba a /403.
-  { to: '/seguimiento', label: 'Seguimiento de los docentes', icon: Activity },
-]
 
 /** Lo que se pinta cuando el servidor no puede calcular un indicador. */
 const SIN_DATOS = 'Sin datos disponibles'
@@ -140,24 +129,14 @@ export default function InicioSupervisor() {
       {/* En el teléfono las alertas suben por encima del desglose: es lo que
           hay que atender primero. */}
       <div className="max-lg:order-1">
-        <AlertasInactividad alertas={resumen.alertas} desactualizadas={desactualizado} />
+        <AlertasInactividad
+          alertas={resumen.alertas}
+          desactualizadas={desactualizado}
+          // CU020: el Supervisor sigue a sus docentes en Seguimiento; Sesiones
+          // es solo del Docente y lo mandaba a /403 (D15).
+          enlace={{ to: '/seguimiento', label: 'Ver en Seguimiento' }}
+        />
       </div>
-
-      <Card title="Accesos" icon={Lock} tono="gris" className="max-lg:order-3">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {ACCESOS.map((acceso) => (
-            <Link
-              key={acceso.to}
-              to={acceso.to}
-              className="sicedu-elevable group flex min-h-[60px] items-center gap-3 rounded-xl border border-line/80 bg-surface-0 px-3 py-2.5 text-sm font-semibold text-ink-900 hover:border-brand-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              <IconoTinte icon={acceso.icon} tono="neutro" tamano="sm" />
-              <span className="min-w-0 flex-1">{acceso.label}</span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-ink-400 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
-            </Link>
-          ))}
-        </div>
-      </Card>
     </div>
   )
 }

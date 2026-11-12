@@ -61,10 +61,20 @@ export default function ColegiosDelDocente({ campo, valor, onCambio, modo, error
 
   const agregar = () => onCambio(campo.nombre, [...colegios, { id_colegio: '', grados: [], inicio_asignacion: '' }])
 
-  // Un colegio ya elegido no se vuelve a ofrecer: repetirlo es un 422
-  // (`asignacion.colegios.{i}.id_colegio`) y no tendría sentido.
+  /**
+   * Un colegio ya elegido no se vuelve a ofrecer: repetirlo es un 422
+   * (`asignacion.colegios.{i}.id_colegio`) y no tendría sentido.
+   *
+   * SALVO el que solo quedó como HISTORIAL (`solo_historial`): ese no viaja
+   * en el `PATCH` —el recurso lo descarta al enviar, ver D80 más abajo—, así
+   * que ofrecerlo de nuevo no duplica nada. Antes se excluía igual que un
+   * vigente, y entonces el aviso "Para asignarlo otra vez, añádelo arriba"
+   * mentía: el desplegable nunca lo tenía.
+   */
   const disponibles = (i) =>
-    opciones.filter((o) => !colegios.some((c, n) => n !== i && String(c.id_colegio) === String(o.value)))
+    opciones.filter(
+      (o) => !colegios.some((c, n) => n !== i && !c.solo_historial && String(c.id_colegio) === String(o.value)),
+    )
 
   /**
    * D80 — LOS COLEGIOS QUE SOLO SON HISTORIAL VAN APARTE.

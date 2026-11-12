@@ -326,6 +326,7 @@ export default function MantenimientoUsuarios() {
         seccion="usuarios"
         entidad="cuenta"
         titulo="Usuarios"
+        subtitulo="Crea las cuentas del equipo, asígnales colegios y otorga permisos a los Docentes."
         /**
          * Solo en las filas de Docente: Supervisores y Directivos no tienen
          * permisos de corrección ni nada más que enseñar. En sus filas el
@@ -370,7 +371,7 @@ export default function MantenimientoUsuarios() {
         filtros={[
           { nombre: 'q', etiqueta: 'Buscar', tipo: 'busqueda', placeholder: 'Nombre o correo' },
           { nombre: 'rol', etiqueta: 'Rol', opciones: ROLES_CREABLES.map((r) => ({ value: r.label, label: r.label })) },
-          { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
+          { nombre: 'id_colegio', etiqueta: 'Colegio', ancho: 'largo', opciones: colegios.map((c) => ({ value: c.id_colegio, label: c.nombre })) },
         ]}
         columnas={[
           // Las columnas que pide CU016, en su orden.
@@ -378,6 +379,9 @@ export default function MantenimientoUsuarios() {
             key: 'nombre',
             header: 'Nombre completo',
             sortable: true,
+            // Los encabezados de dos palabras pueden partirse: con todo en una
+            // línea la tabla se salía 79 px de una pantalla de 1366 (U03).
+            headerClassName: '!whitespace-normal',
             className: 'font-medium text-ink-900',
             /**
              * CU001/CU016: una cuenta recién creada arrastra una contraseña
@@ -422,6 +426,7 @@ export default function MantenimientoUsuarios() {
             // ["Global"] para Supervisor y Directivo.
             key: 'colegios_asignados',
             header: 'Colegios asignados',
+            headerClassName: '!whitespace-normal',
             render: (u) => (u.colegios_asignados ?? []).map((c) => etiquetaDe(c)).join(', ') || '—',
           },
         ]}

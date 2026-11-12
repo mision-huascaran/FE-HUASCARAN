@@ -74,8 +74,12 @@ export default function CampoMantenimiento({ campo, valor, onCambio, modo, error
       // SERVIDOR, para que no se pueda elegir un día que el backend rechaza.
       max={campo.max}
       min={campo.min}
+      // D012: un campo con largo fijo (el DNI) no deja escribir de más, y
+      // `soloDigitos` descarta lo que no sea número al teclear o pegar.
+      maxLength={campo.maximo}
+      inputMode={campo.inputMode}
       value={valor ?? ''}
-      onChange={(e) => onCambio(campo.nombre, e.target.value)}
+      onChange={(e) => onCambio(campo.nombre, campo.soloDigitos ? e.target.value.replace(/\D/g, '') : e.target.value)}
     />
   )
 }

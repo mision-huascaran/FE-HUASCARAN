@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Button from '../Button'
 import DataTable from '../DataTable'
 import LevelChip from '../LevelChip'
 import RoleGate from '../RoleGate'
+import StatCard from '../StatCard'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
 
@@ -80,5 +81,89 @@ describe('RoleGate', () => {
       </RoleGate>,
     )
     expect(screen.getByText('Registrar')).toBeInTheDocument()
+  })
+})
+
+/** D008 del reporte de UX (11/11): tablas ordenables. */
+describe('DataTable — orden (D008)', () => {
+  const columnas = [
+    { key: 'nombre', header: 'Estudiante', sortable: true },
+    { key: 'libros', header: 'Libros', align: 'right', sortable: true },
+  ]
+  const filas = [
+    { id: 1, nombre: 'Rosa', libros: 4 },
+    { id: 2, nombre: 'Julio', libros: 2 },
+    { id: 3, nombre: 'Ana', libros: 9 },
+  ]
+  const nombres = () => screen.getAllByRole('row').slice(1).map((f) => f.cells[0].textContent)
+  const cabecera = (nombre) => screen.getByRole('button', { name: nombre })
+
+  afterEach(() => window.sessionStorage.clear())
+
+  it('ascendente, descendente y, al tercer clic, el orden del servidor', () => {
+    render(<DataTable columns={columnas} rows={filas} />)
+    fireEvent.click(cabecera('Estudiante'))
+    expect(nombres()).toEqual(['Ana', 'Julio', 'Rosa'])
+    fireEvent.click(cabecera('Estudiante'))
+    expect(nombres()).toEqual(['Rosa', 'Julio', 'Ana'])
+    fireEvent.click(cabecera('Estudiante'))
+    expect(nombres()).toEqual(['Rosa', 'Julio', 'Ana'])
+    expect(screen.getByRole('columnheader', { name: /Estudiante/ })).not.toHaveAttribute('aria-sort')
+  })
+
+  it('una sola columna manda: elegir otra quita el orden de la anterior', () => {
+    render(<DataTable columns={columnas} rows={filas} />)
+    fireEvent.click(cabecera('Estudiante'))
+    fireEvent.click(cabecera('Libros'))
+    expect(screen.getByRole('columnheader', { name: /Estudiante/ })).not.toHaveAttribute('aria-sort')
+    expect(screen.getByRole('columnheader', { name: /Libros/ })).toHaveAttribute('aria-sort', 'ascending')
+    expect(nombres()).toEqual(['Julio', 'Rosa', 'Ana'])
+  })
+
+  it('la cabecera ordenable va en mayúsculas como las demás (N003)', () => {
+    // El reset de Tailwind quita `uppercase` a los botones; el botón lo repite.
+    render(<DataTable columns={columnas} rows={filas} />)
+    expect(cabecera('Estudiante').className).toMatch(/\buppercase\b/)
+  })
+
+  it('la cabecera dice qué hace el próximo clic', () => {
+    render(<DataTable columns={columnas} rows={filas} />)
+    expect(cabecera('Estudiante')).toHaveAttribute('title', 'Ordenar por estudiante')
+    fireEvent.click(cabecera('Estudiante'))
+    expect(cabecera('Estudiante')).toHaveAttribute('title', expect.stringMatching(/ascendente/))
+  })
+
+  it('con persistirOrden, el orden sobrevive a salir y volver a la pantalla', () => {
+    const { unmount } = render(<DataTable columns={columnas} rows={filas} persistirOrden="prueba" />)
+    fireEvent.click(cabecera('Libros'))
+    fireEvent.click(cabecera('Libros'))
+    unmount()
+
+    render(<DataTable columns={columnas} rows={filas} persistirOrden="prueba" />)
+    expect(screen.getByRole('columnheader', { name: /Libros/ })).toHaveAttribute('aria-sort', 'descending')
+    expect(nombres()).toEqual(['Ana', 'Rosa', 'Julio'])
+  })
+
+  it('sin persistirOrden, cada tabla empieza en el orden del servidor', () => {
+    const { unmount } = render(<DataTable columns={columnas} rows={filas} />)
+    fireEvent.click(cabecera('Libros'))
+    unmount()
+    render(<DataTable columns={columnas} rows={filas} />)
+    expect(nombres()).toEqual(['Rosa', 'Julio', 'Ana'])
+  })
+})
+
+/** N008 de la revisión de UX: en Inicio las cifras de una fila de tarjetas van a la misma altura. */
+describe('StatCard sobria', () => {
+  it('lleva el número al pie, para que una etiqueta de dos líneas no lo baje', () => {
+    render(<StatCard sobria label="Colegios registrados" value={15} />)
+    const cifra = screen.getByText('15')
+    expect(cifra.className).toMatch(/\bmt-auto\b/)
+    expect(cifra.parentElement.className).toMatch(/\bflex-col\b/)
+  })
+
+  it('la de siempre no cambia', () => {
+    render(<StatCard label="Libros" value={9} />)
+    expect(screen.getByText('9').className).not.toMatch(/\bmt-auto\b/)
   })
 })

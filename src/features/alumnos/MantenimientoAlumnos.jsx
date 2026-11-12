@@ -252,6 +252,10 @@ export default function MantenimientoAlumnos() {
         nombre: 'dni',
         etiqueta: 'DNI',
         placeholder: '8 dígitos',
+        // D012: no deja escribir un noveno dígito ni letras.
+        maximo: 8,
+        inputMode: 'numeric',
+        soloDigitos: true,
         validar: (v) => (/^\d{8}$/.test(String(v ?? '').trim()) ? null : 'El DNI debe tener exactamente 8 dígitos.'),
       },
       {
@@ -279,7 +283,6 @@ export default function MantenimientoAlumnos() {
         // Solo los grados que el colegio elegido de verdad tiene, no el
         // catálogo entero: un colegio no ofrece necesariamente los seis.
         opciones: (valores) => opciones(gradosDe(valores), 'id_grado'),
-        ayuda: 'Los que tiene el colegio elegido',
       },
       /**
        * LA SECCIÓN SE ELIGE. Dejó de ser un atributo heredado del colegio
@@ -304,13 +307,12 @@ export default function MantenimientoAlumnos() {
         unicaPorDefecto: true,
         opciones: (valores) =>
           seccionesDe(valores).map((x) => ({ value: String(x.id), label: x.nombre })),
-        ayuda: 'Las del colegio y grado elegidos',
       },
       {
         nombre: 'ciclo',
         etiqueta: 'Ciclo',
         soloLectura: true,
-        ayuda: 'Lo calcula el sistema según el subprograma y el grado',
+        ayuda: 'Se calcula con el grado y el subprograma',
       },
       {
         nombre: 'id_programa',
@@ -472,8 +474,16 @@ export default function MantenimientoAlumnos() {
     <>
       <Mantenimiento
         seccion="alumnos"
+        // D012: «Cambia de grupo desde» aparece solo al cambiar de grupo (ver
+        // el campo); esto avisa de antemano que se pedirá.
+        notaFormulario={(modo) =>
+          modo === 'editar'
+            ? 'Si cambias el colegio, el grado, la sección o el subprograma, se pedirá desde qué fecha aplica el cambio.'
+            : null
+        }
         entidad="alumno"
         titulo="Alumnos"
+        subtitulo="Registra a los alumnos, corrige sus datos o cámbialos de grupo."
         consulta={consulta}
         guardando={guardado.isPending}
         // D8: la LISTA se lee de la caché sin conexión; lo que exige red es crear
@@ -494,7 +504,7 @@ export default function MantenimientoAlumnos() {
             </Button>
           ) : null
         }
-        motivoSinNuevo={sinAsignaciones ? 'No tiene asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
+        motivoSinNuevo={sinAsignaciones ? 'No tienes asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
         valoresFiltro={filtros}
         onFiltro={(nombre, valor) => setFiltros((f) => ({ ...f, [nombre]: valor }))}
         cargarAuditoria={(id) => listarAuditoria('alumno', id)}
@@ -517,16 +527,17 @@ export default function MantenimientoAlumnos() {
         }}
         filtros={[
           { nombre: 'q', tipo: 'busqueda', etiqueta: 'Buscar', placeholder: 'Nombre o código' },
-          { nombre: 'id_colegio', etiqueta: 'Colegio', opciones: opciones(permitidos.colegios, 'id_colegio') },
-          { nombre: 'id_grado', etiqueta: 'Grado', opciones: opciones(permitidos.grados, 'id_grado') },
-          { nombre: 'id_ciclo', etiqueta: 'Ciclo', opciones: CICLOS },
-          { nombre: 'id_programa', etiqueta: 'Subprograma', opciones: opciones(programas, 'id_programa') },
+          { nombre: 'id_colegio', etiqueta: 'Colegio', ancho: 'largo', opciones: opciones(permitidos.colegios, 'id_colegio') },
+          { nombre: 'id_grado', etiqueta: 'Grado', ancho: 'corto', opciones: opciones(permitidos.grados, 'id_grado') },
+          { nombre: 'id_ciclo', etiqueta: 'Ciclo', ancho: 'corto', opciones: CICLOS },
+          { nombre: 'id_programa', etiqueta: 'Subprograma', ancho: 'largo', opciones: opciones(programas, 'id_programa') },
           // Semana 14 — "Definida" o "Pendiente": quién tiene ya un intervalo
           // en su historial de pertenencia y quién todavía no (un importado
           // sin completar, por ejemplo).
           {
             nombre: 'pertenencia',
             etiqueta: 'Pertenencia',
+            ancho: 'corto',
             opciones: [
               { value: 'definida', label: 'Definida' },
               { value: 'pendiente', label: 'Pendiente' },

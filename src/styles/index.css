@@ -24,21 +24,10 @@
     @apply font-display text-ink-900;
   }
 
-  /* El título de cada pantalla lleva la barrita azul de la referencia. */
+  /* Sin la barrita azul a la izquierda (D003 y D007 del reporte de UX): no
+     significaba nada y dejaba el título corrido respecto de su subtítulo. */
   main h1 {
-    position: relative;
-    padding-left: 0.875rem;
     letter-spacing: -0.015em;
-  }
-  main h1::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0.14em;
-    bottom: 0.14em;
-    width: 3px;
-    border-radius: 9999px;
-    background-color: rgb(var(--brand-500));
   }
 
   /* Números de tablas legibles y alineados (§4.2). */
@@ -165,12 +154,11 @@
     }
   }
 
-  /* Cambio de tema suave, solo durante el propio cambio. */
-  .sicedu-tema-transicion,
-  .sicedu-tema-transicion *,
-  .sicedu-tema-transicion *::before,
-  .sicedu-tema-transicion *::after {
-    transition: background-color 240ms ease, border-color 240ms ease, color 240ms ease !important;
+  /* Cambio de tema suave (D010): un fundido de la página entera con View
+     Transitions, en vez de animar el color de cada elemento. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 240ms;
   }
 }
 

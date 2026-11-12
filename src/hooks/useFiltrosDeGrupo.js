@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { listarMisAsignaciones } from '../api/resources/administracion'
-import { consultaDetalleColegio } from './consultaColegio'
+import { colegioInaccesible, consultaDetalleColegio } from './consultaColegio'
 import { obtenerSemanas } from '../api/resources/catalogos'
 import { obtenerInicioDocente } from '../api/resources/inicio'
 import { obtenerMisHabilitaciones } from '../api/resources/habilitaciones'
@@ -268,7 +268,7 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
   // El detalle del colegio es lo único que trae grados, secciones y
   // subprogramas CON ID: `/me/asignaciones` los manda por texto.
   // D110 — Se vuelve a pedir al abrir la pantalla: trae las secciones nuevas.
-  const { data: colegio } = useQuery(consultaDetalleColegio(idColegio))
+  const { data: colegio, error: errorColegio } = useQuery(consultaDetalleColegio(idColegio))
 
   const asignacion = useMemo(
     () => asignaciones.find((a) => String(a.id_colegio) === String(idColegio)) ?? null,
@@ -349,6 +349,22 @@ export default function useFiltrosDeGrupo({ esDocente, idAnioEscolar, conSemana 
     queryFn: () => obtenerSemanas({ idAnioEscolar, mes, idColegio, idGrado, idSeccion, idPrograma }),
     enabled: semanasListas,
   })
+
+  /**
+   * UN COLEGIO QUE YA NO ES SUYO SE DESCARTA (bug UAT #820).
+   *
+   * La búsqueda guardada (D105) o un enlace pueden traer un colegio fuera del
+   * alcance de hoy. El servidor responde 403 a su detalle, así que no había
+   * grados que ofrecer: el desplegable de Colegio pintaba el primero de la
+   * lista, pero el filtro seguía con el viejo y Grado se quedaba vacío para
+   * siempre. Solo se descarta si tampoco está entre los que se ofrecen, para
+   * no entrar en un bucle si el servidor y la lista no coinciden.
+   */
+  useEffect(() => {
+    if (!idColegio || !colegioInaccesible(errorColegio)) return
+    if (colegios.some((c) => String(c.id_colegio) === String(idColegio))) return
+    cambiar('colegio', '')
+  }, [errorColegio, idColegio, colegios, cambiar])
 
   // Un `<select>` sin valor PINTA su primera opción: hay que elegirla de
   // verdad, o la pantalla aparenta un colegio que el filtro no tiene.

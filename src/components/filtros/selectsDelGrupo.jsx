@@ -12,6 +12,7 @@ export default function selectsDelGrupo({ filtros, cambiar, colegios, grados, se
   return [
     <Select
       key="colegio"
+      ancho="largo"
       label="Colegio"
       value={filtros.idColegio}
       placeholder={marcadorDeColegio(esDocente)}
@@ -40,6 +41,7 @@ export default function selectsDelGrupo({ filtros, cambiar, colegios, grados, se
     />,
     <Select
       key="subprograma"
+      ancho="largo"
       label="Subprograma"
       value={filtros.idPrograma}
       placeholder="Selecciona"

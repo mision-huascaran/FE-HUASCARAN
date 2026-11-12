@@ -1753,3 +1753,28 @@ Las imágenes `huascaran-alpine*.webp` y `open-book.webp` son **generadas con IA
 | 7. Revisión final | el commit que añade esta sección |
 
 **Bugs de QA, ronda 7 (ticket #793):** FE-01, FE-03, FE-06, FE-07, FE-13 y FE-14 resueltos. FE-11 aplicado, sin verificar en un teléfono real. FE-08 sin cambios: `migas.test.jsx` exige un botón en esa miga, que ya es clicable. FE-02, FE-04, FE-05, FE-09, FE-10 y FE-12 no se tocaron.
+
+---
+
+## 9. UAT #820 · Docente: Grado vacío en Rúbrica y Registro de Vuelo (Paris)
+
+Diagnosticado y parcheado por Paris (backend); integrado aquí sobre `7e34c9a`.
+
+**Causa:** `useFiltrosDeGrupo` lee el colegio de la búsqueda guardada de cada módulo (`localStorage`, D105) o de la
+URL. Si ese colegio dejó de estar al alcance del Docente —cambió de asignación, terminó el periodo, o es un enlace
+viejo—, `GET /colegios/{id}` responde 403 y `grados` queda en `[]`. El efecto que autoelige un colegio válido solo
+actúa cuando el campo está **vacío**, así que un colegio inválido pero no-vacío nunca se reemplazaba: el `<select>`
+de Colegio pintaba el primero de la lista (el valor guardado no estaba entre las opciones) pero el filtro seguía
+con el viejo, y Grado se quedaba vacío para siempre. `AsistenciaPage.jsx` tenía el mismo hueco.
+
+**Corrección:**
+
+- `src/hooks/consultaColegio.js`: `colegioInaccesible(error)` — 403 o 404 en el detalle del colegio.
+- `src/hooks/useFiltrosDeGrupo.js` y `src/features/asistencia/AsistenciaPage.jsx`: un efecto nuevo, **antes** del
+  que autoelige colegio, limpia `idColegio` cuando su detalle respondió 403/404 y ese id tampoco está entre los
+  colegios que se ofrecen (evita un bucle si el servidor y la lista no coinciden). Sin red no hay código de
+  estado, así que no se toca nada: se sigue con la copia local.
+- Test de regresión: `src/hooks/__tests__/colegioFueraDeAlcance.test.jsx` (`/rubrica` y `/registro-vuelo`, con el
+  colegio ajeno guardado y también llegando por la URL).
+
+1200 tests en verde, lint sin warnings nuevos.

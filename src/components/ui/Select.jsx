@@ -7,6 +7,13 @@ import cn from '../../lib/cn'
 export const primeroSelecciona = (anterior) => `Primero selecciona un ${anterior}`
 
 /**
+ * Lo que se LEE en el control pendiente: corto, porque en la barra de filtros
+ * Grado y Sección tienen el ancho de su contenido (N006) y la frase entera se
+ * cortaba («Primero selecc»). La frase completa sigue en el `title`.
+ */
+export const eligeAntes = (anterior) => `Elige un ${anterior}`
+
+/**
  * `options` acepta [{ value, label }] o una lista de strings.
  *
  * EL VACÍO TIENE DOS SIGNIFICADOS, y por eso dos formas de pedirlo:
@@ -67,7 +74,7 @@ const Select = forwardRef(function Select(
             // Si la celda es angosta, el texto completo sigue a mano.
             title={primeroSelecciona(pendienteDe)}
           >
-            <option value="">{primeroSelecciona(pendienteDe)}</option>
+            <option value="">{eligeAntes(pendienteDe)}</option>
           </select>
           <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden="true" />
         </div>

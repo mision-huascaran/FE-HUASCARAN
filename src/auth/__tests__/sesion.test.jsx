@@ -272,7 +272,7 @@ describe('Verificación de la sesión al recargar', () => {
     useSessionStore.setState({ token: 'mock.4.2026', usuario: null, cargando: true })
     renderConProveedores(null, { ruta: '/seguimiento' })
 
-    expect(screen.getByText('Verificando su sesión…')).toBeInTheDocument()
+    expect(screen.getByText('Verificando tu sesión…')).toBeInTheDocument()
     await waitFor(() => expect(useSessionStore.getState().usuario?.id_rol).toBe(ROLES.SUPERVISOR))
   })
 })
@@ -299,7 +299,7 @@ describe('Vencimiento a las 8 horas (CU007)', () => {
     expect(useSessionStore.getState().motivoCierre).toBe('expiracion')
 
     const aviso = await screen.findByRole('status')
-    expect(aviso).toHaveTextContent('Su sesión terminó por alcanzar su tiempo máximo de 8 horas')
+    expect(aviso).toHaveTextContent('Tu sesión terminó por alcanzar su tiempo máximo de 8 horas')
     expect(within(aviso).queryByText(/incorrectos/)).not.toBeInTheDocument()
   })
 
