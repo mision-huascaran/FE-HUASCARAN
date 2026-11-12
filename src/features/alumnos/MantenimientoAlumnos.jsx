@@ -9,13 +9,15 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Upload } from 'lucide-react'
+import { Download, FileSpreadsheet, Upload } from 'lucide-react'
 import Mantenimiento, { avisoSinConexion } from '../../components/mantenimiento/Mantenimiento'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import ImportarNominaModal from './ImportarNominaModal'
+import { descargarPlantillaNomina } from './plantillaNomina'
+import { exportarAlumnos } from './exportarAlumnos'
 import {
   actualizarAlumno,
   cambiarEstadoAlumno,
@@ -491,18 +493,40 @@ export default function MantenimientoAlumnos() {
         sinConexion={!enLinea}
         // CU014 — "Importar nómina", junto a "Agregar", solo para el
         // Supervisor. Exclusivamente en línea, igual que crear y editar.
+        //
+        // "Descargar plantilla" va A SU LADO, no dentro del modal: estaba ahí
+        // antes y confundía (entras a "Importar nómina" a importar, no a
+        // descargar algo). Y "Exportar" es harina de otro costal: no es la
+        // plantilla vacía para llenar, es la data que la tabla YA tiene
+        // cargada con los filtros puestos — por eso no pide red aparte, usa
+        // `consulta.data` tal cual.
         accionesExtra={
-          esSupervisor ? (
+          <>
+            {esSupervisor && (
+              <>
+                <Button
+                  variant="outline"
+                  iconLeft={Upload}
+                  disabled={!enLinea}
+                  title={!enLinea ? avisoSinConexion('alumnos') : undefined}
+                  onClick={() => setImportando(true)}
+                >
+                  Importar nómina
+                </Button>
+                <Button variant="ghost" iconLeft={FileSpreadsheet} onClick={descargarPlantillaNomina}>
+                  Descargar plantilla
+                </Button>
+              </>
+            )}
             <Button
-              variant="outline"
-              iconLeft={Upload}
-              disabled={!enLinea}
-              title={!enLinea ? avisoSinConexion('alumnos') : undefined}
-              onClick={() => setImportando(true)}
+              variant="ghost"
+              iconLeft={Download}
+              disabled={!consulta.data?.length}
+              onClick={() => exportarAlumnos(consulta.data)}
             >
-              Importar nómina
+              Exportar
             </Button>
-          ) : null
+          </>
         }
         motivoSinNuevo={sinAsignaciones ? 'No tienes asignaciones activas: no hay colegio ni grado en los que registrar alumnos.' : null}
         valoresFiltro={filtros}
