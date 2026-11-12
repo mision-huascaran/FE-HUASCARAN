@@ -326,6 +326,7 @@ export default function MantenimientoUsuarios() {
         seccion="usuarios"
         entidad="cuenta"
         titulo="Usuarios"
+        subtitulo="Crea las cuentas del equipo, asígnales colegios y otorga permisos a los Docentes."
         /**
          * Solo en las filas de Docente: Supervisores y Directivos no tienen
          * permisos de corrección ni nada más que enseñar. En sus filas el

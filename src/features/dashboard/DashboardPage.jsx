@@ -46,6 +46,8 @@ import {
 } from './estados'
 
 /** Lo que antes era un párrafo bajo el título: queda a un clic, no en medio. */
+const SUBTITULO = 'Cómo van las asistencias, la lectura, la rúbrica y el registro de vuelo, por año escolar y periodo.'
+
 const QUE_SE_ESTA_VIENDO =
   'Consulta de solo lectura con información confirmada por el servidor y solo de alumnos activos. Los registros pendientes de sincronizar no se incluyen hasta que el servidor los acepta.'
 
@@ -101,17 +103,21 @@ export default function DashboardPage() {
   const titulo = esDirectivo ? 'Dashboard del Directivo' : 'Dashboard'
 
   const cabecera = (
-    <header className="flex flex-wrap items-center gap-2">
-      <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
-      <Tooltip content={QUE_SE_ESTA_VIENDO}>
-        <button
-          type="button"
-          aria-label="Qué información se está viendo"
-          className="inline-flex rounded-full text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-        >
-          <Info className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </Tooltip>
+    <header>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+        <Tooltip content={QUE_SE_ESTA_VIENDO}>
+          <button
+            type="button"
+            aria-label="Qué información se está viendo"
+            className="inline-flex rounded-full text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <Info className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </Tooltip>
+      </div>
+      {/* N009 — Como en los demás módulos, una línea que dice qué se ve aquí. */}
+      <p className="mt-1 text-sm text-ink-500">{SUBTITULO}</p>
     </header>
   )
 

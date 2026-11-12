@@ -483,6 +483,7 @@ export default function MantenimientoAlumnos() {
         }
         entidad="alumno"
         titulo="Alumnos"
+        subtitulo="Registra a los alumnos, corrige sus datos o cámbialos de grupo."
         consulta={consulta}
         guardando={guardado.isPending}
         // D8: la LISTA se lee de la caché sin conexión; lo que exige red es crear

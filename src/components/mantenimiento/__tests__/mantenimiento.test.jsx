@@ -60,6 +60,12 @@ describe('Plantilla de mantenimiento', () => {
     expect(screen.getByLabelText('Estado')).toHaveValue('activo')
   })
 
+  it('lleva bajo el título la línea que dice qué se hace en la sección (N009)', () => {
+    montar(ROLES.SUPERVISOR, { subtitulo: 'Registra los colegios del programa.' })
+    const titulo = screen.getByRole('heading', { level: 1, name: 'Colegios' })
+    expect(titulo.nextElementSibling).toHaveTextContent('Registra los colegios del programa.')
+  })
+
   it('nunca ofrece borrar: solo inactivar, y pide confirmación (S4)', () => {
     const { onCambiarEstado } = montar()
     expect(screen.queryByRole('button', { name: /eliminar|borrar/i })).not.toBeInTheDocument()

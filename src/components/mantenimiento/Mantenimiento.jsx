@@ -63,6 +63,8 @@ export default function Mantenimiento({
    */
   protegida,
   titulo,
+  /** N009 — Una línea bajo el título: qué se hace en la sección, como en los demás módulos. */
+  subtitulo,
   consulta,
   columnas = [],
   campos = [],
@@ -363,7 +365,10 @@ export default function Mantenimiento({
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+          {subtitulo && <p className="mt-1 text-sm text-ink-500">{subtitulo}</p>}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {puedeCrear && (
             <Button

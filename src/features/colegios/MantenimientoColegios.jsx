@@ -213,6 +213,7 @@ export default function MantenimientoColegios() {
       }
       entidad="colegio"
       titulo="Colegios"
+      subtitulo="Registra los colegios del programa y revisa su programación de clases y su calendario académico."
       consulta={consulta}
       campos={campos}
       valoresFiltro={filtros}
