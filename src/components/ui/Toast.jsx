@@ -40,9 +40,19 @@ export function ToastProvider({ children }) {
     setAvisos((prev) => prev.filter((a) => a.id !== id))
   }, [])
 
-  const push = useCallback((tone, message, description) => {
+  /**
+   * D009 del reporte de UX: iniciar y finalizar varias veces apilaba un aviso
+   * por clic. Un aviso con la misma `clave` REEMPLAZA al anterior (el de la
+   * actividad dice siempre cómo quedó, no la historia de clics), y uno idéntico
+   * a otro que ya se ve no se repite: se renueva.
+   */
+  const push = useCallback((tone, message, description, { clave } = {}) => {
     const id = ++idRef.current
-    setAvisos((prev) => [...prev, { id, tone, message, description }].slice(-MAXIMO_AVISOS))
+    const repetido = (a) =>
+      (clave && a.clave === clave) || (a.tone === tone && a.message === message && a.description === description)
+    setAvisos((prev) =>
+      [...prev.filter((a) => !repetido(a)), { id, tone, message, description, clave }].slice(-MAXIMO_AVISOS),
+    )
     return id
   }, [])
 
@@ -50,10 +60,10 @@ export function ToastProvider({ children }) {
     () => ({
       push,
       cerrar,
-      success: (m, d) => push('success', m, d),
-      error: (m, d) => push('error', m, d),
-      warning: (m, d) => push('warning', m, d),
-      info: (m, d) => push('info', m, d),
+      success: (m, d, o) => push('success', m, d, o),
+      error: (m, d, o) => push('error', m, d, o),
+      warning: (m, d, o) => push('warning', m, d, o),
+      info: (m, d, o) => push('info', m, d, o),
     }),
     [push, cerrar],
   )
@@ -68,7 +78,7 @@ export function ToastProvider({ children }) {
             className="pointer-events-none fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2 lg:bottom-5 lg:right-5"
           >
             {avisos.map((a) => (
-              <ToastItem key={a.id} {...a} onClose={() => cerrar(a.id)} />
+              <ToastItem key={a.id} {...a} onCerrar={cerrar} />
             ))}
           </div>,
           document.body,
@@ -77,13 +87,17 @@ export function ToastProvider({ children }) {
   )
 }
 
-function ToastItem({ tone = 'info', message, description, onClose }) {
+function ToastItem({ id, tone = 'info', message, description, onCerrar }) {
   const { Icon, clases } = TONOS[tone] ?? TONOS.info
+  const onClose = () => onCerrar(id)
 
+  // Depende del id y de `cerrar`, que son estables. Antes dependía de una
+  // función nueva en cada render: cada aviso que llegaba reiniciaba los 4 s de
+  // todos los demás, y en una ráfaga ninguno se cerraba solo (D009).
   useEffect(() => {
-    const id = setTimeout(onClose, DURACION_MS)
-    return () => clearTimeout(id)
-  }, [onClose])
+    const temporizador = setTimeout(() => onCerrar(id), DURACION_MS)
+    return () => clearTimeout(temporizador)
+  }, [id, onCerrar])
 
   return (
     <output

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { Children, cloneElement, isValidElement, useState } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { CeldaFiltro } from './BarraDeFiltros'
 import Button from './Button'
 import Drawer from './Drawer'
 import { controlClases } from './Field'
@@ -8,8 +9,19 @@ import resumenDeFiltros from './resumenDeFiltros'
 import { useIsDesktop } from '../../hooks/useMediaQuery'
 
 /**
+ * El ancho que pide cada filtro (`ancho="corto" | "normal" | "largo"`), quitado
+ * del elemento para que no llegue al DOM.
+ */
+const sinAncho = (hijo) => cloneElement(hijo, { ancho: undefined })
+
+/**
  * Fila de filtros + buscador + "Aplicar filtros".
  * RNF-002: bajo `lg` el conjunto colapsa en un Drawer para no romper el ancho.
+ *
+ * N006 — CADA FILTRO CON EL ANCHO DE SU CONTENIDO, como en `BarraDeFiltros`
+ * (D007). Antes era una rejilla de cuatro columnas iguales: "3.º" ocupaba lo
+ * mismo que el nombre del colegio, y el quinto filtro ("Mes", "Fecha") quedaba
+ * solo en una segunda fila. Cada hijo puede pedir `ancho`; sin él, "normal".
  */
 export default function FilterBar({
   search,
@@ -67,8 +79,14 @@ export default function FilterBar({
         )}
       >
         <div className="flex flex-wrap items-end gap-3">
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {children}
+          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">
+            {Children.toArray(children)
+              .filter(isValidElement)
+              .map((hijo) => (
+                <CeldaFiltro key={hijo.key} ancho={hijo.props.ancho}>
+                  {sinAncho(hijo)}
+                </CeldaFiltro>
+              ))}
           </div>
           {buscador}
           {acciones}
@@ -125,7 +143,11 @@ export default function FilterBar({
           </>
         }
       >
-        <div className="flex flex-col gap-4">{children}</div>
+        <div className="flex flex-col gap-4">
+          {Children.toArray(children)
+            .filter(isValidElement)
+            .map((hijo) => sinAncho(hijo))}
+        </div>
       </Drawer>
     </div>
   )

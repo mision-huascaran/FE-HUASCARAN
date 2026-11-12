@@ -22,6 +22,7 @@ import PopupMantenimiento from './PopupMantenimiento'
 import { ACCION, puede } from '../../auth/permisos'
 import { erroresDeCampo, mensajeDeError } from '../../api/client'
 import { SIN_ACTIVIDAD } from '../../api/resources/sincronizacion'
+import AvisoActividades from '../layout/AvisoActividades'
 import useSessionStore from '../../store/sessionStore'
 import useActividadStore from '../../store/actividadStore'
 import useActividad from '../../features/inicio/useActividad'
@@ -62,6 +63,8 @@ export default function Mantenimiento({
    */
   protegida,
   titulo,
+  /** N009 — Una línea bajo el título: qué se hace en la sección, como en los demás módulos. */
+  subtitulo,
   consulta,
   columnas = [],
   campos = [],
@@ -103,6 +106,7 @@ export default function Mantenimiento({
   motivoSinNuevo = null,
   // Género de la entidad, para el título del popup: era "Nuevo cuenta".
   genero = 'm',
+  notaFormulario = null,
 }) {
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
   /**
@@ -224,9 +228,9 @@ export default function Mantenimiento({
 
   const columnasConAcciones = useMemo(() => {
     /**
-     * Si el detalle de la sección ya es el OJO —Colegios, como pide CU013—,
-     * la ficha del popup lleva otro ícono: dos ojos seguidos que abren cosas
-     * distintas no se distinguen (U06).
+     * El ojo es la ficha del popup en todos los módulos (N004). Si alguna
+     * sección volviera a darle el ojo a su detalle, la ficha cambia de ícono:
+     * dos ojos seguidos que abren cosas distintas no se distinguen (U06).
      */
     const iconoFicha = verDetalle?.icono === Eye ? FileText : Eye
     const acciones = {
@@ -361,7 +365,10 @@ export default function Mantenimiento({
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-ink-900 md:text-3xl">{titulo}</h1>
+          {subtitulo && <p className="mt-1 text-sm text-ink-500">{subtitulo}</p>}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {puedeCrear && (
             <Button
@@ -380,11 +387,9 @@ export default function Mantenimiento({
         </div>
       </header>
 
-      {motivoNuevo && puedeCrear && (
-        <p role="note" className="-mt-2 text-sm text-ink-500">
-          {motivoNuevo}
-        </p>
-      )}
+      {/* D007: el mismo recuadro que en Asistencias, Lectura, Rúbrica y Vuelo,
+          no un texto suelto bajo el título. */}
+      {motivoNuevo && puedeCrear && <AvisoActividades mensaje={motivoNuevo} />}
 
       {sinConexion && (
         <p className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
@@ -401,7 +406,11 @@ export default function Mantenimiento({
           // de escribir y manda el conjunto entero en una sola consulta.
           onAplicar={(nuevos) => Object.entries(nuevos).forEach(([n, v]) => onFiltro?.(n, v))}
         />
+      </Card>
 
+      {/* D007: filtros y tabla en tarjetas separadas, como en Asistencias,
+          Seguimiento de Lectura, Rúbrica y Registro de Vuelo. */}
+      <Card padded={false}>
         {consulta.isError ? (
           <EmptyState title={`No se pudieron cargar los ${entidad.toLowerCase()}s`} description={mensajeDeError(consulta.error)} />
         ) : (
@@ -411,6 +420,7 @@ export default function Mantenimiento({
             getRowId={(f) => f.id ?? f[`id_${seccion.replace(/s$/, '')}`] ?? f.id_usuario}
             initialPageSize={40}
             columns={columnasConAcciones}
+            persistirOrden={seccion}
           />
         )}
       </Card>
@@ -460,6 +470,7 @@ export default function Mantenimiento({
         cargarAuditoria={cargarAuditoria}
         cargarDetalle={cargarDetalle}
         genero={genero}
+        notaFormulario={notaFormulario}
         // D61 — Si la conexión se va con el modal abierto, se queda abierto y
         // con lo escrito; solo "Guardar" espera a que vuelva.
         motivoSinGuardar={sinConexion ? avisoSinConexion(seccion) : null}

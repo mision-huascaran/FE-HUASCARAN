@@ -60,6 +60,21 @@ const CON_ESCRITURA_DEL_SERVIDOR = [['asistencia', 'clase'], ['lectura', 'tabla'
 /** D62 — "Queda 1 cambio guardado", no "Quedan 1 cambios guardados". */
 const cambiosGuardados = (n) => (n === 1 ? 'Queda 1 cambio guardado' : `Quedan ${n} cambios guardados`)
 
+/**
+ * El `POST /actividades` que todavía no responde (D011 del reporte de UX).
+ *
+ * La actividad se abre en el navegador ANTES de llamar al servidor, así que el
+ * botón pasa a "Finalizar" al instante. Si el Docente lo pulsaba en ese
+ * intervalo, el cierre llegaba primero (404, "la actividad no existe"), luego
+ * llegaba el inicio y la actividad quedaba ABIERTA en el servidor aunque él la
+ * hubiera finalizado. Finalizar espera a este inicio; es de módulo, y no del
+ * hook, porque `iniciar` también se llama desde los mantenimientos.
+ */
+let inicioEnVuelo = null
+
+/** D009: los avisos de iniciar y finalizar se reemplazan entre sí, no se apilan. */
+const AVISO_ACTIVIDAD = { clave: 'actividad' }
+
 export default function useActividad() {
   const toast = useToast()
   const enLinea = useConexion()
@@ -183,12 +198,16 @@ export default function useActividad() {
       toast.success(
         'Actividad iniciada sin conexión',
         'Ya puedes registrar. El inicio se enviará con su hora real al recuperar la conexión.',
+        AVISO_ACTIVIDAD,
       )
       return
     }
 
+    const peticion = iniciarActividad({ id: abierta.id })
+    inicioEnVuelo = peticion
+    useActividadStore.setState({ confirmandoInicio: true })
     try {
-      const creada = await iniciarActividad({ id: abierta.id })
+      const creada = await peticion
       // El servidor manda la expiración de la SESIÓN, que es el límite real de
       // la actividad: una actividad no tiene 8 horas propias (CU009).
       // `delServidor`: a partir de aquí, que deje de nombrarla significa que
@@ -210,7 +229,7 @@ export default function useActividad() {
          * vigentes." Repetirlo en el cliente garantizaba que un día dejaran de
          * coincidir. El literal de respaldo es solo para cuando no llega.
          */
-        toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES))
+        toast.error('No se pudo iniciar', mensajeDeError(error, SIN_HABILITACIONES), AVISO_ACTIVIDAD)
       } else if (motivo === 'actividad_activa_existente') {
         /**
          * El texto del SERVIDOR primero, igual que en `sin_asignaciones`.
@@ -224,18 +243,26 @@ export default function useActividad() {
         toast.error(
           'Ya hay una actividad abierta',
           mensajeDeError(error, 'Debes finalizar la actividad actual antes de iniciar una nueva.'),
+          AVISO_ACTIVIDAD,
         )
       } else if (motivo === 'actividad_superpuesta') {
         // Puede pasar al sincronizar: el horario choca con otra actividad suya
         // de la misma sesión. No es culpa de lo que acaba de hacer.
-        toast.error('El horario se cruza con otra actividad', 'Ya tiene registrada otra actividad en ese mismo tramo.')
+        toast.error(
+          'El horario se cruza con otra actividad',
+          'Ya tiene registrada otra actividad en ese mismo tramo.',
+          AVISO_ACTIVIDAD,
+        )
       } else {
-        toast.error('No se pudo iniciar la actividad', mensajeDeError(error))
+        toast.error('No se pudo iniciar la actividad', mensajeDeError(error), AVISO_ACTIVIDAD)
       }
       return
+    } finally {
+      if (inicioEnVuelo === peticion) inicioEnVuelo = null
+      useActividadStore.setState({ confirmandoInicio: false })
     }
 
-    toast.success('Actividad iniciada', 'Ya puedes registrar.')
+    toast.success('Actividad iniciada', 'Ya puedes registrar.', AVISO_ACTIVIDAD)
 
     // La precarga no bloquea: si falla, se trabaja en línea y el docente se
     // entera por el aviso, no por una grilla vacía.
@@ -267,6 +294,9 @@ export default function useActividad() {
   }
 
   const finalizar = async () => {
+    // D011: primero que el servidor conozca el inicio. Si lo rechazó, la
+    // actividad ya se limpió y `cerrarLocal` no encuentra nada que cerrar.
+    if (inicioEnVuelo) await inicioEnVuelo.catch(() => null)
     const cerrada = cerrarLocal()
     if (!cerrada) return
 
@@ -289,6 +319,7 @@ export default function useActividad() {
         pendientes > 0
           ? `${cambiosGuardados(pendientes)} en este dispositivo. Se enviarán al recuperar la conexión.`
           : 'Se registrará el cierre al recuperar la conexión.',
+        AVISO_ACTIVIDAD,
       )
       return
     }
@@ -299,9 +330,9 @@ export default function useActividad() {
       // solo cierra la promesa, igual que en `iniciarCola`.
       reintentarAhora().catch(() => null)
       refrescarTrasActividad()
-      toast.success('Actividad finalizada')
+      toast.success('Actividad finalizada', undefined, AVISO_ACTIVIDAD)
     } catch (error) {
-      toast.error('No se pudo registrar el cierre', mensajeDeError(error))
+      toast.error('No se pudo registrar el cierre', mensajeDeError(error), AVISO_ACTIVIDAD)
     }
   }
 

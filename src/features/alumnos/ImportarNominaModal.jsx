@@ -15,7 +15,7 @@
 // `api/resources/administracion.js`). El nombre y los demás datos van en el
 // query, no en un formulario.
 import { useEffect, useRef, useState } from 'react'
-import { FileSpreadsheet, Upload } from 'lucide-react'
+import { FileSpreadsheet, Loader2, Upload } from 'lucide-react'
 import { Badge, Button, DataTable, Modal } from '../../components/ui'
 import { useToast } from '../../components/ui/Toast'
 import { confirmarImportacion, consultarImportacion, vistaPreviaImportacion } from '../../api/resources/administracion'
@@ -37,6 +37,13 @@ const textoDeExito = ({ importados, no_importadas: noImportadas }) =>
     ? `Importación completada. Alumnos importados: ${importados}. Filas no importadas: ${noImportadas}.`
     : `Importación completada. Alumnos importados: ${importados}.`
 
+/** El aspecto de la zona de soltar: deshabilitada, con un archivo encima o en reposo. */
+function claseDeZona(puedeElegir, arrastrando) {
+  if (!puedeElegir) return 'cursor-not-allowed border-line bg-surface-100'
+  if (arrastrando) return 'cursor-pointer border-brand-500 bg-brand-50'
+  return 'cursor-pointer border-line hover:border-brand-400 hover:bg-surface-50'
+}
+
 export default function ImportarNominaModal({ open, onClose, onImportado }) {
   const toast = useToast()
   const enLinea = useConexion()
@@ -48,6 +55,8 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
   const [idImportacion, setIdImportacion] = useState(null)
   const [previa, setPrevia] = useState(null)
   const [error, setError] = useState(null)
+  // Resalta la zona mientras el archivo pasa por encima, arrastrándose.
+  const [arrastrando, setArrastrando] = useState(false)
 
   const reiniciar = () => {
     setPaso('elegir')
@@ -88,6 +97,23 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
       setPaso('elegir')
       if (inputRef.current) inputRef.current.value = ''
     }
+  }
+
+  const puedeElegir = enLinea && paso !== 'cargando'
+
+  /** Arrastrar y soltar — mismo destino que el clic: a `elegirArchivo`. */
+  const alEntrarArrastre = (e) => {
+    e.preventDefault()
+    if (puedeElegir) setArrastrando(true)
+  }
+  const alSalirArrastre = (e) => {
+    e.preventDefault()
+    setArrastrando(false)
+  }
+  const alSoltar = (e) => {
+    e.preventDefault()
+    setArrastrando(false)
+    if (puedeElegir) elegirArchivo(e.dataTransfer.files)
   }
 
   /**
@@ -194,17 +220,50 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
               className="hidden"
               onChange={(e) => elegirArchivo(e.target.files)}
             />
-            <Button
-              variant="outline"
-              iconLeft={FileSpreadsheet}
-              loading={paso === 'cargando'}
-              disabled={!enLinea}
-              onClick={() => inputRef.current?.click()}
+            {/*
+              Arrastrar y soltar, con el clic como alternativa de siempre: el
+              mismo destino (`elegirArchivo`), dos formas de llegar. El clic
+              abre el selector nativo del sistema operativo —`inputRef`—, no
+              hay que simularlo.
+            */}
+            {/*
+              Un <button> de verdad: Enter y Espacio lo activan solos. Sin el
+              atributo `disabled` a propósito: un botón deshabilitado no recibe
+              los eventos de arrastre, y un archivo soltado ahí sin conexión lo
+              abriría el navegador en la pestaña. Se bloquea con `puedeElegir`.
+              Dentro van <span> y no <p>, que no es válido en un botón.
+            */}
+            <button
+              type="button"
+              aria-disabled={!puedeElegir}
+              aria-label="Seleccionar archivo"
+              onClick={() => puedeElegir && inputRef.current?.click()}
+              onDragEnter={alEntrarArrastre}
+              onDragOver={alEntrarArrastre}
+              onDragLeave={alSalirArrastre}
+              onDrop={alSoltar}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${claseDeZona(puedeElegir, arrastrando)}`}
             >
-              Seleccionar archivo
-            </Button>
+              {paso === 'cargando' ? (
+                <>
+                  <Loader2 className="h-8 w-8 animate-spin text-brand-600" aria-hidden="true" />
+                  <span className="block text-sm font-medium text-ink-700">Leyendo el archivo…</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-8 w-8 text-brand-600" aria-hidden="true" />
+                  <span className="block text-sm font-medium text-ink-700">
+                    Arrastra aquí tu archivo, o <span className="text-brand-700 underline">selecciónalo</span>
+                  </span>
+                  <span className="block text-xs text-ink-400">Excel (.xlsx), hasta {MAXIMO_MB} MB y 3000 alumnos.</span>
+                </>
+              )}
+            </button>
+            {/* Fuera del botón a propósito: así no entra en su nombre accesible. */}
+            <p className="text-xs text-ink-400">
+              Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.
+            </p>
             {!enLinea && <p className="text-xs text-warning-600">Sin conexión. Conéctate a Internet para continuar con la importación.</p>}
-            <p className="text-xs text-ink-400">Archivo Excel (.xlsx), hasta {MAXIMO_MB} MB y 3000 alumnos.</p>
           </>
         ) : (
           <>

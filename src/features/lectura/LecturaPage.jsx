@@ -250,6 +250,7 @@ export default function LecturaPage() {
       <FilterBar>
         {selectsDelGrupo({ filtros, cambiar, colegios, grados, secciones, programas, esDocente })}
         <Select
+          ancho="corto"
           label="Mes"
           value={filtros.mes}
           onChange={(e) => cambiar('mes', e.target.value)}

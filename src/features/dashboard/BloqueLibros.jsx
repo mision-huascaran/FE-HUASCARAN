@@ -189,9 +189,10 @@ export default function BloqueLibros({ filtros, contexto, hayCambios, anioEscola
               ? [
                   {
                     key: 'acciones',
-                    header: '',
+                    header: 'Acciones',
+                    align: 'center',
                     render: (c) => (
-                      <Button size="sm" variant="ghost" iconLeft={Eye} onClick={() => onColegio(c)}>
+                      <Button size="sm" variant="ghost" iconLeft={Eye} className="whitespace-nowrap" onClick={() => onColegio(c)}>
                         Ver grados
                       </Button>
                     ),

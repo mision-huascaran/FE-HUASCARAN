@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import useOnEscape from '../../hooks/useOnEscape'
 import cn from '../../lib/cn'
+import useBloqueoScroll from '../../hooks/useBloqueoScroll'
 
 /**
  * Panel lateral derecho para editar sin perder la tabla de fondo (§4.5).
@@ -11,14 +11,7 @@ import cn from '../../lib/cn'
 export default function Drawer({ open, onClose, title, subtitle, footer, side = 'right', width = 'max-w-md', children }) {
   useOnEscape(open, onClose)
 
-  useEffect(() => {
-    if (!open) return undefined
-    const previo = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previo
-    }
-  }, [open])
+  useBloqueoScroll(open)
 
   if (!open) return null
 

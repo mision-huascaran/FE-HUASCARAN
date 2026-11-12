@@ -25,7 +25,7 @@ describe('Límite de error', () => {
 
     expect(screen.getByText('No se pudo mostrar esta pantalla')).toBeInTheDocument()
     // Y dice cómo seguir trabajando, que es lo que importa en el aula.
-    expect(screen.getByText(/puede seguir usando el resto de la aplicación/i)).toBeInTheDocument()
+    expect(screen.getByText(/puedes seguir usando el resto de la aplicación/i)).toBeInTheDocument()
     consola.mockRestore()
   })
 

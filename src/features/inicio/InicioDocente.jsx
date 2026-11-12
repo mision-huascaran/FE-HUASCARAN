@@ -1,16 +1,13 @@
 // Cubre: RF-004, RF-002, RN-001, RN-003, RN-006, RNF-006
-import { useQuery } from '@tanstack/react-query'
-import { CalendarCheck, ClipboardCheck, ClipboardList, GraduationCap } from 'lucide-react'
+import { CalendarCheck, ClipboardCheck, ClipboardList } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
-import AccesosRapidos from './AccesosRapidos'
 import AvisoDatosLocales from './AvisoDatosLocales'
 import ContextoInicio from './ContextoInicio'
 import useResumenDocente from './useResumenDocente'
 import useResumenLocal from './useResumenLocal'
 import { horaFinDe } from '../../store/actividadStore'
 import { caducaEn } from '../../auth/jwt'
-import { obtenerInicioDocente } from '../../api/resources/inicio'
 import ResumenesAccion from './ResumenesAccion'
 import useActividad, { SIN_HABILITACIONES } from './useActividad'
 import Card from '../../components/ui/Card'
@@ -61,22 +58,6 @@ export default function InicioDocente() {
     falloServidor: isError,
   })
 
-  /**
-   * "Mis alumnos" NO sale de `useResumenDocente` (ese endpoint no existe
-   * todavía: ver `api/resources/docentes.js`, siempre `null` contra el
-   * backend real). El total de alumnos SÍ lo trae `GET /inicio/docente`, el
-   * mismo que ya pinta "Mis asignaciones" más abajo — de ahí que esa tarjeta
-   * mostrara 7 mientras esta decía 0 con los mismos datos cargados. Mismo
-   * `queryKey` que usa `ResumenesAccion`: TanStack Query comparte la caché,
-   * así que esto no duplica la petición.
-   */
-  const { data: inicioDocente } = useQuery({
-    queryKey: ['inicio', 'docente', usuario?.id_docente],
-    queryFn: obtenerInicioDocente,
-    enabled: Boolean(usuario?.id_docente),
-  })
-  const totalAlumnos = inicioDocente?.totales?.cantidad_alumnos
-
   const primerNombre = usuario?.nombres?.split(' ')[0] ?? usuario?.nombre_completo?.split(' ')[0] ?? ''
 
   // El control está en la barra superior; aquí solo se lee su estado.
@@ -97,42 +78,55 @@ export default function InicioDocente() {
   const expira = caducaEn(token)
   const finDeSesion = expira ? dayjs(expira) : horaFinDe(sesion?.inicio)
 
-  // Las tarjetas del panel: mientras carga, sin datos y sin red, o las cifras.
+  /**
+   * Las tarjetas del panel: mientras carga, sin datos y sin red, o las cifras.
+   *
+   * N001 — SIN RESUMEN NO HAY TARJETAS. Contra el backend real el resumen
+   * todavía no existe (`obtenerResumenDocente` devuelve `null`, ver
+   * `api/resources/docentes.js`) y las tres tarjetas salían con `?? 0`: un
+   * Docente con 22 alumnos leía "Reporte de esta semana 0 / 0" y "Pendientes de
+   * rúbrica 0" mientras la Rúbrica le mostraba alumnos pendientes. El contrato
+   * pide no mostrarlas antes que inventar; vuelven solas cuando el servidor
+   * mande las cifras.
+   *
+   * N011 — "Mis alumnos" ya no va aquí: repetía el "Alumnos" de "Mis
+   * asignaciones", que sale del mismo `GET /inicio/docente`.
+   */
   const panel = () => {
     if (isLoading) {
       return (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+          {[0, 1, 2].map((i) => (
             <Skeleton key={i} variant="card" />
           ))}
         </div>
       )
     }
     if (!resumen && !enLinea) return <AvisoDatosLocales rol="docente" sinDatos enLinea={enLinea} />
+    if (!resumen) return null
     return (
       <>
         {desactualizado && <AvisoDatosLocales rol="docente" enLinea={enLinea} />}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard sobria icon={GraduationCap} label="Mis alumnos" value={totalAlumnos ?? resumen?.mis_estudiantes ?? 0} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard
           sobria
           icon={ClipboardList}
           label="Reporte de esta semana"
-          value={`${resumen?.reporte_semana.registrados ?? 0} / ${resumen?.reporte_semana.total ?? 0}`}
+          value={`${resumen.reporte_semana?.registrados ?? 0} / ${resumen.reporte_semana?.total ?? 0}`}
           hint="Estudiantes con registro semanal"
         />
         <StatCard
           sobria
           icon={ClipboardCheck}
           label="Pendientes de rúbrica"
-          value={resumen?.pendientes_rubrica ?? 0}
-          hint="Sin Fluidez y Comprensión de la semana"
+          value={resumen.pendientes_rubrica ?? 0}
+          hint="Sin Fluidez y Comprensión del mes"
         />
         <StatCard
           sobria
           icon={CalendarCheck}
           label="Ajustes por revisar"
-          value={resumen?.ajustes_por_revisar ?? 0}
+          value={resumen.ajustes_por_revisar ?? 0}
           hint="Sugerencias sin confirmar del periodo"
         />
         </div>
@@ -219,13 +213,6 @@ export default function InicioDocente() {
           real `GET /inicio/docente`. Antes había aquí una segunda tarjeta con
           el mismo título alimentada por el simulador: dos "Mis asignaciones"
           que podían contradecirse. */}
-
-      <section>
-        <h2 className="text-lg font-semibold text-ink-900 sm:text-xl">Accesos rápidos</h2>
-        <div className="mt-3 sm:mt-4">
-          <AccesosRapidos />
-        </div>
-      </section>
     </div>
   )
 }

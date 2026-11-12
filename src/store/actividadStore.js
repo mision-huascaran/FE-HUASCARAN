@@ -50,6 +50,9 @@ function guardar(sesion) {
 const useActividadStore = create((set, get) => ({
   sesion: leerGuardada(),
 
+  /** D011: el inicio se envió y el servidor todavía no responde. */
+  confirmandoInicio: false,
+
   /** ¿Puede editar las grillas del aula ahora mismo? */
   get activa() {
     return Boolean(get().sesion)

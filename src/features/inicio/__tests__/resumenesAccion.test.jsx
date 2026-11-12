@@ -66,7 +66,7 @@ describe('Resúmenes de Acción del Docente (CU010)', () => {
 
     montar()
     expect(await screen.findByText('Mis asignaciones', {}, ESPERA)).toBeInTheDocument()
-    expect(screen.getByText(/No tiene asignaciones académicas vigentes/)).toBeInTheDocument()
+    expect(screen.getByText(/No tienes asignaciones académicas vigentes/)).toBeInTheDocument()
   })
 
   it('sin Resúmenes de Acción del servidor no inventa un "0 de 0"', async () => {

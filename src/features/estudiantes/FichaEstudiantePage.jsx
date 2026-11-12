@@ -302,7 +302,7 @@ export default function FichaEstudiantePage() {
     return (
       <EmptyState
         title="No se encontró al alumno"
-        description={error ? mensajeDeError(error) : 'Puede que ya no exista o que no tenga acceso a su colegio.'}
+        description={error ? mensajeDeError(error) : 'Puede que ya no exista o que no tengas acceso a su colegio.'}
         action={
           <Link
             to="/alumnos"

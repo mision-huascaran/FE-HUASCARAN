@@ -60,6 +60,12 @@ describe('Plantilla de mantenimiento', () => {
     expect(screen.getByLabelText('Estado')).toHaveValue('activo')
   })
 
+  it('lleva bajo el título la línea que dice qué se hace en la sección (N009)', () => {
+    montar(ROLES.SUPERVISOR, { subtitulo: 'Registra los colegios del programa.' })
+    const titulo = screen.getByRole('heading', { level: 1, name: 'Colegios' })
+    expect(titulo.nextElementSibling).toHaveTextContent('Registra los colegios del programa.')
+  })
+
   it('nunca ofrece borrar: solo inactivar, y pide confirmación (S4)', () => {
     const { onCambiarEstado } = montar()
     expect(screen.queryByRole('button', { name: /eliminar|borrar/i })).not.toBeInTheDocument()
@@ -291,5 +297,24 @@ describe('Plantilla de mantenimiento', () => {
     montar(ROLES.SUPERVISOR, { soloOnline: true, sinConexion: true })
     expect(screen.getByText('Requiere conexión')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+})
+
+describe('Nota del formulario (D012)', () => {
+  const NOTA = 'Al cambiar de grupo se pedirá la fecha.'
+  const nota = (modo) => (modo === 'editar' ? NOTA : null)
+
+  it('al editar se ve bajo la línea de los obligatorios', async () => {
+    montar(ROLES.SUPERVISOR, { notaFormulario: nota })
+    fireEvent.click(screen.getByRole('button', { name: /^editar I\.E\. 86021/i }))
+    expect(await within(screen.getByRole('dialog')).findByText(NOTA)).toBeInTheDocument()
+  })
+
+  it('al crear no aparece', async () => {
+    montar(ROLES.SUPERVISOR, { notaFormulario: nota })
+    fireEvent.click(screen.getByRole('button', { name: /agregar/i }))
+    const dialogo = await screen.findByRole('dialog')
+    expect(within(dialogo).getByText(/son obligatorios/)).toBeInTheDocument()
+    expect(within(dialogo).queryByText(NOTA)).not.toBeInTheDocument()
   })
 })

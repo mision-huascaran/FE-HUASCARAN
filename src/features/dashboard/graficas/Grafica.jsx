@@ -16,6 +16,7 @@ import { Download } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import { useToast } from '../../../components/ui/Toast'
 import useConexion from '../../../hooks/useConexion'
+import useAnchoDe from '../../../hooks/useAnchoDe'
 import useMediaQuery from '../../../hooks/useMediaQuery'
 import descargarGrafica from '../../../lib/descargarGrafica'
 import { ERROR_DESCARGA } from '../estados'
@@ -36,6 +37,8 @@ export default function Grafica({
   const caja = useRef(null)
   /** Por debajo de `sm` (640 px de Tailwind) la gráfica se dibuja compacta. */
   const compacto = useMediaQuery('(max-width: 639px)')
+  /** Con el ancho real de la caja cada gráfica ajusta sus letras (ver `escala.js`). */
+  const anchoVisible = useAnchoDe(caja)
   const [descargando, setDescargando] = useState(false)
   const enLinea = useConexion()
   const toast = useToast()
@@ -101,7 +104,7 @@ export default function Grafica({
         <div ref={caja} className={compacto ? '' : 'min-w-[560px] sm:min-w-0'}>
           {/* El modo lo decide el marco, no cada tarjeta: así ninguna se
               olvida y la descarga a PNG sigue saliendo del mismo nodo. */}
-          {isValidElement(children) && compacto ? cloneElement(children, { compacto: true }) : children}
+          {isValidElement(children) ? cloneElement(children, { compacto, anchoVisible }) : children}
         </div>
       </div>
 

@@ -71,7 +71,7 @@ function Contenido({ onNavegar, onCerrar }) {
                 onClick={onNavegar}
                 className={({ isActive }) =>
                   cn(
-                    'relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 lg:min-h-[40px]',
+                    'relative flex min-h-[44px] items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 lg:min-h-[40px]',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:ring-offset-navy-900',
                     isActive
                       ? 'bg-brand-solid/85 text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14),0_6px_16px_rgb(37_99_235/0.32)]'
@@ -79,15 +79,13 @@ function Contenido({ onNavegar, onCerrar }) {
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-white/90" aria-hidden="true" />
-                    )}
-                    <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" strokeWidth={1.8} />
-                    <span className="truncate">{label}</span>
-                  </>
-                )}
+                {/* Sin la rayita blanca a la izquierda del activo (D006 y S001):
+                    el fondo azul ya dice cuál es. */}
+                <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" strokeWidth={1.8} />
+                {/* N012 — Sin `truncate`: "Seguimiento de Lectura" salía como
+                    "Seguimiento de Lect…" sin forma de leerlo entero. Con un
+                    poco menos de separación cabe; si no cupiera, baja de línea. */}
+                <span className="min-w-0 leading-snug">{label}</span>
               </NavLink>
             </li>
           ))}
@@ -101,7 +99,9 @@ function Contenido({ onNavegar, onCerrar }) {
         {onCerrar && <BotonTema fila className="mb-1" />}
         {menuAbierto && (
           <div role="menu" className="mb-1 rounded-lg bg-white/[0.07] p-1.5 animate-slide-up">
-            <p className="truncate px-3 py-1.5 text-xs text-white/65">{usuario?.correo}</p>
+            <p className="truncate px-3 py-1.5 text-xs text-white/65" title={usuario?.correo}>
+              {usuario?.correo}
+            </p>
             <button
               type="button"
               role="menuitem"
@@ -137,7 +137,10 @@ function Contenido({ onNavegar, onCerrar }) {
             {iniciales(usuario?.nombre_completo)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-white">{usuario?.nombre_completo}</span>
+            {/* N012 — El nombre largo se corta, pero al pasar el mouse se lee entero. */}
+            <span className="block truncate text-sm font-semibold text-white" title={usuario?.nombre_completo}>
+              {usuario?.nombre_completo}
+            </span>
             <span className="block truncate text-xs text-white/70">{NOMBRE_ROL[usuario?.id_rol] ?? '—'}</span>
           </span>
           <ChevronUp

@@ -129,7 +129,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
           <div className="flex items-start gap-3 rounded-xl border border-info-600/20 bg-info-100 p-4 text-sm text-ink-700">
             <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-info-600" aria-hidden="true" />
             <p>
-              Se enviará un PIN de 6 dígitos a su correo institucional. Caduca a los 15 minutos y
+              Se enviará un PIN de 6 dígitos a tu correo institucional. Caduca a los 15 minutos y
               solo sirve una vez.
             </p>
           </div>

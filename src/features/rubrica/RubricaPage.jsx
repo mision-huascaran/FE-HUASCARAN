@@ -131,6 +131,7 @@ export default function RubricaPage() {
       <FilterBar>
         {selectsDelGrupo({ filtros, cambiar, colegios, grados, secciones, programas, esDocente })}
         <Select
+          ancho="corto"
           label="Mes"
           value={filtros.mes}
           onChange={(e) => {

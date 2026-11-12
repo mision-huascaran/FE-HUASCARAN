@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import useOnEscape from '../../hooks/useOnEscape'
 import cn from '../../lib/cn'
+import useBloqueoScroll from '../../hooks/useBloqueoScroll'
 
 /** Modal centrado, cierre por Escape y por clic fuera (§4.5). */
 export default function Modal({
@@ -25,14 +25,7 @@ export default function Modal({
 }) {
   useOnEscape(open, onClose)
 
-  useEffect(() => {
-    if (!open) return undefined
-    const previo = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previo
-    }
-  }, [open])
+  useBloqueoScroll(open)
 
   if (!open) return null
 

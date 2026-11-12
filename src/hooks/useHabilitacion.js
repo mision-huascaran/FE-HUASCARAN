@@ -27,6 +27,8 @@ import { habilitacionesGuardadas, obtenerMisHabilitaciones } from '../api/resour
 import { SIN_ACTIVIDAD } from '../api/resources/sincronizacion'
 import { SIN_REFERENCIA_TEMPORAL, ahora, hayContinuidad } from '../lib/relojServidor'
 import { useActividadEnCurso } from '../store/actividadStore'
+import useSessionStore from '../store/sessionStore'
+import { ROLES } from '../auth/roles'
 import useConexion from './useConexion'
 
 /** Motivos propios del cliente, que no vienen del contrato. */
@@ -74,6 +76,14 @@ export default function useHabilitacion({
   const enLinea = useConexion()
   // D114 — La fuente única de la actividad (la misma que la cabecera).
   const { enCurso: conActividad } = useActividadEnCurso()
+  /**
+   * `GET /me/habilitaciones` es solo del Docente: al Supervisor, que abre los
+   * mismos módulos en modo consulta, el servidor le responde 403 y quedaba un
+   * error en la consola en cada visita. Sin el paquete el resultado es el
+   * mismo (no puede registrar), así que a otros roles no se les pide.
+   */
+  const idRol = useSessionStore((s) => s.usuario?.id_rol)
+  const pideHabilitaciones = idRol == null || Number(idRol) === ROLES.PROFESOR
 
   /**
    * El paquete local solo se pide cuando puede hacer falta.
@@ -84,6 +94,7 @@ export default function useHabilitacion({
   const { data: habilitaciones } = useQuery({
     queryKey: ['me', 'habilitaciones'],
     queryFn: obtenerMisHabilitaciones,
+    enabled: pideHabilitaciones,
     staleTime: 5 * 60 * 1000,
     gcTime: Infinity,
     retry: false,

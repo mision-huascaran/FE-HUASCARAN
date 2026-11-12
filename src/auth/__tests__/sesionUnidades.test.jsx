@@ -219,7 +219,7 @@ describe('Guardas de ruta', () => {
   ])('%s: mientras se verifica la sesión no muestra la ruta', (_nombre, guarda) => {
     useSessionStore.setState({ token: 't', usuario: null, cargando: true })
     montar(guarda)
-    expect(screen.getByText('Verificando su sesión…')).toBeInTheDocument()
+    expect(screen.getByText('Verificando tu sesión…')).toBeInTheDocument()
     expect(screen.queryByText('contenido privado')).not.toBeInTheDocument()
   })
 

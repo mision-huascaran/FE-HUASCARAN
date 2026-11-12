@@ -21,14 +21,17 @@ export default function StatCard({ icon: Icono, tono = 'azul', label, value, uni
     <div
       className={cn(
         'sicedu-stat sicedu-tarjeta rounded-xl border bg-surface-0 p-4 sm:p-5',
-        sobria ? 'border-line' : 'sicedu-elevable border-line/80 shadow-card',
+        sobria ? 'flex flex-col border-line' : 'sicedu-elevable border-line/80 shadow-card',
         className,
       )}
     >
-      <div className="sicedu-stat-fila flex items-center gap-3.5">
+      {/* N008 — En `sobria` el número va al pie de la fila: si una etiqueta ocupa
+          dos líneas ("Colegios registrados") y la de al lado una, las cifras
+          de una misma fila de tarjetas quedaban a distinta altura. */}
+      <div className={cn('sicedu-stat-fila flex gap-3.5', sobria ? 'flex-1 items-start' : 'items-center')}>
         {Icono && !sobria && <IconoTinte icon={Icono} tono={tono} tamano="lg" />}
         {Icono && sobria && <Icono className="h-6 w-6 shrink-0 text-ink-500" aria-hidden="true" strokeWidth={1.8} />}
-        <div className="min-w-0">
+        <div className={cn('min-w-0', sobria && 'flex flex-1 flex-col self-stretch')}>
           <p
             className={
               sobria
@@ -40,7 +43,8 @@ export default function StatCard({ icon: Icono, tono = 'azul', label, value, uni
           </p>
           <p
             className={cn(
-              'mt-1 font-display text-[26px] font-bold leading-none tabular-nums sm:text-[28px]',
+              'font-display text-[26px] font-bold leading-none tabular-nums sm:text-[28px]',
+              sobria ? 'mt-auto pt-1.5' : 'mt-1',
               colorDelValor(tonoValor),
             )}
           >
