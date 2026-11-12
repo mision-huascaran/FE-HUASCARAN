@@ -41,9 +41,12 @@ export const MENSAJE = {
  */
 z.config({ jitless: true })
 
+// El formato va en un `pipe`: z.email() (Zod 4; `z.string().email()` está
+// deprecado) solo se evalúa con el campo lleno, así que vacío sigue diciendo
+// "Ingresa tu correo" y no "Ingresa un correo válido".
 const esquema = z.object({
-  correo: z.string().min(1, 'Ingresa tu correo').email('Ingresa un correo válido'),
-  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  correo: z.string().min(1, { error: 'Ingresa tu correo' }).pipe(z.email({ error: 'Ingresa un correo válido' })),
+  password: z.string().min(8, { error: 'La contraseña debe tener al menos 8 caracteres' }),
 })
 
 export default function LoginPage() {
