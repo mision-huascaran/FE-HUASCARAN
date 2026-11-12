@@ -15,13 +15,14 @@
 // `api/resources/administracion.js`). El nombre y los demás datos van en el
 // query, no en un formulario.
 import { useEffect, useRef, useState } from 'react'
-import { FileSpreadsheet, Upload } from 'lucide-react'
+import { Download, FileSpreadsheet, Upload } from 'lucide-react'
 import { Badge, Button, DataTable, Modal } from '../../components/ui'
 import { useToast } from '../../components/ui/Toast'
 import { confirmarImportacion, consultarImportacion, vistaPreviaImportacion } from '../../api/resources/administracion'
 import { estadoDe, mensajeDeError, motivoDe } from '../../api/client'
 import useConexion from '../../hooks/useConexion'
 import { nuevoUuid } from '../../lib/uuid'
+import { descargarPlantillaNomina } from './plantillaNomina'
 
 const ACEPTA = '.xlsx'
 const MAXIMO_MB = 5
@@ -194,15 +195,20 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
               className="hidden"
               onChange={(e) => elegirArchivo(e.target.files)}
             />
-            <Button
-              variant="outline"
-              iconLeft={FileSpreadsheet}
-              loading={paso === 'cargando'}
-              disabled={!enLinea}
-              onClick={() => inputRef.current?.click()}
-            >
-              Seleccionar archivo
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                iconLeft={FileSpreadsheet}
+                loading={paso === 'cargando'}
+                disabled={!enLinea}
+                onClick={() => inputRef.current?.click()}
+              >
+                Seleccionar archivo
+              </Button>
+              <Button variant="ghost" iconLeft={Download} onClick={descargarPlantillaNomina}>
+                Descargar plantilla
+              </Button>
+            </div>
             {!enLinea && <p className="text-xs text-warning-600">Sin conexión. Conéctate a Internet para continuar con la importación.</p>}
             <p className="text-xs text-ink-400">Archivo Excel (.xlsx), hasta {MAXIMO_MB} MB y 3000 alumnos.</p>
           </>

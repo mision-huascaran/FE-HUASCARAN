@@ -20,6 +20,12 @@ vi.mock('idb-keyval', () => ({
   del: vi.fn(async () => {}),
 }))
 
+const escribirArchivo = vi.fn()
+vi.mock('xlsx', async (importOriginal) => {
+  const original = await importOriginal()
+  return { ...original, writeFile: (...a) => escribirArchivo(...a) }
+})
+
 const vistaPrevia = vi.fn()
 const confirmar = vi.fn()
 const consultar = vi.fn()
@@ -80,6 +86,7 @@ beforeEach(() => {
   vistaPrevia.mockReset().mockResolvedValue(PREVIA)
   confirmar.mockReset()
   consultar.mockReset()
+  escribirArchivo.mockReset()
 })
 
 afterEach(() => useSessionStore.setState({ token: null, usuario: null }))
@@ -94,6 +101,25 @@ describe('Importar nómina — quién la ve', () => {
     montar(ROLES.DOCENTE)
     await screen.findByRole('button', { name: /^agregar$/i }, ESPERA)
     expect(screen.queryByRole('button', { name: /^importar nómina$/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('Importar nómina — plantilla', () => {
+  it('"Descargar plantilla" genera un .xlsx con las 4 columnas que el import lee', async () => {
+    montar(ROLES.SUPERVISOR)
+    fireEvent.click(await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+
+    fireEvent.click(within(dialogo).getByRole('button', { name: /descargar plantilla/i }))
+
+    expect(escribirArchivo).toHaveBeenCalledTimes(1)
+    const [libro, nombre] = escribirArchivo.mock.calls[0]
+    expect(nombre).toBe('plantilla_nomina.xlsx')
+    const hoja = libro.Sheets[libro.SheetNames[0]]
+    expect(hoja.A1.v).toBe('II.EE')
+    expect(hoja.B1.v).toBe('GRADO')
+    expect(hoja.C1.v).toBe('NOMBRES Y APELLIDOS')
+    expect(hoja.D1.v).toBe('DNI')
   })
 })
 
