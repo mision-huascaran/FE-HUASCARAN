@@ -135,7 +135,7 @@ describe('Alumnos — guardar desde el popup', () => {
     )
   })
 
-  const SOLO_LETRAS = 'Usa solo letras, espacios, apóstrofo y guion.'
+  const SOLO_LETRAS = 'Usa solo letras, números, espacios, apóstrofo y guion.'
   it.each([
     ['300 caracteres sin espacios', 'a'.repeat(300), 'Tiene 300 caracteres; el máximo es 60.'],
     ['solo espacios', '     ', 'No puede tener solo espacios.'],

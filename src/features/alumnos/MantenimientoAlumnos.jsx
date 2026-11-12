@@ -245,7 +245,7 @@ export default function MantenimientoAlumnos() {
   const campos = useMemo(
     () => [
       /**
-       * Letras, espacios, apóstrofo y guion, hasta 60 caracteres. El backend
+       * Letras, números, espacios, apóstrofo y guion, hasta 60 caracteres. El backend
        * solo exige que no estén vacíos: sin esto se guardaban nombres de
        * 10 000 caracteres o con "<script>" (ver lib/nombrePersona.js).
        */

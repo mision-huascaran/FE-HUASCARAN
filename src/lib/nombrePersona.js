@@ -8,10 +8,10 @@
 export const LARGO_MAXIMO_NOMBRE = 60
 
 /**
- * Letras de cualquier alfabeto (con tildes, ñ, ü…), espacios, apóstrofo (' o ’)
- * y guion. Ni dígitos ni símbolos como < > = ; { } $ @ + ,
+ * Letras de cualquier alfabeto (con tildes, ñ, ü…), números, espacios,
+ * apóstrofo (' o ’) y guion. Ningún símbolo como < > = ; { } $ @ + , ( )
  */
-const CARACTERES_DE_NOMBRE = /^[\p{L}\p{M}' ’-]+$/u
+const CARACTERES_DE_NOMBRE = /^[\p{L}\p{M}\p{Nd}' ’-]+$/u
 const EMPIEZA_O_TERMINA_CON_SIGNO = /^['’-]|['’-]$/u
 
 /**
@@ -26,7 +26,7 @@ export function motivoNombreInvalido(valor) {
   if (limpio.length > LARGO_MAXIMO_NOMBRE) {
     return `Tiene ${limpio.length} caracteres; el máximo es ${LARGO_MAXIMO_NOMBRE}.`
   }
-  if (!CARACTERES_DE_NOMBRE.test(limpio)) return 'Usa solo letras, espacios, apóstrofo y guion.'
+  if (!CARACTERES_DE_NOMBRE.test(limpio)) return 'Usa solo letras, números, espacios, apóstrofo y guion.'
   if (EMPIEZA_O_TERMINA_CON_SIGNO.test(limpio)) return 'No puede empezar ni terminar con un apóstrofo o un guion.'
   return null
 }
