@@ -150,6 +150,10 @@ describe('Alumnos — plantilla y exportar', () => {
     expect(hoja.B1.v).toBe('GRADO')
     expect(hoja.C1.v).toBe('NOMBRES Y APELLIDOS')
     expect(hoja.D1.v).toBe('DNI')
+    // Solo la fila de títulos: una fila de ejemplo se importaría como alumno.
+    expect(hoja['!ref']).toBe('A1:D1')
+    expect(hoja.A2).toBeUndefined()
+    expect(XLSX.utils.sheet_to_json(hoja, { header: 1 })).toEqual([['II.EE', 'GRADO', 'NOMBRES Y APELLIDOS', 'DNI']])
   })
 
   /**
@@ -178,6 +182,26 @@ describe('Alumnos — plantilla y exportar', () => {
 
     expect(screen.queryByRole('button', { name: /descargar plantilla/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^exportar$/i })).toBeInTheDocument()
+  })
+})
+
+describe('Importar nómina — ejemplo de fila', () => {
+  const EJEMPLO =
+    'Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.'
+
+  it('el modal muestra el ejemplo de fila fuera de la zona de soltar', async () => {
+    montar(ROLES.SUPERVISOR)
+    fireEvent.click(await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+
+    const texto = within(dialogo).getByText(EJEMPLO)
+    expect(texto).toBeInTheDocument()
+
+    // No va dentro del botón: no forma parte de su nombre accesible.
+    const zona = within(dialogo).getByRole('button', { name: /seleccionar archivo/i })
+    expect(zona).not.toContainElement(texto)
+    expect(zona).toHaveAccessibleName('Seleccionar archivo')
+    expect(within(dialogo).queryByRole('button', { name: /ejemplo de fila/i })).not.toBeInTheDocument()
   })
 })
 

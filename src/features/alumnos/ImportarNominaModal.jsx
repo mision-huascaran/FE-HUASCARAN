@@ -259,6 +259,10 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
                 </>
               )}
             </button>
+            {/* Fuera del botón a propósito: así no entra en su nombre accesible. */}
+            <p className="text-xs text-ink-400">
+              Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.
+            </p>
             {!enLinea && <p className="text-xs text-warning-600">Sin conexión. Conéctate a Internet para continuar con la importación.</p>}
           </>
         ) : (

@@ -1778,3 +1778,7 @@ con el viejo, y Grado se quedaba vacío para siempre. `AsistenciaPage.jsx` tení
   colegio ajeno guardado y también llegando por la URL).
 
 1200 tests en verde, lint sin warnings nuevos.
+
+---
+
+Plantilla de nómina sin fila de ejemplo; el ejemplo pasa al modal de Importar nómina (pedido de Antonio)
