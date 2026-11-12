@@ -5,6 +5,7 @@ import Button from '../Button'
 import DataTable from '../DataTable'
 import LevelChip from '../LevelChip'
 import RoleGate from '../RoleGate'
+import StatCard from '../StatCard'
 import useSessionStore from '../../../store/sessionStore'
 import { ROLES } from '../../../auth/roles'
 
@@ -149,5 +150,20 @@ describe('DataTable — orden (D008)', () => {
     unmount()
     render(<DataTable columns={columnas} rows={filas} />)
     expect(nombres()).toEqual(['Rosa', 'Julio', 'Ana'])
+  })
+})
+
+/** N008 de la revisión de UX: en Inicio las cifras de una fila de tarjetas van a la misma altura. */
+describe('StatCard sobria', () => {
+  it('lleva el número al pie, para que una etiqueta de dos líneas no lo baje', () => {
+    render(<StatCard sobria label="Colegios registrados" value={15} />)
+    const cifra = screen.getByText('15')
+    expect(cifra.className).toMatch(/\bmt-auto\b/)
+    expect(cifra.parentElement.className).toMatch(/\bflex-col\b/)
+  })
+
+  it('la de siempre no cambia', () => {
+    render(<StatCard label="Libros" value={9} />)
+    expect(screen.getByText('9').className).not.toMatch(/\bmt-auto\b/)
   })
 })
