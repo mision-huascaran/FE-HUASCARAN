@@ -13,7 +13,7 @@ import { ahora } from '../lib/relojServidor'
 import { TIPOS_ENVIO } from '../hooks/useOfflineQueue'
 import useActividadStore from '../store/actividadStore'
 import useSessionStore from '../store/sessionStore'
-import { idSesionDe, leerPayload, tokenCaducado } from './jwt'
+import { idSesionDe, idUsuarioDe, tokenCaducado } from './jwt'
 import useExpiracionSesion from './useExpiracionSesion'
 
 /**
@@ -113,7 +113,7 @@ export function AuthProvider({ children }) {
          * cuando el token sigue siendo bueno.
          */
         // D115 — Solo la copia de la cuenta que dice el token.
-        const guardado = await perfilLocalDe(leerPayload(token)?.id_usuario)
+        const guardado = await perfilLocalDe(idUsuarioDe(token))
         if (guardado) {
           setUsuario(guardado)
           setCargando(false)

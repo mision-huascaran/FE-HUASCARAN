@@ -26,6 +26,7 @@ import GraficaDeVuelo from './GraficaDeVuelo'
 import useConexion from '../../hooks/useConexion'
 import usePrecarga from '../../hooks/usePrecarga'
 import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
+import { CONSULTA_SIN_CONEXION } from '../../components/mantenimiento/Mantenimiento'
 import { buscarAlumnoLocal } from '../alumnos/alumnosSinConexion'
 import { listarHistorialAlumno } from '../../api/resources/administracion'
 import {
@@ -295,6 +296,18 @@ function PestanaHistorial({ idAlumno }) {
   )
 }
 
+/**
+ * D61 — La fila de Alumnos guardada en el equipo, con el nombre como lo pinta
+ * la ficha. La lista lo trae "Apellidos, Nombres" (para ordenar); la ficha con
+ * conexión dice "Nombres Apellidos", y sin conexión tiene que decir lo mismo
+ * (también para las iniciales y la miga).
+ */
+function comoFicha(fila) {
+  if (!fila) return null
+  const nombre = [fila.nombres, fila.apellidos].filter(Boolean).join(' ')
+  return { ...fila, nombre: nombre || fila.nombre }
+}
+
 export default function FichaEstudiantePage() {
   const { id } = useParams()
   const [pestana, setPestana] = useState('resumen')
@@ -314,7 +327,8 @@ export default function FichaEstudiantePage() {
    * que la lista acababa de enseñar. La cabecera se arma con la misma fila de
    * la lista (precarga o lo ya visto con conexión).
    */
-  const alumno = delServidor ?? (enLinea ? undefined : buscarAlumnoLocal(queryClient, precarga, id))
+  const copiaLocal = enLinea || delServidor ? null : comoFicha(buscarAlumnoLocal(queryClient, precarga, id))
+  const alumno = delServidor ?? copiaLocal
 
   // "Alumnos › Abigail Alva Chávez" y no "Alumnos › Detalle" (U29).
   useMigaExtra(alumno ? (alumno.nombre ?? [alumno.nombres, alumno.apellidos].filter(Boolean).join(' ')) : null)
@@ -347,10 +361,12 @@ export default function FichaEstudiantePage() {
    * el Estado se añade aparte porque es el único con color.
    */
   const etiquetas = [
-    etiquetaDe(alumno.colegio),
-    etiquetaDe(alumno.programa ?? alumno.subprograma),
+    // Sin valor por defecto: `etiquetaDe` pone "—" y el filtro no lo quitaba
+    // (salían dos "—" con la misma clave cuando faltaban colegio y subprograma).
+    etiquetaDe(alumno.colegio, ''),
+    etiquetaDe(alumno.programa ?? alumno.subprograma, ''),
     alumno.ciclo ? `Ciclo ${etiquetaDe(alumno.ciclo)}` : null,
-    alumno.seccion ? `${etiquetaDe(alumno.grado)} · Sección ${etiquetaDe(alumno.seccion)}` : etiquetaDe(alumno.grado),
+    alumno.seccion ? `${etiquetaDe(alumno.grado)} · Sección ${etiquetaDe(alumno.seccion)}` : etiquetaDe(alumno.grado, ''),
   ].filter(Boolean)
 
   // La inicial del nombre y la del apellido, como pide la cabecera. Con una
@@ -387,6 +403,12 @@ export default function FichaEstudiantePage() {
           {alumno.activo === false ? <Badge tone="warning">Inactivo</Badge> : <Badge tone="success">Activo</Badge>}
         </div>
       </header>
+
+      {copiaLocal && (
+        <p role="status" className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          {CONSULTA_SIN_CONEXION}
+        </p>
+      )}
 
       <Card padded={false}>
         <Tabs items={PESTANAS} value={pestana} onChange={setPestana} className="px-2" />

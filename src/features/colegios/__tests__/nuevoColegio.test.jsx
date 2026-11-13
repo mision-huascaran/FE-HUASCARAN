@@ -115,6 +115,28 @@ describe('Colegios (CU013)', () => {
     expect(await screen.findByText('I.E. Precargada', {}, ESPERA)).toBeInTheDocument()
   })
 
+  /**
+   * D61 — CP-COL-04 en QA (ronda 9). La precarga se baja desde Inicio y tarda:
+   * la Supervisora que entra a Colegios antes de que termine no la tiene, y
+   * al caer la red la tabla quedaba en "Sin registros" aunque acababa de ver
+   * la lista. Sin precarga se usa la última lista vista en línea.
+   */
+  it('sin precarga, al perder la conexión sigue mostrando la lista que ya vio', async () => {
+    montar()
+    await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)
+    const filasEnLinea = screen.getAllByRole('row').length
+
+    act(() => {
+      Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+      window.dispatchEvent(new Event('offline'))
+    })
+
+    const editar = await screen.findAllByRole('button', { name: /^editar /i }, ESPERA)
+    expect(editar[0]).toBeDisabled()
+    expect(screen.getAllByRole('row')).toHaveLength(filasEnLinea)
+    expect(screen.queryByText('Sin registros')).not.toBeInTheDocument()
+  })
+
   it('al inactivar un colegio lo confirma y vuelve a pedir la lista (S4)', async () => {
     montar()
     const [interruptor] = await screen.findAllByRole('switch', { name: /^inactivar /i }, ESPERA)

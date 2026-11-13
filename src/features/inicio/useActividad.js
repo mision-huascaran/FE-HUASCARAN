@@ -26,7 +26,7 @@ import {
   listarMisAsignaciones,
 } from '../../api/resources/administracion'
 import { hayHabilitacionParaIniciar } from '../../auth/habilitaciones'
-import { ahora } from '../../lib/relojServidor'
+import { ahora, hayContinuidad } from '../../lib/relojServidor'
 import { finalizarActividad, iniciarActividad } from '../../api/resources/actividades'
 import { obtenerInicioDocente } from '../../api/resources/inicio'
 import { obtenerNivelesRazkids, obtenerNivelesRubrica } from '../../api/resources/catalogos'
@@ -48,6 +48,10 @@ import { idSesionDe } from '../../auth/jwt'
  */
 export const SIN_HABILITACIONES =
   'No puedes iniciar una actividad porque no tienes asignaciones habilitadas ni permisos excepcionales vigentes.'
+
+/** Literal de CU009 ("Inicio de actividad sin conexión a Internet"), CP-INI-28. */
+export const SIN_HABILITACION_VERIFICABLE_AL_INICIAR =
+  'No se puede verificar tu habilitación sin conexión. Conéctate a Internet para actualizar tus asignaciones, permisos y referencia temporal.'
 
 /**
  * Las pantallas cuyo GET trae el bloque `escritura` del servidor (T6). El
@@ -181,6 +185,20 @@ export default function useActividad() {
   }, [enLinea, inicio, inicioRespondidoEn, remota, sesion, itemsPendientes])
 
   const iniciar = async () => {
+    /**
+     * CU009 y CU010 — SIN CONEXIÓN Y SIN REFERENCIA TEMPORAL, NO SE INICIA.
+     *
+     * Tras recargar o reabrir el navegador sin red se pierde la continuidad de
+     * la hora del servidor (`hayContinuidad()`): no se puede saber si la
+     * asignación o el permiso siguen vigentes ni qué hora real llevaría el
+     * inicio. CU009 pide exigir conexión antes de iniciar, con su literal, y
+     * sin tocar los pendientes. Antes se iniciaba igual (CP-INI-28, ronda 9).
+     */
+    if (!enLinea && !hayContinuidad()) {
+      toast.error('No se pudo iniciar', SIN_HABILITACION_VERIFICABLE_AL_INICIAR, AVISO_ACTIVIDAD)
+      return
+    }
+
     // El id y la hora real se fijan AQUÍ, antes de cualquier llamada: son los
     // que se enviarán, hoy o cuando vuelva la red.
     const abierta = iniciarLocal({ idDocente })
