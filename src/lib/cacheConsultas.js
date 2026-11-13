@@ -65,6 +65,17 @@ async function guardar(valor) {
  */
 export function conectarCacheConsultas(cliente, propietario) {
   if (propietario == null) return () => {}
+  /**
+   * LA COPIA NO CADUCA EN MEMORIA.
+   *
+   * Lo guardado se vuelca a la caché SOLO al entrar. Con el `gcTime` por
+   * defecto (cinco minutos), una pantalla que se dejaba más tiempo se borraba
+   * de la memoria, y al volver sin conexión la consulta quedaba en pausa y sin
+   * datos: Lectura, Rúbrica o Vuelo vacías, con lo pendiente de la cola
+   * escondido, aunque la copia siguiera en IndexedDB. Son las mismas consultas
+   * que ya se guardan enteras; se borran al cerrar sesión.
+   */
+  RAICES.forEach((raiz) => cliente.setQueryDefaults([raiz], { gcTime: Infinity }))
   let entradas = {}
   let temporizador = null
   let activa = true

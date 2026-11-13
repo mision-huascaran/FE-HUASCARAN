@@ -390,9 +390,6 @@ export default function AsistenciaPage() {
      * consulta se pausa y se sigue viendo lo que ya estaba.
      */
     staleTime: 0,
-    // Sin conexión, la copia es lo único que hay: no se descarta a los cinco
-    // minutos de haber salido del módulo.
-    gcTime: Infinity,
   })
 
   const todosLosAlumnos = useMemo(() => clase.data?.alumnos ?? [], [clase.data])
@@ -445,7 +442,7 @@ export default function AsistenciaPage() {
    * marque ahora también tiene que llevar `adicional`, o el servidor lo
    * rechazaría con `sin_clase_programada` si llegara antes que las demás.
    */
-  const adicionalPendiente = Boolean(datosClase?.adicional_pendiente)
+  const enviaAdicional = [[sinClase, registrandoAdicional].every(Boolean), datosClase?.adicional_pendiente].some(Boolean)
 
   // La decisión es de ESTA clase: cambiar de fecha o de aula la olvida, o se
   // registrarían adicionales en días que el docente ni miró.
@@ -490,7 +487,7 @@ export default function AsistenciaPage() {
     // CU022: la clase adicional se crea AL GUARDAR la primera asistencia, no
     // al pulsar el botón. Por eso la marca viaja con el aviso, y pulsar no
     // deja ningún registro vacío detrás.
-    adicional: (sinClase && registrandoAdicional) || adicionalPendiente,
+    adicional: enviaAdicional,
     claveClase,
   })
 
