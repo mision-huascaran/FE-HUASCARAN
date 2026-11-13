@@ -482,6 +482,14 @@ export function encolar({
    * lo perdería. La pantalla tiene que poder decirlo.
    */
   alNoPersistir = null,
+  /**
+   * El id de una actividad: el envío se pone ANTES de la primera operación de
+   * la cola que pertenece a ella. Lo usa el inicio de una actividad que se
+   * encola tarde —el POST salió y se quedó sin respuesta porque se cayó la
+   * red—: lo que se registró mientras tanto ya estaba en la cola, y si salía
+   * primero el servidor lo rechazaba por "fuera de una actividad".
+   */
+  antesQueSuActividad = null,
 }) {
   // Uno que ya está saliendo no se reemplaza: el nuevo va detrás, aparte.
   const usuario = usuarioActual()
@@ -513,11 +521,16 @@ export function encolar({
     creado: ahora().toISOString(),
   }
 
+  const primeraDeSuActividad = antesQueSuActividad
+    ? cola.findIndex((pendiente) => pendiente.idActividad === antesQueSuActividad && pendiente.idOperacion !== enVuelo)
+    : -1
   if (anterior >= 0) {
     // La edición más reciente reemplaza a la pendiente: nunca dos envíos de la
     // misma fila-semana en la cola.
     resolverPromesa(cola[anterior].idOperacion, { reemplazado: true })
     cola[anterior] = item
+  } else if (primeraDeSuActividad >= 0) {
+    cola.splice(primeraDeSuActividad, 0, item)
   } else {
     cola.push(item)
   }

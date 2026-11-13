@@ -35,6 +35,13 @@ const PASOS = ['Pedir código', 'Verificar código', 'Nueva contraseña']
 const SIN_CONEXION =
   'No es posible recuperar o cambiar la contraseña sin conexión a Internet. Conéctate a Internet e inténtalo nuevamente.'
 
+/**
+ * Un fallo sin respuesta es que se fue la red a mitad del paso. El mensaje
+ * genérico ("El dato quedó guardado en este dispositivo") es falso aquí: el
+ * cambio de contraseña no se guarda para después, exige conexión.
+ */
+const mensajeDelFallo = (error) => (error?.response ? mensajeDeError(error) : SIN_CONEXION)
+
 export default function ModalCambiarPassword({ abierto, onCerrar }) {
   const toast = useToast()
   const enLinea = useConexion()
@@ -60,7 +67,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
       toast.success('PIN enviado', 'Revisa tu correo institucional. Caduca en 15 minutos.')
       setPaso(1)
     } catch (error) {
-      toast.error('No se pudo enviar el código', mensajeDeError(error))
+      toast.error('No se pudo enviar el código', mensajeDelFallo(error))
     } finally {
       setOcupado(false)
     }
@@ -72,7 +79,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
       await verificarCodigoRecuperacion({ codigo: codigo.trim() })
       setPaso(2)
     } catch (error) {
-      toast.error('Código incorrecto', mensajeDeError(error))
+      toast.error('Código incorrecto', mensajeDelFallo(error))
     } finally {
       setOcupado(false)
     }
@@ -89,7 +96,7 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
       toast.success('Contraseña actualizada', 'Úsala la próxima vez que inicies sesión.')
       cerrar()
     } catch (error) {
-      toast.error('No se pudo actualizar la contraseña', mensajeDeError(error))
+      toast.error('No se pudo actualizar la contraseña', mensajeDelFallo(error))
     } finally {
       setOcupado(false)
     }
@@ -110,8 +117,9 @@ export default function ModalCambiarPassword({ abierto, onCerrar }) {
       footer={
         <>
           <Button variant="ghost" onClick={cerrar}>Cancelar</Button>
-          {paso === 0 && <Button loading={ocupado} iconLeft={MailCheck} onClick={pedirCodigo}>Enviarme el código</Button>}
-          {paso === 1 && <Button loading={ocupado} disabled={codigo.trim().length < 6} onClick={verificar}>Verificar</Button>}
+          {/* Sin conexión, ningún paso se puede pulsar: los tres llaman al servidor (CU004). */}
+          {paso === 0 && <Button loading={ocupado} disabled={!enLinea} iconLeft={MailCheck} onClick={pedirCodigo}>Enviarme el código</Button>}
+          {paso === 1 && <Button loading={ocupado} disabled={!enLinea || codigo.trim().length < 6} onClick={verificar}>Verificar</Button>}
           {paso === 2 && <Button loading={ocupado} disabled={!puedeGuardar} onClick={guardar}>Guardar contraseña</Button>}
         </>
       }
