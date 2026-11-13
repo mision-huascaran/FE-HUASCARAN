@@ -40,6 +40,7 @@ import { CheckCheck, CalendarClock, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import SinCopiaLocal, { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
@@ -634,7 +635,10 @@ export default function AsistenciaPage() {
         </Card>
       )}
 
-      {listos && !clase.isError && !clase.isLoading && alumnos.length === 0 && (
+      {/* Sin conexión y sin copia de esta clase: no es una clase vacía. */}
+      {listos && sinCopiaLocal(clase) && <SinCopiaLocal que="clase" />}
+
+      {listos && !clase.isError && !clase.isLoading && !sinCopiaLocal(clase) && alumnos.length === 0 && (
         <Card>
           <EmptyState title="Sin alumnos en esta clase" description={SIN_ALUMNOS} />
         </Card>

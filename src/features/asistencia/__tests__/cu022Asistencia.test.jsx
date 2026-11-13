@@ -960,3 +960,26 @@ describe('Sin conexión, los tres estados se encolan y se sincronizan', () => {
     expect(ladoTardanza(controles().at(2))).toHaveAttribute(PULSADO, 'true')
   })
 })
+
+describe('Sin conexión y sin copia de esa clase en el equipo', () => {
+  const SIN_COPIA = 'Esta clase no está guardada en este equipo'
+  const conexion = (enLinea) => {
+    Object.defineProperty(window.navigator, 'onLine', { value: enLinea, configurable: true })
+    window.dispatchEvent(new Event(enLinea ? 'online' : 'offline'))
+  }
+  afterEach(() => conexion(true))
+
+  it('una fecha que nunca se cargó NO dice "No hay alumnos matriculados": dice que no está guardada', async () => {
+    montar()
+    await abrirClase()
+    conexion(false)
+    sinRed = true
+    // Todos los filtros completos; solo cambia la fecha, a una nunca abierta.
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-03-02' } })
+
+    expect(await screen.findByText(SIN_COPIA, { exact: false }, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText(/Conéctate a internet para cargarla/)).toBeInTheDocument()
+    expect(screen.queryByText('Sin alumnos en esta clase')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No hay alumnos matriculados/)).not.toBeInTheDocument()
+  })
+})

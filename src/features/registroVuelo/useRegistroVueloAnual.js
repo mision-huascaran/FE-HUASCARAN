@@ -18,6 +18,7 @@ import { ahora } from '../../lib/relojServidor'
 import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 import useSyncStore from '../../store/syncStore'
+import { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 
 /**
  * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
@@ -160,6 +161,7 @@ export default function useRegistroVueloAnual({ filtros, pagina, grupoValido = t
   return {
     datos,
     cargando: vuelo.isLoading,
+    sinCopia: sinCopiaLocal(vuelo),
     error: vuelo.isError ? vuelo.error : null,
     guardarDecision,
   }

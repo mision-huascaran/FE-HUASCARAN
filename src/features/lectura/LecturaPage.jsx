@@ -25,6 +25,7 @@ import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import SinCopiaLocal, { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import FilterBar from '../../components/ui/FilterBar'
 import Select from '../../components/ui/Select'
 import selectsDelGrupo from '../../components/filtros/selectsDelGrupo'
@@ -137,6 +138,7 @@ export default function LecturaPage() {
   const {
     tabla,
     cargando,
+    sinCopia,
     error,
     porCrear,
     sinAlumnos,
@@ -291,6 +293,9 @@ export default function LecturaPage() {
         clase quedará atada porque crearla CONGELA la lista de alumnos de esa
         clase: no es un detalle, es la consecuencia.
       */}
+      {/* Sin conexión y sin copia de esta tabla en el equipo (RNF-001). */}
+      {listos && sinCopia && <SinCopiaLocal que="tabla" />}
+
       {listos && porCrear && !cargando && (
         <Card>
           <EmptyState

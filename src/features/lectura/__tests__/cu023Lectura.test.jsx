@@ -175,14 +175,14 @@ function montarParaVolver() {
   }
 }
 
-function montar(idRol = ROLES.PROFESOR) {
+function montar(idRol = ROLES.PROFESOR, cliente = crearQueryClient()) {
   useSessionStore.setState({
     token: 'mock.4.2026',
     usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombres: 'Prueba' },
     cargando: false,
   })
   return render(
-    <QueryClientProvider client={crearQueryClient()}>
+    <QueryClientProvider client={cliente}>
       <ToastProvider>
         <MemoryRouter>
           <LecturaPage />
@@ -788,5 +788,22 @@ describe('Quién puede escribir', () => {
 
     await screen.findByText('Debes iniciar una actividad de trabajo para registrar o modificar información.', {}, ESPERA)
     expect(await screen.findByLabelText(/título del LSN/i, {}, ESPERA)).toBeDisabled()
+  })
+})
+
+describe('Sin conexión y sin copia de la tabla en el equipo', () => {
+  it('Lectura: lo dice, en vez de dejar la pantalla en blanco', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    const cliente = crearQueryClient()
+    const primera = montar(ROLES.PROFESOR, cliente)
+    await screen.findByLabelText(/libros de sala de lectura de Torres, Ana/i, {}, ESPERA)
+    primera.unmount()
+    // Como si esta tabla nunca se hubiera abierto con conexión.
+    cliente.removeQueries({ queryKey: ['lectura'] })
+    conexion(false)
+    onlineManager.setOnline(false)
+    montar(ROLES.PROFESOR, cliente)
+    expect(await screen.findByText('Esta tabla no está guardada en este equipo', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Conéctate a internet para cargarla.')).toBeInTheDocument()
   })
 })

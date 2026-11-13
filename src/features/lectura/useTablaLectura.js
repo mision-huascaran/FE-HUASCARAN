@@ -29,6 +29,7 @@ import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/reg
 import useActividadStore from '../../store/actividadStore'
 import useSyncStore from '../../store/syncStore'
 import { conDeclaracionPendiente, declaracionesPendientes } from './declaracionPendiente'
+import { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 
 /**
  * D92 — Una asistencia marcada SIN CONEXIÓN habilita la fila de lectura.
@@ -448,6 +449,7 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   return {
     tabla: datosTabla,
     cargando: tabla.isLoading,
+    sinCopia: sinCopiaLocal(tabla),
     // Un error de verdad: ni el 404 de "no existe" ni `sin_alumnos`, que son respuestas.
     error: tabla.isError && !porCrear && !esSinAlumnos(tabla.error) ? tabla.error : null,
     // Con `sin_alumnos` no hay nada que crear.

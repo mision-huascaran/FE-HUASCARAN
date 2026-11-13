@@ -17,6 +17,7 @@ import { ahora } from '../../lib/relojServidor'
 import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 import useSyncStore from '../../store/syncStore'
+import { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 
 /**
  * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
@@ -156,6 +157,7 @@ export default function useRubricaMensual({ filtros, pagina, grupoValido = true 
   return {
     datos,
     cargando: rubrica.isLoading,
+    sinCopia: sinCopiaLocal(rubrica),
     motivoDelMes,
     // Un error de verdad: ni el mes futuro ni el mes sin días lectivos.
     error: rubrica.isError && !motivoDelMes ? rubrica.error : null,
