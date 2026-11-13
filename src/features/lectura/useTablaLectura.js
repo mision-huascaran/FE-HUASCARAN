@@ -9,7 +9,7 @@
 // Y LA TABLA NO SE CREA SOLA. CU023 lo pide así porque crearla CONGELA la lista
 // de alumnos de su clase de referencia —y crea la clase si no tenía fila—: eso
 // es una decisión del docente, no un efecto secundario de abrir una pantalla.
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -25,9 +25,11 @@ import { encolar, pendientesDeTipo } from '../../lib/colaOffline'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
 import { ahora } from '../../lib/relojServidor'
 import { nuevoUuid } from '../../lib/uuid'
-import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
+import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 import useSyncStore from '../../store/syncStore'
+import { conDeclaracionPendiente, declaracionesPendientes } from './declaracionPendiente'
+import { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 
 /**
  * D92 — Una asistencia marcada SIN CONEXIÓN habilita la fila de lectura.
@@ -97,9 +99,26 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
+  /**
+   * Las filas que esperan en la cola para ESTA tabla, encima de la respuesta:
+   * lo pendiente gana hasta que el servidor lo confirme (ver `conPendientes`).
+   */
+  const itemsEnCola = useSyncStore((s) => s.items)
+  const conLoPendiente = useCallback(
+    (respuesta) =>
+      conDeclaracionPendiente(
+        conPendientes('lectura', respuesta, ({ idTabla }, datos) => String(idTabla) === String(datos.id)),
+        pendientesDeTipo(TIPOS_ENVIO.LECTURA_NO_REALIZADA),
+        pendientesDeTipo(TIPOS_ENVIO.LECTURA_HABILITAR),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsEnCola],
+  )
+
   const tabla = useQuery({
     queryKey: clave,
     queryFn: () => obtenerTabla(filtros),
+    select: conLoPendiente,
     enabled: listos,
     /**
      * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87), igual que Rúbrica y Registro
@@ -119,6 +138,24 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
      */
     retry: (intentos, error) => !esTablaPorCrear(error) && !esSinAlumnos(error) && intentos < 2,
   })
+
+  /**
+   * CU026 — Cuando sale de la cola la última declaración (o reversión) de esta
+   * tabla, se vuelve a pedir: ya no hay nada pendiente que la sostenga, y la
+   * copia en memoria es la de ANTES de declararla. Sin esto, al volver al
+   * módulo y sincronizar, la tabla se veía desbloqueada hasta un F5.
+   */
+  const idTabla = tabla.data?.id
+  const enEspera = declaracionesPendientes(
+    idTabla,
+    pendientesDeTipo(TIPOS_ENVIO.LECTURA_NO_REALIZADA),
+    pendientesDeTipo(TIPOS_ENVIO.LECTURA_HABILITAR),
+  )
+  const enEsperaAntes = useRef(enEspera)
+  useEffect(() => {
+    if (enEsperaAntes.current > 0 && enEspera === 0) void queryClient.invalidateQueries({ queryKey: ['lectura', 'tabla'] })
+    enEsperaAntes.current = enEspera
+  }, [enEspera, queryClient])
 
   const porCrear = esTablaPorCrear(tabla.error) ? datosParaCrear(tabla.error) : null
   const refrescar = () => {
@@ -412,6 +449,7 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   return {
     tabla: datosTabla,
     cargando: tabla.isLoading,
+    sinCopia: sinCopiaLocal(tabla),
     // Un error de verdad: ni el 404 de "no existe" ni `sin_alumnos`, que son respuestas.
     error: tabla.isError && !porCrear && !esSinAlumnos(tabla.error) ? tabla.error : null,
     // Con `sin_alumnos` no hay nada que crear.

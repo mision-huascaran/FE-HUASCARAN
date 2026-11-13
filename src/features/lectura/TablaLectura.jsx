@@ -3,7 +3,7 @@
 // La cabecera no es decorativa: dice de qué CLASE son estas filas. La tabla se
 // ata a una clase de referencia de la semana, y si no se dijera cuál, dos
 // tablas distintas de la misma semana se verían idénticas.
-import { CalendarClock, Ban, CalendarCog, Undo2 } from 'lucide-react'
+import { CalendarClock, Ban, CalendarCog, RefreshCw, Undo2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import FilaLectura from './FilaLectura'
@@ -128,6 +128,16 @@ export default function TablaLectura({
             {tabla.motivo_no_realizada ?? 'Sin motivo registrado.'}
           </span>
         </div>
+      )}
+
+      {/* CU026 sin conexión: lo declarado (o su reversión) ya se ve, pero
+          todavía no lo confirma el servidor. Sale de la cola, así que sigue
+          ahí al volver al módulo o recargar. */}
+      {tabla.declaracion_pendiente && (
+        <output className="flex items-center gap-2 border-b border-line bg-warning-100 px-4 py-2 text-sm text-warning-600">
+          <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Pendiente de sincronización
+        </output>
       )}
 
       {/* El historial se ensena aunque la tabla ya este normal: una

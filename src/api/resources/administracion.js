@@ -362,14 +362,39 @@ export function normalizarAlumno(a) {
 }
 
 /**
+ * Un texto sin tildes ni diéresis, sin la virgulilla de la ñ y en minúsculas:
+ * lo mismo que `comparable` del backend ("Ríos" y "rios" son iguales).
+ */
+const comparable = (texto) =>
+  String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+/**
+ * ¿Contiene la fila TODAS las palabras buscadas, en cualquier orden?
+ *
+ * Es la regla de `GET /alumnos?q=`: cada palabra tiene que aparecer en
+ * "nombres apellidos", sin tildes ni mayúsculas. Sin conexión se buscaba la
+ * frase entera tal cual, y "rios ana" o "Rios" no encontraban a "Ana Ríos"
+ * aunque con conexión sí salía.
+ */
+function coincideBusqueda(alumno, q) {
+  const palabras = comparable(q).split(/\s+/).filter(Boolean)
+  if (!palabras.length) return true
+  const dondeBuscar = comparable([alumno.nombres, alumno.apellidos, alumno.nombre, alumno.codigo].filter(Boolean).join(' '))
+  return palabras.every((palabra) => dondeBuscar.includes(palabra))
+}
+
+/**
  * Filtros de Alumnos aplicados en el cliente.
  *
- * Se usan con el simulador (que devuelve la lista entera), con la copia de
- * IndexedDB cuando no hay conexión, y para la búsqueda por nombre, que el
- * backend no ofrece como parámetro.
+ * Se usan con el simulador (que devuelve la lista entera) y con la copia de
+ * IndexedDB cuando no hay conexión, así que tienen que dar lo mismo que el
+ * servidor: "Todos" incluye inactivos y pendientes de pertenencia, y un filtro
+ * vacío no descarta a quien no tiene sección, grado o subprograma.
  */
 export function filtrarAlumnos(filas, filtros = {}) {
-  const texto = String(filtros.q ?? '').trim().toLowerCase()
   const igual = (a, b) => b == null || b === '' || String(a) === String(b)
   const cicloDe = (a) => {
     const etiqueta = typeof a.ciclo === 'object' ? a.ciclo?.nombre : a.ciclo
@@ -389,7 +414,7 @@ export function filtrarAlumnos(filas, filtros = {}) {
       igual(a.id_programa, filtros.id_programa ?? filtros.subprograma) &&
       igual(cicloDe(a), filtros.id_ciclo ?? filtros.ciclo) &&
       porPertenencia(a) &&
-      (!texto || `${a.nombre ?? ''} ${a.codigo ?? ''}`.toLowerCase().includes(texto)),
+      coincideBusqueda(a, filtros.q),
   )
 }
 

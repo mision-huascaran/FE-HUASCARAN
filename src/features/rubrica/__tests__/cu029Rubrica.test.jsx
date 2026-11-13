@@ -98,14 +98,14 @@ vi.mock('../../../api/resources/administracion', async (importOriginal) => ({
   anioVigente: (anios = []) => anios.find((a) => a.vigente) ?? anios[0] ?? null,
 }))
 
-function montar(idRol = ROLES.PROFESOR) {
+function montar(idRol = ROLES.PROFESOR, cliente = crearQueryClient()) {
   useSessionStore.setState({
     token: 'mock.4.2026',
     usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombres: 'Prueba' },
     cargando: false,
   })
   return render(
-    <QueryClientProvider client={crearQueryClient()}>
+    <QueryClientProvider client={cliente}>
       <ToastProvider>
         <MemoryRouter>
           <RubricaPage />
@@ -557,5 +557,21 @@ describe('Actividad iniciada sin conexión (D114)', () => {
 
     await screen.findByText(SIN_ACTIVIDAD_DEL_SERVIDOR.motivo, {}, ESPERA)
     expect(await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)).toBeDisabled()
+  })
+})
+
+describe('Sin conexión y sin copia de la tabla en el equipo', () => {
+  it('Rúbrica: lo dice, en vez de dejar la pantalla en blanco', async () => {
+    const cliente = crearQueryClient()
+    const primera = montar(ROLES.PROFESOR, cliente)
+    await screen.findByLabelText(/fluidez de Torres, Ana/i, {}, ESPERA)
+    primera.unmount()
+    // Como si esta tabla nunca se hubiera abierto con conexión.
+    cliente.removeQueries({ queryKey: ['rubricas'] })
+    conexion(false)
+    onlineManager.setOnline(false)
+    montar(ROLES.PROFESOR, cliente)
+    expect(await screen.findByText('Esta tabla no está guardada en este equipo', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Conéctate a internet para cargarla.')).toBeInTheDocument()
   })
 })

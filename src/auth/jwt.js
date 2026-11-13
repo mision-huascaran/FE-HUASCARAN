@@ -83,3 +83,24 @@ export function caducaEn(token) {
 export function idSesionDe(token) {
   return leerPayload(token)?.jti ?? null
 }
+
+/**
+ * La cuenta dueña del token, como texto; null si no se puede leer.
+ *
+ * D82 y D92 — EL BACKEND LA FIRMA EN `sub`, NO EN `id_usuario`.
+ * `create_access_token` emite `{sub, jti, iat, exp}` (RFC 7519): `sub` es el
+ * `id_usuario` en texto. Leer `payload.id_usuario` daba siempre `undefined`
+ * con el backend real, y así:
+ *   · D82 — al recargar sin conexión no se encontraba la copia del perfil
+ *     (`perfilLocalDe(undefined)`) y la aplicación se quedaba en "No se pudo
+ *     contactar con el servidor";
+ *   · D92 — cada operación de la cola quedaba sin dueño (`usuario: null`) y se
+ *     enviaba con el token de la siguiente cuenta que entraba en el navegador.
+ * Las pruebas armaban tokens con `id_usuario` y no lo veían. Se acepta también
+ * `id_usuario` por si el contrato lo agrega.
+ */
+export function idUsuarioDe(token) {
+  const payload = leerPayload(token)
+  const id = payload?.id_usuario ?? payload?.sub
+  return id == null || id === '' ? null : String(id)
+}

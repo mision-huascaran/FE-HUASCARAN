@@ -14,6 +14,7 @@
 import Select from '../../components/ui/Select'
 import { ESTADO_RUBRICA, comoNota, nivelesDe } from '../../api/resources/rubricaMensual'
 import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
+import EstadoSincronizacion from '../../components/ui/EstadoSincronizacion'
 import NombreLargo from '../../components/ui/NombreLargo'
 
 const TONO = {
@@ -41,6 +42,7 @@ export default function FilaRubrica({ fila, nombrePrograma, soloLectura, rechazo
     <tr className="border-t border-line">
       <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <NombreLargo className="max-w-[18rem] font-medium text-ink-900">{fila.nombre}</NombreLargo>
+        <EstadoSincronizacion estado={fila.sincronizacion} />
         {fila.inactivo && (
           <span
             title="Hoy está inactivo, pero corresponde evaluarlo en este mes"

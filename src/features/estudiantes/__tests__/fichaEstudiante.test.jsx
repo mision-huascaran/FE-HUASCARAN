@@ -8,7 +8,7 @@ import userEvent from '@testing-library/user-event'
 import handlers from '../../../api/mock/handlers'
 import { ROLES } from '../../../auth/roles'
 import { errorHttp } from '../../../test/fabricas'
-import { renderConProveedores } from '../../../test/renderConProveedores'
+import { clienteDePrueba, renderConProveedores } from '../../../test/renderConProveedores'
 import { enlaceAlModulo } from '../FichaEstudiantePage'
 
 const ID = 1
@@ -201,6 +201,27 @@ describe('Detalle del alumno (CU015)', () => {
     // Y las demás pestañas siguen navegables: la ficha no se bloquea.
     await userEvent.click(screen.getByRole('tab', { name: 'Rúbrica' }))
     expect(await screen.findByText('Incompleta')).toBeInTheDocument()
+  })
+
+  /**
+   * D61 — CP-ALU-06 en QA (ronda 9): sin conexión, la lista de Alumnos se veía
+   * pero el detalle decía "No se encontró al alumno". Sin red `GET /alumnos/{id}`
+   * queda en pausa, sin datos ni error; la ficha usa la fila guardada en el equipo.
+   */
+  it('sin conexión abre la ficha con la fila guardada en el equipo y lo avisa', async () => {
+    const cliente = clienteDePrueba()
+    cliente.setQueryData(['alumnos', 'mantenimiento', { estado: 'activo' }, true, false], [
+      { id_alumno: ID, nombres: 'Rosa Elena', apellidos: 'Cárdenas Villanueva', nombre: 'Cárdenas Villanueva, Rosa Elena', grado: '3.º', activo: true },
+    ])
+    // Sin red, TanStack Query deja `GET /alumnos/{id}` en pausa: nunca contesta.
+    vi.spyOn(handlers.alumnos, 'detalle').mockReturnValue(new Promise(() => {}))
+    conConexion(false)
+
+    renderConProveedores(null, { ruta: `/estudiantes/${ID}`, rol: ROLES.PROFESOR, cliente })
+
+    expect(await screen.findByRole('heading', { level: 1 }, { timeout: 8000 })).toHaveTextContent('Rosa Elena Cárdenas Villanueva')
+    expect(screen.queryByText('No se encontró al alumno')).not.toBeInTheDocument()
+    expect(screen.getByText(/Sin conexión\. Se muestra la última información guardada/)).toBeInTheDocument()
   })
 
   it('un error de una pestaña muestra el detail del servidor', async () => {

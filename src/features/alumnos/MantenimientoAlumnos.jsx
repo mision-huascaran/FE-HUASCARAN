@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { consultaDetalleColegio } from '../../hooks/consultaColegio'
 import ImportarNominaModal from './ImportarNominaModal'
+import { alumnosSinConexion } from './alumnosSinConexion'
 import { descargarPlantillaNomina } from './plantillaNomina'
 import { exportarAlumnos } from './exportarAlumnos'
 import {
@@ -425,8 +426,9 @@ export default function MantenimientoAlumnos() {
     queryFn: async () => {
       // CU014 sin conexión: la tabla en solo lectura desde IndexedDB. Antes se
       // pedía igual al servidor, fallaba, y la tabla quedaba en "Sin registros"
-      // aunque los alumnos estuvieran descargados.
-      if (!enLinea) return filtrarAlumnos(precarga?.alumnos ?? [], filtros)
+      // aunque los alumnos estuvieran descargados. La copia local suma lo que
+      // ya se vio con conexión en esta sesión (ver `alumnosSinConexion`).
+      if (!enLinea) return filtrarAlumnos(alumnosSinConexion(queryClient, precarga), filtros)
       return (await listarAlumnosAdmin(filtros)).items
     },
     /**

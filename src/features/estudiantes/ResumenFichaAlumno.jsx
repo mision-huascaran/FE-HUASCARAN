@@ -14,6 +14,7 @@
 // `{porcentaje, asistidas, contabilizadas}` desde T6, y su `porcentaje` sí puede
 // ser `null`: "Sin datos de asistencia", que no es lo mismo que un 0 %.
 import { useQuery } from '@tanstack/react-query'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import { BookOpen, CalendarCheck, GraduationCap, Info } from 'lucide-react'
 import Skeleton from '../../components/ui/Skeleton'
 import StatCard from '../../components/ui/StatCard'
@@ -42,6 +43,8 @@ export default function ResumenFicha({ ficha, cargando, idAlumno }) {
   })
 
   if (cargando || consulta.isLoading) return <Skeleton variant="card" />
+  // Sin conexión y sin copia: nada de "Sin evaluar" ni 0 libros, que parecen datos.
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el resumen del alumno." />
 
   const resumen = consulta.data ?? {}
   const nivel = resumen.nivel_colocado ?? null
