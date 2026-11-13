@@ -42,6 +42,7 @@ test('F12 · Rúbrica: lo editado sin conexión sigue en la tabla al reconectar 
   await expect(page.getByRole('heading', { name: /^\d+ alumnos?$/ })).toBeVisible()
 
   const fluidez = page.getByRole('combobox', { name: /^Fluidez de / }).first()
+  // Se salta a propósito: el Docente E2E solo escribe en la Rúbrica si tiene habilitación y el calendario lo permite este mes; si no, no hay qué probar sin conexión.
   test.skip(await fluidez.isDisabled(), 'El Docente E2E no puede escribir en la Rúbrica de este mes (habilitación o calendario)')
   const nombre = (await fluidez.getAttribute('aria-label')).replace(/^Fluidez de /, '')
   const campo = page.getByRole('combobox', { name: `Fluidez de ${nombre}`, exact: true })

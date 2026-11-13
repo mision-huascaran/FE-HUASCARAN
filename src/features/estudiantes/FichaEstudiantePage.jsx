@@ -405,9 +405,9 @@ export default function FichaEstudiantePage() {
       </header>
 
       {copiaLocal && (
-        <p role="status" className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+        <output className="block rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
           {CONSULTA_SIN_CONEXION}
-        </p>
+        </output>
       )}
 
       <Card padded={false}>
