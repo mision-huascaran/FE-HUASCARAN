@@ -19,6 +19,16 @@ const VENTANA_DIAS = 14
  * día. El periodo vigente lo da el backend: nunca una fecha fija.
  */
 export async function diasDeClaseCandidatos(page) {
+  const candidatos = []
+  for (const fecha of await fechasDelPeriodoVigente(page)) {
+    const dia = diaSemana(fecha)
+    if (GRADO_DEL_DIA.has(dia)) candidatos.push({ fecha, grado: GRADO_DEL_DIA.get(dia) })
+  }
+  return candidatos
+}
+
+/** Las fechas de los últimos `VENTANA_DIAS` días (hasta hoy, en Lima) dentro del periodo vigente, de la más reciente a la más antigua. */
+async function fechasDelPeriodoVigente(page) {
   const token = await leerToken(page)
   const respuesta = await page.request.get('/api/periodos-academicos', { headers: { Authorization: `Bearer ${token}` } })
   expect(respuesta.ok(), 'GET /periodos-academicos').toBeTruthy()
@@ -27,12 +37,23 @@ export async function diasDeClaseCandidatos(page) {
   if (!vigente) return []
 
   const hoy = fechaLima(Date.now())
+  return Array.from({ length: VENTANA_DIAS }, (_, atras) => restarDias(hoy, atras)).filter(
+    (fecha) => fecha >= vigente.fecha_inicio && fecha <= vigente.fecha_fin,
+  )
+}
+
+/**
+ * Días de semana (lunes a viernes) del periodo vigente en que un grado NO
+ * tiene su clase programada: ahí se puede registrar una clase adicional
+ * (CU022). El servidor sigue decidiendo si el día es lectivo y si ya hay una.
+ */
+export async function diasSinClaseCandidatos(page) {
   const candidatos = []
-  for (let atras = 0; atras < VENTANA_DIAS; atras += 1) {
-    const fecha = restarDias(hoy, atras)
+  for (const fecha of await fechasDelPeriodoVigente(page)) {
     const dia = diaSemana(fecha)
-    if (fecha >= vigente.fecha_inicio && fecha <= vigente.fecha_fin && GRADO_DEL_DIA.has(dia)) {
-      candidatos.push({ fecha, grado: GRADO_DEL_DIA.get(dia) })
+    if (dia > 5) continue
+    for (const [diaDeClase, grado] of GRADO_DEL_DIA) {
+      if (diaDeClase !== dia) candidatos.push({ fecha, grado })
     }
   }
   return candidatos
