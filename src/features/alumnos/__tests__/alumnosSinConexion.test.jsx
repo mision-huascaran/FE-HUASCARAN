@@ -5,9 +5,9 @@
 // corta la red sin recargar y la tabla quedaba en "Sin registros", porque la
 // precarga solo traía activos. Y su detalle decía "No se encontró al alumno".
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
 import AlumnosPage from '../AlumnosPage'
@@ -115,6 +115,7 @@ beforeEach(async () => {
 afterEach(() => {
   definirConexion(true)
   window.dispatchEvent(new Event('online'))
+  onlineManager.setOnline(true)
 })
 
 describe('Alumnos sin conexión (CU014)', () => {
@@ -150,6 +151,28 @@ describe('Alumnos sin conexión (CU014)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: PENDIENTE.nombre }, ESPERA)).toBeInTheDocument()
     expect(screen.getByText('Inactivo')).toBeInTheDocument()
     expect(screen.queryByText('No se encontró al alumno')).not.toBeInTheDocument()
+  })
+})
+
+describe('Ficha del alumno sin conexión y sin copia (bug 5)', () => {
+  const NO_DISPONIBLE = 'Contenido no disponible sin conexión'
+
+  it('Resumen, Registro de Vuelo, Rúbrica y Seguimiento de Lectura no muestran ceros ni "Sin evaluar" falsos', async () => {
+    await sembrarPrecarga([ACTIVO, PENDIENTE])
+    definirConexion(false)
+    onlineManager.setOnline(false)
+    montar(<AlumnosPage />, `/estudiantes/${PENDIENTE.id_alumno}`)
+    await screen.findByRole('heading', { level: 1, name: PENDIENTE.nombre }, ESPERA)
+
+    expect(await screen.findByText(NO_DISPONIBLE, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByText('Sin evaluar')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sin datos de asistencia')).not.toBeInTheDocument()
+
+    for (const pestana of ['Registro de Vuelo', 'Rúbrica', 'Seguimiento de Lectura']) {
+      fireEvent.click(screen.getByRole('tab', { name: pestana }))
+      expect(await screen.findByText(NO_DISPONIBLE, {}, ESPERA)).toBeInTheDocument()
+      expect(screen.queryByText(/Sin registros/i)).not.toBeInTheDocument()
+    }
   })
 })
 

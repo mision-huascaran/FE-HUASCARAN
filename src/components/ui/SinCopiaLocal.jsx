@@ -23,3 +23,12 @@ export default function SinCopiaLocal({ que = 'clase' }) {
 
 /** ¿La consulta espera la red sin tener nada que mostrar? */
 export const sinCopiaLocal = (consulta) => Boolean(consulta?.isPaused) && consulta?.data === undefined
+
+/**
+ * Lo mismo para un bloque de contenido (una pestaña, un modal): el texto que
+ * ya usaba el Historial de la ficha, en vez de ceros o "Sin evaluar" que
+ * parecen datos reales.
+ */
+export function ContenidoNoDisponible({ descripcion = 'Conéctate a internet para verlo.' }) {
+  return <EmptyState icon={WifiOff} title="Contenido no disponible sin conexión" description={descripcion} />
+}

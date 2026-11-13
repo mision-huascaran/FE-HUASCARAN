@@ -25,6 +25,7 @@ import ResumenFicha from './ResumenFichaAlumno'
 import GraficaDeVuelo from './GraficaDeVuelo'
 import useConexion from '../../hooks/useConexion'
 import usePrecarga from '../../hooks/usePrecarga'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import { buscarAlumnoLocal } from '../alumnos/alumnosSinConexion'
 import { listarHistorialAlumno } from '../../api/resources/administracion'
 import {
@@ -98,11 +99,13 @@ function ErrorDePestana({ error }) {
 
 function PestanaLectura({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'lectura'],
     queryFn: () => obtenerLecturaAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el seguimiento de lectura del alumno." />
 
   const columnas = [
     {
@@ -149,11 +152,13 @@ function PestanaLectura({ idAlumno, alumno }) {
 
 function PestanaRubrica({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data, isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'rubrica'],
     queryFn: () => obtenerRubricaAlumno(idAlumno),
   })
+  const { data, isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver la rúbrica del alumno." />
 
   const columnas = [
     { key: 'mes', header: 'Mes', render: (e) => nombreDeMes(e.mes) },
@@ -183,11 +188,13 @@ function PestanaRubrica({ idAlumno, alumno }) {
 
 function PestanaVuelo({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'registro-vuelo'],
     queryFn: () => obtenerRegistroVueloAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el registro de vuelo del alumno." />
 
   const columnas = [
     {
