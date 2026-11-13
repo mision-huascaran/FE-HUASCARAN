@@ -51,6 +51,9 @@ export const MENSAJE = {
  * mensaje tal cual en vez de inventar cuál de los tres fue.
  */
 function mensajeDelPin(error) {
+  // Sin respuesta, se fue la red: el genérico "quedó guardado en este
+  // dispositivo" sería falso, esto no se guarda para después.
+  if (!error?.response) return MENSAJE.sinConexion
   const motivo = error?.response?.data?.motivo
   if (motivo === 'expirado') return MENSAJE.pinExpirado
   if (motivo === 'intentos_agotados') return MENSAJE.pinAgotado
@@ -99,7 +102,7 @@ export default function ModalRecuperarPassword({ abierto, onCerrar, correoInicia
       setCodigo('')
       setPaso(1)
     } catch (error) {
-      toast.error('No se pudo enviar el PIN', mensajeDeError(error))
+      toast.error('No se pudo enviar el PIN', mensajeDelPin(error))
     } finally {
       setOcupado(false)
     }
