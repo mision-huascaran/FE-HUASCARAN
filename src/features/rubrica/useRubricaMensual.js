@@ -8,14 +8,15 @@
 // `modificacion_concurrente` manda el registro VIGENTE: queda como rechazo con
 // "Cargar versión actual" (ver `lib/registrosOffline`). Reintentar pisaría el
 // cambio de la otra persona.
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
 import { esMotivoDeMes, listarRubricas } from '../../api/resources/rubricaMensual'
 import { ahora } from '../../lib/relojServidor'
-import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
+import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
+import useSyncStore from '../../store/syncStore'
 
 /**
  * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
@@ -48,9 +49,32 @@ export default function useRubricaMensual({ filtros, pagina, grupoValido = true 
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
+  /**
+   * Lo que espera en la cola para este grupo y mes, encima de la respuesta: lo
+   * pendiente gana hasta que el servidor lo confirme (ver `conPendientes`).
+   * `itemsEnCola` hace que se recalcule con cada movimiento de la cola.
+   */
+  const itemsEnCola = useSyncStore((s) => s.items)
+  const conLoPendiente = useCallback(
+    (respuesta) =>
+      conPendientes('rubrica', respuesta, ({ item }) =>
+        [
+          [item?.id_colegio, idColegio],
+          [item?.id_grado, idGrado],
+          [item?.id_seccion, idSeccion],
+          [item?.id_programa, idPrograma],
+          [item?.id_anio_escolar, idAnioEscolar],
+          [item?.mes, mes],
+        ].every(([enviado, filtro]) => String(enviado) === String(filtro)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsEnCola, idColegio, idGrado, idSeccion, idPrograma, idAnioEscolar, mes],
+  )
+
   const rubrica = useQuery({
     queryKey: clave,
     queryFn: () => listarRubricas({ ...filtros, pagina }),
+    select: conLoPendiente,
     enabled: listos,
     /**
      * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87).

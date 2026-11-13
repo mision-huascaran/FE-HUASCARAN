@@ -6,7 +6,7 @@
 // viven en el mismo objeto del que salen el nivel colocado y la proyección, así
 // que un `...periodo` los mandaría sin que nadie lo notara hasta el error. De
 // ahí que el cuerpo se construya en `decision()`, que filtra lo permitido.
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError } from '../../api/client'
@@ -15,8 +15,9 @@ import {
   listarRegistroVuelo,
 } from '../../api/resources/registroVueloAnual'
 import { ahora } from '../../lib/relojServidor'
-import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
+import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
+import useSyncStore from '../../store/syncStore'
 
 /**
  * Un 4xx del lote entero (422 `validacion`, 403…) no se arregla reintentando:
@@ -45,9 +46,36 @@ export default function useRegistroVueloAnual({ filtros, pagina, grupoValido = t
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
+  /**
+   * Lo que espera en la cola para este grupo, encima de la respuesta: lo
+   * pendiente gana hasta que el servidor lo confirme (ver `conPendientes`).
+   * El periodo se reconoce por su id, que es de ESTE año escolar.
+   */
+  const itemsEnCola = useSyncStore((s) => s.items)
+  const conLoPendiente = useCallback(
+    (respuesta) =>
+      conPendientes('vuelo', respuesta, ({ item }, datos) => {
+        const delGrupo = [
+          [item?.id_colegio, idColegio],
+          [item?.id_grado, idGrado],
+          [item?.id_seccion, idSeccion],
+          [item?.id_programa, idPrograma],
+        ].every(([enviado, filtro]) => String(enviado) === String(filtro))
+        return (
+          delGrupo &&
+          (datos.items ?? []).some((alumno) =>
+            (alumno.periodos ?? []).some((p) => p.id_periodo_academico === item.id_periodo_academico),
+          )
+        )
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsEnCola, idColegio, idGrado, idSeccion, idPrograma],
+  )
+
   const vuelo = useQuery({
     queryKey: clave,
     queryFn: () => listarRegistroVuelo({ ...filtros, pagina }),
+    select: conLoPendiente,
     enabled: listos,
     /**
      * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87).

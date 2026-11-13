@@ -9,7 +9,7 @@
 // Y LA TABLA NO SE CREA SOLA. CU023 lo pide así porque crearla CONGELA la lista
 // de alumnos de su clase de referencia —y crea la clase si no tenía fila—: eso
 // es una decisión del docente, no un efecto secundario de abrir una pantalla.
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui/Toast'
 import { mensajeDeError, motivoDe } from '../../api/client'
@@ -25,7 +25,7 @@ import { encolar, pendientesDeTipo } from '../../lib/colaOffline'
 import { TIPOS_ENVIO, claveDeMarca } from '../../hooks/useOfflineQueue'
 import { ahora } from '../../lib/relojServidor'
 import { nuevoUuid } from '../../lib/uuid'
-import { conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
+import { conPendientes, conectarConsultas, guardarRegistro } from '../../lib/registrosOffline'
 import useActividadStore from '../../store/actividadStore'
 import useSyncStore from '../../store/syncStore'
 
@@ -97,9 +97,21 @@ export default function useTablaLectura(filtros, { grupoValido = true } = {}) {
   // Lo que responde la cola (ahora o al reconectar) se escribe en esta caché.
   useEffect(() => conectarConsultas(queryClient), [queryClient])
 
+  /**
+   * Las filas que esperan en la cola para ESTA tabla, encima de la respuesta:
+   * lo pendiente gana hasta que el servidor lo confirme (ver `conPendientes`).
+   */
+  const itemsEnCola = useSyncStore((s) => s.items)
+  const conLoPendiente = useCallback(
+    (respuesta) => conPendientes('lectura', respuesta, ({ idTabla }, datos) => String(idTabla) === String(datos.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsEnCola],
+  )
+
   const tabla = useQuery({
     queryKey: clave,
     queryFn: () => obtenerTabla(filtros),
+    select: conLoPendiente,
     enabled: listos,
     /**
      * SIEMPRE SE VUELVE A PEDIR AL ENTRAR (D87), igual que Rúbrica y Registro
