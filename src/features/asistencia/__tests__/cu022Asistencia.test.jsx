@@ -57,6 +57,13 @@ let sinRed = false
 let claseSinProgramar = false
 /** La clase que el servidor ya tiene para ese día (la adicional, cuando se crea). */
 let claseCreada = null
+/**
+ * Las marcas que el servidor ya guardó en esa clase, por alumno. Sin ellas,
+ * al salir y volver el GET devolvía la clase SIN la marca recién guardada (el
+ * backend real sí la devuelve) y la prueba dependía de mirar antes de que
+ * llegara: en Jenkins, con la máquina cargada, llegaba antes y fallaba.
+ */
+let marcasGuardadas = {}
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
   return {
@@ -66,7 +73,13 @@ vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
       if (sinRed) throw errorDeRed()
       const datos = await original.obtenerClase(...args)
       if (!claseSinProgramar) return datos
-      if (claseCreada) return { ...datos, clase: { ...datos.clase, ...claseCreada } }
+      if (claseCreada) {
+        return {
+          ...datos,
+          clase: { ...datos.clase, ...claseCreada },
+          alumnos: datos.alumnos.map((a) => ({ ...a, ...marcasGuardadas[a.id_alumno] })),
+        }
+      }
       return {
         ...datos,
         clase: {
@@ -162,6 +175,7 @@ beforeEach(() => {
   sinRed = false
   claseSinProgramar = false
   claseCreada = null
+  marcasGuardadas = {}
   sinPaqueteDeHabilitaciones = false
   marcar.mockReset()
   // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
@@ -703,6 +717,13 @@ function servidorQueCreaLaAdicional() {
       servidor.clasesCreadas += 1
       claseCreada = { id_clase: 40, tipo: 'adicional', etiqueta: 'Clase adicional', fecha_original: fecha, fecha, aviso: null }
     }
+    registros.forEach((r) => {
+      const anterior = marcasGuardadas[r.id_alumno]
+      marcasGuardadas[r.id_alumno] = {
+        estado: r.estado ?? anterior?.estado ?? null,
+        observacion: r.observacion ?? anterior?.observacion ?? null,
+      }
+    })
     return {
       clase: claseCreada,
       resultados: registros.map((r) => ({
