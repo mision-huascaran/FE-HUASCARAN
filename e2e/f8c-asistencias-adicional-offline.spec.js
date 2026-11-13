@@ -6,9 +6,9 @@
 // otra. Al reconectar, el servidor crea UNA clase y todas las asistencias
 // quedan en ella.
 //
-// Gasta un par (grado, fecha) sin clase del periodo vigente: después de esta
-// prueba ese día ya tiene su clase adicional (la clase no se puede borrar). Si
-// no queda ninguno en la ventana de días, se salta.
+// Gasta un par (grado, fecha) sin clase del periodo vigente, el más antiguo
+// que quede: después de esta prueba ese día ya tiene su clase adicional (la
+// clase no se puede borrar). Si no queda ninguno en la ventana de días, se salta.
 import { expect, test } from '@playwright/test'
 import { cerrarActividadPendiente, exigirPeriodoVigente, finalizarActividad, iniciarActividad } from './support/actividad.js'
 import { diasSinClaseCandidatos, elegirClase, lado } from './support/asistencia.js'
@@ -35,7 +35,11 @@ test('F8c · Clase adicional sin conexión: al volver sigue con sus marcas y al 
   const deF8 = leerEstado().asistencia
   const botonAdicional = page.getByRole('button', { name: BOTON_ADICIONAL })
   const clase = await test.step('Elegir un día sin clase programada (con alumnos)', async () => {
-    for (const candidato of await diasSinClaseCandidatos(page)) {
+    // Del más ANTIGUO al más reciente. F8 da de alta un alumno en su día de
+    // clase, que es el más reciente libre: una adicional de su grado en un día
+    // POSTERIOR tiene la lista congelada sin él y el alta sería un 409
+    // `conflicto_listas_historicas`. Gastando los días viejos, F8 no choca.
+    for (const candidato of (await diasSinClaseCandidatos(page)).reverse()) {
       if (deF8 && candidato.fecha === deF8.fecha && candidato.grado === deF8.grado) continue
       if ((await elegirClase(page, candidato)) !== 'lista') continue
       if (await botonAdicional.isVisible()) return candidato
