@@ -109,6 +109,7 @@ const obtenerTabla = vi.fn()
 const crearTabla = vi.fn()
 const guardarFilas = vi.fn()
 const marcarNoRealizada = vi.fn()
+const habilitarRegistroLectura = vi.fn()
 
 vi.mock('../../../api/resources/lectura', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -116,6 +117,7 @@ vi.mock('../../../api/resources/lectura', async (importOriginal) => ({
   crearTabla: (...a) => crearTabla(...a),
   guardarFilas: (...a) => guardarFilas(...a),
   marcarNoRealizada: (...a) => marcarNoRealizada(...a),
+  habilitarRegistroLectura: (...a) => habilitarRegistroLectura(...a),
 }))
 
 // Los filtros salen de las asignaciones y del detalle del colegio. Se fijan
@@ -147,6 +149,32 @@ vi.mock('../../../api/resources/catalogos', async (importOriginal) => ({
   ]),
 }))
 
+/** Monta con un cliente que sobrevive al desmontaje: salir del módulo y volver. */
+function montarParaVolver() {
+  useSessionStore.setState({
+    token: 'mock.4.2026',
+    usuario: { id_usuario: 4, id_rol: ROLES.PROFESOR, id_docente: 1, nombres: 'Prueba' },
+    cargando: false,
+  })
+  const cliente = crearQueryClient()
+  const pantalla = () => (
+    <QueryClientProvider client={cliente}>
+      <ToastProvider>
+        <MemoryRouter>
+          <LecturaPage />
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>
+  )
+  const primera = render(pantalla())
+  return {
+    volver: () => {
+      primera.unmount()
+      return render(pantalla())
+    },
+  }
+}
+
 function montar(idRol = ROLES.PROFESOR) {
   useSessionStore.setState({
     token: 'mock.4.2026',
@@ -175,6 +203,8 @@ beforeEach(() => {
   crearTabla.mockReset()
   guardarFilas.mockReset()
   marcarNoRealizada.mockReset()
+  habilitarRegistroLectura.mockReset()
+  habilitarRegistroLectura.mockImplementation(async () => tabla({ estado: 'normal', version: 3 }))
   descartarOperacion.mockClear()
   marcarNoRealizada.mockImplementation(async () =>
     tabla({ estado: 'no_realizada', motivo_no_realizada: 'Paro de transportistas', version: 2 }),
@@ -665,6 +695,67 @@ describe('Semana no realizada (CU026)', () => {
     // Sin clase no hay nada que justificar por alumno: el globo tampoco.
     expect(screen.getByRole('button', { name: /añadir observación de/i })).toBeDisabled()
     expect(screen.queryByRole('button', { name: /marcar como no realizada/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('Semana no realizada SIN CONEXIÓN (CU026)', () => {
+  const PENDIENTE = /Pendiente de sincronización/i
+  const NOTA = /Lectura no realizada\./
+
+  it('marcarla bloquea la tabla al instante, con su motivo y "Pendiente de sincronización", también al volver; al reconectar se envía una vez', async () => {
+    obtenerTabla.mockResolvedValue(tabla())
+    const { volver } = montarParaVolver()
+    fireEvent.click(await screen.findByRole('button', { name: /marcar como no realizada/i }, ESPERA))
+    conexion(false)
+    const dialogo = await screen.findByRole('dialog', { name: /no realizada/i }, ESPERA)
+    fireEvent.change(within(dialogo).getByLabelText(/motivo/i), { target: { value: 'Paro de transportistas' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /^marcar como no realizada$/i }))
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+    expect(await screen.findByText(NOTA, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText(/Paro de transportistas/)).toBeInTheDocument()
+    expect(screen.getByText(PENDIENTE)).toBeInTheDocument()
+    expect(screen.getByLabelText(/título del LSN/i)).toBeDisabled()
+
+    // Otro módulo y de vuelta, todavía sin conexión.
+    volver()
+    expect(await screen.findByText(NOTA, {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText(/Paro de transportistas/)).toBeInTheDocument()
+    expect(screen.getByText(PENDIENTE)).toBeInTheDocument()
+    expect(screen.getByLabelText(/título del LSN/i)).toBeDisabled()
+
+    obtenerTabla.mockResolvedValue(tabla({ estado: 'no_realizada', motivo_no_realizada: 'Paro de transportistas', version: 2 }))
+    await reconectar()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(marcarNoRealizada).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByText(PENDIENTE)).not.toBeInTheDocument(), ESPERA)
+    expect(screen.getByText(NOTA)).toBeInTheDocument()
+  })
+
+  it('habilitar el registro la desbloquea al instante y lo mantiene al volver; al reconectar se envía una vez', async () => {
+    obtenerTabla.mockResolvedValue(tabla({ estado: 'no_realizada', motivo_no_realizada: 'Paro', filas: [fila({ estado_fila: 'no_aplica' })] }))
+    const { volver } = montarParaVolver()
+    fireEvent.click(await screen.findByRole('button', { name: /habilitar registro de lectura/i }, ESPERA))
+    conexion(false)
+    const dialogo = await screen.findByRole('dialog', { name: /habilitar registro de lectura/i }, ESPERA)
+    fireEvent.change(within(dialogo).getByRole('textbox'), { target: { value: 'Se recuperó la clase' } })
+    fireEvent.click(within(dialogo).getByRole('button', { name: /^confirmar$/i }))
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+    await waitFor(() => expect(screen.queryByText(NOTA)).not.toBeInTheDocument(), ESPERA)
+    expect(screen.getByText(PENDIENTE)).toBeInTheDocument()
+    expect(screen.getByLabelText(/título del LSN/i)).toBeEnabled()
+
+    volver()
+    await screen.findByLabelText(/título del LSN/i, {}, ESPERA)
+    expect(screen.queryByText(NOTA)).not.toBeInTheDocument()
+    expect(screen.getByText(PENDIENTE)).toBeInTheDocument()
+
+    obtenerTabla.mockResolvedValue(tabla({ version: 3 }))
+    await reconectar()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(habilitarRegistroLectura).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByText(PENDIENTE)).not.toBeInTheDocument(), ESPERA)
   })
 })
 
