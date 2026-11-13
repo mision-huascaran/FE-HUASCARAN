@@ -34,12 +34,13 @@
 //     además dice POR QUÉ no se puede —sin habilitación, sin actividad, o
 //     porque es el Supervisor, que siempre consulta en solo lectura— y si lo
 //     que habilita es un permiso excepcional.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCheck, CalendarClock, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import SinCopiaLocal, { sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import AvisoActividades from '../../components/layout/AvisoActividades'
 import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import FiltrosAsistencia from './FiltrosAsistencia'
@@ -51,7 +52,7 @@ import { colegioInaccesible, consultaDetalleColegio } from '../../hooks/consulta
 import { MODULOS } from '../../auth/habilitaciones'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
-import { fusionarConPendientes } from './pendientesDeAsistencia'
+import { fusionarConPendientes, pendientesDeLaClase } from './pendientesDeAsistencia'
 import { pendientesDeTipo } from '../../lib/colaOffline'
 import { TIPOS_ENVIO } from '../../hooks/useOfflineQueue'
 import useSyncStore from '../../store/syncStore'
@@ -340,20 +341,33 @@ export default function AsistenciaPage() {
    * la cola: con él cambia el `select` y la tabla se recalcula.
    */
   const itemsEnCola = useSyncStore((s) => s.items)
-  const conPendientes = useCallback(
-    (datos) => {
-      // Solo lo que el indicador de sincronización cuenta como pendiente.
-      const enCola = new Set(itemsEnCola.map((item) => item.idOperacion))
-      const pendientes = pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).filter((item) => enCola.has(item.idOperacion))
-      return fusionarConPendientes(datos, pendientes, {
-        idColegio: filtros.idColegio,
-        idGrado: filtros.idGrado,
-        idSeccion: filtros.idSeccion,
-        fecha: filtros.fecha,
-      })
-    },
-    [itemsEnCola, filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
+  const pendientes = useMemo(() => {
+    // Solo lo que el indicador de sincronización cuenta como pendiente.
+    const enCola = new Set(itemsEnCola.map((item) => item.idOperacion))
+    return pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).filter((item) => enCola.has(item.idOperacion))
+  }, [itemsEnCola])
+  const estaClase = useMemo(
+    () => ({ idColegio: filtros.idColegio, idGrado: filtros.idGrado, idSeccion: filtros.idSeccion, fecha: filtros.fecha }),
+    [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
   )
+  const conPendientes = useCallback((datos) => fusionarConPendientes(datos, pendientes, estaClase), [pendientes, estaClase])
+
+  /**
+   * AL VACIARSE LA COLA DE ESTA CLASE, SE VUELVE A PEDIR.
+   *
+   * Al reconectar, la consulta se refresca sola, normalmente ANTES de que la
+   * cola termine de enviar: la respuesta todavía no tiene la clase adicional
+   * ni las marcas, y lo pendiente las tapaba. Cuando sale el último envío ya
+   * no hay nada que las tape, y la pantalla volvía a "no hay clase" hasta un
+   * F5. Se pide otra vez en cuanto la cola de esta clase queda vacía.
+   */
+  const queryClient = useQueryClient()
+  const enEspera = pendientesDeLaClase(pendientes, estaClase)
+  const enEsperaAntes = useRef(enEspera)
+  useEffect(() => {
+    if (enEsperaAntes.current > 0 && enEspera === 0) void queryClient.invalidateQueries({ queryKey: claveClase })
+    enEsperaAntes.current = enEspera
+  }, [enEspera, claveClase, queryClient])
 
   const clase = useQuery({
     queryKey: claveClase,
@@ -423,6 +437,13 @@ export default function AsistenciaPage() {
    */
   const sinClase = Boolean(clase.data) && !datosClase?.etiqueta
   const [registrandoAdicional, setRegistrandoAdicional] = useState(false)
+  /**
+   * La adicional que se decidió sin conexión y espera en la cola: la clase ya
+   * sale como "Clase adicional" (ver `fusionarConPendientes`), y lo que se
+   * marque ahora también tiene que llevar `adicional`, o el servidor lo
+   * rechazaría con `sin_clase_programada` si llegara antes que las demás.
+   */
+  const enviaAdicional = [[sinClase, registrandoAdicional].every(Boolean), datosClase?.adicional_pendiente].some(Boolean)
 
   // La decisión es de ESTA clase: cambiar de fecha o de aula la olvida, o se
   // registrarían adicionales en días que el docente ni miró.
@@ -467,7 +488,7 @@ export default function AsistenciaPage() {
     // CU022: la clase adicional se crea AL GUARDAR la primera asistencia, no
     // al pulsar el botón. Por eso la marca viaja con el aviso, y pulsar no
     // deja ningún registro vacío detrás.
-    adicional: sinClase && registrandoAdicional,
+    adicional: enviaAdicional,
     claveClase,
   })
 
@@ -614,7 +635,10 @@ export default function AsistenciaPage() {
         </Card>
       )}
 
-      {listos && !clase.isError && !clase.isLoading && alumnos.length === 0 && (
+      {/* Sin conexión y sin copia de esta clase: no es una clase vacía. */}
+      {listos && sinCopiaLocal(clase) && <SinCopiaLocal que="clase" />}
+
+      {listos && !clase.isError && !clase.isLoading && !sinCopiaLocal(clase) && alumnos.length === 0 && (
         <Card>
           <EmptyState title="Sin alumnos en esta clase" description={SIN_ALUMNOS} />
         </Card>

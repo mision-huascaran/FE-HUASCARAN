@@ -23,7 +23,7 @@ import { MOTIVO_FILA, guardarFilas } from '../api/resources/lectura'
 import { MOTIVO_RUBRICA, guardarRubricas } from '../api/resources/rubricaMensual'
 import { MOTIVO_VUELO, PUNTOS_POR_PERIODO, guardarRegistroVuelo } from '../api/resources/registroVueloAnual'
 import { descartarOperacion, textoDeRechazo } from '../api/resources/sincronizacion'
-import { ajustarPendientes, encolar, registrarEnviador } from './colaOffline'
+import { ajustarPendientes, encolar, pendientesDeTipo, registrarEnviador } from './colaOffline'
 import useRechazosStore from '../store/rechazosStore'
 
 /** Una fila de la lista con el registro nuevo; `igual` dice cuál es. */
@@ -173,7 +173,9 @@ export function guardarRegistro(modulo, { clave, envio, local, descripcion, idAc
   return encolar({
     clave: `${tipo}:${clave}`,
     tipo,
-    payload: { ...envio, clave: `${tipo}:${clave}` },
+    // `local` viaja con el envío: es lo que la fila tiene que mostrar mientras
+    // espera, también al volver a la pantalla (`conPendientes`).
+    payload: { ...envio, local, clave: `${tipo}:${clave}` },
     descripcion,
     idActividad,
     alNoPersistir,
@@ -182,8 +184,48 @@ export function guardarRegistro(modulo, { clave, envio, local, descripcion, idAc
     fusionar: (anterior, nuevo) => ({
       ...nuevo,
       item: { ...anterior.item, ...nuevo.item, version: anterior.item.version },
+      local: { ...anterior.local, ...nuevo.local },
     }),
   })
+}
+
+/** Lo que la fila marca mientras su cambio no está confirmado. */
+export const SINCRONIZACION = { PENDIENTE: 'pendiente', ERROR: 'error' }
+
+/** Lo que no es un valor de la fila, sino de la operación. */
+const CAMPOS_DE_OPERACION = new Set(['version', 'realizado_en', 'id_actividad', 'id_operacion', 'id_alumno'])
+
+/** Los campos que el envío cambia; los envíos de antes de `local` solo traen `item`. */
+const localDe = (payload) =>
+  payload.local ??
+  Object.fromEntries(Object.entries(payload.item ?? {}).filter(([campo]) => !CAMPOS_DE_OPERACION.has(campo) && !campo.startsWith('id_')))
+
+/**
+ * D123 en Lectura, Rúbrica y Vuelo — LO PENDIENTE GANA HASTA QUE SE CONFIRME.
+ *
+ * Lo editado sin conexión se escribía solo en la caché. Al reconectar (o al
+ * volver a la pantalla con conexión, que siempre pide la tabla de nuevo) la
+ * respuesta del servidor, que todavía no conoce el cambio, lo pisaba: si el
+ * envío quedaba reintentando por un 500 o una red inestable, la fila volvía al
+ * valor viejo mientras la cola seguía guardando el nuevo, y el docente podía
+ * editar encima. Ahora la tabla se arma con la respuesta (o la copia) y, encima,
+ * las operaciones que esperan en la cola de ESA tabla, con su indicador.
+ *
+ * @param coincide `(payload, datos) => boolean`: si el envío es de esta tabla.
+ */
+export function conPendientes(modulo, datos, coincide) {
+  const deEsteModulo = new Map(Object.entries(MODULOS)).get(modulo)
+  if (!datos || !deEsteModulo) return datos
+  const { tipo, aplicar } = deEsteModulo
+  const pendientes = pendientesDeTipo(tipo).filter((item) => item.payload && coincide(item.payload, datos))
+  return pendientes.reduce(
+    (acumulado, item) =>
+      aplicar(acumulado, item.payload, {
+        ...localDe(item.payload),
+        sincronizacion: item.error ? SINCRONIZACION.ERROR : SINCRONIZACION.PENDIENTE,
+      }),
+    datos,
+  )
 }
 
 /** "Cargar versión actual": descarta la operación y pone el registro vigente. */

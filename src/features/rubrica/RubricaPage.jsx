@@ -20,6 +20,7 @@ import AvisoModoConsulta from '../../components/layout/AvisoModoConsulta'
 import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import SinCopiaLocal from '../../components/ui/SinCopiaLocal'
 import FilterBar from '../../components/ui/FilterBar'
 import Select from '../../components/ui/Select'
 import selectsDelGrupo from '../../components/filtros/selectsDelGrupo'
@@ -66,7 +67,7 @@ export default function RubricaPage() {
     conSemana: false,
   })
 
-  const { datos, cargando, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina, grupoValido })
+  const { datos, cargando, sinCopia, motivoDelMes, error, guardarFila } = useRubricaMensual({ filtros, pagina, grupoValido })
 
   const listos = Boolean(
     filtros.idColegio && filtros.idGrado && filtros.idSeccion && filtros.idPrograma && filtros.mes && idAnioEscolar,
@@ -161,6 +162,9 @@ export default function RubricaPage() {
           <EmptyState title="Este mes no se puede evaluar" description={MOTIVO_RUBRICA[motivoDelMes]} />
         </Card>
       )}
+
+      {/* Sin conexión y sin copia de esta tabla en el equipo (RNF-001). */}
+      {listos && sinCopia && <SinCopiaLocal que="tabla" />}
 
       {listos && error && (
         <Card>

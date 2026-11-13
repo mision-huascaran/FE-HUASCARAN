@@ -1,5 +1,5 @@
 // La última respuesta de cada pantalla de registro, guardada para abrirla sin
-// conexión (RNF-001): Lectura, Rúbrica y Registro de Vuelo, y lo que necesitan
+// conexión (RNF-001): Asistencias, Lectura, Rúbrica y Registro de Vuelo, y lo que necesitan
 // sus filtros (años, asignaciones, colegio, semanas y niveles Raz-Kids).
 //
 // No es una caché HTTP: es la caché de TanStack Query copiada a IndexedDB. Al
@@ -17,8 +17,12 @@ const CLAVE = 'sicedu.cache-consultas'
 // con su fecha y marcada como tal. Escribir sigue exigiendo conexión.
 // `admin` entra por D61: CU013 y CU016 piden consultar Colegios y Usuarios sin
 // conexión con la última copia, y sus listados y catálogos viven ahí.
+// `asistencia` entra por D123 y D61: la clase de una fecha es la copia base
+// sobre la que se aplican las marcas pendientes; sin ella, recargar sin
+// conexión dejaba Asistencias vacía aunque la cola tuviera todo lo marcado.
 const RAICES = new Set([
   'admin',
+  'asistencia',
   'anios-escolares',
   'me',
   'colegio',
@@ -61,6 +65,17 @@ async function guardar(valor) {
  */
 export function conectarCacheConsultas(cliente, propietario) {
   if (propietario == null) return () => {}
+  /**
+   * LA COPIA NO CADUCA EN MEMORIA.
+   *
+   * Lo guardado se vuelca a la caché SOLO al entrar. Con el `gcTime` por
+   * defecto (cinco minutos), una pantalla que se dejaba más tiempo se borraba
+   * de la memoria, y al volver sin conexión la consulta quedaba en pausa y sin
+   * datos: Lectura, Rúbrica o Vuelo vacías, con lo pendiente de la cola
+   * escondido, aunque la copia siguiera en IndexedDB. Son las mismas consultas
+   * que ya se guardan enteras; se borran al cerrar sesión.
+   */
+  RAICES.forEach((raiz) => cliente.setQueryDefaults([raiz], { gcTime: Infinity }))
   let entradas = {}
   let temporizador = null
   let activa = true

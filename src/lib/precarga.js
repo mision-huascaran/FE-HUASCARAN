@@ -1,12 +1,22 @@
-// T19 — Precarga al pulsar "Iniciar actividad".
+// T19 / CU003 — Precarga para trabajar sin conexión, guardada en IndexedDB.
 //
-// Sin esto el trabajo sin conexión no existe: el docente abriría la grilla y no
-// habría ni alumnos ni catálogos que mostrar. Se baja todo de golpe al empezar,
-// mientras todavía hay red, y se guarda en IndexedDB.
+// Se baja en dos momentos, mientras todavía hay red:
 //
-// Se precarga lo que el aula necesita y nada más: sus alumnos, los catálogos de
-// niveles y las grillas de la semana y el periodo en curso. Los filtros van en
-// localStorage, que es para preferencias, no para registros.
+//   · Al entrar a Inicio (`useSincronizacionLocal`), en silencio:
+//       - Docente: alumnos (activos e inactivos), colegios, grados, sus
+//         asignaciones y los niveles de la rúbrica y de Raz-Kids.
+//       - Supervisor: alumnos, colegios y grados.
+//       - Directivo: nada.
+//   · Al pulsar "Iniciar actividad" (`useActividad`): lo mismo del Docente más
+//     sus habilitaciones (`GET /me/habilitaciones`, con el calendario de cada
+//     colegio y los permisos vigentes).
+//
+// LAS TABLAS DE REGISTRO NO SE PRECARGAN. La clase de Asistencias y las tablas
+// de Lectura, Rúbrica y Registro de Vuelo solo están sin conexión si se
+// abrieron antes con conexión: esa copia la guarda `cacheConsultas`. Si no, la
+// pantalla dice "Esta clase/tabla no está guardada en este equipo".
+//
+// Los filtros van en localStorage, que es para preferencias, no para registros.
 import { del, get, set } from 'idb-keyval'
 import { ahora } from './relojServidor'
 

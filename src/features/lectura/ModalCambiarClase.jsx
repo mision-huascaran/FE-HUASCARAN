@@ -14,6 +14,7 @@
 // FECHA. El contrato acepta una u otra, nunca las dos.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Select from '../../components/ui/Select'
@@ -105,7 +106,10 @@ export default function ModalCambiarClase({
         <EmptyState title="No se pudieron cargar las clases" description={mensajeDeError(consulta.error)} />
       )}
 
-      {!consulta.isLoading && !consulta.isError && candidatas.length === 0 && (
+      {/* Sin conexión y sin copia: no es que no haya otra clase. */}
+      {sinCopiaLocal(consulta) && <ContenidoNoDisponible descripcion="Conéctate a internet para ver las clases de la semana." />}
+
+      {!consulta.isLoading && !consulta.isError && !sinCopiaLocal(consulta) && candidatas.length === 0 && (
         <EmptyState
           title="No hay otra clase esta semana"
           description="El grupo solo tiene la clase que ya está puesta como referencia."

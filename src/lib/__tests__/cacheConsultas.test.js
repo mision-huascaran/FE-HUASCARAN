@@ -42,6 +42,26 @@ describe('cacheConsultas', () => {
     await vi.waitFor(() => expect(despues.getQueryData(CLAVE_TABLA)).toEqual({ id: 7, filas: [{ id_alumno: 5, cantidad_lsl: 3 }] }))
   })
 
+  it('las copias no caducan en memoria: volver a la pantalla pasados cinco minutos sigue teniendo datos', () => {
+    const cliente = new QueryClient()
+    conectarCacheConsultas(cliente, 4)
+    const gcTimeDe = (clave) => cliente.getQueryCache().build(cliente, { queryKey: clave }).options.gcTime
+    expect(gcTimeDe(CLAVE_TABLA)).toBe(Infinity)
+    expect(gcTimeDe(['rubricas', { mes: 9 }])).toBe(Infinity)
+    expect(gcTimeDe(['registro-vuelo', 2026])).toBe(Infinity)
+    expect(gcTimeDe(['asistencia', 'clase', '1', '2', '7', '2026-11-12'])).toBe(Infinity)
+    // Lo que no se guarda conserva el de siempre.
+    expect(gcTimeDe(['usuarios', 'lista'])).not.toBe(Infinity)
+  })
+
+  it('guarda también la clase de Asistencias (copia base para lo pendiente, D123)', async () => {
+    const cliente = new QueryClient()
+    conectarCacheConsultas(cliente, 4)
+    cliente.setQueryData(['asistencia', 'clase', '1', '2', '7', '2026-11-12'], { alumnos: [{ id_alumno: 5 }] })
+    await esperarEscritura()
+    expect(almacen.size).toBe(1)
+  })
+
   it('no guarda consultas que no son de las pantallas de registro', async () => {
     const cliente = new QueryClient()
     conectarCacheConsultas(cliente, 4)

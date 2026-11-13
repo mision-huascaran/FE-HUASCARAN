@@ -19,6 +19,7 @@ import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import { ESTADO_FILA, MAXIMOS_LSN, MOTIVO_FILA } from '../../api/resources/lectura'
 import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
+import EstadoSincronizacion from '../../components/ui/EstadoSincronizacion'
 import NombreLargo from '../../components/ui/NombreLargo'
 
 const TONO = {
@@ -108,6 +109,7 @@ export default function FilaLectura({ fila, soloLectura, bloqueada, onGuardar, o
     <tr className="border-t border-line align-top">
       <td className={`px-3 pb-2 pt-5 sm:pt-[18px] ${CELDA_ALUMNO}`}>
         <NombreLargo className="max-w-[18rem] font-medium text-ink-900">{fila.nombre}</NombreLargo>
+        <EstadoSincronizacion estado={fila.sincronizacion} />
         {fila.inactivo && (
           <span
             title="Dado de baja: estaba en la clase de referencia"

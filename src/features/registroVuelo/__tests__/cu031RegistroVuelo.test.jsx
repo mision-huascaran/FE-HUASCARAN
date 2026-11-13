@@ -135,14 +135,14 @@ vi.mock('../../../api/resources/administracion', async (importOriginal) => ({
   anioVigente: (anios = []) => anios.find((a) => a.vigente) ?? anios[0] ?? null,
 }))
 
-function montar(idRol = ROLES.PROFESOR) {
+function montar(idRol = ROLES.PROFESOR, cliente = crearQueryClient()) {
   useSessionStore.setState({
     token: 'mock.4.2026',
     usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombres: 'Prueba' },
     cargando: false,
   })
   return render(
-    <QueryClientProvider client={crearQueryClient()}>
+    <QueryClientProvider client={cliente}>
       <ToastProvider>
         <MemoryRouter>
           <RegistroVueloAnualPage />
@@ -705,5 +705,21 @@ describe('De dónde viene la entrada, sin depender del cursor (CU031)', () => {
 
     expect(await screen.findByText('Pendiente del periodo anterior', {}, ESPERA)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /de dónde viene la entrada/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('Sin conexión y sin copia de la tabla en el equipo', () => {
+  it('Registro de Vuelo: lo dice, en vez de dejar la pantalla en blanco', async () => {
+    const cliente = crearQueryClient()
+    const primera = montar(ROLES.PROFESOR, cliente)
+    await screen.findByLabelText('Nivel colocado de Torres, Ana', {}, ESPERA)
+    primera.unmount()
+    // Como si esta tabla nunca se hubiera abierto con conexión.
+    cliente.removeQueries({ queryKey: ['registro-vuelo'] })
+    conexion(false)
+    onlineManager.setOnline(false)
+    montar(ROLES.PROFESOR, cliente)
+    expect(await screen.findByText('Esta tabla no está guardada en este equipo', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.getByText('Conéctate a internet para cargarla.')).toBeInTheDocument()
   })
 })

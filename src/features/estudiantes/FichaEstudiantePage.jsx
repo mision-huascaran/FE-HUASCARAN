@@ -10,7 +10,7 @@
 // CU015 prohíbe guardar la auditoría en IndexedDB para no llenar la memoria
 // del dispositivo. Sin señal no se pide nada y se explica por qué; las demás
 // pestañas siguen navegables, que es justo lo que pide el flujo alternativo.
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, WifiOff } from 'lucide-react'
@@ -25,7 +25,9 @@ import ResumenFicha from './ResumenFichaAlumno'
 import GraficaDeVuelo from './GraficaDeVuelo'
 import useConexion from '../../hooks/useConexion'
 import usePrecarga from '../../hooks/usePrecarga'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 import { CONSULTA_SIN_CONEXION } from '../../components/mantenimiento/Mantenimiento'
+import { buscarAlumnoLocal } from '../alumnos/alumnosSinConexion'
 import { listarHistorialAlumno } from '../../api/resources/administracion'
 import {
   obtenerAlumno,
@@ -98,11 +100,13 @@ function ErrorDePestana({ error }) {
 
 function PestanaLectura({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'lectura'],
     queryFn: () => obtenerLecturaAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el seguimiento de lectura del alumno." />
 
   const columnas = [
     {
@@ -149,11 +153,13 @@ function PestanaLectura({ idAlumno, alumno }) {
 
 function PestanaRubrica({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data, isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'rubrica'],
     queryFn: () => obtenerRubricaAlumno(idAlumno),
   })
+  const { data, isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver la rúbrica del alumno." />
 
   const columnas = [
     { key: 'mes', header: 'Mes', render: (e) => nombreDeMes(e.mes) },
@@ -183,11 +189,13 @@ function PestanaRubrica({ idAlumno, alumno }) {
 
 function PestanaVuelo({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'registro-vuelo'],
     queryFn: () => obtenerRegistroVueloAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el registro de vuelo del alumno." />
 
   const columnas = [
     {
@@ -289,22 +297,13 @@ function PestanaHistorial({ idAlumno }) {
 }
 
 /**
- * D61 — EL ALUMNO SEGÚN LO GUARDADO EN EL EQUIPO, para abrir su ficha sin conexión.
- *
- * Sin red, `GET /alumnos/{id}` queda en pausa: no hay datos ni error, y la
- * ficha decía "No se encontró al alumno" aunque la lista de Alumnos lo
- * mostraba un clic antes (CU014 pide el detalle en solo lectura). Se busca
- * su fila en la precarga (CU003) y en la última lista de Alumnos vista en
- * esta sesión; las dos traen lo que pinta la cabecera.
+ * D61 — La fila de Alumnos guardada en el equipo, con el nombre como lo pinta
+ * la ficha. La lista lo trae "Apellidos, Nombres" (para ordenar); la ficha con
+ * conexión dice "Nombres Apellidos", y sin conexión tiene que decir lo mismo
+ * (también para las iniciales y la miga).
  */
-function alumnoEnEquipo(id, precarga, queryClient) {
-  const esEste = (a) => String(a?.id_alumno ?? a?.id) === String(id)
-  const vistas = queryClient
-    .getQueriesData({ queryKey: ['alumnos', 'mantenimiento'] })
-    .flatMap(([, datos]) => (Array.isArray(datos) ? datos : (datos?.items ?? [])))
-  const fila = vistas.find(esEste) ?? (precarga?.alumnos ?? []).find(esEste)
+function comoFicha(fila) {
   if (!fila) return null
-  // La lista lo nombra "Apellidos, Nombres"; la ficha, "Nombres Apellidos".
   const nombre = [fila.nombres, fila.apellidos].filter(Boolean).join(' ')
   return { ...fila, nombre: nombre || fila.nombre }
 }
@@ -312,25 +311,30 @@ function alumnoEnEquipo(id, precarga, queryClient) {
 export default function FichaEstudiantePage() {
   const { id } = useParams()
   const [pestana, setPestana] = useState('resumen')
-  const enLinea = useConexion()
-  const precarga = usePrecarga()
-  const queryClient = useQueryClient()
 
+  const enLinea = useConexion()
+  const queryClient = useQueryClient()
+  const precarga = usePrecarga()
   const { data: delServidor, isLoading, error } = useQuery({
     queryKey: ['alumno', id],
     queryFn: () => obtenerAlumno(id),
   })
-  const copiaLocal = useMemo(
-    () => (enLinea || delServidor ? null : alumnoEnEquipo(id, precarga, queryClient)),
-    [enLinea, delServidor, id, precarga, queryClient],
-  )
+  /**
+   * SIN CONEXIÓN, LA FILA DE LA COPIA LOCAL (CU014, D61).
+   *
+   * El detalle no se guarda en el equipo: sin red la consulta queda en pausa,
+   * sin datos y sin error, y la ficha decía "No se encontró al alumno" de uno
+   * que la lista acababa de enseñar. La cabecera se arma con la misma fila de
+   * la lista (precarga o lo ya visto con conexión).
+   */
+  const copiaLocal = enLinea || delServidor ? null : comoFicha(buscarAlumnoLocal(queryClient, precarga, id))
   const alumno = delServidor ?? copiaLocal
 
   // "Alumnos › Abigail Alva Chávez" y no "Alumnos › Detalle" (U29).
   useMigaExtra(alumno ? (alumno.nombre ?? [alumno.nombres, alumno.apellidos].filter(Boolean).join(' ')) : null)
 
   if (isLoading && !alumno) return <Skeleton variant="card" />
-  if (!alumno || (error && !copiaLocal)) {
+  if (!alumno) {
     return (
       <EmptyState
         title="No se encontró al alumno"

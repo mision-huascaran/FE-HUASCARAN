@@ -103,6 +103,35 @@ describe('filtrarAlumnos', () => {
     expect(nombres(filtrarAlumnos(FILAS, { estado: 'inactivo' }))).toEqual(['Carla Paz'])
   })
 
+  describe('sin conexión da lo mismo que el servidor (CU014)', () => {
+    const PENDIENTE = { nombres: 'Inactivo', apellidos: 'AAA Ficticio', nombre: 'AAA Ficticio, Inactivo', id_colegio: 1, id_grado: 1, id_programa: null, id_seccion: null, activo: false, pertenencia_pendiente: true }
+    const conPendiente = [...FILAS, PENDIENTE]
+    const TODOS = { estado: 'todos', id_colegio: '', id_grado: '', id_ciclo: '', id_programa: '', pertenencia: '' }
+
+    it('"Todos" incluye al inactivo con pertenencia pendiente, sin grado de sección ni subprograma', () => {
+      expect(nombres(filtrarAlumnos(conPendiente, TODOS))).toContain(PENDIENTE.nombre)
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, q: 'AAA' }))).toEqual([PENDIENTE.nombre])
+    })
+
+    it('el filtro de grado lo encuentra aunque no tenga subprograma; el de subprograma, no', () => {
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, id_grado: '1' }))).toContain(PENDIENTE.nombre)
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, id_programa: '1' }))).not.toContain(PENDIENTE.nombre)
+    })
+
+    it('"Activos" (lo de siempre) no lo muestra; "Inactivos" y "Pendiente" sí', () => {
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, estado: 'activo' }))).not.toContain(PENDIENTE.nombre)
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, estado: 'inactivo' }))).toContain(PENDIENTE.nombre)
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, pertenencia: 'pendiente' }))).toEqual([PENDIENTE.nombre])
+    })
+
+    it('la búsqueda es por palabras, en cualquier orden, sin tildes ni mayúsculas', () => {
+      expect(nombres(filtrarAlumnos(FILAS, { q: 'rios' }))).toEqual(['Ana Ríos'])
+      expect(nombres(filtrarAlumnos(FILAS, { q: 'RÍOS ana' }))).toEqual(['Ana Ríos'])
+      expect(nombres(filtrarAlumnos(conPendiente, { ...TODOS, q: 'inactivo aaa' }))).toEqual([PENDIENTE.nombre])
+      expect(nombres(filtrarAlumnos(FILAS, { q: 'ana luna' }))).toEqual([])
+    })
+  })
+
   it('semana 14 — "pertenencia" separa los que tienen intervalo de los que no', () => {
     const conPendiente = [...FILAS, { nombre: 'Dina Pendiente', id_colegio: 1, activo: true, pertenencia_pendiente: true }]
     expect(nombres(filtrarAlumnos(conPendiente, { pertenencia: 'pendiente' }))).toEqual(['Dina Pendiente'])
