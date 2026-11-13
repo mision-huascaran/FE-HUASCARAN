@@ -149,13 +149,17 @@ vi.mock('../../../api/resources/catalogos', async (importOriginal) => ({
   ]),
 }))
 
-/** Monta con un cliente que sobrevive al desmontaje: salir del módulo y volver. */
-function montarParaVolver() {
+function iniciarSesion(idRol) {
   useSessionStore.setState({
     token: 'mock.4.2026',
-    usuario: { id_usuario: 4, id_rol: ROLES.PROFESOR, id_docente: 1, nombres: 'Prueba' },
+    usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombres: 'Prueba' },
     cargando: false,
   })
+}
+
+/** Monta con un cliente que sobrevive al desmontaje: salir del módulo y volver. */
+function montarParaVolver() {
+  iniciarSesion(ROLES.PROFESOR)
   const cliente = crearQueryClient()
   const pantalla = () => (
     <QueryClientProvider client={cliente}>
@@ -176,11 +180,7 @@ function montarParaVolver() {
 }
 
 function montar(idRol = ROLES.PROFESOR, cliente = crearQueryClient()) {
-  useSessionStore.setState({
-    token: 'mock.4.2026',
-    usuario: { id_usuario: 4, id_rol: idRol, id_docente: idRol === ROLES.PROFESOR ? 1 : null, nombres: 'Prueba' },
-    cargando: false,
-  })
+  iniciarSesion(idRol)
   return render(
     <QueryClientProvider client={cliente}>
       <ToastProvider>
