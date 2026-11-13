@@ -20,6 +20,7 @@ import AvisoConflictos from '../../components/layout/AvisoConflictos'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import EmptyState from '../../components/ui/EmptyState'
+import SinCopiaLocal from '../../components/ui/SinCopiaLocal'
 import FilterBar from '../../components/ui/FilterBar'
 import selectsDelGrupo from '../../components/filtros/selectsDelGrupo'
 import FilaVuelo from './FilaVuelo'
@@ -77,7 +78,7 @@ export default function RegistroVueloAnualPage() {
   })
 
   const { data: niveles = [] } = useNivelesRazkids()
-  const { datos, cargando, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina, grupoValido })
+  const { datos, cargando, sinCopia, error, guardarDecision } = useRegistroVueloAnual({ filtros, pagina, grupoValido })
 
   const periodos = datos?.periodos ?? []
 
@@ -144,6 +145,9 @@ export default function RegistroVueloAnualPage() {
           />
         </Card>
       )}
+
+      {/* Sin conexión y sin copia de esta tabla en el equipo (RNF-001). */}
+      {listos && sinCopia && <SinCopiaLocal que="tabla" />}
 
       {listos && error && (
         <Card>

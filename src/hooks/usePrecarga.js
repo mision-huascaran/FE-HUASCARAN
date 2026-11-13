@@ -18,6 +18,13 @@ export default function usePrecarga() {
     queryFn: () => leerPrecarga(propietario),
     staleTime: Infinity,
     gcTime: Infinity,
+    /**
+     * Lee IndexedDB, no la red. Con el modo por defecto, si la conexión se
+     * caía antes de abrir por primera vez Alumnos o la ficha de un alumno,
+     * TanStack Query dejaba esta lectura en pausa y la copia local no salía:
+     * justo cuando es lo único que hay.
+     */
+    networkMode: 'always',
   })
 
   return data?.datos ?? null

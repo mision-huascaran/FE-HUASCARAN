@@ -47,7 +47,8 @@ const PERFIL = { id_usuario: 7, id_rol: 1, correo: 'docente@sicedu.test', dni: '
 const tokenDe = (idUsuario) => {
   const exp = Math.floor(Date.now() / 1000) + 8 * 60 * 60
   const parte = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '')
-  return `${parte({ alg: 'HS256' })}.${parte({ exp, id_usuario: idUsuario })}.firma`
+  // Con la forma que emite el backend (`create_access_token`): la cuenta va en `sub`, como texto (D82).
+  return `${parte({ alg: 'HS256' })}.${parte({ sub: String(idUsuario), jti: 's', exp })}.firma`
 }
 const sinRespuesta = () => Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
 const conEstado = (status) => Object.assign(new Error('fallo'), { response: { status, data: {} } })

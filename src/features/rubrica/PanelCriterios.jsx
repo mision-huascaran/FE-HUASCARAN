@@ -13,14 +13,18 @@ import Button from '../../components/ui/Button'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
 import { obtenerCriterios } from '../../api/resources/rubricaMensual'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
 
 export default function PanelCriterios({ open, idPrograma, idCiclo, ciclo, nombrePrograma, onCerrar }) {
-  const { data: criterios = [], isLoading } = useQuery({
+  const consulta = useQuery({
     queryKey: ['rubrica', 'criterios', { idPrograma, idCiclo }],
     queryFn: () => obtenerCriterios({ idPrograma, idCiclo }),
     enabled: open && Boolean(idPrograma && idCiclo),
     staleTime: Infinity,
   })
+  const { data: criterios = [], isLoading } = consulta
+  // Sin conexión y sin copia: no es que la combinación no tenga criterios.
+  const sinCopia = sinCopiaLocal(consulta)
 
   // Vienen en orden —Fluidez y luego Comprensión, de menor a mayor— y se
   // respeta: es el orden en que se lee una rúbrica.
@@ -43,7 +47,9 @@ export default function PanelCriterios({ open, idPrograma, idCiclo, ciclo, nombr
     >
       {isLoading && <Skeleton className="h-40 w-full" />}
 
-      {!isLoading && criterios.length === 0 && (
+      {sinCopia && <ContenidoNoDisponible descripcion="Conéctate a internet para ver los criterios de la rúbrica." />}
+
+      {!isLoading && !sinCopia && criterios.length === 0 && (
         <EmptyState
           title="Sin criterios para esta combinación"
           description="Este subprograma no se dicta en el ciclo del grado seleccionado."

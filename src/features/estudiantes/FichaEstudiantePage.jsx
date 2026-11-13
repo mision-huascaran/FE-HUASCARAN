@@ -12,7 +12,7 @@
 // pestañas siguen navegables, que es justo lo que pide el flujo alternativo.
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
@@ -24,6 +24,10 @@ import PestanaAuditoria from '../../components/mantenimiento/PestanaAuditoria'
 import ResumenFicha from './ResumenFichaAlumno'
 import GraficaDeVuelo from './GraficaDeVuelo'
 import useConexion from '../../hooks/useConexion'
+import usePrecarga from '../../hooks/usePrecarga'
+import { ContenidoNoDisponible, sinCopiaLocal } from '../../components/ui/SinCopiaLocal'
+import { CONSULTA_SIN_CONEXION } from '../../components/mantenimiento/Mantenimiento'
+import { buscarAlumnoLocal } from '../alumnos/alumnosSinConexion'
 import { listarHistorialAlumno } from '../../api/resources/administracion'
 import {
   obtenerAlumno,
@@ -96,11 +100,13 @@ function ErrorDePestana({ error }) {
 
 function PestanaLectura({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'lectura'],
     queryFn: () => obtenerLecturaAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el seguimiento de lectura del alumno." />
 
   const columnas = [
     {
@@ -147,11 +153,13 @@ function PestanaLectura({ idAlumno, alumno }) {
 
 function PestanaRubrica({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data, isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'rubrica'],
     queryFn: () => obtenerRubricaAlumno(idAlumno),
   })
+  const { data, isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver la rúbrica del alumno." />
 
   const columnas = [
     { key: 'mes', header: 'Mes', render: (e) => nombreDeMes(e.mes) },
@@ -181,11 +189,13 @@ function PestanaRubrica({ idAlumno, alumno }) {
 
 function PestanaVuelo({ idAlumno, alumno }) {
   const navigate = useNavigate()
-  const { data = [], isLoading, error } = useQuery({
+  const consulta = useQuery({
     queryKey: ['alumno', idAlumno, 'registro-vuelo'],
     queryFn: () => obtenerRegistroVueloAlumno(idAlumno),
   })
+  const { data = [], isLoading, error } = consulta
   if (error) return <ErrorDePestana error={error} />
+  if (sinCopiaLocal(consulta)) return <ContenidoNoDisponible descripcion="Conéctate a internet para ver el registro de vuelo del alumno." />
 
   const columnas = [
     {
@@ -286,20 +296,45 @@ function PestanaHistorial({ idAlumno }) {
   )
 }
 
+/**
+ * D61 — La fila de Alumnos guardada en el equipo, con el nombre como lo pinta
+ * la ficha. La lista lo trae "Apellidos, Nombres" (para ordenar); la ficha con
+ * conexión dice "Nombres Apellidos", y sin conexión tiene que decir lo mismo
+ * (también para las iniciales y la miga).
+ */
+function comoFicha(fila) {
+  if (!fila) return null
+  const nombre = [fila.nombres, fila.apellidos].filter(Boolean).join(' ')
+  return { ...fila, nombre: nombre || fila.nombre }
+}
+
 export default function FichaEstudiantePage() {
   const { id } = useParams()
   const [pestana, setPestana] = useState('resumen')
 
-  const { data: alumno, isLoading, error } = useQuery({
+  const enLinea = useConexion()
+  const queryClient = useQueryClient()
+  const precarga = usePrecarga()
+  const { data: delServidor, isLoading, error } = useQuery({
     queryKey: ['alumno', id],
     queryFn: () => obtenerAlumno(id),
   })
+  /**
+   * SIN CONEXIÓN, LA FILA DE LA COPIA LOCAL (CU014, D61).
+   *
+   * El detalle no se guarda en el equipo: sin red la consulta queda en pausa,
+   * sin datos y sin error, y la ficha decía "No se encontró al alumno" de uno
+   * que la lista acababa de enseñar. La cabecera se arma con la misma fila de
+   * la lista (precarga o lo ya visto con conexión).
+   */
+  const copiaLocal = enLinea || delServidor ? null : comoFicha(buscarAlumnoLocal(queryClient, precarga, id))
+  const alumno = delServidor ?? copiaLocal
 
   // "Alumnos › Abigail Alva Chávez" y no "Alumnos › Detalle" (U29).
   useMigaExtra(alumno ? (alumno.nombre ?? [alumno.nombres, alumno.apellidos].filter(Boolean).join(' ')) : null)
 
-  if (isLoading) return <Skeleton variant="card" />
-  if (error || !alumno) {
+  if (isLoading && !alumno) return <Skeleton variant="card" />
+  if (!alumno) {
     return (
       <EmptyState
         title="No se encontró al alumno"
@@ -326,10 +361,12 @@ export default function FichaEstudiantePage() {
    * el Estado se añade aparte porque es el único con color.
    */
   const etiquetas = [
-    etiquetaDe(alumno.colegio),
-    etiquetaDe(alumno.programa ?? alumno.subprograma),
+    // Sin valor por defecto: `etiquetaDe` pone "—" y el filtro no lo quitaba
+    // (salían dos "—" con la misma clave cuando faltaban colegio y subprograma).
+    etiquetaDe(alumno.colegio, ''),
+    etiquetaDe(alumno.programa ?? alumno.subprograma, ''),
     alumno.ciclo ? `Ciclo ${etiquetaDe(alumno.ciclo)}` : null,
-    alumno.seccion ? `${etiquetaDe(alumno.grado)} · Sección ${etiquetaDe(alumno.seccion)}` : etiquetaDe(alumno.grado),
+    alumno.seccion ? `${etiquetaDe(alumno.grado)} · Sección ${etiquetaDe(alumno.seccion)}` : etiquetaDe(alumno.grado, ''),
   ].filter(Boolean)
 
   // La inicial del nombre y la del apellido, como pide la cabecera. Con una
@@ -366,6 +403,12 @@ export default function FichaEstudiantePage() {
           {alumno.activo === false ? <Badge tone="warning">Inactivo</Badge> : <Badge tone="success">Activo</Badge>}
         </div>
       </header>
+
+      {copiaLocal && (
+        <p role="status" className="rounded-xl border border-warning-600/20 bg-warning-100 px-4 py-3 text-sm text-ink-700">
+          {CONSULTA_SIN_CONEXION}
+        </p>
+      )}
 
       <Card padded={false}>
         <Tabs items={PESTANAS} value={pestana} onChange={setPestana} className="px-2" />

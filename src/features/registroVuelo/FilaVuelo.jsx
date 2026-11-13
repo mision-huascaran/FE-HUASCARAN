@@ -14,6 +14,7 @@ import Select from '../../components/ui/Select'
 import Tooltip from '../../components/ui/Tooltip'
 import { ACCION_SUGERIDA } from '../../api/resources/registroVueloAnual'
 import { CELDA_ALUMNO } from '../../lib/tablaAlumnos'
+import EstadoSincronizacion from '../../components/ui/EstadoSincronizacion'
 import NombreLargo from '../../components/ui/NombreLargo'
 
 const TONO = {
@@ -63,6 +64,7 @@ export default function FilaVuelo({ alumno, periodo, niveles, soloLectura, onGua
     <tr className="border-t border-line">
       <td className={`px-3 py-2 ${CELDA_ALUMNO}`}>
         <NombreLargo className="max-w-[18rem] font-medium text-ink-900">{alumno.nombre}</NombreLargo>
+        <EstadoSincronizacion estado={periodo.sincronizacion} />
         {alumno.inactivo && (
           <span
             title="Hoy está inactivo, pero perteneció al grupo este año"

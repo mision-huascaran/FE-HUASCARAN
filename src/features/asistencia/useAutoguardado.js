@@ -64,9 +64,15 @@ const confirmadoPor = (guardado, enviado) => ({
   observacion: 'observacion' in guardado ? guardado.observacion ?? null : enviado.observacion,
 })
 
-/** El envío pendiente de un alumno más el cambio nuevo: un solo registro con los dos. */
+/**
+ * El envío pendiente de un alumno más el cambio nuevo: un solo registro con los dos.
+ *
+ * `adicional` no se pierde: si la marca pendiente decidía crear la clase
+ * adicional, corregirla no puede quitarle ese aviso al servidor.
+ */
 export const fusionarMarca = (pendiente, nuevo) => ({
   ...nuevo,
+  adicional: Boolean(pendiente.adicional || nuevo.adicional),
   registros: [{ ...pendiente.registros[0], ...nuevo.registros[0] }],
 })
 
@@ -75,6 +81,14 @@ const conAlumno = (clase, idAlumno, marca) =>
   clase?.alumnos
     ? { ...clase, alumnos: clase.alumnos.map((a) => (a.id_alumno === idAlumno ? { ...a, ...marca } : a)) }
     : clase
+
+/**
+ * La clase en caché con la que dice el servidor al guardar.
+ *
+ * La adicional ya existe: al volver a la pantalla no se puede enseñar "no hay
+ * clase" (y el botón para crear otra) mientras se refresca.
+ */
+const conClase = (datos, clase) => (datos && clase?.etiqueta ? { ...datos, clase: { ...datos.clase, ...clase } } : datos)
 
 /**
  * @param alumnos  los de la clase, tal como llegan del servidor.
@@ -250,7 +264,9 @@ export default function useAutoguardado({
         // Solo lo que el SERVIDOR confirmó: lo encolado offline no resuelve aún.
         if (guardado && claveClase) {
           const confirmado = confirmadoPor(guardado, siguiente)
-          queryClient.setQueryData(claveClase, (previa) => conAlumno(previa, alumno.id_alumno, confirmado))
+          queryClient.setQueryData(claveClase, (previa) =>
+            conClase(conAlumno(previa, alumno.id_alumno, confirmado), respuesta?.clase),
+          )
         }
 
         if (mio?.estado === 'rechazada') {
