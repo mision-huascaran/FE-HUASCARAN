@@ -10,12 +10,16 @@ import useSessionStore from '../../store/sessionStore'
 import useSyncStore from '../../store/syncStore'
 import useRechazosStore from '../../store/rechazosStore'
 
-/** Un JWT de mentira de la cuenta indicada (la firma no se valida). */
+/**
+ * Un JWT de mentira de la cuenta indicada (la firma no se valida), con la forma
+ * que emite el backend: la cuenta va en `sub`, como texto, y no hay `id_usuario`
+ * (D92: con `id_usuario` la prueba pasaba y con el token real la cola no tenía dueño).
+ */
 function tokenDe(idUsuario, sesion = 'a') {
   const base64url = (obj) =>
     Buffer.from(JSON.stringify(obj)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   const exp = Math.floor(Date.now() / 1000) + 8 * 3600
-  return `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url({ id_usuario: idUsuario, jti: sesion, exp })}.firma`
+  return `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url({ sub: String(idUsuario), jti: sesion, exp })}.firma`
 }
 
 const TIPO = 'asistencia-prueba'

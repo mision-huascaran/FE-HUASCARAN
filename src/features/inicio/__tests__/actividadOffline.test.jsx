@@ -9,11 +9,12 @@
 // genera el cliente y `POST /actividades` es idempotente, así que reintentar no
 // duplica; y `inicio` y `fin` son opcionales y viajan con zona horaria.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, screen, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { crearQueryClient } from '../../../App'
 import { ToastProvider } from '../../../components/ui'
-import useActividad from '../useActividad'
+import useActividad, { SIN_HABILITACION_VERIFICABLE_AL_INICIAR } from '../useActividad'
+import { _reiniciarReloj, sincronizarReloj } from '../../../lib/relojServidor'
 import { reintentarAhora } from '../../../lib/colaOffline'
 import { finalizarActividad } from '../../../api/resources/actividades'
 import useActividadStore from '../../../store/actividadStore'
@@ -62,6 +63,8 @@ const envoltorio = ({ children }) => (
 )
 
 beforeEach(() => {
+  // La sesión empezó con conexión: el reloj quedó anclado a la hora del servidor (CU010).
+  sincronizarReloj(new Date().toUTCString())
   encolados.length = 0
   respuestaCola = () => Promise.resolve()
   iniciarEnServidor.mockClear()
@@ -74,6 +77,24 @@ beforeEach(() => {
 })
 
 describe('Actividad sin conexión (CU009)', () => {
+  /**
+   * CP-INI-28 — Tras reabrir el navegador sin red no hay referencia temporal
+   * verificable: CU009 pide conexión antes de iniciar, con su literal, y sin
+   * tocar lo pendiente.
+   */
+  it('sin referencia temporal verificable no se inicia y lo dice con el literal de CU009', async () => {
+    _reiniciarReloj()
+    definirConexion(false)
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    await result.current.iniciar()
+
+    expect(await screen.findByText(SIN_HABILITACION_VERIFICABLE_AL_INICIAR)).toBeInTheDocument()
+    expect(useActividadStore.getState().sesion).toBeFalsy()
+    expect(encolados).toHaveLength(0)
+    expect(iniciarEnServidor).not.toHaveBeenCalled()
+  })
+
   it('se puede iniciar sin red: queda abierta y encolada', async () => {
     definirConexion(false)
     const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })

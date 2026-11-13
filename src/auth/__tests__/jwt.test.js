@@ -1,7 +1,7 @@
 // El JWT del backend dura 8 horas (APIS_BACKEND.md), así que una sesión caduca
 // con el docente dentro. Leer `exp` evita disparar peticiones condenadas al 401.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { caducaEn, leerPayload, tokenCaducado } from '../jwt'
+import { caducaEn, idUsuarioDe, leerPayload, tokenCaducado } from '../jwt'
 import { _reiniciarReloj, sincronizarReloj } from '../../lib/relojServidor'
 import { normalizarPerfil } from '../../api/resources/auth'
 
@@ -126,5 +126,22 @@ describe('normalizarPerfil (GET /me)', () => {
 
   it('devuelve null sin perfil', () => {
     expect(normalizarPerfil(null)).toBeNull()
+  })
+})
+
+describe('idUsuarioDe (D82, D92)', () => {
+  it('lee la cuenta de `sub`, que es donde la pone el backend', () => {
+    // La forma exacta de `create_access_token` en BCK-HUASCARAN.
+    expect(idUsuarioDe(armarToken({ sub: '42', jti: 'abc', iat: 1, exp: enSegundos(60) }))).toBe('42')
+  })
+
+  it('acepta `id_usuario` si el contrato lo agrega, y siempre devuelve texto', () => {
+    expect(idUsuarioDe(armarToken({ id_usuario: 7 }))).toBe('7')
+  })
+
+  it('devuelve null si el token no dice de quién es o no se puede leer', () => {
+    expect(idUsuarioDe(armarToken({ jti: 'abc' }))).toBeNull()
+    expect(idUsuarioDe('')).toBeNull()
+    expect(idUsuarioDe(null)).toBeNull()
   })
 })

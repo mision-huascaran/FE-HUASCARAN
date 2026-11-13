@@ -133,13 +133,33 @@ export default function MantenimientoColegios() {
     [grados, programas],
   )
 
+  /**
+   * D61 — LOS COLEGIOS QUE HAY EN ESTE EQUIPO, para listar sin conexión.
+   *
+   * La precarga (CU003) se baja desde Inicio y tarda: si la Supervisora sale
+   * de Inicio antes de que termine —o recarga ya dentro de Colegios—, no hay
+   * precarga y sin conexión la tabla quedaba en "Sin registros", aunque
+   * acababa de ver la lista. Por eso se suma la última lista vista EN LÍNEA
+   * con cualquier filtro: está en la caché de consultas, que `cacheConsultas`
+   * copia a IndexedDB (raíz `colegios`), así que también sobrevive a una
+   * recarga. Lo visto en línea es más reciente que la precarga y la pisa.
+   */
+  const colegiosEnEquipo = () => {
+    const porId = new Map((precarga?.colegios ?? []).map((c) => [String(c.id_colegio ?? c.id), c]))
+    queryClient.getQueriesData({ queryKey: ['colegios', 'mantenimiento'] }).forEach(([clave, datos]) => {
+      // clave = ['colegios', 'mantenimiento', filtros, enLinea, conPrecarga]
+      if (clave[3] !== true || !Array.isArray(datos)) return
+      datos.forEach((c) => porId.set(String(c.id_colegio ?? c.id), c))
+    })
+    return [...porId.values()]
+  }
+
   const consulta = useQuery({
     queryKey: ['colegios', 'mantenimiento', filtros, enLinea, Boolean(precarga)],
     queryFn: async () => {
-      // D61 — Sin conexión, se lee la última copia descargada (CU013) en vez
-      // de pedirla al servidor: antes la pantalla entera quedaba en "Sin
-      // registros" aunque los colegios ya estuvieran precargados.
-      if (!enLinea) return filtrarColegios(precarga?.colegios ?? [], filtros)
+      // D61 — Sin conexión, se lee la última copia guardada en el equipo
+      // (CU013) en vez de pedirla al servidor.
+      if (!enLinea) return filtrarColegios(colegiosEnEquipo(), filtros)
       return (await listarColegiosAdmin(filtros)).items
     },
     /**
