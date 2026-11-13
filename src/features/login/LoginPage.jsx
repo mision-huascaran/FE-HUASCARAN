@@ -3,7 +3,7 @@
 // Los textos de error NO son libres: CU002 los fija palabra por palabra, para
 // que el mensaje no delate si un correo existe. Se definen en MENSAJE y se usan
 // tal cual; cambiarlos rompe el caso de uso.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -57,6 +57,11 @@ export default function LoginPage() {
   // El inicio de sesión NUNCA es offline: hace falta el servidor para validar
   // las credenciales y emitir el token. Se avisa antes de dejar escribir.
   const enLinea = useConexion()
+  // Al volver la conexión, el aviso rojo de "sin conexión" de un intento
+  // anterior ya no es verdad: se quita. Los demás errores se quedan.
+  useEffect(() => {
+    if (enLinea) setErrorGeneral((actual) => (actual === MENSAJE.sinConexion ? null : actual))
+  }, [enLinea])
   const [resetAbierto, setResetAbierto] = useState(false)
   /**
    * CU001 — Primer ingreso. Las credenciales temporales se guardan SOLO en

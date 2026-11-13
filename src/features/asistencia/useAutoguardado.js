@@ -64,6 +64,12 @@ const confirmadoPor = (guardado, enviado) => ({
   observacion: 'observacion' in guardado ? guardado.observacion ?? null : enviado.observacion,
 })
 
+/** El envío pendiente de un alumno más el cambio nuevo: un solo registro con los dos. */
+export const fusionarMarca = (pendiente, nuevo) => ({
+  ...nuevo,
+  registros: [{ ...pendiente.registros[0], ...nuevo.registros[0] }],
+})
+
 /** La clase en caché con un alumno actualizado. */
 const conAlumno = (clase, idAlumno, marca) =>
   clase?.alumnos
@@ -218,6 +224,15 @@ export default function useAutoguardado({
           // atribuye a ninguna actividad y Sesiones la enseña con 0 cambios.
           idActividad,
           descripcion: `Asistencia de ${alumno.nombre}`,
+          /**
+           * La marca y la observación del mismo alumno comparten clave: sin
+           * conexión, la segunda REEMPLAZA a la pendiente. Sin fusionar, poner
+           * la observación después de marcar Ausente dejaba en la cola solo
+           * la observación y el estado se perdía (o al revés). Se suman los
+           * campos de la anterior; lo nuevo gana (estado, observación, hora y
+           * actividad del último cambio).
+           */
+          fusionar: fusionarMarca,
           // Sin botón de guardar, un apunte local que no queda escrito es un
           // dato perdido en silencio.
           exigePersistencia: true,
