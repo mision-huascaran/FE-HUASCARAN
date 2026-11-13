@@ -55,6 +55,8 @@ const marcar = vi.fn()
 let sinRed = false
 /** Para forzar el caso "esa fecha no tiene clase" (`etiqueta: null`). */
 let claseSinProgramar = false
+/** La clase que el servidor ya tiene para ese día (la adicional, cuando se crea). */
+let claseCreada = null
 vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
   const original = await importOriginal()
   return {
@@ -64,6 +66,7 @@ vi.mock('../../../api/resources/asistencia', async (importOriginal) => {
       if (sinRed) throw errorDeRed()
       const datos = await original.obtenerClase(...args)
       if (!claseSinProgramar) return datos
+      if (claseCreada) return { ...datos, clase: { ...datos.clase, ...claseCreada } }
       return {
         ...datos,
         clase: {
@@ -158,6 +161,7 @@ beforeEach(() => {
   fallaElDisco = false
   sinRed = false
   claseSinProgramar = false
+  claseCreada = null
   sinPaqueteDeHabilitaciones = false
   marcar.mockReset()
   // La respuesta del contrato: un `ResultadoOperacion` por registro enviado.
@@ -686,6 +690,33 @@ describe('Un rechazo no desaparece en silencio (D69)', () => {
   })
 })
 
+/**
+ * El servidor de un día sin clase: crea la adicional con la primera marca que
+ * la pide y las demás caen en la misma (clase única por colegio, grado,
+ * sección y fecha, `uq_clase_grupo_fecha`). Sin `adicional`, rechaza.
+ */
+function servidorQueCreaLaAdicional() {
+  const servidor = { clasesCreadas: 0 }
+  marcar.mockImplementation(async ({ fecha, adicional, registros }) => {
+    if (!claseCreada) {
+      if (!adicional) throw Object.assign(new Error('sin_clase_programada'), { response: { status: 422, data: { motivo: 'sin_clase_programada' } } })
+      servidor.clasesCreadas += 1
+      claseCreada = { id_clase: 40, tipo: 'adicional', etiqueta: 'Clase adicional', fecha_original: fecha, fecha, aviso: null }
+    }
+    return {
+      clase: claseCreada,
+      resultados: registros.map((r) => ({
+        id_operacion: r.id_operacion,
+        estado: 'aceptada',
+        motivo: null,
+        detail: null,
+        registro: { id_clase: 40, id_alumno: r.id_alumno, estado: r.estado ?? null, observacion: r.observacion ?? null },
+      })),
+    }
+  })
+  return servidor
+}
+
 describe('Una fecha SIN clase programada (CU022)', () => {
   beforeEach(() => {
     claseSinProgramar = true
@@ -729,6 +760,23 @@ describe('Una fecha SIN clase programada (CU022)', () => {
     // CU022: la clase se crea AL GUARDAR, así que el aviso viaja con la
     // marca. Pulsar el botón no manda nada por su cuenta.
     expect(marcar.mock.calls[0][0]).toMatchObject({ adicional: true })
+  })
+
+  it('con conexión, al salir y volver ya es "Clase adicional" y no se ofrece crear otra', async () => {
+    const servidor = servidorQueCreaLaAdicional()
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+    fireEvent.click(ladoAusente(controles()[0]))
+    await waitFor(() => expect(servidor.clasesCreadas).toBe(1), ESPERA)
+
+    rerender(pantalla('otro-modulo'))
+    await abrirFiltros()
+    await screen.findByRole('table', {}, ESPERA)
+    await waitFor(() => expect(ladoAusente(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
+    expect(screen.queryByRole('button', { name: 'Registrar clase adicional' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No hay una clase programada para esta fecha.')).not.toBeInTheDocument()
   })
 
   it('pulsar el botón NO crea nada por sí solo', async () => {
@@ -864,5 +912,51 @@ describe('Sin conexión, los tres estados se encolan y se sincronizan', () => {
     expect(Object.values(enviados()).map((r) => r.estado).sort()).toEqual(['ausente', 'presente', 'tardanza'])
     expect(ladoTardanza(controles().at(0))).toHaveAttribute(PULSADO, 'true')
     expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+  })
+
+  it('Clase adicional sin conexión: al volver sigue la clase con sus marcas, y al reconectar se crea una sola vez', async () => {
+    claseSinProgramar = true
+    const servidor = servidorQueCreaLaAdicional()
+
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+    sinRed = true
+    // Sin conexión la habilitación se vuelve a verificar en local: se espera a que termine.
+    await new Promise((r) => setTimeout(r, 1000))
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar clase adicional' }, ESPERA))
+    await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
+    const total = controles().length
+    fireEvent.click(screen.getByRole('button', { name: /marcar todos como presentes/i }))
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(total), ESPERA)
+    await pulsar(ladoAusente, 1)
+
+    // Otro módulo y de vuelta, todavía sin red.
+    rerender(pantalla('otro-modulo'))
+    await abrirFiltros()
+    await screen.findByRole('table', {}, ESPERA)
+    expect(await screen.findByText('Clase adicional', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Registrar clase adicional' })).not.toBeInTheDocument()
+    await waitFor(() => expect(ladoPresente(controles().at(0))).toHaveAttribute(PULSADO, 'true'), ESPERA)
+    expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+    // Se puede seguir marcando, y lo nuevo también lleva la adicional.
+    await waitFor(() => expect(ladoTardanza(controles().at(2))).toBeEnabled(), ESPERA)
+    await pulsar(ladoTardanza, 2)
+    expect(pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).every((item) => item.payload.adicional === true)).toBe(true)
+
+    sinRed = false
+    conConexion()
+    await reintentarAhora()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(servidor.clasesCreadas).toBe(1)
+    const porAlumno = marcar.mock.calls.flatMap(([{ registros }]) => registros.map((r) => r.id_alumno))
+    expect(porAlumno).toHaveLength(new Set(porAlumno).size)
+    expect(new Set(porAlumno).size).toBe(total)
+    // Ya con la clase del servidor: sigue la adicional y sus marcas.
+    expect(await screen.findByText('Clase adicional', {}, ESPERA)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Registrar clase adicional' })).not.toBeInTheDocument()
+    expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+    expect(ladoTardanza(controles().at(2))).toHaveAttribute(PULSADO, 'true')
   })
 })
