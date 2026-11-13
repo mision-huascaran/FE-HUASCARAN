@@ -121,6 +121,39 @@ describe('Actividad sin conexión (CU009)', () => {
     expect(encolados.find((e) => e.tipo === 'actividad-inicio')).toBeUndefined()
   })
 
+  it('iniciar justo cuando se cae la red: sigue abierta y su inicio se encola delante de lo registrado', async () => {
+    // El navegador todavía cree que hay red: el POST sale y vuelve sin respuesta.
+    definirConexion(true)
+    iniciarEnServidor.mockRejectedValue(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }))
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    await result.current.iniciar()
+
+    // No se cierra: lo que se registró mientras esperaba depende de ella.
+    const sesion = useActividadStore.getState().sesion
+    expect(sesion).toBeTruthy()
+    expect(useActividadStore.getState().confirmandoInicio).toBe(false)
+    const inicio = encolados.find((e) => e.tipo === 'actividad-inicio')
+    expect(inicio).toEqual(
+      expect.objectContaining({
+        clave: `actividad-inicio-${sesion.id}`,
+        antesQueSuActividad: sesion.id,
+        payload: expect.objectContaining({ id: sesion.id, inicio: sesion.inicio }),
+      }),
+    )
+  })
+
+  it('si el servidor RESPONDE con un rechazo, la actividad sí se cierra y no se encola', async () => {
+    definirConexion(true)
+    iniciarEnServidor.mockRejectedValue(Object.assign(new Error('rechazado'), { response: { status: 422, data: { motivo: 'sin_asignaciones' } } }))
+    const { result } = renderHook(() => useActividad(), { wrapper: envoltorio })
+
+    await result.current.iniciar()
+
+    expect(useActividadStore.getState().sesion).toBeNull()
+    expect(encolados.find((e) => e.tipo === 'actividad-inicio')).toBeUndefined()
+  })
+
   it('guarda el `jti` de la sesión con cada pendiente', async () => {
     // Si el docente vuelve a entrar antes de que se sincronice, el token ya es
     // otro y este dato sería irrecuperable: sin él, la actividad quedaría
