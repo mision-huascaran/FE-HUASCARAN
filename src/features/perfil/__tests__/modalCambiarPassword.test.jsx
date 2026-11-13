@@ -162,4 +162,29 @@ describe('Cambiar contraseña: cancelar y sin conexión', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('sin conexión a Internet')
     expect(boton('Guardar contraseña')).toBeDisabled()
   })
+
+  it('sin conexión tampoco deja pedir el código ni verificarlo', async () => {
+    montar()
+    definirConexion(false)
+    window.dispatchEvent(new Event('offline'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('sin conexión a Internet')
+    expect(boton(/enviarme el código/i)).toBeDisabled()
+
+    definirConexion(true)
+    window.dispatchEvent(new Event('online'))
+    const campo = await llegarAlPaso(1)
+    await userEvent.type(campo, '123456')
+    definirConexion(false)
+    window.dispatchEvent(new Event('offline'))
+    await waitFor(() => expect(boton('Verificar')).toBeDisabled())
+  })
+
+  it('si la red se cae a mitad del paso, dice que hace falta conexión, no que "quedó guardado"', async () => {
+    handlers.auth.passwordCodigo.mockRejectedValue(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }))
+    montar()
+    await userEvent.click(boton(/enviarme el código/i))
+
+    expect(await screen.findByText(/No es posible recuperar o cambiar la contraseña sin conexión/)).toBeInTheDocument()
+    expect(screen.queryByText(/quedó guardado en este dispositivo/)).not.toBeInTheDocument()
+  })
 })

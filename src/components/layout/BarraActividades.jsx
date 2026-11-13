@@ -14,7 +14,6 @@ import Button from '../ui/Button'
 import useActividad, { SIN_HABILITACIONES } from '../../features/inicio/useActividad'
 import useConexion from '../../hooks/useConexion'
 import useSessionStore from '../../store/sessionStore'
-import useSyncStore from '../../store/syncStore'
 import useActividadStore from '../../store/actividadStore'
 import { ROLES } from '../../auth/roles'
 
@@ -41,7 +40,6 @@ export default function BarraActividades() {
   // clic mandaba un cierre por una actividad que ya no existe.
   const [procesando, setProcesando] = useState(false)
   const idRol = Number(useSessionStore((s) => s.usuario?.id_rol))
-  const pendientes = useSyncStore((s) => s.pendientes)
   // D011: hasta que el servidor confirme el inicio, finalizar no puede salir.
   const confirmandoInicio = useActividadStore((s) => s.confirmandoInicio)
   const enLinea = useConexion()
@@ -55,9 +53,10 @@ export default function BarraActividades() {
   return (
     <div className="flex items-center gap-2 sm:gap-3">
       {!enLinea && (
+        // Solo "Sin conexión": cuántos cambios esperan ya lo dice el indicador
+        // de sincronización de la misma barra, y repetirlo era redundante.
         <Badge tone="warning" icon={WifiOff} className="whitespace-nowrap">
           Sin conexión
-          {pendientes > 0 && ` · ${pendientes} pendiente${pendientes === 1 ? '' : 's'}`}
         </Badge>
       )}
 

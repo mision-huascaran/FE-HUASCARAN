@@ -22,7 +22,8 @@ import useSessionStore from '../../../store/sessionStore'
 import useActividadStore from '../../../store/actividadStore'
 import useSyncStore from '../../../store/syncStore'
 import useRechazosStore from '../../../store/rechazosStore'
-import { _reiniciarCola } from '../../../lib/colaOffline'
+import { _reiniciarCola, pendientesDeTipo, reintentarAhora } from '../../../lib/colaOffline'
+import { TIPOS_ENVIO } from '../../../hooks/useOfflineQueue'
 import { ROLES } from '../../../auth/roles'
 import { elegirPrimerColegio } from '../../../test/elegirColegio'
 
@@ -737,5 +738,98 @@ describe('Una fecha SIN clase programada (CU022)', () => {
 
     await waitFor(() => expect(ladoPresente(controles()[0])).toBeEnabled(), ESPERA)
     expect(marcar).not.toHaveBeenCalled()
+  })
+})
+
+describe('Sin conexión, los tres estados se encolan y se sincronizan', () => {
+  /**
+   * Sin conexión, la pantalla vuelve a verificar la habilitación local y
+   * deshabilita los controles un instante: se espera a que vuelvan.
+   */
+  const sinConexion = async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    window.dispatchEvent(new Event('offline'))
+    await new Promise((r) => setTimeout(r, 1000))
+    await waitFor(() => expect(ladoPresente(controles()[0])).not.toBeDisabled(), ESPERA)
+  }
+  const PULSADO = 'aria-pressed'
+  const OBSERVACION = 'Faltó por lluvia'
+  /** Marca y espera a verlo pulsado: el siguiente clic no cae en un control a medio pintar. */
+  const pulsar = async (boton, fila) => {
+    fireEvent.click(boton(controles().at(fila)))
+    await waitFor(() => expect(boton(controles().at(fila))).toHaveAttribute(PULSADO, 'true'), ESPERA)
+  }
+  const conConexion = () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('online'))
+  }
+  // Si una prueba falla antes de reconectar, la siguiente no arranca sin red.
+  afterEach(() => conConexion())
+
+  /** El estado que lleva cada envío pendiente, por alumno. */
+  const enCola = () =>
+    Object.fromEntries(pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).map((item) => [item.payload.registros[0].id_alumno, item.payload.registros[0]]))
+  /** Lo que llegó al servidor al reconectar, por alumno. */
+  const enviados = () =>
+    Object.fromEntries(marcar.mock.calls.flatMap(([{ registros }]) => registros.map((r) => [r.id_alumno, r])))
+
+  it('Presente, Tardanza y Ausente quedan en la cola, se ven marcados y llegan al servidor al reconectar', async () => {
+    montar()
+    await abrirClase()
+    await sinConexion()
+    await pulsar(ladoPresente, 0)
+    await pulsar(ladoTardanza, 1)
+    await pulsar(ladoAusente, 2)
+
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(3), ESPERA)
+    expect(Object.values(enCola()).map((r) => r.estado).sort()).toEqual(['ausente', 'presente', 'tardanza'])
+    expect(ladoAusente(controles().at(2))).toHaveAttribute(PULSADO, 'true')
+    expect(marcar).not.toHaveBeenCalled()
+
+    conConexion()
+    await reintentarAhora()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(Object.values(enviados()).map((r) => r.estado).sort()).toEqual(['ausente', 'presente', 'tardanza'])
+  })
+
+  it('"Marcar todos como presentes" y luego Ausente a uno: queda Ausente en la cola y en el servidor', async () => {
+    montar()
+    await abrirClase()
+    await sinConexion()
+    const total = controles().length
+    fireEvent.click(screen.getByRole('button', { name: /marcar todos como presentes/i }))
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(total), ESPERA)
+
+    await pulsar(ladoAusente, 0)
+    await waitFor(() => expect(Object.values(enCola()).filter((r) => r.estado === 'ausente')).toHaveLength(1), ESPERA)
+    // La clave es la clase y el alumno: el Ausente sustituye al Presente, no se suma.
+    expect(useSyncStore.getState().pendientes).toBe(total)
+
+    conConexion()
+    await reintentarAhora()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(Object.values(enviados()).filter((r) => r.estado === 'ausente')).toHaveLength(1)
+  })
+
+  it('Ausente con observación: la observación también va en la operación pendiente', async () => {
+    montar()
+    await abrirClase()
+    await sinConexion()
+    await pulsar(ladoAusente, 0)
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(1), ESPERA)
+
+    const nombre = controles()[0].getAttribute('aria-label').replace(/^Asistencia de /, '')
+    fireEvent.click(screen.getByRole('button', { name: `Añadir observación de ${nombre}` }))
+    const campo = await screen.findByLabelText(/Motivo o justificación/, {}, ESPERA)
+    fireEvent.change(campo, { target: { value: OBSERVACION } })
+    fireEvent.click(screen.getByRole('button', { name: /guardar observación/i }))
+
+    await waitFor(() => expect(Object.values(enCola())[0]?.observacion).toBe(OBSERVACION), ESPERA)
+    expect(Object.values(enCola())[0].estado).toBe('ausente')
+
+    conConexion()
+    await reintentarAhora()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    expect(Object.values(enviados())[0]).toEqual(expect.objectContaining({ estado: 'ausente', observacion: OBSERVACION }))
   })
 })

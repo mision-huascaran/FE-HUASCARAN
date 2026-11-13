@@ -185,12 +185,19 @@ export default function useActividad() {
     // que se enviarán, hoy o cuando vuelva la red.
     const abierta = iniciarLocal({ idDocente })
 
-    if (!enLinea) {
+    /**
+     * El inicio va a la cola con su id y su hora real, y la actividad queda
+     * abierta: se puede registrar ya. `antesQueSuActividad` lo pone delante de
+     * lo que ya se haya registrado en ella, para que el servidor la conozca
+     * antes de recibir sus cambios.
+     */
+    const encolarInicio = () => {
       encolar({
         clave: `actividad-inicio-${abierta.id}`,
         tipo: TIPOS_ENVIO.ACTIVIDAD_INICIO,
         payload: { id: abierta.id, inicio: abierta.inicio, id_sesion: idSesion },
         descripcion: 'Inicio de actividad',
+        antesQueSuActividad: abierta.id,
       }).catch(() => {
         // El resultado se ve en el panel de sincronización, no aquí: la cola
         // deja anotado el rechazo (D69) o el envío pendiente de reintentar.
@@ -200,6 +207,10 @@ export default function useActividad() {
         'Ya puedes registrar. El inicio se enviará con su hora real al recuperar la conexión.',
         AVISO_ACTIVIDAD,
       )
+    }
+
+    if (!enLinea) {
+      encolarInicio()
       return
     }
 
@@ -215,6 +226,20 @@ export default function useActividad() {
       useActividadStore.setState({ sesion: { ...abierta, ...creada, delServidor: true } })
       refrescarTrasActividad()
     } catch (error) {
+      /**
+       * SIN RESPUESTA: SE CAYÓ LA RED, NO LA RECHAZÓ EL SERVIDOR.
+       *
+       * Iniciar justo cuando se va el internet: el POST sale, no vuelve nada,
+       * y la actividad se cerraba aquí. Pero mientras esperaba ya se podía
+       * registrar, y esos cambios quedaban en la cola con una actividad que
+       * el servidor nunca conoció: al reconectar se descartaban por "fuera de
+       * una actividad". Se sigue como un inicio sin conexión. Si el POST sí
+       * había llegado, reenviarlo con el mismo id no duplica nada (200).
+       */
+      if (!error?.response) {
+        encolarInicio()
+        return
+      }
       // Si el servidor la rechaza, no puede quedarse abierta solo aquí: el
       // docente creería que puede registrar y cada guardado daría 409.
       useActividadStore.getState().limpiar()

@@ -116,6 +116,31 @@ describe('cola de envíos', () => {
     expect(enviados[0]).toEqual(expect.objectContaining({ lsl: 1, observacion: 'Bien' }))
   })
 
+  it('el inicio de una actividad encolado tarde sale ANTES que lo registrado en ella', async () => {
+    // Se inició justo cuando se cayó la red: lo registrado mientras el POST
+    // esperaba ya estaba en la cola cuando el inicio se encoló.
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true })
+    const orden = []
+    registrarEnviador('fila-semanal', async (payload) => {
+      orden.push(`fila ${payload.id_alumno}`)
+      return {}
+    })
+    registrarEnviador('actividad-inicio', async (payload) => {
+      orden.push(`inicio ${payload.id}`)
+      return {}
+    })
+    encolar({ ...fila('otra-actividad'), payload: { id_alumno: 9 }, idActividad: 'act-vieja' })
+    encolar({ ...fila('alumno-1'), payload: { id_alumno: 1 }, idActividad: 'act-1' })
+    encolar({ ...fila('alumno-2'), payload: { id_alumno: 2 }, idActividad: 'act-1' })
+    encolar({ clave: 'actividad-inicio-act-1', tipo: 'actividad-inicio', payload: { id: 'act-1' }, antesQueSuActividad: 'act-1' })
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true })
+    await reintentarAhora()
+    await new Promise((listo) => setTimeout(listo, 0))
+    // Lo de otra actividad conserva su lugar; el inicio va delante de lo suyo.
+    expect(orden).toEqual(['fila 9', 'inicio act-1', 'fila 1', 'fila 2'])
+  })
+
   it('sin sesión no envía nada; lo manda al iniciar sesión (CP09, D05)', async () => {
     // Recuperar la conexión en la pantalla de login no debe sincronizar: el
     // envío espera al siguiente inicio de sesión, y tampoco se pierde por un
