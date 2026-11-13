@@ -775,7 +775,9 @@ describe('Una fecha SIN clase programada (CU022)', () => {
     await abrirFiltros()
     await screen.findByRole('table', {}, ESPERA)
     await waitFor(() => expect(ladoAusente(controles()[0])).toHaveAttribute('aria-pressed', 'true'), ESPERA)
-    expect(screen.queryByRole('button', { name: 'Registrar clase adicional' })).not.toBeInTheDocument()
+    // `clasesCreadas` sube al pedir el PUT; su respuesta llega a la copia un
+    // instante después. Con la máquina cargada se miraba antes de tiempo.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Registrar clase adicional' })).not.toBeInTheDocument(), ESPERA)
     expect(screen.queryByText('No hay una clase programada para esta fecha.')).not.toBeInTheDocument()
   })
 
