@@ -39,6 +39,7 @@ import { mensajeDeError } from '../../api/client'
 import { MESES } from '../../hooks/useFiltrosDeGrupo'
 import { etiquetaDe, formatearRangoSemana } from '../../lib/format'
 import { useMigaExtra } from '../../store/migaStore'
+import NombreLargo from '../../components/ui/NombreLargo'
 
 // El orden lo fija CU015, y no es decorativo: Registro de Vuelo va primero
 // porque es de donde sale el Nivel colocado del Resumen.
@@ -348,14 +349,14 @@ export default function FichaEstudiantePage() {
       </Link>
 
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 max-w-full items-center gap-3">
           <span
             aria-hidden
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-700"
           >
             {iniciales}
           </span>
-          <h1 className="text-2xl font-bold text-ink-900">{nombre}</h1>
+          <NombreLargo as="h1" className="min-w-0 text-2xl font-bold text-ink-900">{nombre}</NombreLargo>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

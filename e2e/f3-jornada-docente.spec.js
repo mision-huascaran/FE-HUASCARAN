@@ -1,8 +1,8 @@
 // F3 — Jornada del Docente (CU009, CU010, CU014, CU017, CU019).
 //
-// Antes de empezar se inactivan los alumnos «E2E-F3-» que hayan quedado activos
+// Antes de empezar se inactivan los alumnos «Etoe-Tres-» que hayan quedado activos
 // en el colegio E2E por corridas que fallaron a medias. Solo los suyos: los
-// «E2E-AS-» de F8 tienen su propio prefijo y su propia limpieza.
+// «Etoe-Asis-» de F8 tienen su propio prefijo y su propia limpieza.
 //
 // Una jornada completa: sin actividad no se puede registrar; se inicia la
 // actividad, se registra un alumno en su colegio y grado, se encuentra, se
@@ -26,15 +26,17 @@ import { guardarEstado } from './support/estado.js'
 import { evidencia } from './support/evidencia.js'
 import { fechaLima } from './support/fechas.js'
 import { esApi, iniciarSesion, irPorMenu } from './support/sesion.js'
-import { activas, filtrarAlumnos, inactivarAlumno, limpiarAlumnos } from './support/alumnos.js'
+import { activas, filtrarAlumnos, inactivarAlumno, limpiarAlumnos, marcaEnLetras } from './support/alumnos.js'
 
 // Los textos que piden los casos de uso, ya corregidos en la pantalla: CU014
 // llama «Agregar» al botón, y sin actividad el aviso es el unificado con el
 // servidor (`actividad_requerida`), el mismo que CU014 adoptó.
 const BOTON_NUEVO = 'Agregar'
 const AVISO_SIN_ACTIVIDAD = 'Debes iniciar una actividad de trabajo para registrar o modificar información.'
-// Distinto del «E2E-AS-» de F8: ninguna limpieza toca lo que crea otra prueba.
-const PREFIJO = 'E2E-F3-'
+// Distinto del «Etoe-Asis-» de F8: ninguna limpieza toca lo que crea otra prueba.
+// Solo letras y guion: el formulario de Alumnos no acepta dígitos en el nombre
+// (por eso ya no es «E2E-F3-»).
+const PREFIJO = 'Etoe-Tres-'
 
 test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastro en Sesiones (CU009, CU010, CU014, CU017, CU019)', async ({ page }) => {
   const { inicio } = await iniciarSesion(page, 'docente')
@@ -57,7 +59,7 @@ test('F3 · Jornada del Docente: actividad, alta y baja de un alumno, y su rastr
     }
   })
 
-  const nombres = `${PREFIJO}${Date.now()}`
+  const nombres = `${PREFIJO}${marcaEnLetras(Date.now())}`
   const apellidos = 'Playwright'
   const filaDelAlumno = () => page.getByRole('row').filter({ hasText: nombres })
 

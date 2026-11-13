@@ -9,6 +9,14 @@ import { esApi, leerToken } from './sesion.js'
 /** Título del diálogo de confirmación de la baja. */
 const DIALOGO_BAJA = 'Inactivar alumno'
 
+/**
+ * Una marca única (p. ej. `Date.now()`) escrita solo con letras: 0→a … 9→j.
+ * Los nombres de prueba se quedan sin dígitos aunque el formulario ya los
+ * acepte (ver src/lib/nombrePersona.js): así la marca no se confunde con
+ * un DNI en las búsquedas.
+ */
+export const marcaEnLetras = (marca) => String(marca).replace(/\d/g, (d) => 'abcdefghij'[Number(d)])
+
 /** El badge de estado, exacto: «Activo» como texto suelto también está dentro de «Inactivo». */
 export const activas = (page, filas) => filas.filter({ has: page.getByText('Activo', { exact: true }) })
 

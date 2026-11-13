@@ -58,8 +58,17 @@ export default function Modal({
       >
         <header className="flex items-start justify-between gap-4 border-b border-line/70 px-4 py-3.5 sm:px-5 sm:py-4">
           <div className="min-w-0">
-            {title && <h2 className="text-lg font-semibold text-ink-900">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
+            {/* Un título con un nombre larguísimo no desborda el modal. */}
+            {title && (
+              <h2 title={typeof title === 'string' ? title : undefined} className="line-clamp-2 text-lg font-semibold text-ink-900 [overflow-wrap:anywhere]">
+                {title}
+              </h2>
+            )}
+            {subtitle && (
+              <p title={typeof subtitle === 'string' ? subtitle : undefined} className="mt-0.5 line-clamp-2 text-xs text-ink-500 [overflow-wrap:anywhere]">
+                {subtitle}
+              </p>
+            )}
           </div>
           <button
             type="button"

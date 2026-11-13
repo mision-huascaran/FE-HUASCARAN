@@ -22,6 +22,7 @@ import Button from '../../components/ui/Button'
 import DataTable from '../../components/ui/DataTable'
 import Select from '../../components/ui/Select'
 import StatCard from '../../components/ui/StatCard'
+import NombreLargo from '../../components/ui/NombreLargo'
 import { obtenerLibrosDeColegio } from '../../api/resources/dashboard'
 import BloqueDashboard from './BloqueDashboard'
 import DesgloseMensual from './DesgloseMensual'
@@ -69,7 +70,11 @@ function GrupoDeGrado({ grado, meses, onCantidad, onIncompletos, colegio }) {
             rows={grado.alumnos ?? []}
             getRowId={(a) => a.id_alumno}
             columns={[
-              { key: 'nombre', header: 'Nombres y apellidos' },
+              {
+                key: 'nombre',
+                header: 'Nombres y apellidos',
+                render: (a) => <NombreLargo className="max-w-[18rem]">{a.nombre}</NombreLargo>,
+              },
               ...meses.map((mes) => ({
                 key: `${mes.anio}-${mes.mes}`,
                 header: mes.nombre,

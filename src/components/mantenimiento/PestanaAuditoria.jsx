@@ -118,7 +118,9 @@ export default function PestanaAuditoria({ entidad, registro, cargarAuditoria })
             evento.cambios?.length ? (
               <ul className="flex flex-col gap-0.5">
                 {evento.cambios.map((cambio) => (
-                  <li key={cambio.campo} className="text-xs">
+                  // Un valor de 10 000 caracteres (un nombre importado) no
+                  // estira la tabla: se parte y se corta en 2 líneas.
+                  <li key={cambio.campo} title={`${cambio.anterior ?? '—'} → ${cambio.nuevo ?? '—'}`} className="line-clamp-2 max-w-[28rem] text-xs [overflow-wrap:anywhere]">
                     <span className="font-medium text-ink-700">{`${cambio.campo}: `}</span>
                     <span className="text-ink-500">{cambio.anterior ?? '—'}</span>
                     <span className="text-ink-400">{' → '}</span>

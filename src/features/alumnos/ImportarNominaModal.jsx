@@ -113,7 +113,8 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
   const alSoltar = (e) => {
     e.preventDefault()
     setArrastrando(false)
-    if (puedeElegir) elegirArchivo(e.dataTransfer.files)
+    // `elegirArchivo` atrapa sus propios errores: no hay nada que esperar aquí.
+    if (puedeElegir) void elegirArchivo(e.dataTransfer.files)
   }
 
   /**

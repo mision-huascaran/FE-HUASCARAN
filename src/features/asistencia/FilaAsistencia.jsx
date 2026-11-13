@@ -14,6 +14,7 @@
 // separado, y con ellos el orden que armaba la fila.
 import { MessageSquare, MessageSquareText } from 'lucide-react'
 import ControlSegmentado from './ControlSegmentado'
+import NombreLargo from '../../components/ui/NombreLargo'
 
 function Etiqueta({ children, titulo }) {
   return (
@@ -34,7 +35,7 @@ export default function FilaAsistencia({ alumno, estado, observacion, soloLectur
   return (
     <tr className="border-t border-line" style={{ height: alto }}>
       <td className="py-2 pl-4 pr-2 sm:px-4">
-        <span className="font-medium text-ink-900">{nombre}</span>
+        <NombreLargo className="max-w-[18rem] font-medium text-ink-900">{nombre}</NombreLargo>
         {alumno.inactivo && (
           <Etiqueta titulo="Dado de baja: estaba en la clase cuando se registró">Inactivo</Etiqueta>
         )}
