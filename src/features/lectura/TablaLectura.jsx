@@ -134,10 +134,10 @@ export default function TablaLectura({
           todavía no lo confirma el servidor. Sale de la cola, así que sigue
           ahí al volver al módulo o recargar. */}
       {tabla.declaracion_pendiente && (
-        <div role="status" className="flex items-center gap-2 border-b border-line bg-warning-100 px-4 py-2 text-sm text-warning-600">
+        <output className="flex items-center gap-2 border-b border-line bg-warning-100 px-4 py-2 text-sm text-warning-600">
           <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />
           Pendiente de sincronización
-        </div>
+        </output>
       )}
 
       {/* El historial se ensena aunque la tabla ya este normal: una

@@ -50,6 +50,7 @@ test('F8b · Asistencias sin conexión: lo marcado se ve al volver al módulo y 
     }
     return null
   })
+  // Se salta a propósito: hace falta una clase con asistencia ya registrada (aparte de la de F8) para probar sin conexión sin gastar una limpia, y puede no haberla.
   test.skip(!clase, 'No hay una clase del periodo vigente con asistencia registrada (aparte de la de F8) en la que probar sin gastar una limpia')
 
   const [primero, segundo] = await nombresDeLaTabla(page)

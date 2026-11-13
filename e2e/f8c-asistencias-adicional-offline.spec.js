@@ -46,6 +46,7 @@ test('F8c · Clase adicional sin conexión: al volver sigue con sus marcas y al 
     }
     return null
   })
+  // Se salta a propósito: CU022 solo crea una clase adicional en un día lectivo sin clase programada, y las corridas anteriores ya pueden haberlos gastado todos.
   test.skip(!clase, 'No queda ningún día del periodo vigente sin clase programada (y con alumnos) en el que crear una adicional')
 
   const nombres = await nombresDeLaTabla(page)
