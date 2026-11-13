@@ -34,7 +34,7 @@
 //     además dice POR QUÉ no se puede —sin habilitación, sin actividad, o
 //     porque es el Supervisor, que siempre consulta en solo lectura— y si lo
 //     que habilita es un permiso excepcional.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCheck, CalendarClock, CalendarX2, Ban } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -51,6 +51,10 @@ import { colegioInaccesible, consultaDetalleColegio } from '../../hooks/consulta
 import { MODULOS } from '../../auth/habilitaciones'
 import useFiltrosAsistencia from './useFiltrosAsistencia'
 import useAutoguardado from './useAutoguardado'
+import { fusionarConPendientes } from './pendientesDeAsistencia'
+import { pendientesDeTipo } from '../../lib/colaOffline'
+import { TIPOS_ENVIO } from '../../hooks/useOfflineQueue'
+import useSyncStore from '../../store/syncStore'
 import { useToast } from '../../components/ui/Toast'
 import { MOTIVO_FECHA, esMotivoDeFecha, obtenerClase } from '../../api/resources/asistencia'
 import { listarDocentes, listarMisAsignaciones } from '../../api/resources/administracion'
@@ -325,8 +329,35 @@ export default function AsistenciaPage() {
     [filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
   )
 
+  /**
+   * D123 — LO QUE ESPERA EN LA COLA SE VE AL VOLVER.
+   *
+   * La clase llega del servidor o, sin conexión, de su copia guardada, y ni
+   * una ni otra conocen lo marcado sin red: eso vivía solo en el estado de
+   * `useAutoguardado`, que se pierde al salir del módulo. `select` le aplica
+   * encima las operaciones pendientes de esta misma clase, así que al volver
+   * se ve exactamente lo marcado. `itemsEnCola` cambia con cada movimiento de
+   * la cola: con él cambia el `select` y la tabla se recalcula.
+   */
+  const itemsEnCola = useSyncStore((s) => s.items)
+  const conPendientes = useCallback(
+    (datos) => {
+      // Solo lo que el indicador de sincronización cuenta como pendiente.
+      const enCola = new Set(itemsEnCola.map((item) => item.idOperacion))
+      const pendientes = pendientesDeTipo(TIPOS_ENVIO.ASISTENCIA).filter((item) => enCola.has(item.idOperacion))
+      return fusionarConPendientes(datos, pendientes, {
+        idColegio: filtros.idColegio,
+        idGrado: filtros.idGrado,
+        idSeccion: filtros.idSeccion,
+        fecha: filtros.fecha,
+      })
+    },
+    [itemsEnCola, filtros.idColegio, filtros.idGrado, filtros.idSeccion, filtros.fecha],
+  )
+
   const clase = useQuery({
     queryKey: claveClase,
+    select: conPendientes,
     queryFn: () =>
       obtenerClase({
         idColegio: filtros.idColegio,
