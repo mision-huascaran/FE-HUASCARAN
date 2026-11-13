@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { leerPayload, tokenCaducado } from '../auth/jwt'
+import { idUsuarioDe, tokenCaducado } from '../auth/jwt'
 
 /**
  * Sesión activa.
@@ -83,7 +83,7 @@ export const useSessionStore = create((set, get) => ({
     // Antes del `set`: después ya no hay perfil. Si el perfil no llegó (un 401
     // de `/me` al recargar), la cuenta se lee del token.
     const { usuario, token } = get()
-    const idUsuario = usuario?.id_usuario ?? leerPayload(token)?.id_usuario ?? null
+    const idUsuario = usuario?.id_usuario ?? idUsuarioDe(token) ?? null
     try {
       sessionStorage.removeItem(CLAVE_TOKEN)
       // D4: la sesión de ACTIVIDADES muere con la de autenticación, tanto al

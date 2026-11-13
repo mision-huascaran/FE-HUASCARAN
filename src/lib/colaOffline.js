@@ -20,7 +20,7 @@ import { avisarPendientes, consultarOperacion } from '../api/resources/sincroniz
 import { idDeDispositivo } from './dispositivo'
 import { nuevoUuid } from './uuid'
 import { ahora } from './relojServidor'
-import { leerPayload } from '../auth/jwt'
+import { idUsuarioDe } from '../auth/jwt'
 import useSessionStore from '../store/sessionStore'
 import useSyncStore from '../store/syncStore'
 import useRechazosStore from '../store/rechazosStore'
@@ -73,10 +73,7 @@ export function registrarEnviador(tipo, enviar, { modulo } = {}) {
  * token de la nueva —el servidor lo atribuiría a quien no lo hizo— ni se
  * borra —CU007 lo prohíbe—. Espera a que vuelva su dueño.
  */
-const usuarioActual = () => {
-  const id = leerPayload(useSessionStore.getState().token)?.id_usuario
-  return id == null ? null : String(id)
-}
+const usuarioActual = () => idUsuarioDe(useSessionStore.getState().token)
 
 /** Sin dueño conocido (colas de antes de D92, token del mock) vale para cualquiera. */
 const esDeLaSesion = (item, usuario = usuarioActual()) =>
