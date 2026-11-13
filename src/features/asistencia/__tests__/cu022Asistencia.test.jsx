@@ -832,4 +832,37 @@ describe('Sin conexión, los tres estados se encolan y se sincronizan', () => {
     await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
     expect(Object.values(enviados())[0]).toEqual(expect.objectContaining({ estado: 'ausente', observacion: OBSERVACION }))
   })
+
+  it('D123: al salir del módulo y volver sin conexión, la tabla muestra lo marcado; al reconectar se envía una vez', async () => {
+    const { rerender, pantalla } = montarParaVolver()
+    await abrirClase()
+    await sinConexion()
+    sinRed = true
+    await pulsar(ladoTardanza, 0)
+    await pulsar(ladoAusente, 1)
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(2), ESPERA)
+
+    // Otro módulo y de vuelta: la pantalla se desmonta y la clase no se puede pedir.
+    rerender(pantalla('otro-modulo'))
+    await abrirFiltros()
+    await screen.findByRole('table', {}, ESPERA)
+    await waitFor(() => expect(ladoTardanza(controles().at(0))).toHaveAttribute(PULSADO, 'true'), ESPERA)
+    expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+
+    // Marcar a otro no esconde las anteriores.
+    await pulsar(ladoPresente, 2)
+    expect(ladoTardanza(controles().at(0))).toHaveAttribute(PULSADO, 'true')
+    expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+
+    sinRed = false
+    conConexion()
+    await reintentarAhora()
+    await waitFor(() => expect(useSyncStore.getState().pendientes).toBe(0), ESPERA)
+    // Una operación por alumno, sin duplicados, y la tabla queda igual.
+    const porAlumno = marcar.mock.calls.flatMap(([{ registros }]) => registros.map((r) => r.id_alumno))
+    expect(porAlumno).toHaveLength(new Set(porAlumno).size)
+    expect(Object.values(enviados()).map((r) => r.estado).sort()).toEqual(['ausente', 'presente', 'tardanza'])
+    expect(ladoTardanza(controles().at(0))).toHaveAttribute(PULSADO, 'true')
+    expect(ladoAusente(controles().at(1))).toHaveAttribute(PULSADO, 'true')
+  })
 })

@@ -64,7 +64,9 @@ describe('Un colegio fuera del alcance del Docente (bug UAT #820)', () => {
 
     await waitFor(() => expect(result.current.filtros.idColegio).toBe('1'))
     await waitFor(() => expect(result.current.grados.map((g) => g.id_grado)).toEqual([3]))
-    expect(result.current.filtros.idGrado).toBe('3')
+    // El grado lo corrige un efecto DESPUÉS del render que trae los grados: con
+    // la máquina cargada (Jenkins) la comprobación sin espera leía el viejo.
+    await waitFor(() => expect(result.current.filtros.idGrado).toBe('3'))
     await waitFor(() => expect(result.current.grupoValido).toBe(true))
   })
 
