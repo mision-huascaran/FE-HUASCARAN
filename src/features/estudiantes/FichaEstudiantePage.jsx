@@ -12,7 +12,7 @@
 // pestañas siguen navegables, que es justo lo que pide el flujo alternativo.
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, WifiOff } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
@@ -24,6 +24,8 @@ import PestanaAuditoria from '../../components/mantenimiento/PestanaAuditoria'
 import ResumenFicha from './ResumenFichaAlumno'
 import GraficaDeVuelo from './GraficaDeVuelo'
 import useConexion from '../../hooks/useConexion'
+import usePrecarga from '../../hooks/usePrecarga'
+import { buscarAlumnoLocal } from '../alumnos/alumnosSinConexion'
 import { listarHistorialAlumno } from '../../api/resources/administracion'
 import {
   obtenerAlumno,
@@ -290,16 +292,28 @@ export default function FichaEstudiantePage() {
   const { id } = useParams()
   const [pestana, setPestana] = useState('resumen')
 
-  const { data: alumno, isLoading, error } = useQuery({
+  const enLinea = useConexion()
+  const queryClient = useQueryClient()
+  const precarga = usePrecarga()
+  const { data: delServidor, isLoading, error } = useQuery({
     queryKey: ['alumno', id],
     queryFn: () => obtenerAlumno(id),
   })
+  /**
+   * SIN CONEXIÓN, LA FILA DE LA COPIA LOCAL (CU014, D61).
+   *
+   * El detalle no se guarda en el equipo: sin red la consulta queda en pausa,
+   * sin datos y sin error, y la ficha decía "No se encontró al alumno" de uno
+   * que la lista acababa de enseñar. La cabecera se arma con la misma fila de
+   * la lista (precarga o lo ya visto con conexión).
+   */
+  const alumno = delServidor ?? (enLinea ? undefined : buscarAlumnoLocal(queryClient, precarga, id))
 
   // "Alumnos › Abigail Alva Chávez" y no "Alumnos › Detalle" (U29).
   useMigaExtra(alumno ? (alumno.nombre ?? [alumno.nombres, alumno.apellidos].filter(Boolean).join(' ')) : null)
 
-  if (isLoading) return <Skeleton variant="card" />
-  if (error || !alumno) {
+  if (isLoading && !alumno) return <Skeleton variant="card" />
+  if (!alumno) {
     return (
       <EmptyState
         title="No se encontró al alumno"

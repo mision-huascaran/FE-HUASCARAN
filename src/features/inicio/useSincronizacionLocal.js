@@ -39,7 +39,9 @@ function fuentesDe(idRol) {
   if (idRol === ROLES.DOCENTE) {
     return {
       ...catalogos,
-      alumnos: async () => (await listarAlumnosAdmin({ estado: 'activo' })).items,
+      // CU014: "Todos" sin conexión tiene que dar lo mismo que con ella,
+      // así que se bajan también los inactivos (y los pendientes de pertenencia).
+      alumnos: async () => (await listarAlumnosAdmin({ estado: 'todos' })).items,
       asignaciones: () => listarAsignaciones(),
       nivelesRubrica: () => obtenerNivelesRubrica(),
       nivelesRazkids: () => obtenerNivelesRazkids(),
@@ -49,7 +51,9 @@ function fuentesDe(idRol) {
   if (idRol === ROLES.SUPERVISOR) {
     return {
       ...catalogos,
-      alumnos: async () => (await listarAlumnosAdmin({ estado: 'activo' })).items,
+      // CU014: "Todos" sin conexión tiene que dar lo mismo que con ella,
+      // así que se bajan también los inactivos (y los pendientes de pertenencia).
+      alumnos: async () => (await listarAlumnosAdmin({ estado: 'todos' })).items,
     }
   }
 

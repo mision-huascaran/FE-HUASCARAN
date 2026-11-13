@@ -292,7 +292,9 @@ export default function useActividad() {
     // La precarga no bloquea: si falla, se trabaja en línea y el docente se
     // entera por el aviso, no por una grilla vacía.
     const { ok } = await precargarParaOffline({
-      alumnos: async () => (await listarAlumnosAdmin({ estado: 'activo' })).items,
+      // CU014: "Todos" sin conexión tiene que dar lo mismo que con ella,
+      // así que se bajan también los inactivos (y los pendientes de pertenencia).
+      alumnos: async () => (await listarAlumnosAdmin({ estado: 'todos' })).items,
       colegios: async () => (await listarColegiosAdmin()).items,
       grados: () => listarGradosAdmin(),
       nivelesRubrica: () => obtenerNivelesRubrica(),
