@@ -51,6 +51,7 @@ const fila = (id, nombres, apellidos) => ({
 const ALUMNOS = [fila(1, 'Juan', 'Quispe'), fila(2, 'Ana', 'Rojas')]
 
 const vistaPrevia = vi.fn()
+const plantilla = vi.fn()
 const confirmar = vi.fn()
 const consultar = vi.fn()
 const listarAlumnos = vi.fn(async () => ({ items: ALUMNOS, total: 2, pagina: 1, paginas: 1, por_pagina: 40 }))
@@ -59,6 +60,7 @@ vi.mock('../../../api/resources/administracion', async (importOriginal) => {
   return {
     ...original,
     vistaPreviaImportacion: (...a) => vistaPrevia(...a),
+    obtenerPlantillaNomina: (...a) => plantilla(...a),
     confirmarImportacion: (...a) => confirmar(...a),
     consultarImportacion: (...a) => consultar(...a),
     listarAlumnosAdmin: (...a) => listarAlumnos(...a),
@@ -110,6 +112,7 @@ async function abrirYElegirArchivo() {
 
 beforeEach(() => {
   vistaPrevia.mockReset().mockResolvedValue(PREVIA)
+  plantilla.mockReset().mockResolvedValue(new Blob(['xlsx'], { type: 'application/octet-stream' }))
   confirmar.mockReset()
   consultar.mockReset()
   escribirArchivo.mockReset()
@@ -135,25 +138,36 @@ describe('Alumnos — plantilla y exportar', () => {
    * "Descargar plantilla" va JUNTO a "Importar nómina", no dentro del modal:
    * ahí adentro confundía ("entro a importar... ¿para qué descargar?").
    */
-  it('"Descargar plantilla" (al lado de "Importar nómina") genera un .xlsx con las 4 columnas que el import lee', async () => {
+  it('"Descargar plantilla" (al lado de "Importar nómina") descarga la plantilla que genera el backend', async () => {
+    const crearUrl = vi.fn(() => 'blob:plantilla')
+    const revocarUrl = vi.fn()
+    Object.assign(URL, { createObjectURL: crearUrl, revokeObjectURL: revocarUrl })
+    const clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function guardar() {
+      clic.enlace = { href: this.getAttribute('href'), download: this.download }
+    })
     montar(ROLES.SUPERVISOR)
     await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA)
 
     fireEvent.click(screen.getByRole('button', { name: /descargar plantilla/i }))
 
+    await waitFor(() => expect(clic).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(escribirArchivo).toHaveBeenCalledTimes(1)
-    const [libro, nombre] = escribirArchivo.mock.calls[0]
-    expect(nombre).toBe('plantilla_nomina.xlsx')
-    const hoja = libro.Sheets[libro.SheetNames[0]]
-    expect(hoja.A1.v).toBe('II.EE')
-    expect(hoja.B1.v).toBe('GRADO')
-    expect(hoja.C1.v).toBe('NOMBRES Y APELLIDOS')
-    expect(hoja.D1.v).toBe('DNI')
-    // Solo la fila de títulos: una fila de ejemplo se importaría como alumno.
-    expect(hoja['!ref']).toBe('A1:D1')
-    expect(hoja.A2).toBeUndefined()
-    expect(XLSX.utils.sheet_to_json(hoja, { header: 1 })).toEqual([['II.EE', 'GRADO', 'NOMBRES Y APELLIDOS', 'DNI']])
+    expect(plantilla).toHaveBeenCalledTimes(1)
+    expect(crearUrl).toHaveBeenCalledWith(await plantilla.mock.results[0].value)
+    expect(clic.enlace).toEqual({ href: 'blob:plantilla', download: 'plantilla_nomina.xlsx' })
+    // Ya no la arma el navegador con SheetJS.
+    expect(escribirArchivo).not.toHaveBeenCalled()
+    clic.mockRestore()
+  })
+
+  it('si la plantilla no se puede descargar, lo avisa', async () => {
+    plantilla.mockRejectedValue(new Error('Network Error'))
+    montar(ROLES.SUPERVISOR)
+    await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA)
+
+    fireEvent.click(screen.getByRole('button', { name: /descargar plantilla/i }))
+
+    expect(await screen.findByText('No se pudo descargar la plantilla', {}, ESPERA)).toBeInTheDocument()
   })
 
   /**

@@ -522,7 +522,15 @@ export default function MantenimientoAlumnos() {
                 >
                   Importar nómina
                 </Button>
-                <Button variant="ghost" iconLeft={FileSpreadsheet} onClick={descargarPlantillaNomina}>
+                <Button
+                  variant="ghost"
+                  iconLeft={FileSpreadsheet}
+                  disabled={!enLinea}
+                  title={!enLinea ? avisoSinConexion('alumnos') : undefined}
+                  onClick={() =>
+                    descargarPlantillaNomina().catch(() => toast.error('No se pudo descargar la plantilla', 'Inténtalo de nuevo.'))
+                  }
+                >
                   Descargar plantilla
                 </Button>
               </>
