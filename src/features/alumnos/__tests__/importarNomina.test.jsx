@@ -201,7 +201,17 @@ describe('Alumnos — plantilla y exportar', () => {
 
 describe('Importar nómina — ejemplo de fila', () => {
   const EJEMPLO =
-    'Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.'
+    'Ejemplo de fila: Amashca · 3° · Comprensión Lectora · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el ' +
+    'colegio tal como figura en SICEDU, elige el subprograma de la lista de la plantilla y escribe los nombres ' +
+    'como APELLIDOS, Nombres. Si dejas el subprograma vacío, el alumno queda con la pertenencia pendiente.'
+
+  it('las instrucciones nombran la columna SUBPROGRAMA', async () => {
+    montar(ROLES.SUPERVISOR)
+    fireEvent.click(await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+
+    expect(within(dialogo).getByText(/II\.EE, GRADO, SUBPROGRAMA,\s+NOMBRES Y APELLIDOS y DNI/)).toBeInTheDocument()
+  })
 
   it('el modal muestra el ejemplo de fila fuera de la zona de soltar', async () => {
     montar(ROLES.SUPERVISOR)
@@ -314,5 +324,52 @@ describe('Importar nómina — flujo', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), ESPERA)
     expect(confirmar).not.toHaveBeenCalled()
+  })
+})
+
+describe('Importar nómina — pertenencia de los importados', () => {
+  const textoDe = (dialogo) => dialogo.textContent.replace(/\s+/g, ' ')
+
+  it('dice cuántos se importan con la pertenencia completa y cuántos quedan pendientes, y por qué', async () => {
+    vistaPrevia.mockResolvedValue({
+      ...PREVIA,
+      listos: 5,
+      pendientes: 3,
+      pendientes_por_motivo: [
+        { motivo: 'subprograma_vacio', cantidad: 2, detalle: 'La celda SUBPROGRAMA está vacía.' },
+        { motivo: 'seccion_por_elegir', cantidad: 1, detalle: 'Su grado tiene varias secciones: hay que elegirla.' },
+      ],
+    })
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('5 alumnos listos para importar', {}, ESPERA)
+    const texto = textoDe(dialogo)
+    expect(texto).toContain('2 alumnos se importarán activos, con su subprograma, su sección, su ciclo EBR y su pertenencia desde hoy.')
+    expect(texto).toContain('3 alumnos se importarán activos, con la pertenencia pendiente')
+    const motivos = within(dialogo).getByRole('list', { name: /por qué quedan pendientes/i })
+    expect(within(motivos).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '2: La celda SUBPROGRAMA está vacía.',
+      '1: Su grado tiene varias secciones: hay que elegirla.',
+    ])
+  })
+
+  it('si todos traen subprograma válido, no habla de pendientes', async () => {
+    vistaPrevia.mockResolvedValue({ ...PREVIA, pendientes: 0, pendientes_por_motivo: [] })
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('2 alumnos listos para importar', {}, ESPERA)
+    expect(textoDe(dialogo)).toContain('2 alumnos se importarán activos, con su subprograma')
+    expect(textoDe(dialogo)).not.toContain('pertenencia pendiente')
+  })
+
+  it('con un backend que no manda `pendientes`, todos quedan pendientes como antes', async () => {
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('2 alumnos listos para importar', {}, ESPERA)
+    expect(textoDe(dialogo)).toContain('2 alumnos se importarán activos, con la pertenencia pendiente')
+    expect(within(dialogo).queryByRole('list', { name: /por qué quedan pendientes/i })).not.toBeInTheDocument()
   })
 })
