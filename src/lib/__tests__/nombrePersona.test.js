@@ -1,4 +1,8 @@
 // Nombres de personas: qué se acepta y cómo se exporta. Datos inventados.
+//
+// Es la misma tabla de casos que BCK-HUASCARAN `tests/test_nombre_persona.py`
+// (la regla de referencia está en `app/core/nombre_persona.py`): si cambia
+// aquí, tiene que cambiar allá.
 import { describe, expect, it } from 'vitest'
 import { LARGO_MAXIMO_NOMBRE, motivoNombreInvalido, neutralizarCelda } from '../nombrePersona'
 
@@ -42,6 +46,8 @@ describe('neutralizarCelda', () => {
     ['-1+1', "'-1+1"],
     ['@SUM(1)', "'@SUM(1)"],
     ['\t=1', "'\t=1"],
+    ['\rAna', "'\rAna"],
+    ['\nAna', "'\nAna"],
   ])('antepone un apóstrofo a «%s»', (valor, esperado) => expect(neutralizarCelda(valor)).toBe(esperado))
 
   it('deja igual el texto normal, el guion largo de "sin dato" y los números', () => {

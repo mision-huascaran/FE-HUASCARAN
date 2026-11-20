@@ -1,8 +1,13 @@
 // Nombres de personas: qué se acepta y cómo se exporta sin riesgo.
 //
-// El backend hoy solo exige que nombres y apellidos no estén vacíos (sin largo
-// máximo ni caracteres permitidos), así que un nombre de 10 000 caracteres o con
-// "<script>" se guardaba. El frontend no lo deja pasar en el formulario.
+// LA REGLA ESTÁ DOCUMENTADA EN EL BACKEND: BCK-HUASCARAN `app/core/nombre_persona.py`
+// (`motivo_nombre_invalido` y `parece_formula`). Este archivo es la misma regla
+// para el formulario de Alumnos; la importación de la nómina la aplica en el
+// backend. Si cambias una, cambia la otra: las dos prueban la misma tabla de
+// casos (`__tests__/nombrePersona.test.js` y `tests/test_nombre_persona.py`).
+//
+// El POST y el PATCH de /alumnos todavía solo exigen que nombres y apellidos no
+// estén vacíos: en el formulario la regla la pone este archivo.
 
 /** Largo máximo de nombres y de apellidos, por separado. */
 export const LARGO_MAXIMO_NOMBRE = 60
@@ -33,11 +38,13 @@ export function motivoNombreInvalido(valor) {
 
 /**
  * Lo que Excel (o LibreOffice) tomaría como fórmula al abrir el archivo: un texto
- * que empieza con =, +, - o @ (y tabulador o retorno, que algunos programas
- * descartan antes de mirar). Se le antepone un apóstrofo para que quede como
- * texto (OWASP, CSV/Formula Injection). Los números y lo demás pasan igual.
+ * que empieza con =, +, - o @ (y tabulador, retorno o salto de línea, que algunos
+ * programas descartan antes de mirar). Se le antepone un apóstrofo para que quede
+ * como texto (OWASP, CSV/Formula Injection). Los números y lo demás pasan igual.
+ * Son los mismos signos con los que la importación rechaza una celda
+ * (`parece_formula` del backend).
  */
 export function neutralizarCelda(valor) {
   if (typeof valor !== 'string') return valor
-  return /^[=+\-@\t\r]/.test(valor) ? `'${valor}` : valor
+  return /^[=+\-@\t\r\n]/.test(valor) ? `'${valor}` : valor
 }
