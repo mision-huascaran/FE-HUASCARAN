@@ -157,6 +157,7 @@ export const ENDPOINTS = {
     importacionConfirmar: ({ idImportacion, huella, nombreArchivo }) =>
       `/alumnos/importaciones?${new URLSearchParams({ id_importacion: idImportacion, huella, nombre_archivo: nombreArchivo })}`,
     importacionDetalle: (idImportacion) => `/alumnos/importaciones/${idImportacion}`,
+    importacionPlantilla: '/alumnos/importaciones/plantilla',
   },
 
   // PUBLICADO — Usuarios de los tres roles (CU016) ───────────────────────────

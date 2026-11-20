@@ -51,6 +51,7 @@ const fila = (id, nombres, apellidos) => ({
 const ALUMNOS = [fila(1, 'Juan', 'Quispe'), fila(2, 'Ana', 'Rojas')]
 
 const vistaPrevia = vi.fn()
+const plantilla = vi.fn()
 const confirmar = vi.fn()
 const consultar = vi.fn()
 const listarAlumnos = vi.fn(async () => ({ items: ALUMNOS, total: 2, pagina: 1, paginas: 1, por_pagina: 40 }))
@@ -59,6 +60,7 @@ vi.mock('../../../api/resources/administracion', async (importOriginal) => {
   return {
     ...original,
     vistaPreviaImportacion: (...a) => vistaPrevia(...a),
+    obtenerPlantillaNomina: (...a) => plantilla(...a),
     confirmarImportacion: (...a) => confirmar(...a),
     consultarImportacion: (...a) => consultar(...a),
     listarAlumnosAdmin: (...a) => listarAlumnos(...a),
@@ -110,6 +112,7 @@ async function abrirYElegirArchivo() {
 
 beforeEach(() => {
   vistaPrevia.mockReset().mockResolvedValue(PREVIA)
+  plantilla.mockReset().mockResolvedValue(new Blob(['xlsx'], { type: 'application/octet-stream' }))
   confirmar.mockReset()
   consultar.mockReset()
   escribirArchivo.mockReset()
@@ -135,25 +138,36 @@ describe('Alumnos — plantilla y exportar', () => {
    * "Descargar plantilla" va JUNTO a "Importar nómina", no dentro del modal:
    * ahí adentro confundía ("entro a importar... ¿para qué descargar?").
    */
-  it('"Descargar plantilla" (al lado de "Importar nómina") genera un .xlsx con las 4 columnas que el import lee', async () => {
+  it('"Descargar plantilla" (al lado de "Importar nómina") descarga la plantilla que genera el backend', async () => {
+    const crearUrl = vi.fn(() => 'blob:plantilla')
+    const revocarUrl = vi.fn()
+    Object.assign(URL, { createObjectURL: crearUrl, revokeObjectURL: revocarUrl })
+    const clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function guardar() {
+      clic.enlace = { href: this.getAttribute('href'), download: this.download }
+    })
     montar(ROLES.SUPERVISOR)
     await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA)
 
     fireEvent.click(screen.getByRole('button', { name: /descargar plantilla/i }))
 
+    await waitFor(() => expect(clic).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(escribirArchivo).toHaveBeenCalledTimes(1)
-    const [libro, nombre] = escribirArchivo.mock.calls[0]
-    expect(nombre).toBe('plantilla_nomina.xlsx')
-    const hoja = libro.Sheets[libro.SheetNames[0]]
-    expect(hoja.A1.v).toBe('II.EE')
-    expect(hoja.B1.v).toBe('GRADO')
-    expect(hoja.C1.v).toBe('NOMBRES Y APELLIDOS')
-    expect(hoja.D1.v).toBe('DNI')
-    // Solo la fila de títulos: una fila de ejemplo se importaría como alumno.
-    expect(hoja['!ref']).toBe('A1:D1')
-    expect(hoja.A2).toBeUndefined()
-    expect(XLSX.utils.sheet_to_json(hoja, { header: 1 })).toEqual([['II.EE', 'GRADO', 'NOMBRES Y APELLIDOS', 'DNI']])
+    expect(plantilla).toHaveBeenCalledTimes(1)
+    expect(crearUrl).toHaveBeenCalledWith(await plantilla.mock.results[0].value)
+    expect(clic.enlace).toEqual({ href: 'blob:plantilla', download: 'plantilla_nomina.xlsx' })
+    // Ya no la arma el navegador con SheetJS.
+    expect(escribirArchivo).not.toHaveBeenCalled()
+    clic.mockRestore()
+  })
+
+  it('si la plantilla no se puede descargar, lo avisa', async () => {
+    plantilla.mockRejectedValue(new Error('Network Error'))
+    montar(ROLES.SUPERVISOR)
+    await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA)
+
+    fireEvent.click(screen.getByRole('button', { name: /descargar plantilla/i }))
+
+    expect(await screen.findByText('No se pudo descargar la plantilla', {}, ESPERA)).toBeInTheDocument()
   })
 
   /**
@@ -187,7 +201,17 @@ describe('Alumnos — plantilla y exportar', () => {
 
 describe('Importar nómina — ejemplo de fila', () => {
   const EJEMPLO =
-    'Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.'
+    'Ejemplo de fila: Amashca · 3° · Comprensión Lectora · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el ' +
+    'colegio tal como figura en SICEDU, elige el subprograma de la lista de la plantilla y escribe los nombres ' +
+    'como APELLIDOS, Nombres. Si dejas el subprograma vacío, el alumno queda con la pertenencia pendiente.'
+
+  it('las instrucciones nombran la columna SUBPROGRAMA', async () => {
+    montar(ROLES.SUPERVISOR)
+    fireEvent.click(await screen.findByRole('button', { name: /^importar nómina$/i }, ESPERA))
+    const dialogo = await screen.findByRole('dialog', {}, ESPERA)
+
+    expect(within(dialogo).getByText(/II\.EE, GRADO, SUBPROGRAMA,\s+NOMBRES Y APELLIDOS y DNI/)).toBeInTheDocument()
+  })
 
   it('el modal muestra el ejemplo de fila fuera de la zona de soltar', async () => {
     montar(ROLES.SUPERVISOR)
@@ -300,5 +324,52 @@ describe('Importar nómina — flujo', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), ESPERA)
     expect(confirmar).not.toHaveBeenCalled()
+  })
+})
+
+describe('Importar nómina — pertenencia de los importados', () => {
+  const textoDe = (dialogo) => dialogo.textContent.replace(/\s+/g, ' ')
+
+  it('dice cuántos se importan con la pertenencia completa y cuántos quedan pendientes, y por qué', async () => {
+    vistaPrevia.mockResolvedValue({
+      ...PREVIA,
+      listos: 5,
+      pendientes: 3,
+      pendientes_por_motivo: [
+        { motivo: 'subprograma_vacio', cantidad: 2, detalle: 'La celda SUBPROGRAMA está vacía.' },
+        { motivo: 'seccion_por_elegir', cantidad: 1, detalle: 'Su grado tiene varias secciones: hay que elegirla.' },
+      ],
+    })
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('5 alumnos listos para importar', {}, ESPERA)
+    const texto = textoDe(dialogo)
+    expect(texto).toContain('2 alumnos se importarán activos, con su subprograma, su sección, su ciclo EBR y su pertenencia desde hoy.')
+    expect(texto).toContain('3 alumnos se importarán activos, con la pertenencia pendiente')
+    const motivos = within(dialogo).getByRole('list', { name: /por qué quedan pendientes/i })
+    expect(within(motivos).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '2: La celda SUBPROGRAMA está vacía.',
+      '1: Su grado tiene varias secciones: hay que elegirla.',
+    ])
+  })
+
+  it('si todos traen subprograma válido, no habla de pendientes', async () => {
+    vistaPrevia.mockResolvedValue({ ...PREVIA, pendientes: 0, pendientes_por_motivo: [] })
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('2 alumnos listos para importar', {}, ESPERA)
+    expect(textoDe(dialogo)).toContain('2 alumnos se importarán activos, con su subprograma')
+    expect(textoDe(dialogo)).not.toContain('pertenencia pendiente')
+  })
+
+  it('con un backend que no manda `pendientes`, todos quedan pendientes como antes', async () => {
+    montar()
+    const dialogo = await abrirYElegirArchivo()
+
+    await screen.findByText('2 alumnos listos para importar', {}, ESPERA)
+    expect(textoDe(dialogo)).toContain('2 alumnos se importarán activos, con la pertenencia pendiente')
+    expect(within(dialogo).queryByRole('list', { name: /por qué quedan pendientes/i })).not.toBeInTheDocument()
   })
 })

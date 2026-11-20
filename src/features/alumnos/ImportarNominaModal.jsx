@@ -11,6 +11,11 @@
 //      desde la vista previa (un colegio inactivado, un alumno creado por
 //      otra persona), lo rechaza con 409 y hay que empezar de nuevo.
 //
+// Con colegio, grado y subprograma válidos, el alumno se crea con su
+// pertenencia completa desde hoy (fecha del servidor en Lima); si no, con la
+// pertenencia pendiente. La vista previa dice cuántos quedan pendientes y por
+// qué (`pendientes_por_motivo`).
+//
 // El archivo viaja como CUERPO CRUDO, no `multipart/form-data` (ver
 // `api/resources/administracion.js`). El nombre y los demás datos van en el
 // query, no en un formulario.
@@ -30,6 +35,46 @@ const MAXIMO_MB = 5
 const idNuevo = nuevoUuid
 
 const TONO_OBSERVACION = { rechazo: 'danger', advertencia: 'warning', hoja_omitida: 'neutral' }
+
+/**
+ * Cuántos de los listos quedan con la pertenencia pendiente. Un backend sin la
+ * columna SUBPROGRAMA no manda `pendientes`: entonces lo son todos.
+ */
+const pendientesDe = (previa) => previa.pendientes ?? previa.listos
+
+/** Qué pasará con la pertenencia de los alumnos listos. */
+function ResumenPertenencia({ previa }) {
+  const pendientes = pendientesDe(previa)
+  const completos = previa.listos - pendientes
+  return (
+    <div className="flex flex-col gap-1 text-xs text-ink-500">
+      {completos > 0 && (
+        <p>
+          {completos} {completos === 1 ? 'alumno se importará' : 'alumnos se importarán'} activos, con su subprograma,
+          su sección, su ciclo EBR y su pertenencia desde hoy.
+        </p>
+      )}
+      {pendientes > 0 && (
+        <>
+          <p>
+            {pendientes} {pendientes === 1 ? 'alumno se importará' : 'alumnos se importarán'} activos, con la
+            pertenencia pendiente: sin sección, subprograma, ciclo EBR ni inicio de pertenencia. Podrás completar esos
+            datos después, desde la edición de cada alumno.
+          </p>
+          {(previa.pendientes_por_motivo ?? []).length > 0 && (
+            <ul className="list-disc pl-5" aria-label="Por qué quedan pendientes">
+              {previa.pendientes_por_motivo.map((p) => (
+                <li key={p.motivo}>
+                  {p.cantidad}: {p.detalle}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
 /** El texto final de éxito, con o sin filas que no entraron (CU014). */
 const textoDeExito = ({ importados, no_importadas: noImportadas }) =>
@@ -211,8 +256,8 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
         {paso === 'elegir' || paso === 'cargando' ? (
           <>
             <p className="text-sm text-ink-500">
-              Cada hoja del archivo corresponde a un colegio. Se importan solo las columnas II.EE, GRADO, NOMBRES Y
-              APELLIDOS y DNI. Los alumnos que ya estén registrados en el colegio no se importan de nuevo.
+              Cada hoja del archivo corresponde a un colegio. Se importan solo las columnas II.EE, GRADO, SUBPROGRAMA,
+              NOMBRES Y APELLIDOS y DNI. Los alumnos que ya estén registrados en el colegio no se importan de nuevo.
             </p>
             <input
               ref={inputRef}
@@ -262,7 +307,9 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
             </button>
             {/* Fuera del botón a propósito: así no entra en su nombre accesible. */}
             <p className="text-xs text-ink-400">
-              Ejemplo de fila: Amashca · 3° · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el colegio tal como figura en SICEDU y los nombres como APELLIDOS, Nombres.
+              Ejemplo de fila: Amashca · 3° · Comprensión Lectora · QUISPE MAMANI, Juan Carlos · 01234567. Escribe el
+              colegio tal como figura en SICEDU, elige el subprograma de la lista de la plantilla y escribe los nombres
+              como APELLIDOS, Nombres. Si dejas el subprograma vacío, el alumno queda con la pertenencia pendiente.
             </p>
             {!enLinea && <p className="text-xs text-warning-600">Sin conexión. Conéctate a Internet para continuar con la importación.</p>}
           </>
@@ -273,10 +320,7 @@ export default function ImportarNominaModal({ open, onClose, onImportado }) {
               {previa.con_advertencia > 0 && <Badge tone="warning">{previa.con_advertencia} filas con advertencia</Badge>}
               {previa.no_importadas > 0 && <Badge tone="danger">{previa.no_importadas} filas que no se importarán</Badge>}
             </div>
-            <p className="text-xs text-ink-500">
-              Los alumnos se importarán con estado activo, sin sección, subprograma, ciclo EBR ni inicio de
-              pertenencia. Podrás completar esos datos después, desde la edición de cada alumno.
-            </p>
+            {previa.listos > 0 && <ResumenPertenencia previa={previa} />}
 
             {previa.listos === 0 && (
               <p className="text-sm font-medium text-danger-600">No hay alumnos para importar en este archivo.</p>
