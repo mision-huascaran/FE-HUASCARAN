@@ -582,6 +582,19 @@ export const confirmarImportacion = (archivo, { idImportacion, huella, nombreArc
   })
 
 /**
+ * `GET /alumnos/importaciones/plantilla` — la plantilla de Excel de la nómina,
+ * como `Blob`. La genera el backend porque trae una lista desplegable con los
+ * subprogramas del catálogo en la columna SUBPROGRAMA, y SheetJS (la versión
+ * libre de `xlsx`) no sabe escribir validaciones de datos.
+ */
+export const obtenerPlantillaNomina = () =>
+  resolver({
+    mock: () => handlers.administracion.plantillaNomina(),
+    real: () => api.get(alumnos.importacionPlantilla, { responseType: 'blob' }),
+    forzarReal: adminContraApiReal,
+  })
+
+/**
  * `GET /alumnos/importaciones/{id}` — para cuando se perdió la respuesta de
  * confirmar: dice si de verdad se aplicó (200) o no (404), sin reenviar nada.
  */

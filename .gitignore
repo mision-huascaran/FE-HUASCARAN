@@ -29,3 +29,8 @@ trivy-reports/
 # Rediseño visual: recursos de partida y capturas de revisión.
 _recursos/
 _capturas/
+
+# Hojas de cálculo: la nómina real tiene datos personales de alumnos y no se sube.
+# Las pruebas generan sus propios .xlsx con datos inventados. Si algún día hace
+# falta versionar uno (p. ej. un fixture de E2E), exceptúalo con !ruta/al/archivo.xlsx.
+*.xlsx

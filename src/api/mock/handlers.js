@@ -3281,6 +3281,22 @@ export const handlers = {
       })
     },
 
+    /**
+     * La plantilla, sin el backend: los mismos encabezados, pero sin la lista
+     * desplegable de SUBPROGRAMA, que SheetJS no sabe escribir (la real la
+     * genera el backend con openpyxl).
+     */
+    plantillaNomina: async () => {
+      const XLSX = await import('xlsx')
+      const hoja = XLSX.utils.aoa_to_sheet([['II.EE', 'GRADO', 'SUBPROGRAMA', 'NOMBRES Y APELLIDOS', 'DNI']])
+      const libro = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(libro, hoja, 'Nombre del colegio')
+      const datos = XLSX.write(libro, { type: 'array', bookType: 'xlsx' })
+      const archivo = new Blob([datos], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      // Sin `responder`: su copia de los datos convierte el Blob en un objeto vacío.
+      return new Promise((resolver) => setTimeout(() => resolver(archivo), RETARDO_MS))
+    },
+
     confirmarImportacion: async ({ idImportacion, huella, nombreArchivo }) => {
       if (!idImportacion || !huella || !nombreArchivo) {
         throw errorMock(422, 'Faltan datos de la importación.', 'validacion')
